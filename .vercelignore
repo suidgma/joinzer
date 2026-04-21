@@ -1,4 +1,4 @@
 docs/
 memory/
-supabase/
+/supabase/
 *.jsonl
