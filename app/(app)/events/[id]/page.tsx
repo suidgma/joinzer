@@ -78,9 +78,16 @@ export default async function EventDetailPage({
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-5">
-      <Link href="/events" className="text-sm text-gray-500 hover:text-black">
-        ← Back to sessions
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/events" className="text-sm text-gray-500 hover:text-black">
+          ← Back to sessions
+        </Link>
+        {isCaptain && isActive && (
+          <Link href={`/events/${event.id}/edit`} className="text-sm text-gray-500 underline underline-offset-2">
+            Edit
+          </Link>
+        )}
+      </div>
 
       {/* Header */}
       <div className="space-y-1">

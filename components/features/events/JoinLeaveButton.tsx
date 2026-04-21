@@ -21,7 +21,8 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain }: P
     const supabase = createClient()
     const { error } = await supabase.rpc('join_event', { p_event_id: eventId })
     if (error) {
-      setError(error.message)
+      setError(error.message || 'Failed to join. Please try again.')
+      console.error('join_event error:', error)
     } else {
       router.refresh()
     }
