@@ -41,7 +41,7 @@ export default function LocationCombobox({ locations, value, onChange }: Props) 
 
   const displayValue =
     selected && !open
-      ? `${selected.name} (${selected.court_count} courts)`
+      ? selected.name
       : query
 
   return (
@@ -76,7 +76,6 @@ export default function LocationCombobox({ locations, value, onChange }: Props) 
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                 >
                   <span className="font-medium">{location.name}</span>
-                  <span className="text-gray-500"> ({location.court_count} courts)</span>
                   {location.subarea && (
                     <span className="text-gray-400"> · {location.subarea}</span>
                   )}
