@@ -9,8 +9,8 @@ export default async function EventsPage() {
   const { data } = await supabase
     .from('events')
     .select(`
-      id, title, starts_at, duration_minutes, max_players, status,
-      location:locations!location_id (name, court_count),
+      id, title, starts_at, duration_minutes, court_count, max_players, status,
+      location:locations!location_id (name),
       captain:profiles!captain_user_id (name),
       event_participants!event_id (participant_status)
     `)

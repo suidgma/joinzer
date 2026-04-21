@@ -19,9 +19,10 @@ export type EventListItem = {
   title: string
   starts_at: string
   duration_minutes: number
+  court_count: number
   max_players: number
   status: string
-  location: { name: string; court_count: number } | null
+  location: { name: string } | null
   captain: { name: string } | null
   event_participants: { participant_status: string }[]
 }

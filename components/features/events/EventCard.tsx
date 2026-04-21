@@ -26,9 +26,8 @@ export default function EventCard({ event }: { event: EventListItem }) {
         </div>
 
         <p className="text-sm text-gray-600">
-          {event.location
-            ? `${event.location.name} (${event.location.court_count} courts)`
-            : 'Location TBD'}
+          {event.location ? event.location.name : 'Location TBD'}
+          {event.court_count > 1 ? ` · ${event.court_count} courts` : ' · 1 court'}
         </p>
 
         <p className="text-sm text-gray-500">{formatEventTime(event.starts_at)}</p>
