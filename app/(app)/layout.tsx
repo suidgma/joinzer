@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import BottomNav from '@/components/features/BottomNav'
@@ -8,13 +9,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', user.id)
-    .single()
+  const pathname = headers().get('x-pathname') ?? ''
 
-  if (!profile) redirect('/profile/setup')
+  // Skip profile check on setup page to avoid infinite redirect loop
+  if (!pathname.includes('/profile/setup')) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile) redirect('/profile/setup')
+  }
 
   return (
     <div className="min-h-screen pb-16">
