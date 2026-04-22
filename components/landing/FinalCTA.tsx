@@ -3,47 +3,36 @@ import Image from 'next/image'
 
 export default function FinalCTA() {
   return (
-    <section className="py-20 md:py-28 bg-brand-dark relative overflow-hidden">
-      {/* Subtle radial accent */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at 80% 50%, #428609 0%, transparent 60%)' }}
-      />
-
-      <div className="relative max-w-3xl mx-auto px-4 text-center">
-        <div className="flex justify-center mb-8">
-          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
-            <Image src="/logo.png" alt="" width={52} height={52} className="object-contain" />
+    <section className="py-14 md:py-24 bg-white">
+      <div className="max-w-2xl mx-auto px-4 text-center">
+        <div className="flex justify-center mb-6">
+          <div className="w-14 h-14 rounded-full bg-brand-soft border border-brand-border flex items-center justify-center">
+            <Image src="/logo.png" alt="" width={36} height={36} className="object-contain" />
           </div>
         </div>
 
-        <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-5">
-          Ready to play?
-          <br />
-          <span className="text-brand">Join Joinzer today.</span>
+        <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark mb-3">
+          Ready to get on the court?
         </h2>
 
-        <p className="text-white/70 text-base md:text-lg max-w-xl mx-auto mb-10">
-          Create your free account in seconds. Find a game, build your community, and get on the court.
+        <p className="text-brand-muted text-sm sm:text-base max-w-md mx-auto mb-8">
+          Create your free account and start discovering local pickleball sessions near you.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
             href="/login"
-            className="bg-brand text-brand-dark font-semibold px-8 py-3.5 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-lg shadow-brand/30"
+            className="w-full sm:w-auto bg-brand text-brand-dark font-semibold px-8 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm"
           >
-            Create your free account
+            Create Free Account
           </Link>
           <Link
             href="/login"
-            className="bg-white/10 text-white font-semibold px-8 py-3.5 rounded-xl border border-white/20 hover:bg-white/20 transition-colors text-sm"
+            className="w-full sm:w-auto text-brand-dark font-semibold px-8 py-4 rounded-xl border border-brand-border hover:bg-brand-soft transition-colors text-sm"
           >
-            Sign in
+            Sign In
           </Link>
         </div>
-
-        <p className="mt-6 text-white/40 text-xs">No credit card. No app download. Just pickleball.</p>
       </div>
     </section>
   )

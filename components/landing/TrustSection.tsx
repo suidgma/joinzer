@@ -1,66 +1,60 @@
-const testimonials = [
-  {
-    quote: "Finally an easy way to find open play without digging through Facebook groups or group texts.",
-    name: "Alex R.",
-    detail: "4.1 DUPR · Henderson",
-  },
-  {
-    quote: "I created my first session in about 2 minutes. Had 8 players signed up by the next morning.",
-    name: "Maria T.",
-    detail: "Open play organizer · Summerlin",
-  },
-  {
-    quote: "The waitlist feature is clutch. Got bumped up to a joined spot the morning of a game I almost missed.",
-    name: "Derek N.",
-    detail: "3.7 DUPR · North Las Vegas",
-  },
-]
+import Link from 'next/link'
 
-const stats = [
-  { value: '65+', label: 'Courts listed in Las Vegas' },
-  { value: 'Free', label: 'Always free for players' },
-  { value: '1 tap', label: 'To join any open session' },
+const points = [
+  'Discover nearby places to play',
+  'Make session planning easier',
+  'Connect with players in your area',
 ]
 
 export default function TrustSection() {
   return (
-    <section className="py-20 md:py-28 bg-brand-page">
-      <div className="max-w-6xl mx-auto px-4">
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-4 md:gap-8 mb-20">
-          {stats.map((stat) => (
-            <div key={stat.label} className="text-center">
-              <p className="font-heading text-3xl md:text-4xl font-extrabold text-brand-dark">{stat.value}</p>
-              <p className="text-brand-muted text-xs md:text-sm mt-1">{stat.label}</p>
+    <section id="community" className="py-14 md:py-24 bg-brand-page">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
+
+          {/* Image — above text on mobile */}
+          <div className="w-full md:flex-shrink-0 md:max-w-lg order-1">
+            <div className="rounded-2xl overflow-hidden shadow-md aspect-[4/3]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/community.jpg.png"
+                alt="Local pickleball courts with players"
+                className="w-full h-full object-cover"
+              />
             </div>
-          ))}
-        </div>
+          </div>
 
-        <div className="text-center mb-12">
-          <p className="text-brand-active text-sm font-semibold uppercase tracking-widest mb-3">Community first</p>
-          <h2 className="font-heading text-3xl md:text-4xl font-extrabold text-brand-dark">
-            Built for Las Vegas pickleball players
-          </h2>
-          <p className="mt-3 text-brand-muted text-base max-w-lg mx-auto">
-            Designed to make organizing games easier, so you spend less time coordinating and more time playing.
-          </p>
-        </div>
+          {/* Text + CTA */}
+          <div className="flex-1 order-2">
+            <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark mb-4">
+              Built for real courts and real local play
+            </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {testimonials.map((t) => (
-            <div
-              key={t.name}
-              className="bg-white rounded-2xl border border-brand-border p-6 shadow-sm"
+            <p className="text-brand-muted text-sm sm:text-base leading-relaxed mb-6">
+              Joinzer is designed to make local pickleball more accessible — whether you&apos;re looking for a casual session, a nearby court, or new players to meet.
+            </p>
+
+            <ul className="space-y-3 mb-8">
+              {points.map((point) => (
+                <li key={point} className="flex items-center gap-3 text-sm text-brand-body">
+                  <span className="w-5 h-5 rounded-full bg-brand-soft border border-brand flex items-center justify-center shrink-0">
+                    <svg className="w-3 h-3 text-brand-active" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                  {point}
+                </li>
+              ))}
+            </ul>
+
+            <Link
+              href="/events"
+              className="inline-block w-full sm:w-auto text-center bg-brand text-brand-dark font-semibold px-7 py-4 rounded-xl hover:bg-brand-hover transition-colors text-sm"
             >
-              {/* Quote mark */}
-              <div className="text-brand text-4xl font-serif leading-none mb-3">&ldquo;</div>
-              <p className="text-brand-body text-sm leading-relaxed mb-5">{t.quote}</p>
-              <div>
-                <p className="font-heading font-semibold text-brand-dark text-sm">{t.name}</p>
-                <p className="text-brand-muted text-xs mt-0.5">{t.detail}</p>
-              </div>
-            </div>
-          ))}
+              Explore Local Games
+            </Link>
+          </div>
+
         </div>
       </div>
     </section>
