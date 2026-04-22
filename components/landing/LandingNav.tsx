@@ -22,7 +22,7 @@ export default function LandingNav() {
             <a href="#how-it-works" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">How It Works</a>
             <Link href="/events" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Find Games</Link>
             <a href="#community" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Courts</a>
-            <a href="#about" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">About</a>
+            <Link href="/about" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">About</Link>
           </nav>
 
           {/* Right buttons */}
@@ -64,7 +64,7 @@ export default function LandingNav() {
           <a href="#how-it-works" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">How It Works</a>
           <Link href="/events" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Find Games</Link>
           <a href="#community" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Courts</a>
-          <a href="#about" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">About</a>
+          <Link href="/about" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">About</Link>
           <div className="pt-2 space-y-2">
             <Link href="/login" className="block w-full text-center text-sm font-medium text-brand-dark border border-brand-border py-2.5 rounded-xl hover:bg-brand-soft transition-colors">Sign In</Link>
             <Link href="/login" className="block w-full text-center text-sm font-semibold bg-brand text-brand-dark py-2.5 rounded-xl hover:bg-brand-hover transition-colors">Create Free Account</Link>
