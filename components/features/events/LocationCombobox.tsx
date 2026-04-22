@@ -60,20 +60,20 @@ export default function LocationCombobox({ locations, value, onChange }: Props) 
         }}
         placeholder="Search locations…"
         autoComplete="off"
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+        className="w-full input"
       />
 
       {open && (
-        <ul className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
+        <ul className="absolute z-10 mt-1 w-full bg-brand-surface border border-brand-border rounded-xl shadow-lg max-h-60 overflow-auto">
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-gray-400">No locations found</li>
+            <li className="px-3 py-2 text-sm text-brand-muted">No locations found</li>
           ) : (
             filtered.map((location) => (
               <li key={location.id}>
                 <button
                   type="button"
                   onMouseDown={() => handleSelect(location)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                  className="w-full text-left px-3 py-2 text-sm text-brand-body hover:bg-brand-soft transition-colors"
                 >
                   <span className="font-medium">{location.name}</span>
                   {location.subarea && (

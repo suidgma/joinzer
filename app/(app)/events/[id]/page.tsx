@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { formatEventDate, formatEventTime } from '@/lib/utils/date'
+import { formatEventDate, formatEventTime, formatDuration } from '@/lib/utils/date'
 import JoinLeaveButton from '@/components/features/events/JoinLeaveButton'
 import AssignCaptainButton from '@/components/features/events/AssignCaptainButton'
 import EventChat from '@/components/features/events/EventChat'
@@ -28,7 +28,7 @@ export default async function EventDetailPage({
         .from('events')
         .select(`
           id, title, starts_at, duration_minutes, court_count, players_per_court,
-          max_players, status, notes, creator_user_id, captain_user_id, location_id,
+          max_players, status, notes, min_skill_level, max_skill_level, creator_user_id, captain_user_id, location_id,
           location:locations!location_id (name, court_count, subarea, access_type),
           captain:profiles!captain_user_id (name),
           event_participants!event_id (
@@ -70,7 +70,7 @@ export default async function EventDetailPage({
   const isActive = event.status !== 'cancelled' && event.status !== 'completed'
 
   const statusColors: Record<string, string> = {
-    open: 'bg-green-100 text-green-700',
+    open: 'bg-brand-soft text-brand-active',
     full: 'bg-red-100 text-red-700',
     cancelled: 'bg-gray-100 text-gray-500',
     completed: 'bg-gray-100 text-gray-500',
@@ -79,58 +79,54 @@ export default async function EventDetailPage({
   return (
     <main className="max-w-lg mx-auto p-4 space-y-5">
       <div className="flex items-center justify-between">
-        <Link href="/events" className="text-sm text-gray-500 hover:text-black">
-          ← Back to sessions
+        <Link href="/events" className="text-sm text-brand-muted hover:text-brand-dark">
+          ← Back
         </Link>
         {isCaptain && isActive && (
-          <Link href={`/events/${event.id}/edit`} className="text-sm text-gray-500 underline underline-offset-2">
+          <Link href={`/events/${event.id}/edit`} className="text-sm text-brand-active font-medium underline underline-offset-2">
             Edit
           </Link>
         )}
       </div>
 
-      {/* Header */}
-      <div className="space-y-1">
+      {/* Header card */}
+      <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <h1 className="text-xl font-bold leading-tight">{event.title}</h1>
-          <span
-            className={`shrink-0 text-xs px-2 py-1 rounded-full font-medium ${
-              statusColors[event.status] ?? 'bg-gray-100 text-gray-500'
-            }`}
-          >
+          <h1 className="font-heading text-xl font-bold text-brand-dark leading-tight">{event.title}</h1>
+          <span className={`shrink-0 text-xs px-2 py-1 rounded-full font-medium ${statusColors[event.status] ?? 'bg-gray-100 text-gray-500'}`}>
             {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
           </span>
         </div>
 
         {event.location && (
-          <p className="text-gray-600">
-            {event.location.name} · {event.location.court_count} courts
+          <p className="text-sm text-brand-muted">
+            {event.location.name} · {event.court_count} {event.court_count === 1 ? 'court' : 'courts'}
             {event.location.subarea && ` · ${event.location.subarea}`}
           </p>
         )}
 
-        <p className="text-gray-600">{formatEventDate(event.starts_at)}</p>
-        <p className="text-sm text-gray-500">
-          {formatEventTime(event.starts_at)} · {event.duration_minutes} min
+        <p className="text-sm text-brand-muted">{formatEventDate(event.starts_at)}</p>
+        <p className="text-sm text-brand-muted">
+          {formatEventTime(event.starts_at)} · {formatDuration(event.duration_minutes)}
         </p>
-      </div>
-
-      {/* Captain */}
-      <div className="text-sm">
-        <span className="text-gray-500">Captain: </span>
-        <span className="font-medium">{event.captain?.name ?? 'Unknown'}</span>
-      </div>
-
-      {/* Capacity */}
-      <div className="text-sm">
-        <span className="font-semibold">
-          {joinedParticipants.length} / {event.max_players} players joined
-        </span>
-        {waitlistParticipants.length > 0 && (
-          <span className="text-gray-500 ml-2">
-            · {waitlistParticipants.length} on waitlist
-          </span>
+        {(event.min_skill_level != null || event.max_skill_level != null) && (
+          <p className="text-sm text-brand-muted">
+            Skill:{' '}
+            {event.min_skill_level != null ? event.min_skill_level.toFixed(1) : '2.0'}
+            {' – '}
+            {event.max_skill_level != null ? event.max_skill_level.toFixed(1) : 'any'}
+          </p>
         )}
+
+        <div className="pt-2 border-t border-brand-border flex items-center justify-between text-sm">
+          <span className="text-brand-muted">Captain: <span className="text-brand-dark font-medium">{event.captain?.name ?? 'Unknown'}</span></span>
+          <span className="font-semibold text-brand-dark">
+            {joinedParticipants.length} / {event.max_players} players
+            {waitlistParticipants.length > 0 && (
+              <span className="text-brand-muted font-normal ml-1">· {waitlistParticipants.length} waitlist</span>
+            )}
+          </span>
+        </div>
       </div>
 
       {/* Join / Leave */}
@@ -153,23 +149,23 @@ export default async function EventDetailPage({
 
       {/* Notes */}
       {event.notes && (
-        <div className="border rounded-lg p-3 text-sm text-gray-700 bg-gray-50 whitespace-pre-wrap">
+        <div className="bg-brand-soft border border-brand-border rounded-xl p-3 text-sm text-brand-muted whitespace-pre-wrap">
           {event.notes}
         </div>
       )}
 
       {/* Players list */}
       {joinedParticipants.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold">
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
+          <h2 className="font-heading text-sm font-semibold text-brand-dark">
             Players ({joinedParticipants.length})
           </h2>
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {joinedParticipants.map((p) => (
-              <li key={p.id} className="text-sm flex items-center gap-2">
+              <li key={p.id} className="text-sm flex items-center gap-2 text-brand-body">
                 <span>{p.profile?.name ?? 'Unknown'}</span>
                 {p.user_id === event.captain_user_id && (
-                  <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                  <span className="text-xs text-brand-active bg-brand-soft px-1.5 py-0.5 rounded-full font-medium">
                     Captain
                   </span>
                 )}
@@ -181,13 +177,13 @@ export default async function EventDetailPage({
 
       {/* Waitlist */}
       {waitlistParticipants.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold">
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
+          <h2 className="font-heading text-sm font-semibold text-brand-dark">
             Waitlist ({waitlistParticipants.length})
           </h2>
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {waitlistParticipants.map((p, idx) => (
-              <li key={p.id} className="text-sm text-gray-500">
+              <li key={p.id} className="text-sm text-brand-muted">
                 #{idx + 1} {p.profile?.name ?? 'Unknown'}
               </li>
             ))}

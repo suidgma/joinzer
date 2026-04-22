@@ -24,41 +24,39 @@ export default async function ProfilePage() {
       : null
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-6">
+    <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Profile</h1>
-        <Link href="/profile/edit" className="text-sm text-gray-500 underline underline-offset-2">
+        <h1 className="font-heading text-xl font-bold text-brand-dark">Profile</h1>
+        <Link href="/profile/edit" className="text-sm text-brand-active font-medium underline underline-offset-2">
           Edit
         </Link>
       </div>
 
-      <div className="space-y-4">
-        <div className="border rounded-xl p-4 space-y-3">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Name</p>
-            <p className="font-medium">{profile.name}</p>
-          </div>
-
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Email</p>
-            <p className="text-sm text-gray-700">{profile.email ?? user.email}</p>
-          </div>
-
-          {profile.phone && (
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Phone</p>
-              <p className="text-sm text-gray-700">{profile.phone}</p>
-            </div>
-          )}
-
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Rating</p>
-            <p className="text-sm text-gray-700">{ratingDisplay ?? 'Not set'}</p>
-          </div>
+      <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
+        <div>
+          <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Name</p>
+          <p className="font-medium text-brand-dark">{profile.name}</p>
         </div>
 
-        <SignOutButton />
+        <div>
+          <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Email</p>
+          <p className="text-sm text-brand-body">{profile.email ?? user.email}</p>
+        </div>
+
+        {profile.phone && (
+          <div>
+            <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Phone</p>
+            <p className="text-sm text-brand-body">{profile.phone}</p>
+          </div>
+        )}
+
+        <div>
+          <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Rating</p>
+          <p className="text-sm text-brand-body">{ratingDisplay ?? 'Not set'}</p>
+        </div>
       </div>
+
+      <SignOutButton />
     </main>
   )
 }
@@ -68,7 +66,7 @@ function SignOutButton() {
     <form action="/auth/signout" method="post">
       <button
         type="submit"
-        className="w-full border border-gray-200 rounded-lg py-2 text-sm text-gray-500 hover:bg-gray-50"
+        className="w-full bg-brand-surface border border-brand-border text-brand-muted rounded-xl py-2.5 text-sm font-medium hover:bg-brand-soft transition-colors"
       >
         Sign out
       </button>

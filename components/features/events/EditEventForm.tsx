@@ -120,6 +120,10 @@ export default function EditEventForm({ event }: Props) {
           <option value={120}>2 hours</option>
           <option value={180}>3 hours</option>
           <option value={240}>4 hours</option>
+          <option value={300}>5 hours</option>
+          <option value={360}>6 hours</option>
+          <option value={420}>7 hours</option>
+          <option value={480}>8 hours</option>
         </select>
       </div>
 

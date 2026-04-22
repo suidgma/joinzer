@@ -16,11 +16,12 @@ security definer
 set search_path = public
 as $$
 declare
-  v_user_id       uuid := auth.uid();
-  v_event         record;
-  v_joined_count  int;
-  v_new_status    text;
-  v_existing      record;
+  v_user_id         uuid := auth.uid();
+  v_event           record;
+  v_joined_count    int;
+  v_new_status      text;
+  v_existing        record;
+  v_has_existing    boolean := false;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -46,7 +47,10 @@ begin
   from event_participants
   where event_id = p_event_id and user_id = v_user_id;
 
-  if found and v_existing.participant_status in ('joined', 'waitlist') then
+  -- Capture FOUND before any subsequent query overwrites it
+  v_has_existing := found;
+
+  if v_has_existing and v_existing.participant_status in ('joined', 'waitlist') then
     raise exception 'Already joined or on waitlist';
   end if;
 
@@ -64,7 +68,7 @@ begin
     v_new_status := 'waitlist';
   end if;
 
-  if found then
+  if v_has_existing then
     -- Re-joining after a previous leave: update the existing row
     update event_participants
     set participant_status = v_new_status,

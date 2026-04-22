@@ -7,6 +7,9 @@ import { createClient } from '@/lib/supabase/client'
 
 type Mode = 'signin' | 'signup'
 
+const inputClass = 'w-full input'
+const labelClass = 'block text-sm font-medium text-brand-dark mb-1'
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
@@ -62,107 +65,103 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
+    <main className="min-h-screen bg-brand-page flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Joinzer</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Find and join local pickleball sessions
-          </p>
+        <div className="text-center space-y-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Joinzer" className="w-16 h-16 object-contain mx-auto" />
+          <h1 className="font-heading text-2xl font-bold text-brand-dark">Joinzer</h1>
+          <p className="text-sm text-brand-muted">Find and join local pickleball sessions</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={6}
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-            />
-          </div>
-
-          {mode === 'signup' && (
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
-                Confirm password
-              </label>
+              <label htmlFor="email" className={labelClass}>Email</label>
               <input
-                id="confirmPassword"
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className={labelClass}>Password</label>
+              <input
+                id="password"
                 type="password"
                 required
                 minLength={6}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className={inputClass}
               />
+            </div>
+
+            {mode === 'signup' && (
+              <div>
+                <label htmlFor="confirmPassword" className={labelClass}>Confirm password</label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputClass}
+                />
+              </div>
+            )}
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-brand text-brand-dark rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-hover active:bg-brand-active disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+            </button>
+          </form>
+
+          {mode === 'signin' && (
+            <div className="text-center">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-brand-muted hover:text-brand-dark underline underline-offset-2"
+              >
+                Forgot password?
+              </Link>
             </div>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-black text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-          >
-            {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
-          </button>
-        </form>
-
-        {mode === 'signin' && (
-          <div className="text-center">
-            <Link
-              href="/forgot-password"
-              className="text-sm text-gray-500 hover:text-black underline underline-offset-2"
-            >
-              Forgot password?
-            </Link>
-          </div>
-        )}
-
-        <p className="text-center text-sm text-gray-500">
-          {mode === 'signin' ? (
-            <>
-              No account?{' '}
-              <button onClick={toggleMode} className="text-black underline underline-offset-2">
-                Create one
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{' '}
-              <button onClick={toggleMode} className="text-black underline underline-offset-2">
-                Sign in
-              </button>
-            </>
-          )}
-        </p>
+          <p className="text-center text-sm text-brand-muted">
+            {mode === 'signin' ? (
+              <>
+                No account?{' '}
+                <button onClick={toggleMode} className="text-brand-dark font-medium underline underline-offset-2">
+                  Create one
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{' '}
+                <button onClick={toggleMode} className="text-brand-dark font-medium underline underline-offset-2">
+                  Sign in
+                </button>
+              </>
+            )}
+          </p>
+        </div>
       </div>
     </main>
   )

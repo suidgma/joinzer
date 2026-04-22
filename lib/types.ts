@@ -22,7 +22,10 @@ export type EventListItem = {
   court_count: number
   max_players: number
   status: string
-  location: { name: string } | null
+  min_skill_level: number | null
+  max_skill_level: number | null
+  location_id: string
+  location: { name: string; court_count: number } | null
   captain: { name: string } | null
   event_participants: { participant_status: string }[]
 }
@@ -37,6 +40,8 @@ export type EventDetail = {
   max_players: number
   status: string
   notes: string | null
+  min_skill_level: number | null
+  max_skill_level: number | null
   creator_user_id: string
   captain_user_id: string
   location_id: string

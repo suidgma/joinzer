@@ -46,14 +46,14 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain }: P
     return (
       <div className="space-y-2">
         {isCaptain && (
-          <p className="text-xs text-gray-500">
-            You&apos;re the captain. Leaving while others are joined requires reassigning first.
+          <p className="text-xs text-brand-muted">
+            You're the captain. Leaving while others are joined requires reassigning first.
           </p>
         )}
         <button
           onClick={handleLeave}
           disabled={loading}
-          className="w-full border border-red-300 text-red-600 rounded-lg py-2 text-sm font-medium disabled:opacity-50 hover:bg-red-50"
+          className="w-full border border-red-200 text-red-600 bg-brand-surface rounded-xl py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-red-50 transition-colors"
         >
           {loading ? 'Leaving…' : 'Leave session'}
         </button>
@@ -65,13 +65,13 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain }: P
   if (currentStatus === 'waitlist') {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-gray-500">
-          You&apos;re on the waitlist. You&apos;ll be promoted automatically if a spot opens.
+        <p className="text-sm text-brand-muted bg-brand-soft border border-brand-border rounded-xl px-3 py-2">
+          You're on the waitlist. You'll be promoted automatically if a spot opens.
         </p>
         <button
           onClick={handleLeave}
           disabled={loading}
-          className="w-full border rounded-lg py-2 text-sm font-medium disabled:opacity-50 hover:bg-gray-50"
+          className="w-full border border-brand-border bg-brand-surface text-brand-muted rounded-xl py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-brand-soft transition-colors"
         >
           {loading ? 'Leaving…' : 'Leave waitlist'}
         </button>
@@ -85,7 +85,7 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain }: P
       <button
         onClick={handleJoin}
         disabled={loading}
-        className="w-full bg-black text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+        className="w-full bg-brand text-brand-dark rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-hover active:bg-brand-active disabled:opacity-50 transition-colors"
       >
         {loading ? 'Joining…' : 'Join session'}
       </button>

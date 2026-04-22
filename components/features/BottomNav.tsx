@@ -50,7 +50,8 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t flex">
+    <nav className="fixed bottom-0 left-0 right-0 bg-brand-surface border-t border-brand-border">
+      <div className="max-w-lg mx-auto flex">
       {tabs.map((tab) => {
         const active = pathname.startsWith(tab.href)
         return (
@@ -58,7 +59,7 @@ export default function BottomNav() {
             key={tab.href}
             href={tab.href}
             className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors ${
-              active ? 'text-black' : 'text-gray-400'
+              active ? 'text-brand-dark' : 'text-brand-muted'
             }`}
           >
             {tab.icon(active)}
@@ -66,6 +67,7 @@ export default function BottomNav() {
           </Link>
         )
       })}
+      </div>
     </nav>
   )
 }

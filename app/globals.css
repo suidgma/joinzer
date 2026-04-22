@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #F5F7F2;
+    color: #1F2A1C;
+  }
+
+  h1, h2, h3 {
+    color: #012D0B;
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full border border-gray-200 bg-white rounded-xl px-3 py-2.5 text-sm text-brand-body placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand transition-colors;
+  }
+  .input-sm {
+    @apply border border-gray-200 bg-white rounded-xl px-3 py-1.5 text-xs text-brand-body placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand transition-colors;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}

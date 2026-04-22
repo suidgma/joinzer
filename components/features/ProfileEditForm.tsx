@@ -75,7 +75,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full input"
         />
       </div>
 
@@ -89,7 +89,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="702-555-0100"
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full input"
         />
       </div>
 
@@ -103,7 +103,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
             value="dupr_known"
             checked={ratingSource === 'dupr_known'}
             onChange={() => setRatingSource('dupr_known')}
-            className="accent-black"
+            className="accent-brand-active"
           />
           <span className="text-sm">I know my DUPR</span>
         </label>
@@ -113,11 +113,11 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
             type="number"
             step="0.01"
             min="2"
-            max="6.5"
+            max="8"
             value={duprRating}
             onChange={(e) => setDuprRating(e.target.value)}
             placeholder="e.g. 3.72"
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black ml-6"
+            className="input ml-6"
           />
         )}
 
@@ -128,7 +128,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
             value="estimated"
             checked={ratingSource === 'estimated'}
             onChange={() => setRatingSource('estimated')}
-            className="accent-black"
+            className="accent-brand-active"
           />
           <span className="text-sm">Estimated rating</span>
         </label>
@@ -136,13 +136,13 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
         {ratingSource === 'estimated' && (
           <input
             type="number"
-            step="0.5"
-            min="1"
-            max="6.5"
+            step="0.1"
+            min="2"
+            max="8"
             value={estimatedRating}
             onChange={(e) => setEstimatedRating(e.target.value)}
             placeholder="e.g. 3.5"
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black ml-6"
+            className="input ml-6"
           />
         )}
 
@@ -153,7 +153,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
             value="skipped"
             checked={ratingSource === 'skipped'}
             onChange={() => setRatingSource('skipped')}
-            className="accent-black"
+            className="accent-brand-active"
           />
           <span className="text-sm">Prefer not to say</span>
         </label>
@@ -164,7 +164,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
       <button
         type="submit"
         disabled={loading || !name.trim()}
-        className="w-full bg-black text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+        className="w-full bg-brand text-brand-dark rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-hover active:bg-brand-active disabled:opacity-50 transition-colors"
       >
         {loading ? 'Saving…' : 'Save changes'}
       </button>
