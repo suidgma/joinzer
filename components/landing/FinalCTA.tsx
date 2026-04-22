@@ -6,8 +6,13 @@ export default function FinalCTA() {
     <section className="py-14 md:py-24 bg-white">
       <div className="max-w-2xl mx-auto px-4 text-center">
         <div className="flex justify-center mb-6">
-          <div className="w-14 h-14 rounded-full bg-brand-soft border border-brand-border flex items-center justify-center">
-            <Image src="/logo.png" alt="" width={36} height={36} className="object-contain" />
+          <div className="relative w-24 h-24 rounded-full bg-brand-soft border-2 border-brand flex items-center justify-center shadow-md">
+            {/* Soft glow ring */}
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{ boxShadow: '0 0 24px 4px rgba(143,201,25,0.22)' }}
+            />
+            <Image src="/logo.png" alt="Joinzer" width={64} height={64} className="object-contain relative" />
           </div>
         </div>
 

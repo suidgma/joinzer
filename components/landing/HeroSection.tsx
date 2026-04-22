@@ -93,13 +93,13 @@ export default function HeroSection() {
                   style={{
                     width: '80%',
                     height: '60%',
-                    background: 'radial-gradient(ellipse at center bottom, rgba(143,201,25,0.25) 0%, transparent 70%)',
+                    background: 'radial-gradient(ellipse at center bottom, rgba(143,201,25,0.32) 0%, transparent 70%)',
                     pointerEvents: 'none',
                   }}
                 />
 
                 {/* Mascot — crisp, slightly lower/off-center for designed feel */}
-                <div className="relative w-52 h-52 sm:w-64 sm:h-64 md:w-[22rem] md:h-[22rem] ml-4">
+                <div className="relative w-60 h-60 sm:w-72 sm:h-72 md:w-[26rem] md:h-[26rem] ml-4">
                   <Image
                     src="/logo.png"
                     alt="Joinzer mascot"

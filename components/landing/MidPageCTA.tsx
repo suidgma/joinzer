@@ -9,9 +9,23 @@ export default function MidPageCTA() {
           src="/images/accent-bg.jpg.png"
           alt=""
           aria-hidden="true"
-          className="w-full h-full object-cover opacity-10"
+          className="w-full h-full object-cover opacity-15"
         />
         <div className="absolute inset-0 bg-brand-dark/70" />
+        {/* Branded radial glow — centered, brand green/yellow */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(143,201,25,0.18) 0%, rgba(143,201,25,0.06) 45%, transparent 70%)',
+          }}
+        />
+        {/* Secondary warm glow bottom-left for depth */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse 50% 50% at 15% 85%, rgba(190,230,50,0.10) 0%, transparent 60%)',
+          }}
+        />
       </div>
 
       <div className="relative max-w-2xl mx-auto px-4 sm:px-6 text-center">
