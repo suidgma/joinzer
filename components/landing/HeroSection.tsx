@@ -51,34 +51,55 @@ export default function HeroSection() {
             </p>
 
             {/* Trust strip */}
-            <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-2">
-              {trustItems.map((item, i) => (
+            <div className="flex flex-wrap justify-center md:justify-start gap-x-5 gap-y-2">
+              {trustItems.map((item) => (
                 <div key={item.label} className="flex items-center gap-1.5 text-xs text-brand-muted">
-                  {i > 0 && <span className="hidden sm:inline text-brand-border mr-4">·</span>}
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand inline-block" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand inline-block shrink-0" />
                   {item.label}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Right: hero visual — stronger, more deliberate */}
+          {/* Right: three-layer hero panel */}
           <div className="flex-shrink-0 relative order-2 w-full max-w-xs sm:max-w-sm md:max-w-lg mx-auto md:mx-0">
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-brand-border/60 bg-gradient-to-br from-brand-soft via-white to-brand-soft/40">
-              {/* Background image — more visible */}
+            <div
+              className="relative rounded-3xl overflow-hidden shadow-2xl"
+              style={{ border: '1.5px solid rgba(143,201,25,0.25)' }}
+            >
+              {/* Layer 1: blurred pickleball photo — atmosphere only */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/hero-bg.jpg.png"
                 alt=""
                 aria-hidden="true"
-                className="absolute inset-0 w-full h-full object-cover opacity-35 blur-[2px]"
+                className="absolute inset-0 w-full h-full object-cover opacity-20"
+                style={{ filter: 'blur(6px) saturate(0.7) brightness(0.9)' }}
               />
-              {/* Subtle green-tinted overlay */}
-              <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-transparent to-brand-dark/5" />
 
-              {/* Mascot — larger, no washed-out circle */}
-              <div className="relative flex items-center justify-center py-10 px-8">
-                <div className="relative w-56 h-56 sm:w-64 sm:h-64 md:w-96 md:h-96">
+              {/* Layer 2: branded green gradient wash */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(238,246,227,0.85) 0%, rgba(255,255,255,0.6) 50%, rgba(143,201,25,0.12) 100%)',
+                }}
+              />
+
+              {/* Layer 3: mascot with radial glow behind it */}
+              <div className="relative flex items-end justify-center pt-8 pb-4 px-8">
+                {/* Radial glow — anchors the mascot */}
+                <div
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2"
+                  style={{
+                    width: '80%',
+                    height: '60%',
+                    background: 'radial-gradient(ellipse at center bottom, rgba(143,201,25,0.25) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+
+                {/* Mascot — crisp, slightly lower/off-center for designed feel */}
+                <div className="relative w-52 h-52 sm:w-64 sm:h-64 md:w-[22rem] md:h-[22rem] ml-4">
                   <Image
                     src="/logo.png"
                     alt="Joinzer mascot"
