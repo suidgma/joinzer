@@ -17,13 +17,13 @@ export default function AboutPage() {
 
         <div className="space-y-5 text-brand-body text-base leading-relaxed">
           <p>
-            Joinzer is a mobile-first coordination platform built for pickleball players who want a simpler way to find, join, and organize local sessions.
+            Marty Suidgeest created Joinzer after running into a frustrating problem familiar to many pickleball players: sometimes you&apos;re ready to play, but you can&apos;t find three other available players — especially players around your same skill level.
           </p>
           <p>
-            We started with Las Vegas — one of the fastest-growing pickleball communities in the country — because we saw how much time players were wasting trying to coordinate through group texts, Facebook groups, and word of mouth.
+            Instead of relying on scattered group texts, Facebook posts, and last-minute messages, Marty built Joinzer to give local pickleballers a simpler way to find games, connect with compatible players, and organize sessions with ease.
           </p>
           <p>
-            Joinzer brings it all into one place: a clean feed of upcoming sessions, one-tap joining, automatic waitlist management, built-in group chat, and the tools captains need to run a session smoothly.
+            Starting in Las Vegas, Joinzer was designed to bring everything into one place: upcoming sessions, easy joining, automatic waitlists, built-in group chat, and useful tools for session organizers.
           </p>
           <p>
             It&apos;s free to use. No app download required. Just pickleball.
