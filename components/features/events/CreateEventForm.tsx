@@ -89,6 +89,20 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
       return
     }
 
+    // Fire confirmation email — non-blocking, don't fail the flow if it errors
+    fetch('/api/send-session-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventId: event.id,
+        title: title.trim(),
+        locationName: locations.find((l) => l.id === locationId)?.name ?? '',
+        startsAt,
+        durationMinutes,
+        maxPlayers,
+      }),
+    }).catch(() => {})
+
     router.push(`/events/${event.id}`)
   }
 
