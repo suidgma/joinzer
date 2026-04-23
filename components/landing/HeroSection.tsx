@@ -20,7 +20,7 @@ export default function HeroSection() {
             </p>
 
             <h1 className="font-heading text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-brand-dark leading-tight mb-4">
-              Find and join Vegas area{' '}
+              Find and join<br />Vegas area<br />
               <span className="text-brand">pickleball sessions</span>
             </h1>
 
