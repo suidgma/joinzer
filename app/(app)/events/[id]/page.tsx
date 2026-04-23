@@ -114,7 +114,7 @@ export default async function EventDetailPage({
             Skill:{' '}
             {event.min_skill_level != null ? event.min_skill_level.toFixed(1) : '2.0'}
             {' – '}
-            {event.max_skill_level != null ? event.max_skill_level.toFixed(1) : 'any'}
+            {event.max_skill_level != null ? event.max_skill_level.toFixed(1) : '& up'}
           </p>
         )}
 
