@@ -9,7 +9,16 @@ import MidPageCTA from '@/components/landing/MidPageCTA'
 import FinalCTA from '@/components/landing/FinalCTA'
 import LandingFooter from '@/components/landing/LandingFooter'
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: { code?: string; error?: string }
+}) {
+  // Supabase password reset emails land here with ?code= — forward to reset page
+  if (searchParams.code) {
+    redirect(`/reset-password?code=${searchParams.code}`)
+  }
+
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
