@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const inputClass = 'w-full input'
@@ -11,7 +11,23 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [ready, setReady] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Exchange the code from the email link for a session before showing the form
+  useEffect(() => {
+    const code = searchParams.get('code')
+    if (!code) {
+      setReady(true)
+      return
+    }
+    const supabase = createClient()
+    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+      if (error) setError('Reset link is invalid or expired. Please request a new one.')
+      setReady(true)
+    })
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -47,51 +63,55 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-brand-dark mb-1">
-                New password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className={inputClass}
-              />
-            </div>
+          {!ready ? (
+            <p className="text-sm text-brand-muted text-center">Verifying link…</p>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-brand-dark mb-1">
+                  New password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputClass}
+                />
+              </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-brand-dark mb-1">
-                Confirm new password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                required
-                minLength={6}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                className={inputClass}
-              />
-            </div>
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-brand-dark mb-1">
+                  Confirm new password
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputClass}
+                />
+              </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-brand text-brand-dark rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Saving…' : 'Set new password'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-brand text-brand-dark rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Saving…' : 'Set new password'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </main>
