@@ -24,7 +24,8 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
   const [error, setError] = useState<string | null>(null)
 
   const maxPlayers = courtCount * playersPerCourt
-  const todayStr = new Date().toISOString().split('T')[0]
+  // Use Vegas local date so evening sessions aren't blocked by UTC rollover
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
