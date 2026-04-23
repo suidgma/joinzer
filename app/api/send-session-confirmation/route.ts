@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
   const { error } = await resend.emails.send({
     from: 'Joinzer <support@joinzer.com>',
     to: user.email,
+    reply_to: 'martyfit50@gmail.com',
     subject: `Session created: ${title}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
