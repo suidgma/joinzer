@@ -16,6 +16,7 @@ export default function ProfileSetupPage() {
   const [ratingSource, setRatingSource] = useState<RatingSource | null>(null)
   const [duprRating, setDuprRating] = useState('')
   const [estimatedRating, setEstimatedRating] = useState('')
+  const [notifyNewSessions, setNotifyNewSessions] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -51,6 +52,7 @@ export default function ProfileSetupPage() {
       name: name.trim(),
       email: user.email,
       phone: phone.trim() || null,
+      notify_new_sessions: notifyNewSessions,
       rating_source: ratingSource,
       dupr_rating:
         ratingSource === 'dupr_known' && duprRating
@@ -179,6 +181,18 @@ export default function ProfileSetupPage() {
                 <span className="text-sm text-brand-body">Skip for now</span>
               </label>
             </fieldset>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={notifyNewSessions}
+                onChange={(e) => setNotifyNewSessions(e.target.checked)}
+                className="mt-0.5 accent-brand-active"
+              />
+              <span className="text-sm text-brand-body">
+                Notify me by email when new sessions are posted
+              </span>
+            </label>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 

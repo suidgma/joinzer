@@ -13,6 +13,7 @@ type Profile = {
   rating_source: string | null
   dupr_rating: number | null
   estimated_rating: number | null
+  notify_new_sessions: boolean
 }
 
 export default function ProfileEditForm({ profile }: { profile: Profile }) {
@@ -28,6 +29,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
   const [estimatedRating, setEstimatedRating] = useState(
     profile.estimated_rating?.toString() ?? ''
   )
+  const [notifyNewSessions, setNotifyNewSessions] = useState(profile.notify_new_sessions)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,6 +53,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
           ratingSource === 'estimated' && estimatedRating
             ? parseFloat(estimatedRating)
             : null,
+        notify_new_sessions: notifyNewSessions,
       })
       .eq('id', profile.id)
 
@@ -158,6 +161,18 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
           <span className="text-sm">Prefer not to say</span>
         </label>
       </fieldset>
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={notifyNewSessions}
+          onChange={(e) => setNotifyNewSessions(e.target.checked)}
+          className="mt-0.5 accent-brand-active"
+        />
+        <span className="text-sm text-brand-body">
+          Notify me by email when new sessions are posted
+        </span>
+      </label>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
