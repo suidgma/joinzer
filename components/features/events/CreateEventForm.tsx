@@ -119,32 +119,31 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Date <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            required
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            min={todayStr}
-            className="w-full input"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Start time <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="time"
-            required
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className="w-full input"
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Date <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="date"
+          required
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          min={todayStr}
+          className="w-full input"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Start time <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="time"
+          required
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="w-full input"
+        />
       </div>
 
       <div>
