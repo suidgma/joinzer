@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     .map((p) => ({
       from: 'Joinzer <support@joinzer.com>',
       to: p.email as string,
-      reply_to: 'martyfit50@gmail.com',
+      replyTo: 'martyfit50@gmail.com',
       subject: `New session: ${title}`,
       html: `
         <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
