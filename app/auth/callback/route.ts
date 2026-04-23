@@ -5,11 +5,9 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const tokenHash = searchParams.get('token_hash')
+  const type = searchParams.get('type')
   const next = searchParams.get('next')
-
-  if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=missing_code`)
-  }
 
   const cookieStore = cookies()
   const supabase = createServerClient(
@@ -29,9 +27,30 @@ export async function GET(request: NextRequest) {
     }
   )
 
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-  if (exchangeError) {
-    return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+  // Password reset emails use token_hash + type=recovery (not code)
+  if (tokenHash && type) {
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: type as 'recovery' | 'email' | 'signup' | 'invite' | 'magiclink' | 'email_change',
+    })
+    if (error) {
+      return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+    }
+    if (type === 'recovery') {
+      return NextResponse.redirect(`${origin}/reset-password`)
+    }
+  }
+
+  // OAuth and magic link use code
+  if (code) {
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    if (exchangeError) {
+      return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+    }
+  }
+
+  if (!code && !tokenHash) {
+    return NextResponse.redirect(`${origin}/login?error=missing_code`)
   }
 
   const { data: { user } } = await supabase.auth.getUser()
