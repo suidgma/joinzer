@@ -64,7 +64,7 @@ export default async function EventsPage({
     query = query.eq('location_id', locationFilter)
   }
 
-  const { data } = await query
+  const { data } = await query.order('starts_at', { ascending: true })
 
   let events = (data ?? []) as unknown as EventListItem[]
 
