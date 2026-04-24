@@ -9,6 +9,14 @@ type Player = {
   rating_source: string | null
   dupr_rating: number | null
   estimated_rating: number | null
+  availableToday: boolean
+  timeWindow: string | null
+}
+
+const TIME_LABELS: Record<string, string> = {
+  morning: 'AM',
+  afternoon: 'PM',
+  evening: 'Eve',
 }
 
 type SkillOption =
@@ -84,8 +92,15 @@ export default function PlayersClient({ players }: { players: Player[] }) {
             return (
               <div
                 key={player.id}
-                className="flex flex-col items-center gap-1.5 bg-brand-surface border border-brand-border rounded-2xl p-3"
+                className={`relative flex flex-col items-center gap-1.5 bg-brand-surface border rounded-2xl p-3 ${
+                  player.availableToday ? 'border-brand' : 'border-brand-border'
+                }`}
               >
+                {player.availableToday && (
+                  <span className="absolute top-2 right-2 bg-brand text-brand-dark text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    {player.timeWindow ? TIME_LABELS[player.timeWindow] : '✓'}
+                  </span>
+                )}
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
                   {player.profile_photo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element

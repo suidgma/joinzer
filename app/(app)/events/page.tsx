@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import EventCard from '@/components/features/events/EventCard'
 import EventFilters from '@/components/features/events/EventFilters'
 import EventCalendar from '@/components/features/events/EventCalendar'
+import AvailabilityButton from '@/components/features/availability/AvailabilityButton'
 import type { EventListItem, LocationOption } from '@/lib/types'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -105,16 +106,39 @@ export default async function EventsPage({
 
   const locations = (locationData ?? []) as LocationOption[]
 
+  // Current user + their active availability
+  const { data: { user } } = await supabase.auth.getUser()
+  const todayVegas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+  const { data: existingAvailability } = user
+    ? await supabase
+        .from('player_availability')
+        .select('id, date, time_window')
+        .eq('user_id', user.id)
+        .gte('date', todayVegas)
+        .order('date', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+    : { data: null }
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-xl font-bold text-brand-dark">Sessions</h1>
-        <Link
-          href="/events/create"
-          className="bg-brand text-brand-dark text-sm rounded-xl px-4 py-2 font-semibold hover:bg-brand-hover transition-colors"
-        >
-          + Create
-        </Link>
+        <div className="flex items-center gap-2">
+          {user && (
+            <AvailabilityButton
+              userId={user.id}
+              locations={locations}
+              existing={existingAvailability ?? null}
+            />
+          )}
+          <Link
+            href="/events/create"
+            className="bg-brand text-brand-dark text-sm rounded-xl px-4 py-2 font-semibold hover:bg-brand-hover transition-colors"
+          >
+            + Create
+          </Link>
+        </div>
       </div>
 
       <Suspense>
