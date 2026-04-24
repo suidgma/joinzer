@@ -12,8 +12,12 @@ type Player = {
   estimated_rating: number | null
 }
 
-const SKILL_OPTIONS = [
-  { label: 'All levels', value: '' },
+type SkillOption =
+  | { label: string; min?: undefined; max?: undefined }
+  | { label: string; min: number; max: number }
+
+const SKILL_OPTIONS: SkillOption[] = [
+  { label: 'All levels' },
   { label: '2.0 – 2.5', min: 2.0, max: 2.5 },
   { label: '3.0 – 3.5', min: 3.0, max: 3.5 },
   { label: '4.0 – 4.5', min: 4.0, max: 4.5 },
@@ -39,11 +43,11 @@ export default function PlayersClient({ players }: { players: Player[] }) {
 
   const filtered = players.filter((p) => {
     if (!skillFilter) return true
-    const option = SKILL_OPTIONS.find((o) => 'min' in o && o.label === skillFilter)
-    if (!option || !('min' in option)) return true
+    const option = SKILL_OPTIONS.find((o) => o.label === skillFilter)
+    if (!option || option.min == null) return true
     const rating = playerRating(p)
     if (rating == null) return false
-    return rating >= option.min && rating <= option.max
+    return rating >= option.min && rating <= (option.max ?? 99)
   })
 
   return (
