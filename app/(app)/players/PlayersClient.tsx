@@ -10,7 +10,7 @@ type Player = {
   dupr_rating: number | null
   estimated_rating: number | null
   availableToday: boolean
-  timeWindow: string | null
+  timeWindows: string[]
 }
 
 const TIME_LABELS: Record<string, string> = {
@@ -98,7 +98,9 @@ export default function PlayersClient({ players }: { players: Player[] }) {
               >
                 {player.availableToday && (
                   <span className="absolute top-2 right-2 bg-brand text-brand-dark text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                    {player.timeWindow ? TIME_LABELS[player.timeWindow] : '✓'}
+                    {player.timeWindows.length === 3
+                      ? 'All'
+                      : player.timeWindows.map((w) => TIME_LABELS[w]).join('/')}
                   </span>
                 )}
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">

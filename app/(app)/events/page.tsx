@@ -109,16 +109,19 @@ export default async function EventsPage({
   // Current user + their active availability
   const { data: { user } } = await supabase.auth.getUser()
   const todayVegas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
-  const { data: existingAvailability } = user
+  const { data: availRows } = user
     ? await supabase
         .from('player_availability')
-        .select('id, date, time_window')
+        .select('date, time_window')
         .eq('user_id', user.id)
         .gte('date', todayVegas)
         .order('date', { ascending: true })
-        .limit(1)
-        .maybeSingle()
     : { data: null }
+
+  // Group by earliest date to show current availability
+  const existingAvailability = availRows && availRows.length > 0
+    ? { date: availRows[0].date, timeWindows: availRows.map((r) => r.time_window as string) }
+    : null
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">

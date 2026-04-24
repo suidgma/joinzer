@@ -18,10 +18,13 @@ export default async function PlayersPage() {
       .eq('date', todayVegas),
   ])
 
-  const todayAvailable = new Set((availabilityData ?? []).map((a) => a.user_id))
-  const availabilityMap = Object.fromEntries(
-    (availabilityData ?? []).map((a) => [a.user_id, a.time_window as string])
-  )
+  // Group all time windows per user
+  const availabilityMap: Record<string, string[]> = {}
+  for (const a of availabilityData ?? []) {
+    const uid = a.user_id as string
+    if (!availabilityMap[uid]) availabilityMap[uid] = []
+    availabilityMap[uid].push(a.time_window as string)
+  }
 
   const players = (data ?? []).map((p) => ({
     id: p.id as string,
@@ -30,8 +33,8 @@ export default async function PlayersPage() {
     rating_source: p.rating_source as string | null,
     dupr_rating: p.dupr_rating as number | null,
     estimated_rating: p.estimated_rating as number | null,
-    availableToday: todayAvailable.has(p.id as string),
-    timeWindow: availabilityMap[p.id as string] ?? null,
+    availableToday: !!availabilityMap[p.id as string],
+    timeWindows: availabilityMap[p.id as string] ?? [],
   }))
 
   return (

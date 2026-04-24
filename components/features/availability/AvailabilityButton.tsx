@@ -13,59 +13,70 @@ const TIME_WINDOWS = [
 type Props = {
   userId: string
   locations: LocationOption[]
-  existing: { id: string; date: string; time_window: string } | null
+  existing: { date: string; timeWindows: string[] } | null
 }
 
 export default function AvailabilityButton({ userId, locations, existing }: Props) {
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState(existing?.date ?? todayStr())
-  const [timeWindow, setTimeWindow] = useState(existing?.time_window ?? '')
+  const [selectedWindows, setSelectedWindows] = useState<string[]>(existing?.timeWindows ?? [])
   const [locationId, setLocationId] = useState('')
   const [loading, setLoading] = useState(false)
-  const [active, setActive] = useState(!!existing)
-  const [activeId, setActiveId] = useState<string | null>(existing?.id ?? null)
+  const [active, setActive] = useState(!!existing && (existing.timeWindows.length > 0))
+  const [activeWindows, setActiveWindows] = useState<string[]>(existing?.timeWindows ?? [])
 
   const todayLocal = todayStr()
 
+  function toggleWindow(value: string) {
+    setSelectedWindows((prev) =>
+      prev.includes(value) ? prev.filter((w) => w !== value) : [...prev, value]
+    )
+  }
+
   async function handleSubmit() {
-    if (!timeWindow) return
+    if (selectedWindows.length === 0) return
     setLoading(true)
     const supabase = createClient()
 
-    // Remove previous if exists
-    if (activeId) {
-      await supabase.from('player_availability').delete().eq('id', activeId)
-    }
-
-    const { data, error } = await supabase
+    // Delete all existing availability for this user on this date
+    await supabase
       .from('player_availability')
-      .insert({
-        user_id: userId,
-        date,
-        time_window: timeWindow,
-        location_id: locationId || null,
-      })
-      .select('id')
-      .single()
+      .delete()
+      .eq('user_id', userId)
+      .eq('date', date)
 
-    if (!error && data) {
-      setActiveId(data.id)
+    // Insert one row per selected window
+    const rows = selectedWindows.map((tw) => ({
+      user_id: userId,
+      date,
+      time_window: tw,
+      location_id: locationId || null,
+    }))
+
+    const { error } = await supabase.from('player_availability').insert(rows)
+
+    if (!error) {
       setActive(true)
+      setActiveWindows(selectedWindows)
     }
     setLoading(false)
     setOpen(false)
   }
 
   async function handleClear() {
-    if (!activeId) return
     setLoading(true)
     const supabase = createClient()
-    await supabase.from('player_availability').delete().eq('id', activeId)
+    await supabase.from('player_availability').delete().eq('user_id', userId)
     setActive(false)
-    setActiveId(null)
+    setActiveWindows([])
+    setSelectedWindows([])
     setLoading(false)
     setOpen(false)
   }
+
+  const windowLabel = activeWindows.length === 3
+    ? 'All day'
+    : activeWindows.map((w) => TIME_WINDOWS.find((t) => t.value === w)?.label).join(' & ')
 
   return (
     <>
@@ -77,8 +88,8 @@ export default function AvailabilityButton({ userId, locations, existing }: Prop
             : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
         }`}
       >
-        <span className={`w-2 h-2 rounded-full ${active ? 'bg-brand-dark' : 'bg-brand-muted'}`} />
-        {active ? "I'm available" : 'Set availability'}
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-brand-dark' : 'bg-brand-muted'}`} />
+        {active ? `Available ${windowLabel}` : 'Set availability'}
       </button>
 
       {open && (
@@ -101,23 +112,26 @@ export default function AvailabilityButton({ userId, locations, existing }: Prop
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Time window</label>
+              <label className="block text-sm font-medium mb-2">Time windows <span className="text-brand-muted font-normal">(select all that apply)</span></label>
               <div className="grid grid-cols-3 gap-2">
-                {TIME_WINDOWS.map((tw) => (
-                  <button
-                    key={tw.value}
-                    type="button"
-                    onClick={() => setTimeWindow(tw.value)}
-                    className={`flex flex-col items-center py-2.5 px-1 rounded-xl border text-center transition-colors ${
-                      timeWindow === tw.value
-                        ? 'bg-brand border-brand text-brand-dark'
-                        : 'bg-brand-soft border-brand-border text-brand-muted'
-                    }`}
-                  >
-                    <span className="text-sm font-medium">{tw.label}</span>
-                    <span className="text-xs mt-0.5 opacity-70">{tw.sub}</span>
-                  </button>
-                ))}
+                {TIME_WINDOWS.map((tw) => {
+                  const selected = selectedWindows.includes(tw.value)
+                  return (
+                    <button
+                      key={tw.value}
+                      type="button"
+                      onClick={() => toggleWindow(tw.value)}
+                      className={`flex flex-col items-center py-2.5 px-1 rounded-xl border text-center transition-colors ${
+                        selected
+                          ? 'bg-brand border-brand text-brand-dark'
+                          : 'bg-brand-soft border-brand-border text-brand-muted'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{tw.label}</span>
+                      <span className="text-xs mt-0.5 opacity-70">{tw.sub}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -149,7 +163,7 @@ export default function AvailabilityButton({ userId, locations, existing }: Prop
               )}
               <button
                 onClick={handleSubmit}
-                disabled={!timeWindow || loading}
+                disabled={selectedWindows.length === 0 || loading}
                 className="flex-1 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Saving…' : active ? 'Update' : 'Set available'}
