@@ -1,5 +1,12 @@
 const VEGAS_TZ = 'America/Los_Angeles'
 
+export function joinzerRatingLabel(rating: number): string {
+  if (rating >= 1250) return 'Elite'
+  if (rating >= 1100) return 'Advanced'
+  if (rating >= 950) return 'Intermediate'
+  return 'Beginner'
+}
+
 export function formatDuration(minutes: number): string {
   const rounded = Math.round(minutes / 15) * 15
   const hours = rounded / 60

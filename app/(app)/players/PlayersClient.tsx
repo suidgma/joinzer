@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { joinzerRatingLabel } from '@/lib/utils/date'
 
 type Player = {
   id: string
@@ -11,6 +12,7 @@ type Player = {
   estimated_rating: number | null
   availableToday: boolean
   timeWindows: string[]
+  joinzer_rating: number
 }
 
 const TIME_LABELS: Record<string, string> = {
@@ -119,6 +121,9 @@ export default function PlayersClient({ players }: { players: Player[] }) {
                 {label && (
                   <p className="text-xs text-brand-muted text-center">{label}</p>
                 )}
+                <p className="text-xs text-brand-active font-medium text-center">
+                  {joinzerRatingLabel(player.joinzer_rating)}
+                </p>
               </div>
             )
           })}

@@ -5,6 +5,7 @@ import { formatEventDate, formatEventTime, formatDuration } from '@/lib/utils/da
 import JoinLeaveButton from '@/components/features/events/JoinLeaveButton'
 import AssignCaptainButton from '@/components/features/events/AssignCaptainButton'
 import EventChat from '@/components/features/events/EventChat'
+import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
 
 type ChatMessage = {
@@ -22,7 +23,7 @@ export default async function EventDetailPage({
 }) {
   const supabase = createClient()
 
-  const [{ data }, { data: authData }, { data: messagesData }] =
+  const [{ data }, { data: authData }, { data: messagesData }, { data: existingRatings }] =
     await Promise.all([
       supabase
         .from('events')
@@ -47,6 +48,11 @@ export default async function EventDetailPage({
         `)
         .eq('event_id', params.id)
         .order('created_at', { ascending: true }),
+      supabase
+        .from('session_ratings')
+        .select('id')
+        .eq('event_id', params.id)
+        .limit(1),
     ])
 
   if (!data) notFound()
@@ -68,6 +74,15 @@ export default async function EventDetailPage({
   const isCaptain = currentUserId === event.captain_user_id
   const isJoined = myParticipation?.participant_status === 'joined'
   const isActive = event.status !== 'cancelled' && event.status !== 'completed'
+
+  const sessionEndedAt = new Date(event.starts_at).getTime() + event.duration_minutes * 60_000
+  const sessionHasEnded = Date.now() > sessionEndedAt
+  const alreadyRated = (existingRatings ?? []).length > 0
+  const showRatingForm = isCaptain && sessionHasEnded
+
+  const rateablePlayers = joinedParticipants
+    .filter((p) => p.user_id !== currentUserId)
+    .map((p) => ({ userId: p.user_id, name: p.profile?.name ?? 'Unknown' }))
 
   const statusColors: Record<string, string> = {
     open: 'bg-brand-soft text-brand-active',
@@ -189,6 +204,15 @@ export default async function EventDetailPage({
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Captain rating form — shown after session ends */}
+      {showRatingForm && rateablePlayers.length > 0 && (
+        <SessionRatingForm
+          eventId={event.id}
+          players={rateablePlayers}
+          alreadyRated={alreadyRated}
+        />
       )}
 
       {/* Realtime chat */}

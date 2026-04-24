@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { joinzerRatingLabel } from '@/lib/utils/date'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -60,6 +61,11 @@ export default async function ProfilePage() {
         <div>
           <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Rating</p>
           <p className="text-sm text-brand-body">{ratingDisplay ?? 'Not set'}</p>
+        </div>
+
+        <div>
+          <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Joinzer Level</p>
+          <p className="text-sm text-brand-body">{joinzerRatingLabel(profile.joinzer_rating ?? 1000)}</p>
         </div>
       </div>
 
