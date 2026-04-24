@@ -20,6 +20,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
   const [minSkill, setMinSkill] = useState('')
   const [maxSkill, setMaxSkill] = useState('')
   const [notes, setNotes] = useState('')
+  const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,50 +45,65 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
       return
     }
 
-    // Treat the entered date+time as local (Vegas) time.
-    // datetime-local inputs give local browser time — correct for Vegas pilot.
     const startsAt = new Date(`${date}T${time}:00`).toISOString()
 
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .insert({
-        title: title.trim(),
-        location_id: locationId,
-        creator_user_id: user.id,
-        captain_user_id: user.id,
-        starts_at: startsAt,
-        duration_minutes: durationMinutes,
-        court_count: courtCount,
-        players_per_court: playersPerCourt,
-        max_players: maxPlayers,
-        notes: notes.trim() || null,
-        min_skill_level: minSkill ? parseFloat(minSkill) : null,
-        max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
-        status: 'open',
-      })
-      .select('id')
-      .single()
+    // Build list of start times: 1 for no repeat, up to 8 occurrences otherwise
+    const intervalDays = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 0
+    const occurrenceCount = intervalDays > 0 ? 8 : 1
+    const recurrenceGroupId = intervalDays > 0 ? crypto.randomUUID() : null
 
-    if (eventError || !event) {
+    const startTimes: string[] = Array.from({ length: occurrenceCount }, (_, i) => {
+      const d = new Date(startsAt)
+      d.setDate(d.getDate() + i * intervalDays)
+      return d.toISOString()
+    })
+
+    // Insert all occurrences
+    const eventRows = startTimes.map((st) => ({
+      title: title.trim(),
+      location_id: locationId,
+      creator_user_id: user.id,
+      captain_user_id: user.id,
+      starts_at: st,
+      duration_minutes: durationMinutes,
+      court_count: courtCount,
+      players_per_court: playersPerCourt,
+      max_players: maxPlayers,
+      notes: notes.trim() || null,
+      min_skill_level: minSkill ? parseFloat(minSkill) : null,
+      max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
+      status: 'open',
+      recurrence_group_id: recurrenceGroupId,
+    }))
+
+    const { data: events, error: eventError } = await supabase
+      .from('events')
+      .insert(eventRows)
+      .select('id')
+
+    if (eventError || !events || events.length === 0) {
       setError(eventError?.message ?? 'Failed to create event')
       setLoading(false)
       return
     }
 
-    // Creator is automatically the first joined participant
+    // Add creator as joined participant for every occurrence
     const { error: participantError } = await supabase
       .from('event_participants')
-      .insert({
-        event_id: event.id,
+      .insert(events.map((ev) => ({
+        event_id: ev.id,
         user_id: user.id,
         participant_status: 'joined',
-      })
+      })))
 
     if (participantError) {
       setError(participantError.message)
       setLoading(false)
       return
     }
+
+    // Use first event for confirmation email + notifications
+    const event = events[0]
 
     // Notify opted-in users — non-blocking
     fetch('/api/notify-new-session', {
@@ -194,6 +210,31 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
         </select>
       </div>
 
+      <div>
+        <label className="block text-sm font-medium mb-2">Repeat</label>
+        <div className="grid grid-cols-3 gap-2">
+          {(['none', 'weekly', 'biweekly'] as const).map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => setRepeat(opt)}
+              className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
+                repeat === opt
+                  ? 'bg-brand border-brand text-brand-dark'
+                  : 'bg-brand-soft border-brand-border text-brand-muted'
+              }`}
+            >
+              {opt === 'none' ? 'No repeat' : opt === 'weekly' ? 'Weekly' : 'Every 2 weeks'}
+            </button>
+          ))}
+        </div>
+        {repeat !== 'none' && (
+          <p className="text-xs text-brand-muted mt-1.5">
+            Creates 8 sessions — each can be edited or cancelled independently.
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium mb-1">Courts</label>
@@ -276,7 +317,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
         disabled={loading}
         className="w-full bg-brand text-brand-dark rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-hover active:bg-brand-active disabled:opacity-50 transition-colors"
       >
-        {loading ? 'Creating…' : 'Create session'}
+        {loading ? 'Creating…' : repeat !== 'none' ? 'Create 8 sessions' : 'Create session'}
       </button>
     </form>
   )
