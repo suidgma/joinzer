@@ -214,7 +214,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
             onChange={(e) => setPlayersPerCourt(Number(e.target.value))}
             className="w-full input"
           >
-            {[4, 5, 6, 7, 8].map((n) => (
+            {[2, 4, 5, 6, 7, 8].map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
           </select>
