@@ -18,7 +18,9 @@ type SkillOption =
 const SKILL_OPTIONS: SkillOption[] = [
   { label: 'All levels' },
   { label: '2.0 – 2.5', min: 2.0, max: 2.5 },
+  { label: '2.5 – 3.0', min: 2.5, max: 3.0 },
   { label: '3.0 – 3.5', min: 3.0, max: 3.5 },
+  { label: '3.5 – 4.0', min: 3.5, max: 4.0 },
   { label: '4.0 – 4.5', min: 4.0, max: 4.5 },
   { label: '5.0+', min: 5.0, max: 99 },
 ]
