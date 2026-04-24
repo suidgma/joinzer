@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 
 type Player = {
   id: string
@@ -87,13 +86,8 @@ export default function PlayersClient({ players }: { players: Player[] }) {
               >
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
                   {player.profile_photo_url ? (
-                    <Image
-                      src={player.profile_photo_url}
-                      alt={firstName}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={player.profile_photo_url} alt={firstName} className="w-full h-full object-cover" />
                   ) : (
                     <span className="flex items-center justify-center w-full h-full text-brand-muted">
                       <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">

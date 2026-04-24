@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -35,9 +34,8 @@ export default async function ProfilePage() {
 
       {profile.profile_photo_url && (
         <div className="flex justify-center">
-          <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-brand-border">
-            <Image src={profile.profile_photo_url} alt="Profile photo" fill className="object-cover" unoptimized />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={profile.profile_photo_url} alt="Profile photo" className="w-24 h-24 rounded-full object-cover border-2 border-brand-border" />
         </div>
       )}
 

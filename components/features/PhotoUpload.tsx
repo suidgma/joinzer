@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
@@ -59,7 +58,8 @@ export default function PhotoUpload({ userId, currentUrl, onUpload }: Props) {
         className="relative w-24 h-24 rounded-full overflow-hidden bg-brand-soft border-2 border-brand-border hover:border-brand transition-colors group"
       >
         {preview ? (
-          <Image src={preview} alt="Profile photo" fill className="object-cover" unoptimized />
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="Profile photo" className="w-full h-full object-cover" />
         ) : (
           <span className="flex flex-col items-center justify-center w-full h-full text-brand-muted">
             <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
