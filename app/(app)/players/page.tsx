@@ -7,7 +7,9 @@ export default async function PlayersPage() {
 
   const todayVegas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
-  const [{ data }, { data: availabilityData }] = await Promise.all([
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const [{ data }, { data: availabilityData }, { data: mySessions }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating')
@@ -16,6 +18,16 @@ export default async function PlayersPage() {
       .from('player_availability')
       .select('user_id, time_window')
       .eq('date', todayVegas),
+    user
+      ? supabase
+          .from('events')
+          .select('id, title, starts_at, location:locations!location_id(name)')
+          .eq('captain_user_id', user.id)
+          .in('status', ['open', 'full'])
+          .gte('starts_at', new Date().toISOString())
+          .order('starts_at', { ascending: true })
+          .limit(10)
+      : Promise.resolve({ data: [] }),
   ])
 
   // Group all time windows per user
@@ -38,11 +50,18 @@ export default async function PlayersPage() {
     joinzer_rating: p.joinzer_rating as number ?? 1000,
   }))
 
+  const sessions = (mySessions ?? []).map((s) => ({
+    id: s.id as string,
+    title: s.title as string,
+    starts_at: s.starts_at as string,
+    location_name: (s.location as unknown as { name: string } | null)?.name ?? '',
+  }))
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <h1 className="font-heading text-xl font-bold text-brand-dark">Players</h1>
       <Suspense>
-        <PlayersClient players={players} />
+        <PlayersClient players={players} sessions={sessions} currentUserId={user?.id ?? null} />
       </Suspense>
     </main>
   )

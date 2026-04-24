@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { joinzerRatingLabel } from '@/lib/utils/date'
+import PlayerInviteModal from '@/components/features/players/PlayerInviteModal'
 
 type Player = {
   id: string
@@ -13,6 +14,13 @@ type Player = {
   availableToday: boolean
   timeWindows: string[]
   joinzer_rating: number
+}
+
+type Session = {
+  id: string
+  title: string
+  starts_at: string
+  location_name: string
 }
 
 const TIME_LABELS: Record<string, string> = {
@@ -49,8 +57,15 @@ function ratingLabel(p: Player): string {
   return ''
 }
 
-export default function PlayersClient({ players }: { players: Player[] }) {
+type Props = {
+  players: Player[]
+  sessions: Session[]
+  currentUserId: string | null
+}
+
+export default function PlayersClient({ players, sessions, currentUserId }: Props) {
   const [skillFilter, setSkillFilter] = useState('')
+  const [inviteTarget, setInviteTarget] = useState<Player | null>(null)
 
   const filtered = players.filter((p) => {
     if (!skillFilter) return true
@@ -91,12 +106,16 @@ export default function PlayersClient({ players }: { players: Player[] }) {
           {filtered.map((player) => {
             const label = ratingLabel(player)
             const firstName = player.name.split(' ')[0]
+            const isMe = player.id === currentUserId
+            const canInvite = player.availableToday && !isMe
+
             return (
               <div
                 key={player.id}
-                className={`relative flex flex-col items-center gap-1.5 bg-brand-surface border rounded-2xl p-3 ${
+                onClick={() => canInvite && setInviteTarget(player)}
+                className={`relative flex flex-col items-center gap-1.5 bg-brand-surface border rounded-2xl p-3 transition-colors ${
                   player.availableToday ? 'border-brand' : 'border-brand-border'
-                }`}
+                } ${canInvite ? 'cursor-pointer hover:bg-brand-soft' : ''}`}
               >
                 {player.availableToday && (
                   <span className="absolute top-2 right-2 bg-brand text-brand-dark text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
@@ -124,10 +143,26 @@ export default function PlayersClient({ players }: { players: Player[] }) {
                 <p className="text-xs text-brand-active font-medium text-center">
                   {joinzerRatingLabel(player.joinzer_rating)}
                 </p>
+                {canInvite && (
+                  <p className="text-[10px] text-brand-active font-medium">Tap to invite</p>
+                )}
               </div>
             )
           })}
         </div>
+      )}
+
+      {inviteTarget && (
+        <PlayerInviteModal
+          player={{
+            userId: inviteTarget.id,
+            name: inviteTarget.name,
+            photoUrl: inviteTarget.profile_photo_url,
+            timeWindows: inviteTarget.timeWindows,
+          }}
+          sessions={sessions}
+          onClose={() => setInviteTarget(null)}
+        />
       )}
     </div>
   )
