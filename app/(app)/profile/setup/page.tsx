@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PhotoUpload from '@/components/features/PhotoUpload'
 
 type RatingSource = 'dupr_known' | 'estimated' | 'skipped'
 
@@ -16,6 +17,8 @@ export default function ProfileSetupPage() {
   const [ratingSource, setRatingSource] = useState<RatingSource | null>(null)
   const [duprRating, setDuprRating] = useState('')
   const [estimatedRating, setEstimatedRating] = useState('')
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [notifyNewSessions, setNotifyNewSessions] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -24,6 +27,8 @@ export default function ProfileSetupPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      setUserId(user.id)
       const googleName = user?.user_metadata?.full_name as string | undefined
       if (googleName && !name) setName(googleName)
     })
@@ -53,6 +58,7 @@ export default function ProfileSetupPage() {
       email: user.email,
       phone: phone.trim() || null,
       notify_new_sessions: notifyNewSessions,
+      profile_photo_url: photoUrl,
       rating_source: ratingSource,
       dupr_rating:
         ratingSource === 'dupr_known' && duprRating
@@ -87,6 +93,14 @@ export default function ProfileSetupPage() {
 
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {userId && (
+              <PhotoUpload
+                userId={userId}
+                currentUrl={null}
+                onUpload={(url) => setPhotoUrl(url)}
+              />
+            )}
+
             <div>
               <label htmlFor="name" className={labelClass}>
                 Name <span className="text-red-500">*</span>

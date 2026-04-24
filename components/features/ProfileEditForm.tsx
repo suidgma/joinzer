@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PhotoUpload from '@/components/features/PhotoUpload'
 
 type RatingSource = 'dupr_known' | 'estimated' | 'skipped'
 
@@ -14,6 +15,7 @@ type Profile = {
   dupr_rating: number | null
   estimated_rating: number | null
   notify_new_sessions: boolean
+  profile_photo_url: string | null
 }
 
 export default function ProfileEditForm({ profile }: { profile: Profile }) {
@@ -29,6 +31,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
   const [estimatedRating, setEstimatedRating] = useState(
     profile.estimated_rating?.toString() ?? ''
   )
+  const [photoUrl, setPhotoUrl] = useState<string | null>(profile.profile_photo_url)
   const [notifyNewSessions, setNotifyNewSessions] = useState(profile.notify_new_sessions)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +57,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
             ? parseFloat(estimatedRating)
             : null,
         notify_new_sessions: notifyNewSessions,
+        profile_photo_url: photoUrl,
       })
       .eq('id', profile.id)
 
@@ -69,6 +73,12 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <PhotoUpload
+        userId={profile.id}
+        currentUrl={profile.profile_photo_url}
+        onUpload={(url) => setPhotoUrl(url)}
+      />
+
       <div>
         <label className="block text-sm font-medium mb-1">
           Name <span className="text-red-500">*</span>
