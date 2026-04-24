@@ -42,22 +42,22 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
     setError(null)
 
     const supabase = createClient()
+    const numericRating =
+      ratingSource === 'dupr_known' && duprRating ? parseFloat(duprRating)
+      : ratingSource === 'estimated' && estimatedRating ? parseFloat(estimatedRating)
+      : null
+
     const { error } = await supabase
       .from('profiles')
       .update({
         name: name.trim(),
         phone: phone.trim() || null,
         rating_source: ratingSource,
-        dupr_rating:
-          ratingSource === 'dupr_known' && duprRating
-            ? parseFloat(duprRating)
-            : null,
-        estimated_rating:
-          ratingSource === 'estimated' && estimatedRating
-            ? parseFloat(estimatedRating)
-            : null,
+        dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
+        estimated_rating: ratingSource === 'estimated' ? numericRating : null,
         notify_new_sessions: notifyNewSessions,
         profile_photo_url: photoUrl,
+        joinzer_rating: seedJoinzerRating(numericRating),
       })
       .eq('id', profile.id)
 
@@ -195,4 +195,12 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
       </button>
     </form>
   )
+}
+
+function seedJoinzerRating(rating: number | null): number {
+  if (rating == null) return 1000
+  if (rating >= 5.0) return 1300
+  if (rating >= 4.0) return 1150
+  if (rating >= 3.0) return 1000
+  return 900
 }

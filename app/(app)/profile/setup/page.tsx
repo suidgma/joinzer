@@ -52,6 +52,11 @@ export default function ProfileSetupPage() {
       return
     }
 
+    const numericRating =
+      ratingSource === 'dupr_known' && duprRating ? parseFloat(duprRating)
+      : ratingSource === 'estimated' && estimatedRating ? parseFloat(estimatedRating)
+      : null
+
     const { error } = await supabase.from('profiles').insert({
       id: user.id,
       name: name.trim(),
@@ -60,14 +65,9 @@ export default function ProfileSetupPage() {
       notify_new_sessions: notifyNewSessions,
       profile_photo_url: photoUrl,
       rating_source: ratingSource,
-      dupr_rating:
-        ratingSource === 'dupr_known' && duprRating
-          ? parseFloat(duprRating)
-          : null,
-      estimated_rating:
-        ratingSource === 'estimated' && estimatedRating
-          ? parseFloat(estimatedRating)
-          : null,
+      dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
+      estimated_rating: ratingSource === 'estimated' ? numericRating : null,
+      joinzer_rating: seedJoinzerRating(numericRating),
     })
 
     if (error) {
@@ -222,4 +222,12 @@ export default function ProfileSetupPage() {
       </div>
     </main>
   )
+}
+
+function seedJoinzerRating(rating: number | null): number {
+  if (rating == null) return 1000
+  if (rating >= 5.0) return 1300
+  if (rating >= 4.0) return 1150
+  if (rating >= 3.0) return 1000
+  return 900
 }
