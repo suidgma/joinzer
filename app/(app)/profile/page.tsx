@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { joinzerRatingLabel } from '@/lib/utils/date'
+import DeleteAccountButton from '@/components/features/DeleteAccountButton'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -70,6 +71,7 @@ export default async function ProfilePage() {
       </div>
 
       <SignOutButton />
+      <DeleteAccountButton />
     </main>
   )
 }

@@ -76,6 +76,13 @@ export default function ProfileSetupPage() {
       return
     }
 
+    // Notify admin of new signup (fire and forget)
+    fetch('/api/notify-admin-signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), email: user.email ?? '' }),
+    })
+
     router.push('/events')
   }
 
