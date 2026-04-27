@@ -21,6 +21,12 @@ export async function POST() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  // Delete events where user is captain/creator — FK is RESTRICT so must go before auth deletion.
+  // event_participants and event_messages cascade from events automatically.
+  await admin.from('events').delete().eq('captain_user_id', user.id)
+  await admin.from('events').delete().eq('creator_user_id', user.id)
+
   const { error } = await admin.auth.admin.deleteUser(user.id)
   if (error) return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 })
 
