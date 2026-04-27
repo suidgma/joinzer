@@ -24,11 +24,14 @@ export async function POST() {
 
   // Delete events where user is captain/creator — FK is RESTRICT so must go before auth deletion.
   // event_participants and event_messages cascade from events automatically.
-  await admin.from('events').delete().eq('captain_user_id', user.id)
-  await admin.from('events').delete().eq('creator_user_id', user.id)
+  const { error: evtErr1 } = await admin.from('events').delete().eq('captain_user_id', user.id)
+  if (evtErr1) return NextResponse.json({ error: `Event cleanup (captain): ${evtErr1.message}` }, { status: 500 })
+
+  const { error: evtErr2 } = await admin.from('events').delete().eq('creator_user_id', user.id)
+  if (evtErr2) return NextResponse.json({ error: `Event cleanup (creator): ${evtErr2.message}` }, { status: 500 })
 
   const { error } = await admin.auth.admin.deleteUser(user.id)
-  if (error) return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 })
+  if (error) return NextResponse.json({ error: `Auth delete: ${error.message}` }, { status: 500 })
 
   const resend = new Resend(process.env.RESEND_API_KEY)
   await resend.emails.send({
