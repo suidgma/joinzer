@@ -15,8 +15,10 @@ type PlayerRow = {
 export default async function LeagueStandingsPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+
   const [{ data: league }, { data: registrations }, { data: sessions }] = await Promise.all([
-    supabase.from('leagues').select('id, name').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
       .select('user_id, profile:profiles(id, name, profile_photo_url)')
@@ -24,8 +26,9 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
       .eq('status', 'registered'),
     supabase
       .from('league_sessions')
-      .select('id')
-      .eq('league_id', params.id),
+      .select('id, session_date')
+      .eq('league_id', params.id)
+      .order('session_date', { ascending: true }),
   ])
 
   if (!league) notFound()
@@ -83,6 +86,9 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   }).sort((a, b) => b.wins - a.wins || a.losses - b.losses)
 
   const hasResults = matches && matches.length > 0
+  const isManager = user?.id === league.created_by
+  const firstSession = sessions?.[0]
+  const registeredCount = (registrations ?? []).length
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
@@ -93,9 +99,22 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
       <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
 
       {!hasResults ? (
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center">
-          <p className="text-sm text-brand-muted">No match results recorded yet.</p>
-          <p className="text-xs text-brand-muted mt-1">Standings will appear once games are entered.</p>
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+          <p className="text-2xl">🏓</p>
+          <p className="text-sm font-medium text-brand-dark">No results yet</p>
+          <p className="text-xs text-brand-muted">
+            {registeredCount > 0
+              ? `${registeredCount} player${registeredCount !== 1 ? 's' : ''} registered. Standings will appear once match results are entered.`
+              : 'Standings will appear once players register and match results are entered.'}
+          </p>
+          {isManager && firstSession && (
+            <Link
+              href={`/compete/leagues/${params.id}/sessions/${firstSession.id}/results`}
+              className="inline-block mt-2 text-xs text-brand-active font-medium underline underline-offset-2"
+            >
+              Enter results for session 1 →
+            </Link>
+          )}
         </div>
       ) : (
         <div className="bg-brand-surface border border-brand-border rounded-2xl overflow-hidden">
