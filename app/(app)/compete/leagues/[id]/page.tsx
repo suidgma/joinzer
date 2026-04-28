@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import LeagueActions from './LeagueActions'
+import SessionSubList from './SessionSubList'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles: "Men's Doubles",
@@ -24,7 +25,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, organization:organizations(name)')
@@ -46,11 +47,15 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
       .select('status')
       .eq('league_id', params.id)
       .neq('status', 'cancelled'),
+    user
+      ? supabase.from('league_session_subs').select('session_id').eq('user_id', user.id)
+      : Promise.resolve({ data: [] }),
   ])
 
   if (!league) notFound()
 
   const isManager = user?.id === league.created_by
+  const mySubSessionIds = new Set((mySessionSubs ?? []).map((s) => s.session_id as string))
   const registeredCount = regCounts?.filter((r) => r.status === 'registered').length ?? 0
   const waitlistCount = regCounts?.filter((r) => r.status === 'waitlist').length ?? 0
   const isFull = league.max_players != null && registeredCount >= league.max_players
@@ -115,6 +120,14 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         </p>
       )}
 
+      {/* Standings link */}
+      <Link
+        href={`/compete/leagues/${league.id}/standings`}
+        className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+      >
+        View Standings →
+      </Link>
+
       {/* Sessions list */}
       {sessions && sessions.length > 0 && (
         <section className="space-y-2">
@@ -140,6 +153,18 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         </section>
       )}
 
+      {/* Session sub availability for non-registered users */}
+      {user && sessions && sessions.length > 0 && (myReg?.status === null || myReg?.status === 'cancelled' || !myReg) && (
+        <section className="space-y-2">
+          <h2 className="font-heading text-base font-bold text-brand-dark">Sub Availability</h2>
+          <p className="text-xs text-brand-muted">Mark the specific sessions you&apos;re available to sub.</p>
+          <SessionSubList
+            sessions={sessions}
+            mySubSessionIds={mySubSessionIds}
+          />
+        </section>
+      )}
+
       {/* Manager view */}
       {isManager && (
         <section className="space-y-2">
@@ -147,7 +172,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
             <p className="text-sm text-brand-body">{registeredCount} registered · {waitlistCount} waitlisted</p>
             <Link href={`/compete/leagues/${league.id}/roster`} className="block text-sm text-brand-active underline underline-offset-2">
-              View full roster & subs →
+              Roster & subs →
             </Link>
           </div>
         </section>
