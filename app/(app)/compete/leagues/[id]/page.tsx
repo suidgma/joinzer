@@ -5,6 +5,7 @@ import LeagueActions from './LeagueActions'
 import SessionSubList from './SessionSubList'
 
 const FORMAT_LABELS: Record<string, string> = {
+  individual_round_robin: 'Individual Round Robin',
   mens_doubles: "Men's Doubles",
   womens_doubles: "Women's Doubles",
   mixed_doubles: 'Mixed Doubles',
@@ -25,7 +26,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, organization:organizations(name)')
@@ -50,6 +51,9 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
     user
       ? supabase.from('league_session_subs').select('session_id').eq('user_id', user.id)
       : Promise.resolve({ data: [] }),
+    user
+      ? supabase.from('profiles').select('gender').eq('id', user.id).single()
+      : Promise.resolve({ data: null }),
   ])
 
   if (!league) notFound()
@@ -61,6 +65,15 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const isFull = league.max_players != null && registeredCount >= league.max_players
 
   const orgName = (league.organization as { name: string } | null)?.name
+  const userGender = (myProfile as { gender: string | null } | null)?.gender ?? null
+
+  // Warn if this is a gender-specific format and user hasn't set their gender
+  const genderFormats: Record<string, string> = {
+    mens_doubles: 'male',
+    womens_doubles: 'female',
+  }
+  const requiredGender = genderFormats[league.format] ?? null
+  const genderMismatch = user && requiredGender && userGender !== requiredGender
 
   const fmt = (d: string | null) =>
     d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
@@ -104,6 +117,22 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         </div>
       )}
 
+      {/* Gender mismatch warning */}
+      {genderMismatch && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-800">
+          This league is <strong>{requiredGender === 'male' ? "Men's Doubles" : "Women's Doubles"}</strong>.
+          {userGender
+            ? ' Your profile gender does not match this format.'
+            : ' Please '}
+          {!userGender && (
+            <Link href="/profile/edit" className="underline font-medium">set your gender in your profile</Link>
+          )}
+          {!userGender ? ' to register.' : (
+            <span> <Link href="/profile/edit" className="underline font-medium">Update your profile</Link> if this is incorrect.</span>
+          )}
+        </div>
+      )}
+
       {/* Registration actions */}
       {user && (
         <LeagueActions
@@ -134,14 +163,31 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
           <h2 className="font-heading text-base font-bold text-brand-dark">Schedule</h2>
           <div className="space-y-2">
             {sessions.map((s) => (
-              <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex items-center justify-between">
-                <div>
+              <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex items-center justify-between gap-2">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-brand-dark">
                     Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                   </p>
                   {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
+                  <div className="flex gap-3 mt-1">
+                    {(s.status === 'completed' || s.status === 'in_progress') && (
+                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2">
+                        Results →
+                      </Link>
+                    )}
+                    {isManager && s.status === 'in_progress' && (
+                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/live`} className="text-xs text-brand-active underline underline-offset-2">
+                        Live →
+                      </Link>
+                    )}
+                    {isManager && s.status === 'scheduled' && (
+                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-muted underline underline-offset-2">
+                        Enter results →
+                      </Link>
+                    )}
+                  </div>
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
                   s.status === 'completed' ? 'bg-brand-soft text-brand-muted' :
                   s.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
                   s.status === 'cancelled' ? 'bg-red-100 text-red-700' :
