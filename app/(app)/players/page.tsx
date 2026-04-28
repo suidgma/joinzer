@@ -13,6 +13,7 @@ export default async function PlayersPage() {
     supabase
       .from('profiles')
       .select('id, name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender')
+      .eq('dummy', false)
       .order('name', { ascending: true }),
     supabase
       .from('player_availability')
