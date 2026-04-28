@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LiveSessionManager from './LiveSessionManager'
@@ -12,44 +13,89 @@ export default async function LiveSessionPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const db = createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
   const [{ data: league }, { data: session }] = await Promise.all([
-    supabase.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
-    supabase.from('league_sessions').select('id, session_number, session_date, status').eq('id', params.sessionId).single(),
+    db.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
+    db.from('league_sessions').select('id, session_number, session_date, status, number_of_courts, rounds_planned').eq('id', params.sessionId).single(),
   ])
 
   if (!league || !session) notFound()
   if (league.created_by !== user.id) redirect(`/compete/leagues/${params.id}`)
 
-  // Fetch all registered players
-  const { data: registrations } = await supabase
-    .from('league_registrations')
-    .select('user_id, profile:profiles(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
-    .eq('league_id', params.id)
-    .eq('status', 'registered')
-
-  // Fetch subs available for this session
-  const { data: sessionSubs } = await supabase
-    .from('league_session_subs')
-    .select('user_id, profile:profiles(id, name, profile_photo_url)')
+  // --- Auto-populate session players on first open ---
+  const { count } = await db
+    .from('league_session_players')
+    .select('id', { count: 'exact', head: true })
     .eq('session_id', params.sessionId)
 
-  // Fetch current attendance
-  const { data: attendance } = await supabase
-    .from('league_session_attendance')
-    .select('user_id, is_sub')
+  if (count === 0) {
+    // Seed from registered players + their profile data
+    const { data: registrations } = await db
+      .from('league_registrations')
+      .select('user_id, profile:profiles(id, name, joinzer_rating, dupr_rating, estimated_rating)')
+      .eq('league_id', params.id)
+      .eq('status', 'registered')
+
+    if (registrations && registrations.length > 0) {
+      const rows = registrations.map((r: Record<string, unknown>) => {
+        const profile = r.profile as Record<string, unknown>
+        return {
+          session_id:     params.sessionId,
+          user_id:        r.user_id,
+          display_name:   profile?.name ?? 'Unknown',
+          player_type:    'roster_player',
+          expected_status: 'expected',
+          actual_status:  'not_present',
+          joinzer_rating: profile?.joinzer_rating ?? 1000,
+          dupr_rating:    profile?.dupr_rating ?? null,
+          estimated_rating: profile?.estimated_rating ?? null,
+        }
+      })
+      await db.from('league_session_players').insert(rows)
+    }
+
+    // Also seed subs who signed up for this specific session
+    const { data: sessionSubs } = await db
+      .from('league_session_subs')
+      .select('user_id, profile:profiles(id, name, joinzer_rating)')
+      .eq('session_id', params.sessionId)
+
+    if (sessionSubs && sessionSubs.length > 0) {
+      const subRows = sessionSubs.map((s: Record<string, unknown>) => {
+        const profile = s.profile as Record<string, unknown>
+        return {
+          session_id:     params.sessionId,
+          user_id:        s.user_id,
+          display_name:   profile?.name ?? 'Sub',
+          player_type:    'sub',
+          expected_status: 'expected',
+          actual_status:  'not_present',
+          joinzer_rating: profile?.joinzer_rating ?? 1000,
+        }
+      })
+      await db.from('league_session_players').insert(subRows)
+    }
+  }
+
+  // --- Fetch current session players ---
+  const { data: players } = await db
+    .from('league_session_players')
+    .select('*')
     .eq('session_id', params.sessionId)
+    .order('player_type')
+    .order('display_name')
 
-  const players = (registrations ?? []).map((r) => {
-    const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null; dupr_rating: number | null; estimated_rating: number | null; rating_source: string | null }
-    return { id: p.id, name: p.name, photoUrl: p.profile_photo_url, isSub: false }
-  })
+  // --- Fetch rounds with their matches ---
+  const { data: rounds } = await db
+    .from('league_rounds')
+    .select('*, matches:league_round_matches(*)')
+    .eq('session_id', params.sessionId)
+    .order('round_number')
 
-  const subs = (sessionSubs ?? []).map((s) => {
-    const p = s.profile as unknown as { id: string; name: string; profile_photo_url: string | null }
-    return { id: p.id, name: p.name, photoUrl: p.profile_photo_url, isSub: true }
-  })
-
-  const attendanceMap = new Map((attendance ?? []).map((a) => [a.user_id, a.is_sub]))
   const dateStr = new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   })
@@ -61,16 +107,17 @@ export default async function LiveSessionPage({
       </div>
 
       <div>
-        <h1 className="font-heading text-xl font-bold text-brand-dark">Live Session {session.session_number}</h1>
-        <p className="text-sm text-brand-muted">{dateStr}</p>
+        <h1 className="font-heading text-xl font-bold text-brand-dark">League Session Manager</h1>
+        <p className="text-sm text-brand-muted">{league.name} · Session {session.session_number} · {dateStr}</p>
       </div>
 
       <LiveSessionManager
         sessionId={params.sessionId}
         leagueId={params.id}
-        players={players}
-        subs={subs}
-        initialAttendance={attendanceMap}
+        initialPlayers={players ?? []}
+        initialRounds={rounds ?? []}
+        numberOfCourts={session.number_of_courts ?? 4}
+        roundsPlanned={session.rounds_planned ?? 7}
       />
 
       <div className="pt-2">
