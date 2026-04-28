@@ -12,7 +12,7 @@ export default async function PlayersPage() {
   const [{ data }, { data: availabilityData }, { data: mySessions }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating')
+      .select('id, name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender')
       .order('name', { ascending: true }),
     supabase
       .from('player_availability')
@@ -48,6 +48,7 @@ export default async function PlayersPage() {
     availableToday: !!availabilityMap[p.id as string],
     timeWindows: availabilityMap[p.id as string] ?? [],
     joinzer_rating: p.joinzer_rating as number ?? 1000,
+    gender: p.gender as string | null,
   }))
 
   const sessions = (mySessions ?? []).map((s) => ({

@@ -14,6 +14,7 @@ type Player = {
   availableToday: boolean
   timeWindows: string[]
   joinzer_rating: number
+  gender: string | null
 }
 
 type Session = {
@@ -55,6 +56,7 @@ type Props = {
 
 export default function PlayersClient({ players, sessions, currentUserId }: Props) {
   const [activeLabels, setActiveLabels] = useState<Set<string>>(new Set())
+  const [genderFilter, setGenderFilter] = useState<'male' | 'female' | null>(null)
   const [inviteTarget, setInviteTarget] = useState<Player | null>(null)
 
   function toggleTier(label: string) {
@@ -65,14 +67,36 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
     })
   }
 
+  function toggleGender(g: 'male' | 'female') {
+    setGenderFilter((prev) => (prev === g ? null : g))
+  }
+
   const filtered = players.filter((p) => {
+    if (genderFilter && p.gender !== genderFilter) return false
     if (activeLabels.size === 0) return true
     const tier = SKILL_TIERS.find((t) => p.joinzer_rating >= t.min && p.joinzer_rating <= t.max)
     return tier ? activeLabels.has(tier.label) : false
   })
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Gender filter */}
+      <div className="flex gap-2">
+        {(['male', 'female'] as const).map((g) => (
+          <button
+            key={g}
+            onClick={() => toggleGender(g)}
+            className={`px-4 py-1 rounded-full text-xs font-medium border transition-colors ${
+              genderFilter === g
+                ? 'bg-brand text-brand-dark border-brand'
+                : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
+            }`}
+          >
+            {g.charAt(0).toUpperCase() + g.slice(1)}
+          </button>
+        ))}
+      </div>
+
       {/* Skill filter pills */}
       <div className="flex gap-2 flex-wrap">
         {SKILL_TIERS.map((tier) => {
@@ -91,18 +115,18 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
             </button>
           )
         })}
-        {activeLabels.size > 0 && (
+        {(activeLabels.size > 0 || genderFilter) && (
           <button
-            onClick={() => setActiveLabels(new Set())}
+            onClick={() => { setActiveLabels(new Set()); setGenderFilter(null) }}
             className="px-3 py-1 rounded-full text-xs font-medium border border-brand-border text-brand-muted hover:border-brand-active transition-colors"
           >
-            Clear
+            Clear all
           </button>
         )}
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-brand-muted text-center py-12">No players match this skill range.</p>
+        <p className="text-sm text-brand-muted text-center py-12">No players match these filters.</p>
       ) : (
         <div className="grid grid-cols-3 gap-3">
           {filtered.map((player) => {
