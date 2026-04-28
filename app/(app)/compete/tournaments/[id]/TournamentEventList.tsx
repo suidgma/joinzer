@@ -60,12 +60,12 @@ export default function TournamentEventList({ tournamentStatus, events, isLogged
 
   async function handleWithdraw(eventId: string) {
     setLoadingId(eventId)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoadingId(null); return }
 
-    await supabase.from('tournament_registrations').update({ status: 'cancelled' })
-      .eq('tournament_event_id', eventId).eq('user_id', user.id)
+    await fetch('/api/tournament-cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournamentEventId: eventId }),
+    })
 
     setLocalStatuses((prev) => ({ ...prev, [eventId]: 'cancelled' }))
     router.refresh()
