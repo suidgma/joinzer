@@ -40,12 +40,12 @@ export default async function LiveSessionPage({
     .eq('session_id', params.sessionId)
 
   const players = (registrations ?? []).map((r) => {
-    const p = r.profile as { id: string; name: string; profile_photo_url: string | null; dupr_rating: number | null; estimated_rating: number | null; rating_source: string | null }
+    const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null; dupr_rating: number | null; estimated_rating: number | null; rating_source: string | null }
     return { id: p.id, name: p.name, photoUrl: p.profile_photo_url, isSub: false }
   })
 
   const subs = (sessionSubs ?? []).map((s) => {
-    const p = s.profile as { id: string; name: string; profile_photo_url: string | null }
+    const p = s.profile as unknown as { id: string; name: string; profile_photo_url: string | null }
     return { id: p.id, name: p.name, photoUrl: p.profile_photo_url, isSub: true }
   })
 

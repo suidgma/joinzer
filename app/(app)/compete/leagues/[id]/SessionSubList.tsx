@@ -30,7 +30,7 @@ export default function SessionSubList({ sessions, mySubSessionIds }: Props) {
       setSubbed((prev) => { const n = new Set(prev); n.delete(sessionId); return n })
     } else {
       await supabase.from('league_session_subs').insert({ session_id: sessionId, user_id: user.id })
-      setSubbed((prev) => new Set([...prev, sessionId]))
+      setSubbed((prev) => new Set([...Array.from(prev), sessionId]))
     }
     setLoadingId(null)
   }

@@ -68,7 +68,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   }
 
   const standings: PlayerRow[] = (registrations ?? []).map((r) => {
-    const p = r.profile as { id: string; name: string; profile_photo_url: string | null }
+    const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null }
     const s = statsMap.get(r.user_id) ?? { wins: 0, losses: 0 }
     const gamesPlayed = s.wins + s.losses
     return {

@@ -62,7 +62,7 @@ export default async function LeagueRosterPage({ params }: { params: { id: strin
         ) : (
           <div className="space-y-1">
             {registered.map((r, i) => {
-              const p = r.profile as { id: string; name: string; profile_photo_url: string | null; dupr_rating: number | null; estimated_rating: number | null; rating_source: string | null }
+              const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null; dupr_rating: number | null; estimated_rating: number | null; rating_source: string | null }
               return (
                 <div key={i} className="flex items-center gap-3 bg-brand-surface border border-brand-border rounded-xl px-3 py-2">
                   <span className="text-xs text-brand-muted w-5 text-right">{i + 1}</span>
@@ -87,7 +87,7 @@ export default async function LeagueRosterPage({ params }: { params: { id: strin
           <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Waitlist ({waitlisted.length})</h2>
           <div className="space-y-1">
             {waitlisted.map((r, i) => {
-              const p = r.profile as { id: string; name: string; profile_photo_url: string | null; dupr_rating: number | null; estimated_rating: number | null; rating_source: string | null }
+              const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null; dupr_rating: number | null; estimated_rating: number | null; rating_source: string | null }
               return (
                 <div key={i} className="flex items-center gap-3 bg-brand-surface border border-yellow-200 rounded-xl px-3 py-2">
                   <span className="text-xs text-brand-muted w-5 text-right">{i + 1}</span>
@@ -106,7 +106,7 @@ export default async function LeagueRosterPage({ params }: { params: { id: strin
           <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Sub Interest ({subInterest!.length})</h2>
           <div className="space-y-1">
             {subInterest!.map((s, i) => {
-              const p = s.profile as { id: string; name: string; profile_photo_url: string | null }
+              const p = s.profile as unknown as { id: string; name: string; profile_photo_url: string | null }
               return (
                 <div key={i} className="flex items-center gap-3 bg-brand-surface border border-brand-border rounded-xl px-3 py-2">
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
@@ -128,7 +128,7 @@ export default async function LeagueRosterPage({ params }: { params: { id: strin
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Session Sub Availability</h2>
           {sessions!.map((s) => {
-            const subs = (s.league_session_subs as { user_id: string; profile: { id: string; name: string } }[]) ?? []
+            const subs = (s.league_session_subs as unknown as { user_id: string; profile: { id: string; name: string } }[]) ?? []
             const dateStr = new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
             return (
               <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3">

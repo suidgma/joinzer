@@ -42,13 +42,15 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
 
   async function handleCancel() {
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-
-    await supabase.from('league_registrations').update({ status: 'cancelled' }).eq('league_id', leagueId).eq('user_id', user.id)
-    setLocalReg('cancelled')
-    router.refresh()
+    const res = await fetch('/api/league-cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId }),
+    })
+    if (res.ok) {
+      setLocalReg('cancelled')
+      router.refresh()
+    }
     setLoading(false)
   }
 

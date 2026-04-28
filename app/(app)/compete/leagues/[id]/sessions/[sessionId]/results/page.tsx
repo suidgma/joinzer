@@ -33,7 +33,7 @@ export default async function SessionResultsPage({
     .eq('status', 'registered')
 
   const players = (registrations ?? []).map((r) => {
-    const p = r.profile as { id: string; name: string }
+    const p = r.profile as unknown as { id: string; name: string }
     return { id: p.id, name: p.name }
   }).sort((a, b) => a.name.localeCompare(b.name))
 
@@ -58,10 +58,10 @@ export default async function SessionResultsPage({
           <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Recorded Matches ({matches.length})</h2>
           <div className="space-y-2">
             {matches.map((m) => {
-              const t1p1 = (m.team1_player1 as { id: string; name: string } | null)?.name ?? '?'
-              const t1p2 = (m.team1_player2 as { id: string; name: string } | null)?.name ?? '?'
-              const t2p1 = (m.team2_player1 as { id: string; name: string } | null)?.name ?? '?'
-              const t2p2 = (m.team2_player2 as { id: string; name: string } | null)?.name ?? '?'
+              const t1p1 = (m.team1_player1 as unknown as { id: string; name: string } | null)?.name ?? '?'
+              const t1p2 = (m.team1_player2 as unknown as { id: string; name: string } | null)?.name ?? '?'
+              const t2p1 = (m.team2_player1 as unknown as { id: string; name: string } | null)?.name ?? '?'
+              const t2p2 = (m.team2_player2 as unknown as { id: string; name: string } | null)?.name ?? '?'
               const t1Won = (m.team1_score ?? 0) > (m.team2_score ?? 0)
               return (
                 <div key={m.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 text-sm">

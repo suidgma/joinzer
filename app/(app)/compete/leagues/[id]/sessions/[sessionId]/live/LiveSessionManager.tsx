@@ -57,7 +57,7 @@ export default function LiveSessionManager({ sessionId, players, subs, initialAt
   }
 
   function generateAssignments() {
-    const presentPlayers = [...attendance.keys()]
+    const presentPlayers = Array.from(attendance.keys())
     const shuffled = [...presentPlayers].sort(() => Math.random() - 0.5)
     const numCourts = Math.min(courts, Math.floor(shuffled.length / 2))
     const result: string[][][] = []
