@@ -23,17 +23,13 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
 
   async function handleRegister() {
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-
-    const status = (registrationStatus === 'open' && !isFull) ? 'registered' : 'waitlist'
-
-    const { error } = await supabase.from('league_registrations').upsert(
-      { league_id: leagueId, user_id: user.id, status },
-      { onConflict: 'league_id,user_id' }
-    )
-    if (!error) {
+    const res = await fetch('/api/league-register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId }),
+    })
+    if (res.ok) {
+      const { status } = await res.json()
       setLocalReg(status)
       router.refresh()
     }
