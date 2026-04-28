@@ -23,12 +23,13 @@ const SKILL_LEVEL_TO_TIER: Record<string, SkillTier> = {
 }
 
 const FORMAT_LABELS: Record<string, string> = {
-  mens_doubles:   "Men's Doubles",
-  womens_doubles: "Women's Doubles",
-  mixed_doubles:  'Mixed Doubles',
-  coed_doubles:   'Coed Doubles',
-  singles:        'Singles',
-  custom:         'Custom',
+  individual_round_robin: 'Individual Round Robin',
+  mens_doubles:           "Men's Doubles",
+  womens_doubles:         "Women's Doubles",
+  mixed_doubles:          'Mixed Doubles',
+  coed_doubles:           'Coed Doubles',
+  singles:                'Singles',
+  custom:                 'Custom',
 }
 
 const REG_BADGE: Record<string, { label: string; cls: string }> = {

@@ -2,23 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 
-type PlayerRow = {
-  id: string
-  name: string
-  profile_photo_url: string | null
-  wins: number
-  losses: number
-  gamesPlayed: number
-  winPct: number
-}
+const IS_IRR = (format: string) => format === 'individual_round_robin'
 
 export default async function LeagueStandingsPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
-
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: league }, { data: registrations }, { data: sessions }] = await Promise.all([
-    supabase.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, format, created_by').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
       .select('user_id, profile:profiles(id, name, profile_photo_url)')
@@ -34,6 +25,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   if (!league) notFound()
 
   const sessionIds = (sessions ?? []).map((s) => s.id)
+  const irr = IS_IRR(league.format ?? '')
 
   const { data: matches } = sessionIds.length > 0
     ? await supabase
@@ -43,11 +35,10 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
         .not('team1_score', 'is', null)
     : { data: [] }
 
-  // Build standings from match data
-  const statsMap = new Map<string, { wins: number; losses: number }>()
-
+  // Build stats map — two modes depending on format
+  const statsMap = new Map<string, { wins: number; losses: number; points: number; games: number }>()
   for (const reg of registrations ?? []) {
-    statsMap.set(reg.user_id, { wins: 0, losses: 0 })
+    statsMap.set(reg.user_id, { wins: 0, losses: 0, points: 0, games: 0 })
   }
 
   for (const m of matches ?? []) {
@@ -58,32 +49,30 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
 
     for (const pid of team1Players) {
       if (!pid) continue
-      const s = statsMap.get(pid) ?? { wins: 0, losses: 0 }
+      const s = statsMap.get(pid) ?? { wins: 0, losses: 0, points: 0, games: 0 }
+      s.games++
+      s.points += m.team1_score
       team1Won ? s.wins++ : s.losses++
       statsMap.set(pid, s)
     }
     for (const pid of team2Players) {
       if (!pid) continue
-      const s = statsMap.get(pid) ?? { wins: 0, losses: 0 }
+      const s = statsMap.get(pid) ?? { wins: 0, losses: 0, points: 0, games: 0 }
+      s.games++
+      s.points += m.team2_score
       team1Won ? s.losses++ : s.wins++
       statsMap.set(pid, s)
     }
   }
 
-  const standings: PlayerRow[] = (registrations ?? []).map((r) => {
+  const standings = (registrations ?? []).map((r) => {
     const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null }
-    const s = statsMap.get(r.user_id) ?? { wins: 0, losses: 0 }
-    const gamesPlayed = s.wins + s.losses
-    return {
-      id: p.id,
-      name: p.name,
-      profile_photo_url: p.profile_photo_url,
-      wins: s.wins,
-      losses: s.losses,
-      gamesPlayed,
-      winPct: gamesPlayed > 0 ? s.wins / gamesPlayed : 0,
-    }
-  }).sort((a, b) => b.wins - a.wins || a.losses - b.losses)
+    const s = statsMap.get(r.user_id) ?? { wins: 0, losses: 0, points: 0, games: 0 }
+    return { ...p, ...s, winPct: s.games > 0 ? s.wins / s.games : 0 }
+  }).sort(irr
+    ? (a, b) => b.points - a.points || b.games - a.games
+    : (a, b) => b.wins - a.wins || a.losses - b.losses
+  )
 
   const hasResults = matches && matches.length > 0
   const isManager = user?.id === league.created_by
@@ -96,7 +85,10 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
         <Link href={`/compete/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
       </div>
 
-      <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+      <div>
+        <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+        {irr && <p className="text-xs text-brand-muted">Individual Round Robin · ranked by total points</p>}
+      </div>
 
       {!hasResults ? (
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
@@ -118,33 +110,65 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
         </div>
       ) : (
         <div className="bg-brand-surface border border-brand-border rounded-2xl overflow-hidden">
-          {/* Header */}
-          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 px-4 py-2 bg-brand-soft border-b border-brand-border text-xs font-semibold text-brand-muted uppercase tracking-wide">
-            <span>#</span>
-            <span>Player</span>
-            <span className="text-right">W</span>
-            <span className="text-right">L</span>
-            <span className="text-right">Win%</span>
-          </div>
-          {standings.map((p, i) => (
-            <div key={p.id} className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center px-4 py-3 ${i < standings.length - 1 ? 'border-b border-brand-border' : ''}`}>
-              <span className="text-sm text-brand-muted w-5 text-right">{i + 1}</span>
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
-                  {p.profile_photo_url
-                    ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
-                    : <span className="flex items-center justify-center w-full h-full text-brand-muted text-xs">{p.name[0]}</span>
-                  }
-                </div>
-                <span className="text-sm font-medium text-brand-dark truncate">{p.name}</span>
+          {irr ? (
+            <>
+              <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 px-4 py-2 bg-brand-soft border-b border-brand-border text-xs font-semibold text-brand-muted uppercase tracking-wide">
+                <span>#</span>
+                <span>Player</span>
+                <span className="text-right">Pts</span>
+                <span className="text-right">GP</span>
+                <span className="text-right">Avg</span>
               </div>
-              <span className="text-sm font-semibold text-brand-dark text-right">{p.wins}</span>
-              <span className="text-sm text-brand-muted text-right">{p.losses}</span>
-              <span className="text-xs text-brand-muted text-right">
-                {p.gamesPlayed > 0 ? `${Math.round(p.winPct * 100)}%` : '—'}
-              </span>
-            </div>
-          ))}
+              {standings.map((p, i) => (
+                <div key={p.id} className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center px-4 py-3 ${i < standings.length - 1 ? 'border-b border-brand-border' : ''}`}>
+                  <span className="text-sm text-brand-muted w-5 text-right">{i + 1}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
+                      {p.profile_photo_url
+                        ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
+                        : <span className="flex items-center justify-center w-full h-full text-brand-muted text-xs">{p.name[0]}</span>
+                      }
+                    </div>
+                    <span className="text-sm font-medium text-brand-dark truncate">{p.name}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-brand-dark text-right">{p.points}</span>
+                  <span className="text-sm text-brand-muted text-right">{p.games}</span>
+                  <span className="text-xs text-brand-muted text-right">
+                    {p.games > 0 ? (p.points / p.games).toFixed(1) : '—'}
+                  </span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 px-4 py-2 bg-brand-soft border-b border-brand-border text-xs font-semibold text-brand-muted uppercase tracking-wide">
+                <span>#</span>
+                <span>Player</span>
+                <span className="text-right">W</span>
+                <span className="text-right">L</span>
+                <span className="text-right">Win%</span>
+              </div>
+              {standings.map((p, i) => (
+                <div key={p.id} className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center px-4 py-3 ${i < standings.length - 1 ? 'border-b border-brand-border' : ''}`}>
+                  <span className="text-sm text-brand-muted w-5 text-right">{i + 1}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
+                      {p.profile_photo_url
+                        ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
+                        : <span className="flex items-center justify-center w-full h-full text-brand-muted text-xs">{p.name[0]}</span>
+                      }
+                    </div>
+                    <span className="text-sm font-medium text-brand-dark truncate">{p.name}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-brand-dark text-right">{p.wins}</span>
+                  <span className="text-sm text-brand-muted text-right">{p.losses}</span>
+                  <span className="text-xs text-brand-muted text-right">
+                    {p.games > 0 ? `${Math.round(p.winPct * 100)}%` : '—'}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </main>

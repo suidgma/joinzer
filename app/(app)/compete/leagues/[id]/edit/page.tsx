@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 const FORMAT_OPTIONS = [
+  { value: 'individual_round_robin', label: 'Individual Round Robin' },
   { value: 'mens_doubles', label: "Men's Doubles" },
   { value: 'womens_doubles', label: "Women's Doubles" },
   { value: 'mixed_doubles', label: 'Mixed Doubles' },
