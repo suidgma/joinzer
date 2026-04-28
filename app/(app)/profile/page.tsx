@@ -59,6 +59,13 @@ export default async function ProfilePage() {
           </div>
         )}
 
+        {profile.gender && (
+          <div>
+            <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Gender</p>
+            <p className="text-sm text-brand-body">{profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1)}</p>
+          </div>
+        )}
+
         <div>
           <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Rating</p>
           <p className="text-sm text-brand-body">{ratingDisplay ?? 'Not set'}</p>
