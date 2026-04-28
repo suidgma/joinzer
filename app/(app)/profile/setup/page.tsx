@@ -19,6 +19,7 @@ export default function ProfileSetupPage() {
   const [estimatedRating, setEstimatedRating] = useState('')
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [gender, setGender] = useState<'male' | 'female' | null>(null)
   const [notifyNewSessions, setNotifyNewSessions] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -68,6 +69,7 @@ export default function ProfileSetupPage() {
       dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
       estimated_rating: ratingSource === 'estimated' ? numericRating : null,
       joinzer_rating: seedJoinzerRating(numericRating),
+      gender,
     })
 
     if (error) {
@@ -136,6 +138,29 @@ export default function ProfileSetupPage() {
                 placeholder="702-555-0100"
                 className={inputClass}
               />
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                Gender{' '}
+                <span className="text-brand-muted font-normal">(optional)</span>
+              </label>
+              <div className="flex gap-3">
+                {(['male', 'female'] as const).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGender(gender === g ? null : g)}
+                    className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                      gender === g
+                        ? 'bg-brand border-brand text-brand-dark'
+                        : 'border-brand-border text-brand-muted hover:border-brand-active'
+                    }`}
+                  >
+                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <fieldset className="space-y-3">

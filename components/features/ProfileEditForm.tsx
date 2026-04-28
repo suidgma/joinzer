@@ -11,6 +11,7 @@ type Profile = {
   id: string
   name: string
   phone: string | null
+  gender: string | null
   rating_source: string | null
   dupr_rating: number | null
   estimated_rating: number | null
@@ -32,6 +33,9 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
     profile.estimated_rating?.toString() ?? ''
   )
   const [photoUrl, setPhotoUrl] = useState<string | null>(profile.profile_photo_url)
+  const [gender, setGender] = useState<'male' | 'female' | null>(
+    (profile.gender as 'male' | 'female' | null) ?? null
+  )
   const [notifyNewSessions, setNotifyNewSessions] = useState(profile.notify_new_sessions)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +62,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
         notify_new_sessions: notifyNewSessions,
         profile_photo_url: photoUrl,
         joinzer_rating: seedJoinzerRating(numericRating),
+        gender,
       })
       .eq('id', profile.id)
 
@@ -104,6 +109,29 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
           placeholder="702-555-0100"
           className="w-full input"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Gender{' '}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <div className="flex gap-3">
+          {(['male', 'female'] as const).map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setGender(gender === g ? null : g)}
+              className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                gender === g
+                  ? 'bg-brand border-brand text-brand-dark'
+                  : 'border-brand-border text-brand-muted hover:border-brand-active'
+              }`}
+            >
+              {g.charAt(0).toUpperCase() + g.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       <fieldset className="space-y-3">
