@@ -8,6 +8,7 @@ import TrustSection from '@/components/landing/TrustSection'
 import MidPageCTA from '@/components/landing/MidPageCTA'
 import FinalCTA from '@/components/landing/FinalCTA'
 import LandingFooter from '@/components/landing/LandingFooter'
+import CompeteSection from '@/components/landing/CompeteSection'
 
 export default async function HomePage({
   searchParams,
@@ -31,6 +32,7 @@ export default async function HomePage({
         <HeroSection />
         <HowItWorks />
         <FeaturesSection />
+        <CompeteSection />
         <TrustSection />
         <MidPageCTA />
         <FinalCTA />

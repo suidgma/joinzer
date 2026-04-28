@@ -45,7 +45,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/privacy' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
-    pathname.startsWith('/auth/')
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/compete')
 
   if (!user && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))

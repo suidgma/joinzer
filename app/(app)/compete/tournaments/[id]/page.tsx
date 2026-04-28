@@ -60,9 +60,14 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         <h1 className="font-heading text-xl font-bold text-brand-dark">{tournament.name}</h1>
         {orgName && <p className="text-sm text-brand-muted">{orgName}</p>}
         {isManager && (
-          <Link href={`/compete/tournaments/${tournament.id}/edit`} className="text-xs text-brand-active underline underline-offset-2">
-            Edit tournament
-          </Link>
+          <div className="flex gap-3">
+            <Link href={`/compete/tournaments/${tournament.id}/edit`} className="text-xs text-brand-active underline underline-offset-2">
+              Edit
+            </Link>
+            <Link href={`/compete/tournaments/${tournament.id}/roster`} className="text-xs text-brand-active underline underline-offset-2">
+              Roster
+            </Link>
+          </div>
         )}
       </div>
 
