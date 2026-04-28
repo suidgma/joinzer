@@ -1,9 +1,10 @@
 const VEGAS_TZ = 'America/Los_Angeles'
 
 export function joinzerRatingLabel(rating: number): string {
-  if (rating >= 1250) return 'Elite'
-  if (rating >= 1100) return 'Advanced'
-  if (rating >= 950) return 'Intermediate'
+  if (rating >= 1200) return 'Advanced'
+  if (rating >= 1100) return 'Intermediate Plus'
+  if (rating >= 1000) return 'Intermediate'
+  if (rating >= 900) return 'Beginner Plus'
   return 'Beginner'
 }
 

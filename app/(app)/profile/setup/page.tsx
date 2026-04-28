@@ -258,8 +258,9 @@ export default function ProfileSetupPage() {
 
 function seedJoinzerRating(rating: number | null): number {
   if (rating == null) return 1000
-  if (rating >= 5.0) return 1300
-  if (rating >= 4.0) return 1150
-  if (rating >= 3.0) return 1000
-  return 900
+  if (rating >= 4.25) return 1200
+  if (rating >= 3.75) return 1100
+  if (rating >= 3.25) return 1000
+  if (rating >= 2.75) return 900
+  return 850
 }
