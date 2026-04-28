@@ -29,25 +29,15 @@ const TIME_LABELS: Record<string, string> = {
   evening: 'Eve',
 }
 
-type SkillOption =
-  | { label: string; min?: undefined; max?: undefined }
-  | { label: string; min: number; max: number }
+type SkillTier = { label: string; min: number; max: number }
 
-const SKILL_OPTIONS: SkillOption[] = [
-  { label: 'All levels' },
-  { label: '2.0 – 2.5', min: 2.0, max: 2.5 },
-  { label: '2.5 – 3.0', min: 2.5, max: 3.0 },
-  { label: '3.0 – 3.5', min: 3.0, max: 3.5 },
-  { label: '3.5 – 4.0', min: 3.5, max: 4.0 },
-  { label: '4.0 – 4.5', min: 4.0, max: 4.5 },
-  { label: '5.0+', min: 5.0, max: 99 },
+const SKILL_TIERS: SkillTier[] = [
+  { label: 'Beginner',          min: 0,    max: 899  },
+  { label: 'Beginner Plus',     min: 900,  max: 999  },
+  { label: 'Intermediate',      min: 1000, max: 1099 },
+  { label: 'Intermediate Plus', min: 1100, max: 1199 },
+  { label: 'Advanced',          min: 1200, max: 99999 },
 ]
-
-function playerRating(p: Player): number | null {
-  if (p.rating_source === 'dupr_known') return p.dupr_rating
-  if (p.rating_source === 'estimated') return p.estimated_rating
-  return null
-}
 
 function ratingLabel(p: Player): string {
   if (p.rating_source === 'dupr_known' && p.dupr_rating != null)
@@ -64,39 +54,51 @@ type Props = {
 }
 
 export default function PlayersClient({ players, sessions, currentUserId }: Props) {
-  const [skillFilter, setSkillFilter] = useState('')
+  const [activeLabels, setActiveLabels] = useState<Set<string>>(new Set())
   const [inviteTarget, setInviteTarget] = useState<Player | null>(null)
 
+  function toggleTier(label: string) {
+    setActiveLabels((prev) => {
+      const next = new Set(prev)
+      next.has(label) ? next.delete(label) : next.add(label)
+      return next
+    })
+  }
+
   const filtered = players.filter((p) => {
-    if (!skillFilter) return true
-    const option = SKILL_OPTIONS.find((o) => o.label === skillFilter)
-    if (!option || option.min == null) return true
-    const rating = playerRating(p)
-    if (rating == null) return false
-    return rating >= option.min && rating <= (option.max ?? 99)
+    if (activeLabels.size === 0) return true
+    const tier = SKILL_TIERS.find((t) => p.joinzer_rating >= t.min && p.joinzer_rating <= t.max)
+    return tier ? activeLabels.has(tier.label) : false
   })
 
   return (
     <div className="space-y-4">
       {/* Skill filter pills */}
       <div className="flex gap-2 flex-wrap">
-        {SKILL_OPTIONS.map((opt) => {
-          const val = opt.label === 'All levels' ? '' : opt.label
-          const active = skillFilter === val
+        {SKILL_TIERS.map((tier) => {
+          const active = activeLabels.has(tier.label)
           return (
             <button
-              key={opt.label}
-              onClick={() => setSkillFilter(val)}
+              key={tier.label}
+              onClick={() => toggleTier(tier.label)}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                 active
                   ? 'bg-brand text-brand-dark border-brand'
                   : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
               }`}
             >
-              {opt.label}
+              {tier.label}
             </button>
           )
         })}
+        {activeLabels.size > 0 && (
+          <button
+            onClick={() => setActiveLabels(new Set())}
+            className="px-3 py-1 rounded-full text-xs font-medium border border-brand-border text-brand-muted hover:border-brand-active transition-colors"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
