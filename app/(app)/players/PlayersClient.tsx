@@ -81,20 +81,25 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
   return (
     <div className="space-y-3">
       {/* Gender filter */}
-      <div className="flex gap-2">
-        {(['male', 'female'] as const).map((g) => (
-          <button
-            key={g}
-            onClick={() => toggleGender(g)}
-            className={`px-4 py-1 rounded-full text-xs font-medium border transition-colors ${
-              genderFilter === g
-                ? 'bg-brand text-brand-dark border-brand'
-                : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
-            }`}
-          >
-            {g.charAt(0).toUpperCase() + g.slice(1)}
-          </button>
-        ))}
+      <div className="space-y-1">
+        <div className="flex gap-2">
+          {(['male', 'female'] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => toggleGender(g)}
+              className={`px-4 py-1 rounded-full text-xs font-medium border transition-colors ${
+                genderFilter === g
+                  ? 'bg-brand text-brand-dark border-brand'
+                  : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
+              }`}
+            >
+              {g.charAt(0).toUpperCase() + g.slice(1)}
+            </button>
+          ))}
+        </div>
+        {genderFilter && (
+          <p className="text-[10px] text-brand-muted">Only players who have set their gender are shown.</p>
+        )}
       </div>
 
       {/* Skill filter pills */}
@@ -126,7 +131,11 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-brand-muted text-center py-12">No players match these filters.</p>
+        <p className="text-sm text-brand-muted text-center py-12">
+          {genderFilter
+            ? 'No players have set their gender to ' + genderFilter + ' yet.'
+            : 'No players match these filters.'}
+        </p>
       ) : (
         <div className="grid grid-cols-3 gap-3">
           {filtered.map((player) => {
