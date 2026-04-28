@@ -22,7 +22,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: tournament }, { data: events }, { data: myRegs }] = await Promise.all([
+  const [{ data: tournament }, { data: events }, { data: myRegs }, { data: myProfile }] = await Promise.all([
     supabase
       .from('tournaments')
       .select('*, organization:organizations(name)')
@@ -36,6 +36,9 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     user
       ? supabase.from('tournament_registrations').select('tournament_event_id, status').eq('user_id', user.id)
       : Promise.resolve({ data: [] }),
+    user
+      ? supabase.from('profiles').select('dupr_rating, estimated_rating, rating_source').eq('id', user.id).single()
+      : Promise.resolve({ data: null }),
   ])
 
   if (!tournament) notFound()
@@ -43,6 +46,12 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const isManager = user?.id === tournament.created_by
   const orgName = (tournament.organization as { name: string } | null)?.name
   const myRegMap = new Map((myRegs ?? []).map((r) => [r.tournament_event_id, r.status]))
+
+  // Effective DUPR for skill-level warning comparison
+  const userRating: number | null =
+    myProfile?.rating_source === 'dupr_known' ? (myProfile.dupr_rating ?? null)
+    : myProfile?.rating_source === 'estimated' ? (myProfile.estimated_rating ?? null)
+    : null
 
   const fmt = (d: string | null) =>
     d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
@@ -109,6 +118,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
               myStatus: myRegMap.get(e.id) ?? null,
             }))}
             isLoggedIn={!!user}
+            userRating={userRating}
             categoryLabels={CATEGORY_LABELS}
             bracketLabels={BRACKET_LABELS}
           />

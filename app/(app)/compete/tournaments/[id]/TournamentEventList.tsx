@@ -22,11 +22,22 @@ type Props = {
   tournamentStatus: string
   events: EventItem[]
   isLoggedIn: boolean
+  userRating: number | null
   categoryLabels: Record<string, string>
   bracketLabels: Record<string, string>
 }
 
-export default function TournamentEventList({ tournamentStatus, events, isLoggedIn, categoryLabels, bracketLabels }: Props) {
+function skillMismatchWarning(skillLevel: string | null, userRating: number | null): string | null {
+  if (!skillLevel || userRating == null) return null
+  const eventRating = parseFloat(skillLevel)
+  if (isNaN(eventRating)) return null
+  const diff = userRating - eventRating
+  if (diff < -0.75) return `This event is rated ${eventRating.toFixed(1)}. Your rating (${userRating.toFixed(2)}) may be below this level.`
+  if (diff > 0.75) return `This event is rated ${eventRating.toFixed(1)}. Your rating (${userRating.toFixed(2)}) may be above this level.`
+  return null
+}
+
+export default function TournamentEventList({ tournamentStatus, events, isLoggedIn, userRating, categoryLabels, bracketLabels }: Props) {
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [partnerNames, setPartnerNames] = useState<Record<string, string>>({})
@@ -78,6 +89,7 @@ export default function TournamentEventList({ tournamentStatus, events, isLogged
         const myStatus = localStatuses[evt.id]
         const isFull = evt.max_teams != null && evt.reg_count >= evt.max_teams
         const loading = loadingId === evt.id
+        const warning = skillMismatchWarning(evt.skill_level, userRating)
 
         return (
           <div key={evt.id} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
@@ -118,6 +130,13 @@ export default function TournamentEventList({ tournamentStatus, events, isLogged
                 onChange={(e) => setPartnerNames((prev) => ({ ...prev, [evt.id]: e.target.value }))}
                 className="w-full input text-sm"
               />
+            )}
+
+            {/* Skill mismatch warning */}
+            {warning && isLoggedIn && (!myStatus || myStatus === 'cancelled') && (
+              <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                ⚠️ {warning}
+              </p>
             )}
 
             {/* CTA */}
