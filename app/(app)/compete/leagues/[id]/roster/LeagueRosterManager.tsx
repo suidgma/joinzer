@@ -156,7 +156,7 @@ export default function LeagueRosterManager({
     <main className="max-w-lg mx-auto p-4 space-y-6">
       <div className="flex items-center gap-2">
         <Link href={`/compete/leagues/${leagueId}`} className="text-brand-muted text-sm">
-          ← {leagueName}
+          ← Back
         </Link>
       </div>
 
