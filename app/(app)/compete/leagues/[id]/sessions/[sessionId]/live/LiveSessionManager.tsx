@@ -523,13 +523,14 @@ export default function LiveSessionManager({
 
     if (!res.ok) { setError(data.error ?? 'Failed to generate round'); setGenerating(false); return }
 
-    // Refresh rounds from router (server re-fetches)
-    router.refresh()
-    // Optimistically add the new round so UI updates immediately
+    // Optimistically update rounds so UI reflects changes immediately
     const newRound = data.round
     if (newRound) {
       setRounds(prev => {
-        const without = prev.filter(r => r.id !== newRound.id)
+        // When replacing, remove the old draft (deleted on server) and avoid duplicates
+        const without = replaceExisting
+          ? prev.filter(r => r.status !== 'draft' && r.id !== newRound.id)
+          : prev.filter(r => r.id !== newRound.id)
         return [...without, newRound].sort((a, b) => a.round_number - b.round_number)
       })
       // Scroll to the current round section after React re-renders

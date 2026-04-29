@@ -41,7 +41,6 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
   const [locationName, setLocationName] = useState('')
   const [scheduleDescription, setScheduleDescription] = useState('')
   const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [playDays, setPlayDays] = useState('')
   const [gamesPerSession, setGamesPerSession] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
@@ -62,7 +61,6 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
       setLocationName(data.location_name ?? '')
       setScheduleDescription(data.schedule_description ?? '')
       setStartDate(data.start_date ?? '')
-      setEndDate(data.end_date ?? '')
       setPlayDays(data.play_days?.toString() ?? '')
       setGamesPerSession(data.games_per_session?.toString() ?? '')
       setMaxPlayers(data.max_players?.toString() ?? '')
@@ -88,7 +86,6 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
         location_name: locationName.trim() || null,
         schedule_description: scheduleDescription.trim() || null,
         start_date: startDate || null,
-        end_date: endDate || null,
         play_days: playDays ? parseInt(playDays) : null,
         games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
@@ -143,10 +140,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
         <Field label="Schedule Description">
           <input value={scheduleDescription} onChange={(e) => setScheduleDescription(e.target.value)} className="w-full input" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Start Date"><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" /></Field>
-          <Field label="End Date"><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full input" /></Field>
-        </div>
+        <Field label="Start Date"><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" /></Field>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Play Days"><input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} className="w-full input" /></Field>
           <Field label="Games/Session"><input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} className="w-full input" /></Field>

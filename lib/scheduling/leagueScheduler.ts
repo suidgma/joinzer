@@ -414,7 +414,9 @@ export function generateNextRound(
     if (!valid) continue
 
     const score = scoreCandidate(matches, history, present)
-    if (score > bestScore) { bestScore = score; bestMatches = matches }
+    if (score > bestScore || (score === bestScore && Math.random() < 0.5)) {
+      bestScore = score; bestMatches = matches
+    }
   }
 
   if (!bestMatches) return null
