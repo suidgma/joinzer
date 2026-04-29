@@ -300,6 +300,14 @@ export default function LeagueRosterManager({
                 {/* Expanded panel */}
                 {isOpen && (
                   <div className="border-t border-brand-border px-3 py-3 space-y-3">
+                    {/* Live session link — primary CTA */}
+                    <Link
+                      href={`/compete/leagues/${leagueId}/sessions/${s.id}/live`}
+                      className="block w-full text-center py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover transition-colors"
+                    >
+                      Open Live Session →
+                    </Link>
+
                     {/* Date editor */}
                     <div className="space-y-1.5">
                       <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Edit Date</p>
@@ -313,22 +321,11 @@ export default function LeagueRosterManager({
                         <button
                           onClick={() => handleSaveSession(s.id)}
                           disabled={savingSessionId === s.id}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand text-brand-dark hover:bg-brand-hover disabled:opacity-40"
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-soft border border-brand text-brand-dark hover:bg-brand transition-colors disabled:opacity-40"
                         >
                           {savingSessionId === s.id ? 'Saving…' : 'Save'}
                         </button>
                       </div>
-                    </div>
-
-                    {/* Live session link */}
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Session Manager</p>
-                      <Link
-                        href={`/compete/leagues/${leagueId}/sessions/${s.id}/live`}
-                        className="block w-full text-center py-2 rounded-xl bg-brand-soft border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-surface transition-colors"
-                      >
-                        Open Live Session →
-                      </Link>
                     </div>
 
                     {/* Subs */}
