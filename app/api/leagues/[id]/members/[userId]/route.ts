@@ -26,5 +26,22 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     .eq('user_id', params.userId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Remove from non-completed sessions (roster_player only — preserve sub/guest entries)
+  const { data: sessions } = await db
+    .from('league_sessions')
+    .select('id')
+    .eq('league_id', params.id)
+    .neq('status', 'completed')
+
+  if (sessions && sessions.length > 0) {
+    await db
+      .from('league_session_players')
+      .delete()
+      .in('session_id', sessions.map((s) => s.id))
+      .eq('user_id', params.userId)
+      .eq('player_type', 'roster_player')
+  }
+
   return NextResponse.json({ ok: true })
 }

@@ -31,5 +31,26 @@ export async function POST(req: NextRequest, { params }: Params) {
     )
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Sync into league_session_players for non-completed sessions
+  const [{ data: profile }, { data: sessions }] = await Promise.all([
+    db.from('profiles').select('name, joinzer_rating, dupr_rating, estimated_rating').eq('id', userId).single(),
+    db.from('league_sessions').select('id').eq('league_id', params.id).neq('status', 'completed'),
+  ])
+
+  if (sessions && sessions.length > 0 && profile) {
+    const rows = sessions.map((s) => ({
+      session_id: s.id,
+      user_id: userId,
+      display_name: (profile as { name: string }).name,
+      player_type: 'roster_player',
+      expected_status: 'expected',
+      actual_status: 'not_present',
+      joinzer_rating: (profile as { joinzer_rating: number | null }).joinzer_rating ?? 1000,
+    }))
+    // Only insert if not already present
+    await db.from('league_session_players').upsert(rows, { onConflict: 'session_id,user_id', ignoreDuplicates: true })
+  }
+
   return NextResponse.json({ ok: true }, { status: 201 })
 }
