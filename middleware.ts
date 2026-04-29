@@ -2,13 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // Forward pathname so server layouts can read it via headers()
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-pathname', request.nextUrl.pathname)
-
-  let supabaseResponse = NextResponse.next({
-    request: { headers: requestHeaders },
-  })
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,12 +13,10 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) =>
-            requestHeaders.set(`cookie-${name}`, value)
-          )
-          supabaseResponse = NextResponse.next({
-            request: { headers: requestHeaders },
-          })
+          // Update request cookies so Route Handlers receive the refreshed token
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          // Also set on response so the browser stores the new tokens
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -55,6 +47,9 @@ export async function middleware(request: NextRequest) {
   if (user && pathname === '/login') {
     return NextResponse.redirect(new URL('/events', request.url))
   }
+
+  // Forward pathname so server layouts can read it via headers()
+  supabaseResponse.headers.set('x-pathname', request.nextUrl.pathname)
 
   return supabaseResponse
 }
