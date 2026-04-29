@@ -89,6 +89,13 @@ export default async function LiveSessionPage({
     .order('player_type')
     .order('display_name')
 
+  // --- Fetch profiles not already in this session (for Add Sub dropdown) ---
+  const existingUserIds = (players ?? []).map(p => p.user_id).filter(Boolean) as string[]
+  const profileQuery = db.from('profiles').select('id, name').order('name')
+  const { data: availableProfiles } = existingUserIds.length > 0
+    ? await profileQuery.not('id', 'in', `(${existingUserIds.join(',')})`)
+    : await profileQuery
+
   // --- Fetch rounds with their matches ---
   const { data: rounds } = await db
     .from('league_rounds')
@@ -127,6 +134,7 @@ export default async function LiveSessionPage({
         numberOfCourts={session.number_of_courts ?? 4}
         roundsPlanned={session.rounds_planned ?? 7}
         initialScoredRounds={scoredRoundNumbers}
+        availableSubs={(availableProfiles ?? []).map(p => ({ id: p.id, name: p.name }))}
       />
 
     </main>

@@ -52,6 +52,7 @@ type Props = {
   numberOfCourts: number
   roundsPlanned: number
   initialScoredRounds: number[]
+  availableSubs: { id: string; name: string }[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -344,19 +345,31 @@ function FairnessSummary({ players, rounds }: { players: Player[]; rounds: Round
 
 // ─── Add Sub Modal ────────────────────────────────────────────────────────────
 
-function AddSubModal({ sessionId, onClose, onAdded }: { sessionId: string; onClose: () => void; onAdded: () => void }) {
-  const [name, setName] = useState('')
+function AddSubModal({
+  sessionId,
+  availableSubs,
+  onClose,
+  onAdded,
+}: {
+  sessionId: string
+  availableSubs: { id: string; name: string }[]
+  onClose: () => void
+  onAdded: () => void
+}) {
+  const [selectedId, setSelectedId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const selected = availableSubs.find(p => p.id === selectedId)
+
   async function handleAdd() {
-    if (!name.trim()) return
+    if (!selected) return
     setSaving(true)
     setError(null)
     const res = await fetch(`/api/league-sessions/${sessionId}/players`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName: name.trim(), playerType: 'sub' }),
+      body: JSON.stringify({ displayName: selected.name, userId: selected.id, playerType: 'sub' }),
     })
     if (res.ok) { onAdded(); onClose() }
     else { const d = await res.json(); setError(d.error ?? 'Failed to add sub') }
@@ -367,20 +380,27 @@ function AddSubModal({ sessionId, onClose, onAdded }: { sessionId: string; onClo
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
         <h2 className="font-heading text-lg font-bold text-brand-dark">Add Sub</h2>
-        <input
-          autoFocus
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="Sub's name"
-          className="w-full input"
-        />
+        {availableSubs.length === 0 ? (
+          <p className="text-sm text-brand-muted">No available players to add.</p>
+        ) : (
+          <select
+            autoFocus
+            value={selectedId}
+            onChange={e => setSelectedId(e.target.value)}
+            className="w-full input text-sm"
+          >
+            <option value="">— Select a player —</option>
+            {availableSubs.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-muted">Cancel</button>
           <button
             onClick={handleAdd}
-            disabled={saving || !name.trim()}
+            disabled={saving || !selectedId}
             className="flex-1 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold disabled:opacity-50"
           >
             {saving ? 'Adding…' : 'Add Sub'}
@@ -401,6 +421,7 @@ export default function LiveSessionManager({
   numberOfCourts,
   roundsPlanned,
   initialScoredRounds,
+  availableSubs,
 }: Props) {
   const router = useRouter()
   const currentRoundRef = useRef<HTMLElement>(null)
@@ -727,8 +748,9 @@ export default function LiveSessionManager({
       {showAddSub && (
         <AddSubModal
           sessionId={sessionId}
+          availableSubs={availableSubs}
           onClose={() => setShowAddSub(false)}
-          onAdded={() => router.refresh()}
+          onAdded={() => window.location.reload()}
         />
       )}
     </div>
