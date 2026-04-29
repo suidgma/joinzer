@@ -60,16 +60,12 @@ export default function LeagueRosterManager({
   const [registered, setRegistered] = useState<PlayerReg[]>(initialRegistered)
   const [availablePlayers, setAvailablePlayers] = useState<AvailablePlayer[]>(initialAvailable)
   const [sessions, setSessions] = useState<SessionRow[]>(initialSessions)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedPlayerId, setSelectedPlayerId] = useState('')
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<string | null>(null)
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingDate, setEditingDate] = useState('')
   const [savingSessionId, setSavingSessionId] = useState<string | null>(null)
-
-  const filteredPlayers = searchQuery.trim()
-    ? availablePlayers.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8)
-    : []
 
   async function handleRemove(userId: string) {
     setRemovingId(userId)
@@ -94,7 +90,9 @@ export default function LeagueRosterManager({
     }
   }
 
-  async function handleAdd(player: AvailablePlayer) {
+  async function handleAdd() {
+    const player = availablePlayers.find((p) => p.id === selectedPlayerId)
+    if (!player) return
     setAddingId(player.id)
     try {
       const res = await fetch(`/api/leagues/${leagueId}/members`, {
@@ -121,7 +119,7 @@ export default function LeagueRosterManager({
       }
       setRegistered((prev) => [...prev, newReg])
       setAvailablePlayers((prev) => prev.filter((p) => p.id !== player.id))
-      setSearchQuery('')
+      setSelectedPlayerId('')
     } finally {
       setAddingId(null)
     }
@@ -200,34 +198,30 @@ export default function LeagueRosterManager({
         )}
 
         {/* Add Player */}
-        <div className="pt-2 space-y-2">
-          <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Add Player</p>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name…"
-            className="w-full px-3 py-2 text-sm border border-brand-border rounded-lg bg-brand-surface text-brand-dark placeholder:text-brand-muted focus:outline-none focus:ring-1 focus:ring-brand-active"
-          />
-          {filteredPlayers.length > 0 && (
-            <div className="border border-brand-border rounded-lg overflow-hidden divide-y divide-brand-border">
-              {filteredPlayers.map((player) => (
-                <button
-                  key={player.id}
-                  onClick={() => handleAdd(player)}
-                  disabled={addingId === player.id}
-                  className="w-full text-left px-3 py-2 text-sm text-brand-dark hover:bg-brand-soft disabled:opacity-40 flex items-center justify-between"
-                >
-                  <span>{player.name}</span>
-                  {addingId === player.id && <span className="text-xs text-brand-muted">Adding…</span>}
-                </button>
-              ))}
+        {availablePlayers.length > 0 && (
+          <div className="pt-2 space-y-2">
+            <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Add Player</p>
+            <div className="flex gap-2">
+              <select
+                value={selectedPlayerId}
+                onChange={(e) => setSelectedPlayerId(e.target.value)}
+                className="flex-1 input text-sm"
+              >
+                <option value="">— Select a player —</option>
+                {availablePlayers.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleAdd}
+                disabled={!selectedPlayerId || !!addingId}
+                className="px-4 py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
+              >
+                {addingId ? '…' : 'Add'}
+              </button>
             </div>
-          )}
-          {searchQuery.trim() && filteredPlayers.length === 0 && (
-            <p className="text-xs text-brand-muted">No matching players found.</p>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       {/* Waitlist */}
@@ -262,6 +256,7 @@ export default function LeagueRosterManager({
               const p = s.profile
               return (
                 <div key={i} className="flex items-center gap-3 bg-brand-surface border border-brand-border rounded-xl px-3 py-2">
+                  <span className="text-xs text-brand-muted w-5 text-right">{i + 1}</span>
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
                     {p.profile_photo_url
                       ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
@@ -276,70 +271,76 @@ export default function LeagueRosterManager({
         </section>
       )}
 
-      {/* Sessions with inline date editing */}
+      {/* Sessions */}
       {sessions.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">
-            Session Sub Availability
+            Manage Sessions
           </h2>
           {sessions.map((s) => {
             const subs = s.league_session_subs ?? []
             const dateStr = new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', {
               weekday: 'short', month: 'short', day: 'numeric',
             })
-            const isEditing = editingSessionId === s.id
+            const isOpen = editingSessionId === s.id
 
             return (
-              <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3">
-                <div className="flex items-center justify-between mb-2">
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 flex-1">
-                      <input
-                        type="date"
-                        value={editingDate}
-                        onChange={(e) => setEditingDate(e.target.value)}
-                        className="text-sm border border-brand-border rounded px-2 py-1 text-brand-dark focus:outline-none focus:ring-1 focus:ring-brand-active"
-                      />
-                      <button
-                        onClick={() => handleSaveSession(s.id)}
-                        disabled={savingSessionId === s.id}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-active text-white disabled:opacity-40"
-                      >
-                        {savingSessionId === s.id ? 'Saving…' : 'Save'}
-                      </button>
-                      <button
-                        onClick={() => setEditingSessionId(null)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-brand-muted border border-brand-border"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-sm font-medium text-brand-dark">
-                        Session {s.session_number} · {dateStr}
-                      </p>
-                      <div className="flex items-center gap-2">
+              <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl overflow-hidden">
+                {/* Row — click to open/close */}
+                <button
+                  onClick={() => isOpen ? setEditingSessionId(null) : startEditSession(s)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-brand-soft transition-colors"
+                >
+                  <p className="text-sm font-medium text-brand-dark">
+                    Session {s.session_number} · {dateStr}
+                  </p>
+                  <span className="text-xs text-brand-muted">{isOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {/* Expanded panel */}
+                {isOpen && (
+                  <div className="border-t border-brand-border px-3 py-3 space-y-3">
+                    {/* Date editor */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Edit Date</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={editingDate}
+                          onChange={(e) => setEditingDate(e.target.value)}
+                          className="flex-1 text-sm border border-brand-border rounded-lg px-2 py-1.5 text-brand-dark focus:outline-none focus:ring-1 focus:ring-brand-active"
+                        />
                         <button
-                          onClick={() => startEditSession(s)}
-                          className="text-xs text-brand-active underline underline-offset-2"
+                          onClick={() => handleSaveSession(s.id)}
+                          disabled={savingSessionId === s.id}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand text-brand-dark hover:bg-brand-hover disabled:opacity-40"
                         >
-                          Edit date
+                          {savingSessionId === s.id ? 'Saving…' : 'Save'}
                         </button>
-                        <Link
-                          href={`/compete/leagues/${leagueId}/sessions/${s.id}/live`}
-                          className="text-xs text-brand-active underline underline-offset-2"
-                        >
-                          Live →
-                        </Link>
                       </div>
-                    </>
-                  )}
-                </div>
-                {subs.length === 0
-                  ? <p className="text-xs text-brand-muted">No subs available for this date.</p>
-                  : <p className="text-xs text-brand-muted">{subs.map((sb) => sb.profile.name).join(', ')}</p>
-                }
+                    </div>
+
+                    {/* Live session link */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Session Manager</p>
+                      <Link
+                        href={`/compete/leagues/${leagueId}/sessions/${s.id}/live`}
+                        className="block w-full text-center py-2 rounded-xl bg-brand-soft border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-surface transition-colors"
+                      >
+                        Open Live Session →
+                      </Link>
+                    </div>
+
+                    {/* Subs */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Subs Available</p>
+                      {subs.length === 0
+                        ? <p className="text-xs text-brand-muted">No subs signed up for this date.</p>
+                        : <p className="text-xs text-brand-muted">{subs.map((sb) => sb.profile.name).join(', ')}</p>
+                      }
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import LeagueActions from './LeagueActions'
 import SessionSubList from './SessionSubList'
 import DeleteLeagueButton from './DeleteLeagueButton'
+import SessionScheduleManager from './SessionScheduleManager'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
@@ -162,41 +163,33 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
       {sessions && sessions.length > 0 && (
         <section className="space-y-2">
           <h2 className="font-heading text-base font-bold text-brand-dark">Schedule</h2>
-          <div className="space-y-2">
-            {sessions.map((s) => (
-              <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-brand-dark">
-                    Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  </p>
-                  {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
-                  <div className="flex gap-3 mt-1">
+          {isManager ? (
+            <SessionScheduleManager leagueId={league.id} sessions={sessions} />
+          ) : (
+            <div className="space-y-2">
+              {sessions.map((s) => (
+                <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-brand-dark">
+                      Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </p>
+                    {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
                     {(s.status === 'completed' || s.status === 'in_progress') && (
-                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2">
+                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2 mt-1 block">
                         Results →
                       </Link>
                     )}
-                    {isManager && s.status === 'in_progress' && (
-                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/live`} className="text-xs text-brand-active underline underline-offset-2">
-                        Live →
-                      </Link>
-                    )}
-                    {isManager && s.status === 'scheduled' && (
-                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-muted underline underline-offset-2">
-                        Enter results →
-                      </Link>
-                    )}
                   </div>
+                  <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                    s.status === 'completed' ? 'bg-brand-soft text-brand-muted' :
+                    s.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                    s.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                    'bg-brand text-brand-dark'
+                  }`}>{s.status.replace('_', ' ')}</span>
                 </div>
-                <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                  s.status === 'completed' ? 'bg-brand-soft text-brand-muted' :
-                  s.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                  s.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                  'bg-brand text-brand-dark'
-                }`}>{s.status.replace('_', ' ')}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -219,7 +212,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
             <p className="text-sm text-brand-body">{registeredCount} registered · {waitlistCount} waitlisted</p>
             <Link href={`/compete/leagues/${league.id}/roster`} className="block text-sm text-brand-active underline underline-offset-2">
-              Roster & subs →
+              Manage League →
             </Link>
             <div className="pt-2 border-t border-brand-border">
               <DeleteLeagueButton leagueId={league.id} />

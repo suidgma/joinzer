@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ type Props = {
   initialRounds: Round[]
   numberOfCourts: number
   roundsPlanned: number
+  initialScoredRounds: number[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -395,6 +397,7 @@ export default function LiveSessionManager({
   initialRounds,
   numberOfCourts,
   roundsPlanned,
+  initialScoredRounds,
 }: Props) {
   const router = useRouter()
   const [players, setPlayers]   = useState<Player[]>(initialPlayers)
@@ -405,6 +408,12 @@ export default function LiveSessionManager({
   const [showAddSub, setShowAddSub] = useState(false)
   const [showFairness, setShowFairness] = useState(false)
   const [endingDay, setEndingDay] = useState(false)
+  const [scoredRounds, setScoredRounds] = useState(() => new Set(initialScoredRounds))
+
+  // Sync when server re-fetches after router.refresh()
+  useEffect(() => {
+    setScoredRounds(new Set(initialScoredRounds))
+  }, [initialScoredRounds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const presentPlayers  = players.filter(p => p.actual_status === 'present')
   const presentCount    = presentPlayers.length
@@ -415,6 +424,11 @@ export default function LiveSessionManager({
   const lockedRound     = rounds.find(r => r.status === 'locked')
   const activeRound     = draftRound ?? lockedRound
   const nextRoundNumber = rounds.length === 0 ? 1 : Math.max(...rounds.map(r => r.round_number)) + 1
+
+  // Last completed round must have scores before allowing the next generation
+  const completedRoundsSorted = rounds.filter(r => r.status === 'completed').sort((a, b) => a.round_number - b.round_number)
+  const lastCompletedRound = completedRoundsSorted[completedRoundsSorted.length - 1]
+  const pendingScores = lastCompletedRound != null && !scoredRounds.has(lastCompletedRound.round_number)
 
   // --- Quick court preview ---
   function courtsPreview() {
@@ -502,6 +516,9 @@ export default function LiveSessionManager({
     const updated = await res.json()
     setRounds(prev => prev.map(r => r.id === roundId ? { ...r, status: updated.status, locked_at: updated.locked_at, completed_at: updated.completed_at } : r))
     setLoading(false)
+    if (action === 'complete') {
+      router.push(`/compete/leagues/${leagueId}/sessions/${sessionId}/results`)
+    }
   }
 
   // --- End the day ---
@@ -596,9 +613,15 @@ export default function LiveSessionManager({
           )}
         </div>
 
+        {pendingScores && !draftRound && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
+            Enter scores for Round {lastCompletedRound!.round_number} before generating the next round.
+          </div>
+        )}
+
         <button
           onClick={() => handleGenerate(false)}
-          disabled={generating || presentCount < 2 || !!draftRound}
+          disabled={generating || presentCount < 2 || !!draftRound || pendingScores}
           className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-40 transition-colors"
         >
           {generating ? 'Generating…' : draftRound ? `Round ${draftRound.round_number} draft ready` : `Generate Round ${nextRoundNumber}`}
@@ -644,6 +667,16 @@ export default function LiveSessionManager({
             />
           ))}
         </section>
+      )}
+
+      {/* ── Enter Match Results ────────────────────────────────── */}
+      {completedRounds.length > 0 && (
+        <Link
+          href={`/compete/leagues/${leagueId}/sessions/${sessionId}/results`}
+          className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+        >
+          Enter Match Results →
+        </Link>
       )}
 
       {/* ── Fairness summary ───────────────────────────────────── */}

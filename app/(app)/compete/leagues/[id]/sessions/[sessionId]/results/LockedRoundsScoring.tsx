@@ -34,26 +34,34 @@ export default function LockedRoundsScoring({ sessionId, matches }: Props) {
     }
     return init
   })
-  const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {}
     for (const m of matches) { if (m.existingScore != null) init[m.roundMatchId] = true }
     return init
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [savingAll, setSavingAll] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
-  async function saveMatch(m: LockedMatch) {
-    const s = scores[m.roundMatchId]
-    if (s.t1 === '' || s.t2 === '') {
-      setErrors((prev) => ({ ...prev, [m.roundMatchId]: 'Both scores required' }))
+  const unsaved = matches.filter((m) => !saved[m.roundMatchId])
+  const allSaved = unsaved.length === 0
+
+  async function saveAll() {
+    // Validate — flag any unsaved match missing scores
+    const newErrors: Record<string, string> = {}
+    for (const m of unsaved) {
+      const s = scores[m.roundMatchId]
+      if (s.t1 === '' || s.t2 === '') newErrors[m.roundMatchId] = 'Both scores required'
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...newErrors }))
       return
     }
-    setErrors((prev) => ({ ...prev, [m.roundMatchId]: '' }))
-    setSaving((prev) => ({ ...prev, [m.roundMatchId]: true }))
+    setErrors({})
+    setSaveError(null)
+    setSavingAll(true)
 
-    const t1s = parseInt(s.t1)
-    const t2s = parseInt(s.t2)
-    const row = {
+    const rows = unsaved.map((m) => ({
       session_id: sessionId,
       round_number: m.roundNumber,
       court_number: m.courtNumber,
@@ -61,18 +69,20 @@ export default function LockedRoundsScoring({ sessionId, matches }: Props) {
       team1_player2_id: m.team1[1]?.userId ?? null,
       team2_player1_id: m.team2[0]?.userId ?? null,
       team2_player2_id: m.team2[1]?.userId ?? null,
-      team1_score: t1s,
-      team2_score: t2s,
-    }
+      team1_score: parseInt(scores[m.roundMatchId].t1),
+      team2_score: parseInt(scores[m.roundMatchId].t2),
+    }))
 
-    const { error } = await supabase.from('league_matches').insert(row)
+    const { error } = await supabase.from('league_matches').insert(rows)
     if (error) {
-      setErrors((prev) => ({ ...prev, [m.roundMatchId]: error.message }))
+      setSaveError(error.message)
     } else {
-      setSaved((prev) => ({ ...prev, [m.roundMatchId]: true }))
+      const nowSaved: Record<string, boolean> = {}
+      for (const m of unsaved) nowSaved[m.roundMatchId] = true
+      setSaved((prev) => ({ ...prev, ...nowSaved }))
       router.refresh()
     }
-    setSaving((prev) => ({ ...prev, [m.roundMatchId]: false }))
+    setSavingAll(false)
   }
 
   // Group by round
@@ -93,7 +103,6 @@ export default function LockedRoundsScoring({ sessionId, matches }: Props) {
             {roundMatches.map((m) => {
               const s = scores[m.roundMatchId]
               const isSaved = saved[m.roundMatchId]
-              const isSaving = saving[m.roundMatchId]
               const err = errors[m.roundMatchId]
               return (
                 <div key={m.roundMatchId} className={`bg-brand-surface border rounded-xl p-3 space-y-2 ${isSaved ? 'border-green-200' : 'border-brand-border'}`}>
@@ -112,22 +121,24 @@ export default function LockedRoundsScoring({ sessionId, matches }: Props) {
                     {/* Scores */}
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={s.t1}
                         onChange={(e) => setScores((prev) => ({ ...prev, [m.roundMatchId]: { ...prev[m.roundMatchId], t1: e.target.value } }))}
                         placeholder="0"
-                        className="w-12 input text-sm text-center"
+                        className="w-16 input text-sm text-center"
                         disabled={isSaved}
                       />
                       <span className="text-brand-muted text-sm">–</span>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={s.t2}
                         onChange={(e) => setScores((prev) => ({ ...prev, [m.roundMatchId]: { ...prev[m.roundMatchId], t2: e.target.value } }))}
                         placeholder="0"
-                        className="w-12 input text-sm text-center"
+                        className="w-16 input text-sm text-center"
                         disabled={isSaved}
                       />
                     </div>
@@ -139,21 +150,28 @@ export default function LockedRoundsScoring({ sessionId, matches }: Props) {
                     </div>
                   </div>
                   {err && <p className="text-xs text-red-600">{err}</p>}
-                  {!isSaved && (
-                    <button
-                      onClick={() => saveMatch(m)}
-                      disabled={isSaving}
-                      className="w-full py-1.5 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-                    >
-                      {isSaving ? 'Saving…' : 'Save Score'}
-                    </button>
-                  )}
                 </div>
               )
             })}
           </div>
         )
       })}
+
+      {saveError && (
+        <p className="text-sm text-red-600">{saveError}</p>
+      )}
+
+      {allSaved ? (
+        <p className="text-sm text-center text-green-600 font-medium">✓ All scores saved</p>
+      ) : (
+        <button
+          onClick={saveAll}
+          disabled={savingAll}
+          className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+        >
+          {savingAll ? 'Saving…' : `Save ${unsaved.length} Score${unsaved.length !== 1 ? 's' : ''}`}
+        </button>
+      )}
     </section>
   )
 }

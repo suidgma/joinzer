@@ -96,6 +96,14 @@ export default async function LiveSessionPage({
     .eq('session_id', params.sessionId)
     .order('round_number')
 
+  // --- Which rounds have at least one score entered ---
+  const { data: scoredMatchRows } = await db
+    .from('league_matches')
+    .select('round_number')
+    .eq('session_id', params.sessionId)
+    .not('team1_score', 'is', null)
+  const scoredRoundNumbers = Array.from(new Set((scoredMatchRows ?? []).map(r => r.round_number as number)))
+
   const dateStr = new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   })
@@ -118,16 +126,9 @@ export default async function LiveSessionPage({
         initialRounds={rounds ?? []}
         numberOfCourts={session.number_of_courts ?? 4}
         roundsPlanned={session.rounds_planned ?? 7}
+        initialScoredRounds={scoredRoundNumbers}
       />
 
-      <div className="pt-2">
-        <Link
-          href={`/compete/leagues/${params.id}/sessions/${params.sessionId}/results`}
-          className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
-        >
-          Enter Match Results →
-        </Link>
-      </div>
     </main>
   )
 }

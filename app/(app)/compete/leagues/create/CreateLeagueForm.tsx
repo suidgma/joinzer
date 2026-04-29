@@ -39,7 +39,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [scheduleDescription, setScheduleDescription] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [playDays, setPlayDays] = useState('')
+  const [playDays, setPlayDays] = useState('7')
   const [gamesPerSession, setGamesPerSession] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
   const [registrationStatus, setRegistrationStatus] = useState('upcoming')
