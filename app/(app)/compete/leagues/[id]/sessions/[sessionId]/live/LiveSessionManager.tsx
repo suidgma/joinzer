@@ -86,10 +86,12 @@ function playerName(id: string | null, players: Player[]) {
 
 function PlayerRow({
   player,
+  index,
   onStatusChange,
   disabled,
 }: {
   player: Player
+  index: number
   onStatusChange: (id: string, status: ActualStatus) => void
   disabled: boolean
 }) {
@@ -100,6 +102,7 @@ function PlayerRow({
   return (
     <div className={`rounded-xl border px-3 py-2.5 transition-colors ${STATUS_STYLE[player.actual_status]}`}>
       <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs text-brand-muted w-5 text-right flex-shrink-0">{index}</span>
         <span className="flex-1 text-sm font-medium leading-tight">
           {player.display_name}
           {(isSub || isGuest) && (
@@ -599,8 +602,8 @@ export default function LiveSessionManager({
         {rosterPlayers.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Roster Players</p>
-            {rosterPlayers.map(p => (
-              <PlayerRow key={p.id} player={p} onStatusChange={handleStatusChange} disabled={loading || generating} />
+            {rosterPlayers.map((p, i) => (
+              <PlayerRow key={p.id} player={p} index={i + 1} onStatusChange={handleStatusChange} disabled={loading || generating} />
             ))}
           </div>
         )}
@@ -609,8 +612,8 @@ export default function LiveSessionManager({
         {subPlayers.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Subs & Guests</p>
-            {subPlayers.map(p => (
-              <PlayerRow key={p.id} player={p} onStatusChange={handleStatusChange} disabled={loading || generating} />
+            {subPlayers.map((p, i) => (
+              <PlayerRow key={p.id} player={p} index={i + 1} onStatusChange={handleStatusChange} disabled={loading || generating} />
             ))}
           </div>
         )}
