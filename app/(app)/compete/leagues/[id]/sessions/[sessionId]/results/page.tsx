@@ -59,15 +59,15 @@ export default async function SessionResultsPage({
   }
 
   // Build a set of existing match signatures to detect already-saved scores
-  // Signature: sorted player IDs joined
-  function matchSig(ids: (string | null)[]): string {
-    return ids.filter(Boolean).sort().join(',')
+  // Signature: round_number + sorted player IDs — prevents same players in different rounds cross-matching
+  function matchSig(roundNumber: number, ids: (string | null)[]): string {
+    return `${roundNumber}:${ids.filter(Boolean).sort().join(',')}`
   }
   type MatchScore = { team1Score: number; team2Score: number }
   const savedMatchSigs = new Map<string, MatchScore>()
   for (const m of existingMatches ?? []) {
     if (m.team1_score == null || m.team2_score == null) continue
-    const sig = matchSig([m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id])
+    const sig = matchSig(m.round_number, [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id])
     savedMatchSigs.set(sig, { team1Score: m.team1_score, team2Score: m.team2_score })
   }
 
@@ -88,7 +88,7 @@ export default async function SessionResultsPage({
         const team1 = [t1p1, t1p2].filter(Boolean) as { userId: string; name: string }[]
         const team2 = [t2p1, t2p2].filter(Boolean) as { userId: string; name: string }[]
         if (team1.length === 0 || team2.length === 0) continue
-        const sig = matchSig([...team1.map(p => p.userId), ...team2.map(p => p.userId)])
+        const sig = matchSig(round.round_number, [...team1.map(p => p.userId), ...team2.map(p => p.userId)])
         lockedMatches.push({
           roundMatchId: rm.id as string,
           roundNumber: round.round_number,
@@ -102,7 +102,7 @@ export default async function SessionResultsPage({
         const p1 = resolve(rm.singles_player1_id)
         const p2 = resolve(rm.singles_player2_id)
         if (!p1 || !p2) continue
-        const sig = matchSig([p1.userId, p2.userId])
+        const sig = matchSig(round.round_number, [p1.userId, p2.userId])
         lockedMatches.push({
           roundMatchId: rm.id as string,
           roundNumber: round.round_number,
@@ -127,10 +127,10 @@ export default async function SessionResultsPage({
 
   // Manually-entered matches (those not from locked rounds)
   const lockedPlayerSigs = new Set(
-    lockedMatches.map((m) => matchSig([...m.team1.map(p => p.userId), ...m.team2.map(p => p.userId)]))
+    lockedMatches.map((m) => matchSig(m.roundNumber, [...m.team1.map(p => p.userId), ...m.team2.map(p => p.userId)]))
   )
   const manualMatches = (existingMatches ?? []).filter((m) => {
-    const sig = matchSig([m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id])
+    const sig = matchSig(m.round_number, [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id])
     return !lockedPlayerSigs.has(sig)
   })
 
