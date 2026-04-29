@@ -163,8 +163,8 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         View Standings →
       </Link>
 
-      {/* Sessions list */}
-      {sessions && sessions.length > 0 && (
+      {/* Sessions list — hidden for managers who use the Manage League page instead */}
+      {!isManager && sessions && sessions.length > 0 && (
         <section className="space-y-2">
           <h2 className="font-heading text-base font-bold text-brand-dark">Schedule</h2>
           {isManager ? (
