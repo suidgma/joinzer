@@ -79,7 +79,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   return (
     <main className="max-w-2xl mx-auto p-4 space-y-6">
       <div className="flex items-center gap-2">
-        <Link href={`/compete/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+        <Link href={`/compete/leagues/${params.id}`} className="text-brand-muted text-sm">← Back</Link>
       </div>
 
       <div>
