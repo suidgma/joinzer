@@ -18,7 +18,7 @@ export default function AboutPage() {
         <div className="flex flex-col sm:flex-row gap-8 items-start mb-8">
           <div className="flex-shrink-0 mx-auto sm:mx-0">
             <Image
-              src="/marty.jpg"
+              src="/marty.jpeg"
               alt="Marty Suidgeest"
               width={160}
               height={160}
