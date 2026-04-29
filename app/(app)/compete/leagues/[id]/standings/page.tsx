@@ -2,8 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 
-const IS_IRR = (format: string) => format === 'individual_round_robin'
-
 export default async function LeagueStandingsPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,7 +23,6 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   if (!league) notFound()
 
   const sessionIds = (sessions ?? []).map((s) => s.id)
-  const irr = IS_IRR(league.format ?? '')
 
   const { data: matches } = sessionIds.length > 0
     ? await supabase
@@ -35,46 +32,38 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
         .not('team1_score', 'is', null)
     : { data: [] }
 
-  // Build overall stats + per-session breakdown
-  type Stats = { wins: number; losses: number; points: number; games: number }
+  // Build overall stats + per-session points
+  type Stats = { points: number; games: number }
   const statsMap   = new Map<string, Stats>()
-  const sessionPts = new Map<string, Map<string, number>>() // playerId → sessionId → points/wins
+  const sessionPts = new Map<string, Map<string, number>>() // playerId → sessionId → pts
 
   for (const reg of registrations ?? []) {
-    statsMap.set(reg.user_id, { wins: 0, losses: 0, points: 0, games: 0 })
+    statsMap.set(reg.user_id, { points: 0, games: 0 })
   }
 
   for (const m of matches ?? []) {
     if (m.team1_score == null || m.team2_score == null) continue
-    const team1Won    = m.team1_score > m.team2_score
     const team1Players = [m.team1_player1_id, m.team1_player2_id].filter(Boolean)
     const team2Players = [m.team2_player1_id, m.team2_player2_id].filter(Boolean)
 
-    const apply = (pid: string, pts: number, won: boolean) => {
-      // overall
-      const s = statsMap.get(pid) ?? { wins: 0, losses: 0, points: 0, games: 0 }
+    const apply = (pid: string, pts: number) => {
+      const s = statsMap.get(pid) ?? { points: 0, games: 0 }
       s.games++; s.points += pts
-      won ? s.wins++ : s.losses++
       statsMap.set(pid, s)
-      // per-session
       if (!sessionPts.has(pid)) sessionPts.set(pid, new Map())
       const bySession = sessionPts.get(pid)!
-      const val = irr ? pts : (won ? 1 : 0)
-      bySession.set(m.session_id, (bySession.get(m.session_id) ?? 0) + val)
+      bySession.set(m.session_id, (bySession.get(m.session_id) ?? 0) + pts)
     }
 
-    for (const pid of team1Players) { if (pid) apply(pid, m.team1_score, team1Won) }
-    for (const pid of team2Players) { if (pid) apply(pid, m.team2_score, !team1Won) }
+    for (const pid of team1Players) { if (pid) apply(pid, m.team1_score) }
+    for (const pid of team2Players) { if (pid) apply(pid, m.team2_score) }
   }
 
   const standings = (registrations ?? []).map((r) => {
     const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null }
-    const s = statsMap.get(r.user_id) ?? { wins: 0, losses: 0, points: 0, games: 0 }
-    return { ...p, userId: r.user_id, ...s, winPct: s.games > 0 ? s.wins / s.games : 0 }
-  }).sort(irr
-    ? (a, b) => b.points - a.points || b.games - a.games
-    : (a, b) => b.wins - a.wins || a.losses - b.losses
-  )
+    const s = statsMap.get(r.user_id) ?? { points: 0, games: 0 }
+    return { ...p, userId: r.user_id, ...s }
+  }).sort((a, b) => b.points - a.points || b.games - a.games)
 
   const hasResults      = !!matches && matches.length > 0
   const isManager       = user?.id === league.created_by
@@ -95,7 +84,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
 
       <div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
-        {irr && <p className="text-xs text-brand-muted">Individual Round Robin · ranked by total points</p>}
+        <p className="text-xs text-brand-muted">Ranked by total points scored</p>
       </div>
 
       {!hasResults ? (
@@ -124,19 +113,9 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
                   <th className="sticky left-0 bg-brand-soft text-left px-3 py-2 text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-r border-brand-border whitespace-nowrap z-10">
                     Player
                   </th>
-                  <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">
-                    {irr ? 'PTS' : 'W'}
-                  </th>
-                  {!irr && (
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">L</th>
-                  )}
+                  <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">PTS</th>
                   <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">GP</th>
-                  {irr && (
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">AVG</th>
-                  )}
-                  {!irr && (
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">WIN%</th>
-                  )}
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">AVG</th>
                   {sessionsWithData.map((s) => (
                     <th key={s.id} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
                       Wk {s.session_number}
@@ -163,30 +142,16 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
                         </div>
                       </td>
                       <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                        <span className="text-sm font-bold text-brand-dark">{irr ? p.points : p.wins}</span>
+                        <span className="text-sm font-bold text-brand-dark">{p.points}</span>
                       </td>
-                      {!irr && (
-                        <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                          <span className="text-sm text-brand-muted">{p.losses}</span>
-                        </td>
-                      )}
                       <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
                         <span className="text-sm text-brand-muted">{p.games}</span>
                       </td>
-                      {irr && (
-                        <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                          <span className="text-xs text-brand-muted">
-                            {p.games > 0 ? (p.points / p.games).toFixed(1) : '—'}
-                          </span>
-                        </td>
-                      )}
-                      {!irr && (
-                        <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                          <span className="text-xs text-brand-muted">
-                            {p.games > 0 ? `${Math.round(p.winPct * 100)}%` : '—'}
-                          </span>
-                        </td>
-                      )}
+                      <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                        <span className="text-xs text-brand-muted">
+                          {p.games > 0 ? (p.points / p.games).toFixed(1) : '—'}
+                        </span>
+                      </td>
                       {sessionsWithData.map((s) => {
                         const val = bySession.get(s.id)
                         return (
