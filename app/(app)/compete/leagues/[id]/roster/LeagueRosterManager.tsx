@@ -63,6 +63,9 @@ export default function LeagueRosterManager({
   const [selectedPlayerId, setSelectedPlayerId] = useState('')
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<string | null>(null)
+  const [fullError, setFullError] = useState(false)
+
+  const isFull = maxPlayers != null && registered.length >= maxPlayers
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingDate, setEditingDate] = useState('')
   const [savingSessionId, setSavingSessionId] = useState<string | null>(null)
@@ -93,6 +96,8 @@ export default function LeagueRosterManager({
   async function handleAdd() {
     const player = availablePlayers.find((p) => p.id === selectedPlayerId)
     if (!player) return
+    if (isFull) { setFullError(true); return }
+    setFullError(false)
     setAddingId(player.id)
     try {
       const res = await fetch(`/api/leagues/${leagueId}/members`, {
@@ -204,8 +209,9 @@ export default function LeagueRosterManager({
             <div className="flex gap-2">
               <select
                 value={selectedPlayerId}
-                onChange={(e) => setSelectedPlayerId(e.target.value)}
+                onChange={(e) => { setSelectedPlayerId(e.target.value); setFullError(false) }}
                 className="flex-1 input text-sm"
+                disabled={isFull}
               >
                 <option value="">— Select a player —</option>
                 {availablePlayers.map((p) => (
@@ -214,12 +220,20 @@ export default function LeagueRosterManager({
               </select>
               <button
                 onClick={handleAdd}
-                disabled={!selectedPlayerId || !!addingId}
+                disabled={!selectedPlayerId || !!addingId || isFull}
                 className="px-4 py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
               >
                 {addingId ? '…' : 'Add'}
               </button>
             </div>
+            {isFull && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-700">
+                This league is at its maximum capacity of {maxPlayers} players. Remove a player to add another.
+              </div>
+            )}
+            {fullError && !isFull && (
+              <p className="text-sm text-red-600">League is full — cannot add more players.</p>
+            )}
           </div>
         )}
       </section>
