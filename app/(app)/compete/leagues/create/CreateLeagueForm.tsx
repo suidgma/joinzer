@@ -38,7 +38,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [locationId, setLocationId] = useState('')
   const [scheduleDescription, setScheduleDescription] = useState('')
   const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+
   const [playDays, setPlayDays] = useState('7')
   const [gamesPerSession, setGamesPerSession] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
@@ -86,7 +86,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         location_name: selectedLocation?.name ?? null,
         schedule_description: scheduleDescription.trim() || null,
         start_date: startDate || null,
-        end_date: endDate || lastDate || null,
+        end_date: lastDate || null,
         play_days: playDays ? parseInt(playDays) : null,
         games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
@@ -154,14 +154,9 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         <input value={scheduleDescription} onChange={(e) => setScheduleDescription(e.target.value)} placeholder="e.g. Wednesdays 6–9 PM" className="w-full input" />
       </Field>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Start Date">
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
-        </Field>
-        <Field label="End Date">
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder={lastDate || undefined} className="w-full input" />
-        </Field>
-      </div>
+      <Field label="Start Date">
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
+      </Field>
 
       <div className="grid grid-cols-3 gap-3">
         <Field label="Play Days">
