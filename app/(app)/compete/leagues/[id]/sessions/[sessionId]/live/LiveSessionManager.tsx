@@ -528,6 +528,7 @@ export default function LiveSessionManager({
     setRounds(prev => prev.map(r => r.id === roundId ? { ...r, status: updated.status, locked_at: updated.locked_at, completed_at: updated.completed_at } : r))
     setLoading(false)
     if (action === 'complete') {
+      await new Promise(resolve => setTimeout(resolve, 300))
       router.push(`/compete/leagues/${leagueId}/sessions/${sessionId}/results`)
     }
   }
