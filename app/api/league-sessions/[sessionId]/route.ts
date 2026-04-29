@@ -11,7 +11,8 @@ function admin() {
 // PATCH /api/league-sessions/[sessionId] — update date or notes (league organizer only)
 export async function PATCH(req: NextRequest, { params }: Params) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session: authSession } } = await supabase.auth.getSession()
+  const user = authSession?.user ?? null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = admin()

@@ -22,7 +22,8 @@ async function assertManager(userId: string, roundId: string) {
 // body: { action: 'lock' | 'complete' | 'unlock' }
 export async function PATCH(req: NextRequest, { params }: Params) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const isManager = await assertManager(user.id, params.roundId)
