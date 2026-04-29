@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import MatchEntryForm from './MatchEntryForm'
+import LockedRoundsScoring, { type LockedMatch } from './LockedRoundsScoring'
 
 export default async function SessionResultsPage({
   params,
@@ -12,25 +13,106 @@ export default async function SessionResultsPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: league }, { data: session }, { data: matches }] = await Promise.all([
+  const [{ data: league }, { data: session }] = await Promise.all([
     supabase.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
     supabase.from('league_sessions').select('id, session_number, session_date, status').eq('id', params.sessionId).single(),
-    supabase
-      .from('league_matches')
-      .select('id, round_number, court_number, team1_score, team2_score, team1_player1:profiles!team1_player1_id(id,name), team1_player2:profiles!team1_player2_id(id,name), team2_player1:profiles!team2_player1_id(id,name), team2_player2:profiles!team2_player2_id(id,name)')
-      .eq('session_id', params.sessionId)
-      .order('round_number', { ascending: true }),
   ])
 
   if (!league || !session) notFound()
   if (league.created_by !== user.id) redirect(`/compete/leagues/${params.id}`)
 
-  // Get registered players for the player select dropdowns
-  const { data: registrations } = await supabase
-    .from('league_registrations')
-    .select('user_id, profile:profiles(id, name)')
-    .eq('league_id', params.id)
-    .eq('status', 'registered')
+  // Fetch all data in parallel
+  const [
+    { data: existingMatches },
+    { data: registrations },
+    { data: lockedRounds },
+    { data: sessionPlayers },
+  ] = await Promise.all([
+    supabase
+      .from('league_matches')
+      .select('id, round_number, court_number, team1_score, team2_score, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, team1_player1:profiles!team1_player1_id(id,name), team1_player2:profiles!team1_player2_id(id,name), team2_player1:profiles!team2_player1_id(id,name), team2_player2:profiles!team2_player2_id(id,name)')
+      .eq('session_id', params.sessionId)
+      .order('round_number', { ascending: true }),
+    supabase
+      .from('league_registrations')
+      .select('user_id, profile:profiles(id, name)')
+      .eq('league_id', params.id)
+      .eq('status', 'registered'),
+    supabase
+      .from('league_rounds')
+      .select('id, round_number, status, matches:league_round_matches(*)')
+      .eq('session_id', params.sessionId)
+      .in('status', ['locked', 'completed'])
+      .order('round_number', { ascending: true }),
+    supabase
+      .from('league_session_players')
+      .select('id, user_id, display_name')
+      .eq('session_id', params.sessionId),
+  ])
+
+  // Map session_player_id → { userId, name }
+  const spMap = new Map<string, { userId: string; name: string }>()
+  for (const sp of sessionPlayers ?? []) {
+    if (sp.user_id) spMap.set(sp.id, { userId: sp.user_id, name: sp.display_name })
+  }
+
+  // Build a set of existing match signatures to detect already-saved scores
+  // Signature: sorted player IDs joined
+  function matchSig(ids: (string | null)[]): string {
+    return ids.filter(Boolean).sort().join(',')
+  }
+  type MatchScore = { team1Score: number; team2Score: number }
+  const savedMatchSigs = new Map<string, MatchScore>()
+  for (const m of existingMatches ?? []) {
+    if (m.team1_score == null || m.team2_score == null) continue
+    const sig = matchSig([m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id])
+    savedMatchSigs.set(sig, { team1Score: m.team1_score, team2Score: m.team2_score })
+  }
+
+  // Build LockedMatch list from locked rounds
+  const lockedMatches: LockedMatch[] = []
+  for (const round of lockedRounds ?? []) {
+    const roundMatches = (round.matches as Record<string, unknown>[]) ?? []
+    for (const rm of roundMatches) {
+      if (rm.match_type === 'bye') continue
+
+      const resolve = (id: unknown) => id ? spMap.get(id as string) ?? null : null
+
+      if (rm.match_type === 'doubles') {
+        const t1p1 = resolve(rm.team1_player1_id)
+        const t1p2 = resolve(rm.team1_player2_id)
+        const t2p1 = resolve(rm.team2_player1_id)
+        const t2p2 = resolve(rm.team2_player2_id)
+        const team1 = [t1p1, t1p2].filter(Boolean) as { userId: string; name: string }[]
+        const team2 = [t2p1, t2p2].filter(Boolean) as { userId: string; name: string }[]
+        if (team1.length === 0 || team2.length === 0) continue
+        const sig = matchSig([...team1.map(p => p.userId), ...team2.map(p => p.userId)])
+        lockedMatches.push({
+          roundMatchId: rm.id as string,
+          roundNumber: round.round_number,
+          courtNumber: (rm.court_number as number | null) ?? null,
+          matchType: 'doubles',
+          team1,
+          team2,
+          existingScore: savedMatchSigs.get(sig) ?? null,
+        })
+      } else if (rm.match_type === 'singles') {
+        const p1 = resolve(rm.singles_player1_id)
+        const p2 = resolve(rm.singles_player2_id)
+        if (!p1 || !p2) continue
+        const sig = matchSig([p1.userId, p2.userId])
+        lockedMatches.push({
+          roundMatchId: rm.id as string,
+          roundNumber: round.round_number,
+          courtNumber: (rm.court_number as number | null) ?? null,
+          matchType: 'singles',
+          team1: [p1],
+          team2: [p2],
+          existingScore: savedMatchSigs.get(sig) ?? null,
+        })
+      }
+    }
+  }
 
   const players = (registrations ?? []).map((r) => {
     const p = r.profile as unknown as { id: string; name: string }
@@ -41,8 +123,17 @@ export default async function SessionResultsPage({
     weekday: 'long', month: 'long', day: 'numeric',
   })
 
+  // Manually-entered matches (those not from locked rounds)
+  const lockedPlayerSigs = new Set(
+    lockedMatches.map((m) => matchSig([...m.team1.map(p => p.userId), ...m.team2.map(p => p.userId)]))
+  )
+  const manualMatches = (existingMatches ?? []).filter((m) => {
+    const sig = matchSig([m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id])
+    return !lockedPlayerSigs.has(sig)
+  })
+
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
+    <main className="max-w-lg mx-auto p-4 space-y-6">
       <div className="flex items-center gap-2">
         <Link href={`/compete/leagues/${params.id}/roster`} className="text-brand-muted text-sm">← Roster</Link>
       </div>
@@ -52,16 +143,19 @@ export default async function SessionResultsPage({
         <p className="text-sm text-brand-muted">{dateStr}</p>
       </div>
 
-      {/* Existing matches */}
-      {matches && matches.length > 0 && (
+      {/* Auto-populated from locked rounds */}
+      <LockedRoundsScoring sessionId={params.sessionId} matches={lockedMatches} />
+
+      {/* Manually entered matches (not from locked rounds) */}
+      {manualMatches.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Recorded Matches ({matches.length})</h2>
+          <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Other Matches ({manualMatches.length})</h2>
           <div className="space-y-2">
-            {matches.map((m) => {
-              const t1p1 = (m.team1_player1 as unknown as { id: string; name: string } | null)?.name ?? '?'
-              const t1p2 = (m.team1_player2 as unknown as { id: string; name: string } | null)?.name ?? '?'
-              const t2p1 = (m.team2_player1 as unknown as { id: string; name: string } | null)?.name ?? '?'
-              const t2p2 = (m.team2_player2 as unknown as { id: string; name: string } | null)?.name ?? '?'
+            {manualMatches.map((m) => {
+              const t1p1 = (m.team1_player1 as unknown as { name: string } | null)?.name ?? '?'
+              const t1p2 = (m.team1_player2 as unknown as { name: string } | null)?.name ?? '?'
+              const t2p1 = (m.team2_player1 as unknown as { name: string } | null)?.name ?? '?'
+              const t2p2 = (m.team2_player2 as unknown as { name: string } | null)?.name ?? '?'
               const t1Won = (m.team1_score ?? 0) > (m.team2_score ?? 0)
               return (
                 <div key={m.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 text-sm">
@@ -86,9 +180,9 @@ export default async function SessionResultsPage({
         </section>
       )}
 
-      {/* Add match form */}
+      {/* Manual add form */}
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Add Match</h2>
+        <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Add Match Manually</h2>
         <MatchEntryForm sessionId={params.sessionId} players={players} leagueId={params.id} />
       </section>
     </main>
