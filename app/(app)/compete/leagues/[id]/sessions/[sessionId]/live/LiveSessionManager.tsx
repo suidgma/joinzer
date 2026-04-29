@@ -416,6 +416,14 @@ export default function LiveSessionManager({
     setScoredRounds(new Set(initialScoredRounds))
   }, [initialScoredRounds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Scroll to current round on initial load (e.g. arriving from Results page)
+  useEffect(() => {
+    const hasActive = initialRounds.some(r => r.status === 'draft' || r.status === 'locked')
+    if (hasActive) {
+      setTimeout(() => currentRoundRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const presentPlayers  = players.filter(p => p.actual_status === 'present')
   const presentCount    = presentPlayers.length
   const presentRoster   = presentPlayers.filter(p => p.player_type === 'roster_player').length
