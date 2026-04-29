@@ -18,9 +18,10 @@ type Props = {
   sessionId: string
   leagueId: string
   matches: LockedMatch[]
+  roundsPlanned: number
 }
 
-export default function LockedRoundsScoring({ sessionId, leagueId, matches }: Props) {
+export default function LockedRoundsScoring({ sessionId, leagueId, matches, roundsPlanned }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -105,8 +106,28 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches }: Pr
     router.push(`/compete/leagues/${leagueId}/sessions/${sessionId}/live`)
   }
 
+  async function endDay() {
+    if (!confirm('Mark this session as completed and end the day?')) return
+    setGenerating(true)
+    setGenerateError(null)
+    const res = await fetch(`/api/league-sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    })
+    if (!res.ok) {
+      const d = await res.json()
+      setGenerateError(d.error ?? 'Failed to end session')
+      setGenerating(false)
+      return
+    }
+    router.push(`/compete/leagues/${leagueId}`)
+  }
+
   // Group by round
   const rounds = Array.from(new Set(matches.map((m) => m.roundNumber))).sort((a, b) => a - b)
+  const maxRoundNumber = rounds.length > 0 ? Math.max(...rounds) : 0
+  const isLastRound = maxRoundNumber >= roundsPlanned
 
   if (matches.length === 0) return null
 
@@ -185,13 +206,23 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches }: Pr
         <div className="space-y-2">
           <p className="text-sm text-center text-green-600 font-medium">✓ All scores saved</p>
           {generateError && <p className="text-sm text-red-600 text-center">{generateError}</p>}
-          <button
-            onClick={generateNext}
-            disabled={generating}
-            className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-          >
-            {generating ? 'Generating…' : 'Generate Next Round →'}
-          </button>
+          {isLastRound ? (
+            <button
+              onClick={endDay}
+              disabled={generating}
+              className="w-full py-3 rounded-xl bg-brand-dark text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {generating ? 'Ending…' : '🏁 End the Day'}
+            </button>
+          ) : (
+            <button
+              onClick={generateNext}
+              disabled={generating}
+              className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+            >
+              {generating ? 'Generating…' : 'Generate Next Round →'}
+            </button>
+          )}
         </div>
       ) : (
         <button

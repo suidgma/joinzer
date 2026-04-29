@@ -15,7 +15,7 @@ export default async function SessionResultsPage({
 
   const [{ data: league }, { data: session }] = await Promise.all([
     supabase.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
-    supabase.from('league_sessions').select('id, session_number, session_date, status').eq('id', params.sessionId).single(),
+    supabase.from('league_sessions').select('id, session_number, session_date, status, rounds_planned').eq('id', params.sessionId).single(),
   ])
 
   if (!league || !session) notFound()
@@ -144,7 +144,7 @@ export default async function SessionResultsPage({
       </div>
 
       {/* Auto-populated from locked rounds */}
-      <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} />
+      <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} roundsPlanned={session.rounds_planned ?? 7} />
 
       {/* Manually entered matches (not from locked rounds) */}
       {manualMatches.length > 0 && (
