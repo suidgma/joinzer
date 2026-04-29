@@ -104,10 +104,12 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     }
 
     if (generatedDates.length > 0) {
+      const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = generatedDates.map((d, i) => ({
         league_id: league.id,
         session_date: d,
         session_number: i + 1,
+        rounds_planned: roundsPerSession,
       }))
       await supabase.from('league_sessions').insert(rows)
     }
