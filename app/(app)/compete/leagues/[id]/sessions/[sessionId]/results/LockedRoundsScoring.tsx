@@ -121,7 +121,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
       setGenerating(false)
       return
     }
-    router.push(`/compete/leagues/${leagueId}`)
+    router.push(`/compete/leagues/${leagueId}/standings`)
   }
 
   // Group by round
