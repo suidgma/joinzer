@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 
 export type LockedMatch = {
   roundMatchId: string
@@ -44,6 +43,8 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches }: Pr
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [savingAll, setSavingAll] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   const unsaved = matches.filter((m) => !saved[m.roundMatchId])
   const allSaved = unsaved.length === 0
@@ -85,6 +86,23 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches }: Pr
       router.refresh()
     }
     setSavingAll(false)
+  }
+
+  async function generateNext() {
+    setGenerating(true)
+    setGenerateError(null)
+    const res = await fetch(`/api/league-sessions/${sessionId}/generate-next-round`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ replace_existing_draft: false }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setGenerateError(data.error ?? 'Failed to generate round')
+      setGenerating(false)
+      return
+    }
+    router.push(`/compete/leagues/${leagueId}/sessions/${sessionId}/live`)
   }
 
   // Group by round
@@ -166,12 +184,14 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches }: Pr
       {allSaved ? (
         <div className="space-y-2">
           <p className="text-sm text-center text-green-600 font-medium">✓ All scores saved</p>
-          <Link
-            href={`/compete/leagues/${leagueId}/sessions/${sessionId}/live`}
-            className="block w-full text-center py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover transition-colors"
+          {generateError && <p className="text-sm text-red-600 text-center">{generateError}</p>}
+          <button
+            onClick={generateNext}
+            disabled={generating}
+            className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-50 transition-colors"
           >
-            Generate Next Round →
-          </Link>
+            {generating ? 'Generating…' : 'Generate Next Round →'}
+          </button>
         </div>
       ) : (
         <button
