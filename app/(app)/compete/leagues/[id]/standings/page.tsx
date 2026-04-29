@@ -117,130 +117,93 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
           )}
         </div>
       ) : (
-        <>
-          {/* ── Overall standings ──────────────────────────────── */}
-          <div className="bg-brand-surface border border-brand-border rounded-2xl overflow-hidden">
-            {irr ? (
-              <>
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 px-4 py-2 bg-brand-soft border-b border-brand-border text-xs font-semibold text-brand-muted uppercase tracking-wide">
-                  <span>#</span>
-                  <span>Player</span>
-                  <span className="text-right">Pts</span>
-                  <span className="text-right">GP</span>
-                  <span className="text-right">Avg</span>
-                </div>
-                {standings.map((p, i) => (
-                  <div key={p.id} className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center px-4 py-3 ${i < standings.length - 1 ? 'border-b border-brand-border' : ''}`}>
-                    <span className="text-sm text-brand-muted w-5 text-right">{i + 1}</span>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
-                        {p.profile_photo_url
-                          ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
-                          : <span className="flex items-center justify-center w-full h-full text-brand-muted text-xs">{p.name[0]}</span>
-                        }
-                      </div>
-                      <span className="text-sm font-medium text-brand-dark truncate">{p.name}</span>
-                    </div>
-                    <span className="text-sm font-bold text-brand-dark text-right">{p.points}</span>
-                    <span className="text-sm text-brand-muted text-right">{p.games}</span>
-                    <span className="text-xs text-brand-muted text-right">
-                      {p.games > 0 ? (p.points / p.games).toFixed(1) : '—'}
-                    </span>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <>
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 px-4 py-2 bg-brand-soft border-b border-brand-border text-xs font-semibold text-brand-muted uppercase tracking-wide">
-                  <span>#</span>
-                  <span>Player</span>
-                  <span className="text-right">W</span>
-                  <span className="text-right">L</span>
-                  <span className="text-right">Win%</span>
-                </div>
-                {standings.map((p, i) => (
-                  <div key={p.id} className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center px-4 py-3 ${i < standings.length - 1 ? 'border-b border-brand-border' : ''}`}>
-                    <span className="text-sm text-brand-muted w-5 text-right">{i + 1}</span>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
-                        {p.profile_photo_url
-                          ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
-                          : <span className="flex items-center justify-center w-full h-full text-brand-muted text-xs">{p.name[0]}</span>
-                        }
-                      </div>
-                      <span className="text-sm font-medium text-brand-dark truncate">{p.name}</span>
-                    </div>
-                    <span className="text-sm font-bold text-brand-dark text-right">{p.wins}</span>
-                    <span className="text-sm text-brand-muted text-right">{p.losses}</span>
-                    <span className="text-xs text-brand-muted text-right">
-                      {p.games > 0 ? `${Math.round(p.winPct * 100)}%` : '—'}
-                    </span>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-
-          {/* ── Weekly breakdown ───────────────────────────────── */}
-          {sessionsWithData.length > 0 && (
-            <div>
-              <h2 className="font-heading text-base font-bold text-brand-dark mb-3">
-                {irr ? 'Points by Session' : 'Wins by Session'}
-              </h2>
-              <div className="overflow-x-auto -mx-4 px-4">
-                <table className="min-w-full text-sm border-separate border-spacing-0">
-                  <thead>
-                    <tr>
-                      <th className="sticky left-0 bg-brand-soft text-left px-3 py-2 text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-r border-brand-border whitespace-nowrap z-10">
-                        Player
-                      </th>
-                      {sessionsWithData.map((s) => (
-                        <th key={s.id} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">
-                          Wk {s.session_number}
-                        </th>
-                      ))}
-                      <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
-                        Total
-                      </th>
+          <div className="overflow-x-auto -mx-4 px-4">
+            <table className="min-w-full text-sm border-separate border-spacing-0">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 bg-brand-soft text-left px-3 py-2 text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-r border-brand-border whitespace-nowrap z-10">
+                    Player
+                  </th>
+                  <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">
+                    {irr ? 'PTS' : 'W'}
+                  </th>
+                  {!irr && (
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">L</th>
+                  )}
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">GP</th>
+                  {irr && (
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">AVG</th>
+                  )}
+                  {!irr && (
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">WIN%</th>
+                  )}
+                  {sessionsWithData.map((s) => (
+                    <th key={s.id} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
+                      Wk {s.session_number}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {standings.map((p, i) => {
+                  const bySession = sessionPts.get(p.userId) ?? new Map()
+                  const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-brand-surface'
+                  return (
+                    <tr key={p.id}>
+                      <td className={`sticky left-0 px-3 py-2.5 border-r border-b border-brand-border whitespace-nowrap z-10 ${rowBg}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-brand-muted text-xs w-4 text-right flex-shrink-0">{i + 1}</span>
+                          <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
+                            {p.profile_photo_url
+                              ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
+                              : <span className="flex items-center justify-center w-full h-full text-brand-muted text-[10px]">{p.name[0]}</span>
+                            }
+                          </div>
+                          <span className="text-sm font-medium text-brand-dark">{p.name}</span>
+                        </div>
+                      </td>
+                      <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                        <span className="text-sm font-bold text-brand-dark">{irr ? p.points : p.wins}</span>
+                      </td>
+                      {!irr && (
+                        <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                          <span className="text-sm text-brand-muted">{p.losses}</span>
+                        </td>
+                      )}
+                      <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                        <span className="text-sm text-brand-muted">{p.games}</span>
+                      </td>
+                      {irr && (
+                        <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                          <span className="text-xs text-brand-muted">
+                            {p.games > 0 ? (p.points / p.games).toFixed(1) : '—'}
+                          </span>
+                        </td>
+                      )}
+                      {!irr && (
+                        <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                          <span className="text-xs text-brand-muted">
+                            {p.games > 0 ? `${Math.round(p.winPct * 100)}%` : '—'}
+                          </span>
+                        </td>
+                      )}
+                      {sessionsWithData.map((s) => {
+                        const val = bySession.get(s.id)
+                        return (
+                          <td key={s.id} className={`px-3 py-2.5 text-center border-b border-l border-brand-border ${rowBg}`}>
+                            {val != null
+                              ? <span className="text-sm text-brand-dark">{val}</span>
+                              : <span className="text-xs text-brand-muted">—</span>
+                            }
+                          </td>
+                        )
+                      })}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {standings.map((p, i) => {
-                      const bySession = sessionPts.get(p.userId) ?? new Map()
-                      const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-brand-surface'
-                      return (
-                        <tr key={p.id}>
-                          <td className={`sticky left-0 px-3 py-2.5 text-sm font-medium text-brand-dark border-r border-b border-brand-border whitespace-nowrap z-10 ${rowBg}`}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-brand-muted text-xs w-4 text-right">{i + 1}</span>
-                              {p.name}
-                            </div>
-                          </td>
-                          {sessionsWithData.map((s) => {
-                            const val = bySession.get(s.id)
-                            return (
-                              <td key={s.id} className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                                {val != null
-                                  ? <span className="text-sm font-semibold text-brand-dark">{val}</span>
-                                  : <span className="text-xs text-brand-muted">—</span>
-                                }
-                              </td>
-                            )
-                          })}
-                          <td className={`px-3 py-2.5 text-center border-b border-l border-brand-border ${rowBg}`}>
-                            <span className="text-sm font-bold text-brand-dark">
-                              {irr ? p.points : p.wins}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
       )}
     </main>
   )
