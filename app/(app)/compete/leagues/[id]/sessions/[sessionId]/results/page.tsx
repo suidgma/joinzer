@@ -135,7 +135,7 @@ export default async function SessionResultsPage({
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
       <div className="flex items-center gap-2">
-        <Link href={`/compete/leagues/${params.id}/roster`} className="text-brand-muted text-sm">← Roster</Link>
+        <Link href={`/compete/leagues/${params.id}/sessions/${params.sessionId}/live`} className="text-brand-muted text-sm">← Back</Link>
       </div>
 
       <div>
@@ -144,7 +144,7 @@ export default async function SessionResultsPage({
       </div>
 
       {/* Auto-populated from locked rounds */}
-      <LockedRoundsScoring sessionId={params.sessionId} matches={lockedMatches} />
+      <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} />
 
       {/* Manually entered matches (not from locked rounds) */}
       {manualMatches.length > 0 && (

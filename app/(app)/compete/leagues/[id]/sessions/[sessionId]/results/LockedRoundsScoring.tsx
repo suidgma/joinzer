@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export type LockedMatch = {
   roundMatchId: string
@@ -16,10 +17,11 @@ export type LockedMatch = {
 
 type Props = {
   sessionId: string
+  leagueId: string
   matches: LockedMatch[]
 }
 
-export default function LockedRoundsScoring({ sessionId, matches }: Props) {
+export default function LockedRoundsScoring({ sessionId, leagueId, matches }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -162,7 +164,15 @@ export default function LockedRoundsScoring({ sessionId, matches }: Props) {
       )}
 
       {allSaved ? (
-        <p className="text-sm text-center text-green-600 font-medium">✓ All scores saved</p>
+        <div className="space-y-2">
+          <p className="text-sm text-center text-green-600 font-medium">✓ All scores saved</p>
+          <Link
+            href={`/compete/leagues/${leagueId}/sessions/${sessionId}/live`}
+            className="block w-full text-center py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover transition-colors"
+          >
+            Generate Next Round →
+          </Link>
+        </div>
       ) : (
         <button
           onClick={saveAll}
