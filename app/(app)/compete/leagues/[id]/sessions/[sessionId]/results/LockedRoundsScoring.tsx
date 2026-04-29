@@ -77,7 +77,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
       team2_score: parseInt(scores[m.roundMatchId].t2),
     }))
 
-    const { error } = await supabase.from('league_matches').upsert(rows, { onConflict: 'session_id,round_number,team1_player1_id,team2_player1_id', ignoreDuplicates: false })
+    const { error } = await supabase.from('league_matches').insert(rows)
     if (error) {
       setSaveError(error.message)
     } else {
