@@ -103,7 +103,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
       setGenerating(false)
       return
     }
-    router.push(`/compete/leagues/${leagueId}/sessions/${sessionId}/live`)
+    window.location.href = `/compete/leagues/${leagueId}/sessions/${sessionId}/live`
   }
 
   async function endDay() {
