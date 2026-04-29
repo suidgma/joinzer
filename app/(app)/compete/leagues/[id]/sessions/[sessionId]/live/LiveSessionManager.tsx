@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -400,6 +400,7 @@ export default function LiveSessionManager({
   initialScoredRounds,
 }: Props) {
   const router = useRouter()
+  const currentRoundRef = useRef<HTMLElement>(null)
   const [players, setPlayers]   = useState<Player[]>(initialPlayers)
   const [rounds, setRounds]     = useState<Round[]>(initialRounds)
   const [loading, setLoading]   = useState(false)
@@ -499,6 +500,8 @@ export default function LiveSessionManager({
         const without = prev.filter(r => r.id !== newRound.id)
         return [...without, newRound].sort((a, b) => a.round_number - b.round_number)
       })
+      // Scroll to the current round section after React re-renders
+      setTimeout(() => currentRoundRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
     }
     setGenerating(false)
   }
@@ -636,7 +639,7 @@ export default function LiveSessionManager({
 
       {/* ── Active round (draft / locked) ─────────────────────── */}
       {activeRound && (
-        <section className="space-y-2">
+        <section ref={currentRoundRef} className="space-y-2">
           <h2 className="font-heading text-base font-bold text-brand-dark">Current Round</h2>
           <RoundCard
             round={activeRound}
