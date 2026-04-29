@@ -654,9 +654,15 @@ export default function LiveSessionManager({
           </div>
         )}
 
+        {!draftRound && nextRoundNumber > roundsPlanned && !pendingScores && (
+          <div className="bg-brand-soft border border-brand-border rounded-xl p-3 text-sm text-brand-muted text-center">
+            All {roundsPlanned} rounds completed. Enter scores and end the day.
+          </div>
+        )}
+
         <button
           onClick={() => handleGenerate(false)}
-          disabled={generating || presentCount < 2 || !!draftRound || pendingScores}
+          disabled={generating || presentCount < 2 || !!draftRound || pendingScores || nextRoundNumber > roundsPlanned}
           className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-40 transition-colors"
         >
           {generating ? 'Generating…' : draftRound ? `Round ${draftRound.round_number} draft ready` : `Generate Round ${nextRoundNumber}`}
