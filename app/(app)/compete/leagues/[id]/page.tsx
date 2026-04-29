@@ -80,6 +80,10 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const fmt = (d: string | null) =>
     d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
 
+  // Derive end date from last session so it stays accurate after session edits
+  const lastSessionDate = sessions && sessions.length > 0 ? sessions[sessions.length - 1].session_date : null
+  const displayEndDate = lastSessionDate ?? league.end_date
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center gap-2">
@@ -104,7 +108,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         {league.location_name && <Row label="Location" value={league.location_name} />}
         {league.schedule_description && <Row label="Schedule" value={league.schedule_description} />}
         {fmt(league.start_date) && <Row label="Starts" value={fmt(league.start_date)!} />}
-        {fmt(league.end_date) && <Row label="Ends" value={fmt(league.end_date)!} />}
+        {fmt(displayEndDate) && <Row label="Ends" value={fmt(displayEndDate)!} />}
         {league.play_days != null && <Row label="Play Days" value={`${league.play_days}`} />}
         {league.games_per_session != null && <Row label="Games/Session" value={`${league.games_per_session}`} />}
         {league.max_players != null && (
