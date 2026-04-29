@@ -5,7 +5,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 type Params = { params: { sessionId: string } }
 
 function admin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 // GET /api/league-sessions/[sessionId]/players
