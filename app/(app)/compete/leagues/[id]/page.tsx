@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import LeagueActions from './LeagueActions'
 import SessionSubList from './SessionSubList'
+import DeleteLeagueButton from './DeleteLeagueButton'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
@@ -220,6 +221,9 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
             <Link href={`/compete/leagues/${league.id}/roster`} className="block text-sm text-brand-active underline underline-offset-2">
               Roster & subs →
             </Link>
+            <div className="pt-2 border-t border-brand-border">
+              <DeleteLeagueButton leagueId={league.id} />
+            </div>
           </div>
         </section>
       )}
