@@ -49,7 +49,7 @@ export default async function LiveSessionPage({
           display_name:   profile?.name ?? 'Unknown',
           player_type:    'roster_player',
           expected_status: 'expected',
-          actual_status:  'not_present',
+          actual_status:  'present',
           joinzer_rating: profile?.joinzer_rating ?? 1000,
           dupr_rating:    profile?.dupr_rating ?? null,
           estimated_rating: profile?.estimated_rating ?? null,
@@ -73,7 +73,7 @@ export default async function LiveSessionPage({
           display_name:   profile?.name ?? 'Sub',
           player_type:    'sub',
           expected_status: 'expected',
-          actual_status:  'not_present',
+          actual_status:  'present',
           joinzer_rating: profile?.joinzer_rating ?? 1000,
         }
       })
