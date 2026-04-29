@@ -111,7 +111,7 @@ export default async function LiveSessionPage({
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center gap-2">
-        <Link href={`/compete/leagues/${params.id}/roster`} className="text-brand-muted text-sm">← Roster</Link>
+        <Link href={`/compete/leagues/${params.id}/roster`} className="text-brand-muted text-sm">← Back</Link>
       </div>
 
       <div>
