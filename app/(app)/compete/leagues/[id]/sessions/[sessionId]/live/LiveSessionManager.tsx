@@ -390,6 +390,7 @@ function AddSubModal({ sessionId, onClose, onAdded }: { sessionId: string; onClo
 
 export default function LiveSessionManager({
   sessionId,
+  leagueId,
   initialPlayers,
   initialRounds,
   numberOfCourts,
@@ -403,6 +404,7 @@ export default function LiveSessionManager({
   const [error, setError]       = useState<string | null>(null)
   const [showAddSub, setShowAddSub] = useState(false)
   const [showFairness, setShowFairness] = useState(false)
+  const [endingDay, setEndingDay] = useState(false)
 
   const presentPlayers  = players.filter(p => p.actual_status === 'present')
   const presentCount    = presentPlayers.length
@@ -500,6 +502,24 @@ export default function LiveSessionManager({
     const updated = await res.json()
     setRounds(prev => prev.map(r => r.id === roundId ? { ...r, status: updated.status, locked_at: updated.locked_at, completed_at: updated.completed_at } : r))
     setLoading(false)
+  }
+
+  // --- End the day ---
+  async function handleEndDay() {
+    if (!confirm('Mark this session as completed and end the day?')) return
+    setEndingDay(true)
+    const res = await fetch(`/api/league-sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    })
+    if (res.ok) {
+      router.push(`/compete/leagues/${leagueId}`)
+    } else {
+      const d = await res.json()
+      setError(d.error ?? 'Failed to end session')
+      setEndingDay(false)
+    }
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -637,6 +657,22 @@ export default function LiveSessionManager({
             <span className="text-xs text-brand-muted">{showFairness ? 'Hide ▲' : 'Show ▼'}</span>
           </button>
           {showFairness && <FairnessSummary players={players} rounds={rounds} />}
+        </section>
+      )}
+
+      {/* ── End the Day ───────────────────────────────────────── */}
+      {completedCount >= roundsPlanned && !activeRound && (
+        <section className="pt-2 border-t border-brand-border">
+          <p className="text-xs text-brand-muted text-center mb-3">
+            All {roundsPlanned} rounds complete. Ready to wrap up?
+          </p>
+          <button
+            onClick={handleEndDay}
+            disabled={endingDay}
+            className="w-full py-3 rounded-xl bg-brand-dark text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {endingDay ? 'Ending…' : '🏁 End the Day'}
+          </button>
         </section>
       )}
 

@@ -34,6 +34,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const updates: Record<string, unknown> = {}
   if (body.session_date !== undefined) updates.session_date = body.session_date
   if (body.notes !== undefined) updates.notes = body.notes
+  if (body.status !== undefined) updates.status = body.status
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
