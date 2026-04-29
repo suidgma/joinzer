@@ -87,7 +87,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center gap-2">
-        <Link href="/compete" className="text-brand-muted text-sm">← Compete</Link>
+        <Link href="/compete" className="text-brand-muted text-sm">← Back</Link>
       </div>
 
       {/* Header */}
