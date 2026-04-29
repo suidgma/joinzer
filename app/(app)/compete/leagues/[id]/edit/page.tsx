@@ -135,7 +135,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
       await supabase.from('league_sessions').insert(rows)
     }
 
-    router.push(`/compete/leagues/${params.id}`)
+    window.location.href = `/compete/leagues/${params.id}`
   }
 
   if (fetching) return <main className="max-w-lg mx-auto p-4"><p className="text-sm text-brand-muted">Loading…</p></main>
