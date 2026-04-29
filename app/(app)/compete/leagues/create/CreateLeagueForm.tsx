@@ -44,11 +44,29 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [maxPlayers, setMaxPlayers] = useState('')
   const [registrationStatus, setRegistrationStatus] = useState('upcoming')
   const [description, setDescription] = useState('')
-  const [sessionDates, setSessionDates] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedLocation = locations.find((l) => l.id === locationId)
+
+  // Auto-generate weekly session dates from startDate + playDays
+  function generateDates(start: string, count: number): string[] {
+    if (!start || !count || count < 1) return []
+    const dates: string[] = []
+    const base = new Date(start + 'T00:00:00')
+    for (let i = 0; i < count; i++) {
+      const d = new Date(base)
+      d.setDate(base.getDate() + i * 7)
+      dates.push(d.toISOString().slice(0, 10))
+    }
+    return dates
+  }
+
+  const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
+  const lastDate = generatedDates[generatedDates.length - 1] ?? ''
+
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const dayLabel = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -68,7 +86,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         location_name: selectedLocation?.name ?? null,
         schedule_description: scheduleDescription.trim() || null,
         start_date: startDate || null,
-        end_date: endDate || null,
+        end_date: endDate || lastDate || null,
         play_days: playDays ? parseInt(playDays) : null,
         games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
@@ -85,13 +103,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       return
     }
 
-    const dates = sessionDates
-      .split(/[\n,]+/)
-      .map((d) => d.trim())
-      .filter(Boolean)
-
-    if (dates.length > 0) {
-      const rows = dates.map((d, i) => ({
+    if (generatedDates.length > 0) {
+      const rows = generatedDates.map((d, i) => ({
         league_id: league.id,
         session_date: d,
         session_number: i + 1,
@@ -146,7 +159,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
         </Field>
         <Field label="End Date">
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full input" />
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder={lastDate || undefined} className="w-full input" />
         </Field>
       </div>
 
@@ -162,15 +175,23 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         </Field>
       </div>
 
-      <Field label="Session Dates" hint="One date per line (YYYY-MM-DD) or comma separated">
-        <textarea
-          value={sessionDates}
-          onChange={(e) => setSessionDates(e.target.value)}
-          placeholder={'2026-05-07\n2026-05-14\n2026-05-21'}
-          rows={4}
-          className="w-full input resize-none"
-        />
-      </Field>
+      {/* Auto-generated schedule preview */}
+      {generatedDates.length > 0 ? (
+        <div className="bg-brand-soft border border-brand-border rounded-xl p-3 space-y-1.5">
+          <p className="text-xs font-semibold text-brand-dark">
+            {generatedDates.length} sessions · every {dayLabel}
+          </p>
+          <div className="space-y-0.5 max-h-40 overflow-y-auto">
+            {generatedDates.map((d, i) => (
+              <p key={d} className="text-xs text-brand-muted">
+                Session {i + 1} — {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-brand-muted">Set a start date and number of play days to auto-generate the session schedule.</p>
+      )}
 
       <Field label="Description">
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Additional details about the league…" className="w-full input resize-none" />
