@@ -8,6 +8,15 @@ function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
+// Maps player self-reported status → organizer actual_status
+const ACTUAL_STATUS_MAP: Record<string, string> = {
+  checked_in_present: 'present',
+  planning_to_attend: 'present',
+  running_late:       'late',
+  cannot_attend:      'not_present',
+  not_responded:      'not_present',
+}
+
 // GET — all attendance records for this session
 export async function GET(_req: NextRequest, { params }: Params) {
   const supabase = createClient()
@@ -41,8 +50,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // If targeting another user, verify caller is league organizer
   let effectiveUserId = user.id
+  const db = admin()
   if (targetUserId && targetUserId !== user.id) {
-    const db = admin()
     const { data: session } = await db
       .from('league_sessions')
       .select('league_id')
@@ -61,7 +70,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     effectiveUserId = targetUserId
   }
 
-  const db = admin()
   const now = new Date().toISOString()
   const { data, error } = await db
     .from('league_session_attendance')
@@ -78,5 +86,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Sync to organizer's attendance view in league_session_players
+  const mappedStatus = ACTUAL_STATUS_MAP[attendance_status]
+  if (mappedStatus) {
+    await db
+      .from('league_session_players')
+      .update({ actual_status: mappedStatus })
+      .eq('session_id', params.sessionId)
+      .eq('user_id', effectiveUserId)
+  }
+
   return NextResponse.json(data)
 }
