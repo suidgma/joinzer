@@ -57,6 +57,11 @@ export default function EventCard({ event }: { event: EventListItem }) {
             <p className="text-xs text-amber-700 leading-relaxed line-clamp-2">{event.notes}</p>
           )}
 
+          {isPaidClinic && event.price_cents != null && (
+            <p className="text-sm font-semibold text-amber-900">
+              ${event.price_cents / 100} per person
+            </p>
+          )}
           <div className="flex items-center justify-between text-xs text-amber-700 pt-1 border-t border-amber-200">
             <span>Host: {event.captain?.name ?? 'Unknown'}</span>
             <span className="font-medium">

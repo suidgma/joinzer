@@ -22,6 +22,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
   const [maxSkill, setMaxSkill] = useState('')
   const [notes, setNotes] = useState('')
   const [clinicType, setClinicType] = useState<'none' | 'free' | 'paid'>('none')
+  const [priceCents, setPriceCents] = useState<number>(1000)
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +77,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
       max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
       status: 'open',
       session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
+      price_cents: clinicType === 'paid' ? priceCents : null,
       recurrence_group_id: recurrenceGroupId,
     }))
 
@@ -318,6 +320,20 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
             <p className="text-xs text-brand-muted mt-0.5">Shown above regular sessions with a PAID CLINIC badge.</p>
           </div>
         </label>
+        {clinicType === 'paid' && (
+          <div className="ml-7">
+            <label className="block text-sm font-medium mb-1">Price per person</label>
+            <select
+              value={priceCents}
+              onChange={(e) => setPriceCents(Number(e.target.value))}
+              className="w-40 input"
+            >
+              {[5,10,15,20,25,30,35,40,45,50].map((d) => (
+                <option key={d} value={d * 100}>${d}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div>

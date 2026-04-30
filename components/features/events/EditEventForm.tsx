@@ -16,6 +16,7 @@ type Props = {
     notes: string | null
     status: string
     session_type: string
+    price_cents: number | null
   }
 }
 
@@ -29,6 +30,7 @@ export default function EditEventForm({ event }: Props) {
   const [clinicType, setClinicType] = useState<'none' | 'free' | 'paid'>(
     event.session_type === 'free_clinic' ? 'free' : event.session_type === 'paid_clinic' ? 'paid' : 'none'
   )
+  const [priceCents, setPriceCents] = useState<number>(event.price_cents ?? 1000)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -63,6 +65,7 @@ export default function EditEventForm({ event }: Props) {
         notes: notes.trim() || null,
         status,
         session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
+        price_cents: clinicType === 'paid' ? priceCents : null,
       })
       .eq('id', event.id)
 
@@ -194,6 +197,20 @@ export default function EditEventForm({ event }: Props) {
             <p className="text-xs text-gray-400 mt-0.5">Shown above regular sessions with a PAID CLINIC badge.</p>
           </div>
         </label>
+        {clinicType === 'paid' && (
+          <div className="ml-7">
+            <label className="block text-sm font-medium mb-1">Price per person</label>
+            <select
+              value={priceCents}
+              onChange={(e) => setPriceCents(Number(e.target.value))}
+              className="w-40 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            >
+              {[5,10,15,20,25,30,35,40,45,50].map((d) => (
+                <option key={d} value={d * 100}>${d}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div>

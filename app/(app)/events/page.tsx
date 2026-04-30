@@ -43,7 +43,7 @@ export default async function EventsPage({
     .from('events')
     .select(`
       id, title, starts_at, duration_minutes, court_count, max_players, status,
-      session_type, notes, min_skill_level, max_skill_level, location_id,
+      session_type, price_cents, notes, min_skill_level, max_skill_level, location_id,
       location:locations!location_id (name, court_count),
       captain:profiles!captain_user_id (name),
       event_participants!event_id (participant_status)
