@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import TimeSelect from './TimeSelect'
 
 type Props = {
   event: {
@@ -27,7 +28,9 @@ export default function EditEventForm({ event }: Props) {
   const [playersPerCourt, setPlayersPerCourt] = useState(event.players_per_court)
   const [notes, setNotes] = useState(event.notes ?? '')
   const [status, setStatus] = useState(event.status)
-  const [isClinic, setIsClinic] = useState(event.session_type === 'clinic')
+  const [clinicType, setClinicType] = useState<'none' | 'free' | 'paid'>(
+    event.session_type === 'free_clinic' ? 'free' : event.session_type === 'paid_clinic' ? 'paid' : 'none'
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,7 +64,7 @@ export default function EditEventForm({ event }: Props) {
         max_players: maxPlayers,
         notes: notes.trim() || null,
         status,
-        session_type: isClinic ? 'clinic' : 'game',
+        session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
       })
       .eq('id', event.id)
 
@@ -101,13 +104,7 @@ export default function EditEventForm({ event }: Props) {
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Start time <span className="text-red-500">*</span></label>
-          <input
-            type="time"
-            required
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-          />
+          <TimeSelect value={time} onChange={setTime} required />
         </div>
       </div>
 
@@ -150,7 +147,7 @@ export default function EditEventForm({ event }: Props) {
             onChange={(e) => setPlayersPerCourt(Number(e.target.value))}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
           >
-            {[4, 5, 6, 7, 8].map((n) => (
+            {[2, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
           </select>
@@ -175,18 +172,32 @@ export default function EditEventForm({ event }: Props) {
         </select>
       </div>
 
-      <label className="flex items-start gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={isClinic}
-          onChange={(e) => setIsClinic(e.target.checked)}
-          className="mt-0.5 w-4 h-4 accent-amber-500"
-        />
-        <div>
-          <span className="text-sm font-medium">This is a clinic</span>
-          <p className="text-xs text-gray-400 mt-0.5">Clinics are highlighted and shown above regular play sessions.</p>
-        </div>
-      </label>
+      <div className="space-y-2">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={clinicType === 'free'}
+            onChange={(e) => setClinicType(e.target.checked ? 'free' : 'none')}
+            className="mt-0.5 w-4 h-4 accent-amber-500"
+          />
+          <div>
+            <span className="text-sm font-medium">This is a free clinic</span>
+            <p className="text-xs text-gray-400 mt-0.5">Shown above regular sessions with a FREE CLINIC badge.</p>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={clinicType === 'paid'}
+            onChange={(e) => setClinicType(e.target.checked ? 'paid' : 'none')}
+            className="mt-0.5 w-4 h-4 accent-amber-500"
+          />
+          <div>
+            <span className="text-sm font-medium">This is a paid clinic</span>
+            <p className="text-xs text-gray-400 mt-0.5">Shown above regular sessions with a PAID CLINIC badge.</p>
+          </div>
+        </label>
+      </div>
 
       <div>
         <label className="block text-sm font-medium mb-1">

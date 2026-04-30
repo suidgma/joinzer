@@ -22,7 +22,7 @@ export type EventListItem = {
   court_count: number
   max_players: number
   status: string
-  session_type: 'game' | 'clinic'
+  session_type: 'game' | 'free_clinic' | 'paid_clinic'
   notes: string | null
   min_skill_level: number | null
   max_skill_level: number | null

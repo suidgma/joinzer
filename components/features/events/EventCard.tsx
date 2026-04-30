@@ -7,8 +7,10 @@ export default function EventCard({ event }: { event: EventListItem }) {
     (p) => p.participant_status === 'joined'
   ).length
 
-  const isFull    = event.status === 'full'
-  const isClinic  = event.session_type === 'clinic'
+  const isFull      = event.status === 'full'
+  const isFreeClinic = event.session_type === 'free_clinic'
+  const isPaidClinic = event.session_type === 'paid_clinic'
+  const isClinic     = isFreeClinic || isPaidClinic
 
   return (
     <Link href={`/events/${event.id}`} className="block group">
@@ -18,7 +20,7 @@ export default function EventCard({ event }: { event: EventListItem }) {
           {/* Badges row */}
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-extrabold tracking-widest px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 uppercase">
-              Free Clinic
+              {isFreeClinic ? 'Free Clinic' : 'Paid Clinic'}
             </span>
             <span
               className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${

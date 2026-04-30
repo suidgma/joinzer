@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from './LocationCombobox'
+import TimeSelect from './TimeSelect'
 import type { LocationOption } from '@/lib/types'
 
 const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
@@ -20,7 +21,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
   const [minSkill, setMinSkill] = useState('')
   const [maxSkill, setMaxSkill] = useState('')
   const [notes, setNotes] = useState('')
-  const [isClinic, setIsClinic] = useState(false)
+  const [clinicType, setClinicType] = useState<'none' | 'free' | 'paid'>('none')
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,7 +75,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
       min_skill_level: minSkill ? parseFloat(minSkill) : null,
       max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
       status: 'open',
-      session_type: isClinic ? 'clinic' : 'game',
+      session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
       recurrence_group_id: recurrenceGroupId,
     }))
 
@@ -184,13 +185,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
         <label className="block text-sm font-medium mb-1">
           Start time <span className="text-red-500">*</span>
         </label>
-        <input
-          type="time"
-          required
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          className="w-full input"
-        />
+        <TimeSelect value={time} onChange={setTime} required />
       </div>
 
       <div>
@@ -257,7 +252,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
             onChange={(e) => setPlayersPerCourt(Number(e.target.value))}
             className="w-full input"
           >
-            {[2, 4, 5, 6, 7, 8].map((n) => (
+            {[2, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
           </select>
@@ -298,18 +293,32 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
         </div>
       </div>
 
-      <label className="flex items-start gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={isClinic}
-          onChange={(e) => setIsClinic(e.target.checked)}
-          className="mt-0.5 w-4 h-4 accent-amber-500"
-        />
-        <div>
-          <span className="text-sm font-medium text-brand-dark">This is a clinic</span>
-          <p className="text-xs text-brand-muted mt-0.5">Clinics are highlighted and shown above regular play sessions.</p>
-        </div>
-      </label>
+      <div className="space-y-2">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={clinicType === 'free'}
+            onChange={(e) => setClinicType(e.target.checked ? 'free' : 'none')}
+            className="mt-0.5 w-4 h-4 accent-amber-500"
+          />
+          <div>
+            <span className="text-sm font-medium text-brand-dark">This is a free clinic</span>
+            <p className="text-xs text-brand-muted mt-0.5">Shown above regular sessions with a FREE CLINIC badge.</p>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={clinicType === 'paid'}
+            onChange={(e) => setClinicType(e.target.checked ? 'paid' : 'none')}
+            className="mt-0.5 w-4 h-4 accent-amber-500"
+          />
+          <div>
+            <span className="text-sm font-medium text-brand-dark">This is a paid clinic</span>
+            <p className="text-xs text-brand-muted mt-0.5">Shown above regular sessions with a PAID CLINIC badge.</p>
+          </div>
+        </label>
+      </div>
 
       <div>
         <label className="block text-sm font-medium mb-1">

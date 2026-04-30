@@ -92,14 +92,16 @@ export default async function EventsPage({
   }
 
   // Type filter
-  if (typeFilter === 'game' || typeFilter === 'clinic') {
-    events = events.filter((ev) => ev.session_type === typeFilter)
+  if (typeFilter === 'game') {
+    events = events.filter((ev) => ev.session_type === 'game')
+  } else if (typeFilter === 'clinic') {
+    events = events.filter((ev) => ev.session_type === 'free_clinic' || ev.session_type === 'paid_clinic')
   }
 
   // Sort: clinics first, then by starts_at ASC within each group
   events.sort((a, b) => {
-    const aIsClinic = a.session_type === 'clinic' ? 0 : 1
-    const bIsClinic = b.session_type === 'clinic' ? 0 : 1
+    const aIsClinic = (a.session_type === 'free_clinic' || a.session_type === 'paid_clinic') ? 0 : 1
+    const bIsClinic = (b.session_type === 'free_clinic' || b.session_type === 'paid_clinic') ? 0 : 1
     if (aIsClinic !== bIsClinic) return aIsClinic - bIsClinic
     return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
   })
