@@ -5,6 +5,7 @@ import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
 import MatchesSection from '@/components/features/tournaments/MatchesSection'
 import GroupChat from '@/components/features/GroupChat'
+import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
@@ -158,12 +159,17 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
       {/* Organizer actions */}
       {isOrganizer && (
-        <Link
-          href={`/tournaments/${tournament.id}/edit`}
-          className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
-        >
-          Edit Tournament
-        </Link>
+        <div className="space-y-2">
+          <Link
+            href={`/tournaments/${tournament.id}/edit`}
+            className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+          >
+            Edit Tournament
+          </Link>
+          <div className="flex justify-center">
+            <DeleteTournamentButton tournamentId={tournament.id} />
+          </div>
+        </div>
       )}
 
       {/* Divisions + Registration */}

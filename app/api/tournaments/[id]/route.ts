@@ -9,12 +9,12 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   const { data: tournament } = await supabase
     .from('tournaments')
-    .select('created_by')
+    .select('organizer_id')
     .eq('id', params.id)
     .single()
 
   if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (tournament.created_by !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (tournament.organizer_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
