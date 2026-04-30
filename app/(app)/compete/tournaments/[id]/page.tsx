@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import TournamentEventList from './TournamentEventList'
+import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 
 const CATEGORY_LABELS: Record<string, string> = {
   mens_singles: "Men's Singles",
@@ -76,6 +77,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
             <Link href={`/compete/tournaments/${tournament.id}/roster`} className="text-xs text-brand-active underline underline-offset-2">
               Roster
             </Link>
+            <DeleteTournamentButton tournamentId={tournament.id} />
           </div>
         )}
       </div>
