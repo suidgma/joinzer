@@ -7,6 +7,7 @@ import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
+import GroupChat from '@/components/features/GroupChat'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
@@ -30,7 +31,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: openSubRequests }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: openSubRequests }, { data: leagueMessages }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, organization:organizations(name)')
@@ -79,6 +80,12 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
           .neq('requesting_player_id', user.id)
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
+    supabase
+      .from('league_messages')
+      .select('id, user_id, message_text, created_at, profile:profiles!user_id(name)')
+      .eq('league_id', params.id)
+      .order('created_at', { ascending: true })
+      .limit(100),
   ])
 
   if (!league) notFound()
@@ -274,6 +281,21 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
               <DeleteLeagueButton leagueId={league.id} />
             </div>
           </div>
+        </section>
+      )}
+
+      {/* League chat */}
+      {user && (
+        <section className="space-y-2">
+          <h2 className="font-heading text-base font-bold text-brand-dark">League Chat</h2>
+          <GroupChat
+            table="league_messages"
+            entityId={league.id}
+            entityField="league_id"
+            initialMessages={(leagueMessages ?? []) as any[]}
+            currentUserId={user.id}
+            canChat={myReg?.status === 'registered' || isManager}
+          />
         </section>
       )}
     </main>

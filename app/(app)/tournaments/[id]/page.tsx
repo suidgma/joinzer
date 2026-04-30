@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
 import MatchesSection from '@/components/features/tournaments/MatchesSection'
+import GroupChat from '@/components/features/GroupChat'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
@@ -37,7 +38,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data }, { data: divisionsData }, { data: matchesData }] = await Promise.all([
+  const [{ data }, { data: divisionsData }, { data: matchesData }, { data: tournamentMessages }] = await Promise.all([
     supabase
       .from('tournaments')
       .select(`
@@ -70,6 +71,12 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       `)
       .eq('tournament_id', params.id)
       .order('match_number', { ascending: true }),
+    supabase
+      .from('tournament_messages')
+      .select('id, user_id, message_text, created_at, profile:profiles!user_id(name)')
+      .eq('tournament_id', params.id)
+      .order('created_at', { ascending: true })
+      .limit(100),
   ])
 
   if (!data) notFound()
@@ -84,6 +91,15 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   const divisions = (divisionsData ?? []) as any[]
   const matches = (matchesData ?? []) as any[]
+
+  // True if the current user has a 'registered' entry in any division
+  const isRegistered = user
+    ? divisions.some((div) =>
+        (div.tournament_registrations ?? []).some(
+          (reg: any) => reg.user_id === user.id && reg.status === 'registered'
+        )
+      )
+    : false
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
@@ -166,6 +182,21 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           initialMatches={matches}
           isOrganizer={isOrganizer}
         />
+      )}
+
+      {/* Tournament chat */}
+      {user && (
+        <section className="space-y-2">
+          <h2 className="font-heading text-base font-bold text-brand-dark">Tournament Chat</h2>
+          <GroupChat
+            table="tournament_messages"
+            entityId={tournament.id}
+            entityField="tournament_id"
+            initialMessages={(tournamentMessages ?? []) as any[]}
+            currentUserId={user.id}
+            canChat={isOrganizer || isRegistered}
+          />
+        </section>
       )}
     </main>
   )
