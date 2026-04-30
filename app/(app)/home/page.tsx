@@ -91,7 +91,8 @@ export default async function HomePage() {
   const leagueMap = Object.fromEntries((leagues ?? []).map((l) => [l.id as string, l]))
 
   // Group sessions by league for "my leagues" section
-  const sessionsByLeague: Record<string, typeof upcomingSessions> = {}
+  type Session = NonNullable<typeof upcomingSessions>[number]
+  const sessionsByLeague: Record<string, Session[]> = {}
   for (const s of upcomingSessions ?? []) {
     const lid = s.league_id as string
     if (!sessionsByLeague[lid]) sessionsByLeague[lid] = []

@@ -37,7 +37,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .eq('status', 'registered')
 
   const recipients = (registrations ?? [])
-    .map((r) => r.profile as { id: string; name: string; email: string | null } | null)
+    .map((r) => r.profile as unknown as { id: string; name: string; email: string | null } | null)
     .filter((p): p is { id: string; name: string; email: string } => !!p && !!p.email)
     .filter((p) => p.id !== user.id) // Don't send to organizer
 

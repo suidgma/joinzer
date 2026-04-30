@@ -244,7 +244,6 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
       {/* Open sub requests for registered players */}
       {user && myReg?.status === 'registered' && (openSubRequests ?? []).length > 0 && (
         <SubRequestsSection
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           initialRequests={(openSubRequests ?? []) as any[]}
           currentUserId={user.id}
         />

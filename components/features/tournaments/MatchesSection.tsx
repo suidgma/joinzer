@@ -78,7 +78,7 @@ function computeStandings(matches: Match[], regs: Registration[], poolNum?: numb
     r2.pf += s2; r2.pa += s1
   }
 
-  return [...map.values()].sort((a, b) => {
+  return Array.from(map.values()).sort((a, b) => {
     const wdiff = b.wins - a.wins
     if (wdiff !== 0) return wdiff
     const diffA = a.pf - a.pa, diffB = b.pf - b.pa
@@ -307,7 +307,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
       {divisions.map(div => {
         const divMatches = (matchesByDiv[div.id] ?? []).sort((a, b) => a.match_number - b.match_number)
         const hasMatches = divMatches.length > 0
-        const pools = [...new Set(divMatches.filter(m => m.pool_number != null).map(m => m.pool_number!))].sort((a, b) => a - b)
+        const pools = Array.from(new Set(divMatches.filter(m => m.pool_number != null).map(m => m.pool_number!))).sort((a, b) => a - b)
         const hasCompletedMatches = divMatches.some(m => m.status === 'completed' && m.team_2_registration_id)
 
         const matchCardProps = {

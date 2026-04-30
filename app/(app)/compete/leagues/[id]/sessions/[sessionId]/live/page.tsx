@@ -157,7 +157,6 @@ export default async function LiveSessionPage({
         initialScoredRounds={scoredRoundNumbers}
         availableSubs={(availableProfiles ?? []).map(p => ({ id: p.id, name: p.name }))}
         attendanceByUserId={attendanceByUserId}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         subRequests={(subRequests ?? []) as any[]}
       />
 

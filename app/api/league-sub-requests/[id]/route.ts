@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (!sr) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const league = sr.league as { name: string; created_by: string } | null
+  const league = sr.league as unknown as { name: string; created_by: string } | null
   const isOrganizer = league?.created_by === user.id
   const isRequester = sr.requesting_player_id === user.id
 
@@ -76,18 +76,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Send notifications (fire-and-forget)
-  sendClaimNotification(db, sr, updated, action, user.id).catch(console.error)
+  sendClaimNotification(sr, updated, action, user.id).catch(console.error)
 
   return NextResponse.json(updated)
 }
 
 async function sendClaimNotification(
-  db: ReturnType<typeof createAdmin>,
   sr: Record<string, unknown>,
   updated: Record<string, unknown>,
   action: string,
   actorId: string
 ) {
+  const db = admin()
   const resend = new Resend(process.env.RESEND_API_KEY)
   const league = sr.league as { name: string; created_by: string }
   const session = sr.session as { session_date: string; session_number: number }

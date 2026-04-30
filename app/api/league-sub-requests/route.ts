@@ -92,17 +92,17 @@ export async function POST(req: NextRequest) {
   if (error || !subReq) return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 })
 
   // Notify organizer (fire-and-forget)
-  sendOrganizerNotification(db, league_id, subReq.id, user.email ?? '').catch(console.error)
+  sendOrganizerNotification(league_id, subReq.id, user.email ?? '').catch(console.error)
 
   return NextResponse.json(subReq, { status: 201 })
 }
 
 async function sendOrganizerNotification(
-  db: ReturnType<typeof createAdmin>,
   leagueId: string,
   subRequestId: string,
   playerEmail: string
 ) {
+  const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const resend = new Resend(process.env.RESEND_API_KEY)
 
   const { data: league } = await db.from('leagues').select('name, created_by').eq('id', leagueId).single()
