@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import TimeSelect from './TimeSelect'
 
@@ -21,7 +20,6 @@ type Props = {
 }
 
 export default function EditEventForm({ event }: Props) {
-  const router = useRouter()
   const [title, setTitle] = useState(event.title)
   const [duration, setDuration] = useState(event.duration_minutes)
   const [courtCount, setCourtCount] = useState(event.court_count)
@@ -74,8 +72,7 @@ export default function EditEventForm({ event }: Props) {
       return
     }
 
-    router.push(`/events/${event.id}`)
-    router.refresh()
+    window.location.href = `/events/${event.id}`
   }
 
   return (
