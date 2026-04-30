@@ -74,22 +74,29 @@ export default function AvailabilityButton({ userId, locations, existing }: Prop
     setOpen(false)
   }
 
-  const windowLabel = activeWindows.length === 3
-    ? 'All day'
-    : activeWindows.map((w) => TIME_WINDOWS.find((t) => t.value === w)?.label).join(' & ')
+  const windowLabel = (() => {
+    if (activeWindows.length === 0) return 'Not set'
+    if (activeWindows.length === 3) return 'All day'
+    if (activeWindows.length === 1) {
+      if (activeWindows[0] === 'morning')   return 'Morning'
+      if (activeWindows[0] === 'afternoon') return 'Afternoon'
+      if (activeWindows[0] === 'evening')   return 'Tonight'
+    }
+    return activeWindows.map((w) => TIME_WINDOWS.find((t) => t.value === w)?.label).join(' & ')
+  })()
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors whitespace-nowrap ${
+        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors whitespace-nowrap ${
           active
-            ? 'bg-brand text-brand-dark border-brand'
-            : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
+            ? 'bg-brand-soft border-brand text-brand-dark'
+            : 'bg-brand-surface border-brand-border text-brand-muted hover:border-brand-active'
         }`}
       >
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? 'bg-brand-dark' : 'bg-brand-muted'}`} />
-        {active ? windowLabel : 'Availability'}
+        {active ? windowLabel : 'Not set'}
       </button>
 
       {open && (

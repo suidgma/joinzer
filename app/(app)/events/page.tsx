@@ -134,17 +134,20 @@ export default async function EventsPage({
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="flex items-center justify-end gap-2">
-        {user && (
-          <AvailabilityButton
-            userId={user.id}
-            locations={locations}
-            existing={existingAvailability ?? null}
-          />
-        )}
+      <div className="flex items-end justify-between gap-3">
+        {user ? (
+          <div className="space-y-1 min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">Availability</p>
+            <AvailabilityButton
+              userId={user.id}
+              locations={locations}
+              existing={existingAvailability ?? null}
+            />
+          </div>
+        ) : <div />}
         <Link
           href="/events/create"
-          className="bg-brand text-brand-dark text-sm rounded-xl px-4 py-2 font-semibold hover:bg-brand-hover transition-colors whitespace-nowrap"
+          className="shrink-0 bg-brand text-brand-dark text-sm rounded-xl px-4 py-2 font-semibold hover:bg-brand-hover transition-colors whitespace-nowrap"
         >
           + Create
         </Link>
