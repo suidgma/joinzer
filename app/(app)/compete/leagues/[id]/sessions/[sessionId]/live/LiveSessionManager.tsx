@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -484,6 +485,24 @@ export default function LiveSessionManager({
       setTimeout(() => currentRoundRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime: sync player status changes (e.g. self-check-in from player's device)
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`session-players-${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'league_session_players', filter: `session_id=eq.${sessionId}` },
+        (payload) => {
+          const updated = payload.new as { id: string; actual_status: ActualStatus }
+          setPlayers(prev => prev.map(p => p.id === updated.id ? { ...p, actual_status: updated.actual_status } : p))
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [sessionId])
 
   const presentPlayers  = players.filter(p => p.actual_status === 'present')
   const presentCount    = presentPlayers.length
