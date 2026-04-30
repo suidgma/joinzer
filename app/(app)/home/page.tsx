@@ -197,7 +197,6 @@ export default async function HomePage() {
       {/* ── Upcoming play sessions (events) ── */}
       {upcomingEvents.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-heading text-base font-bold text-brand-dark">Upcoming Play</h2>
           {upcomingEvents.map((ev) => {
             const joinedCount = (ev.event_participants ?? []).filter((p: any) => p.participant_status === 'joined').length
             return (
