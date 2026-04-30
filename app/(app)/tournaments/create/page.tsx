@@ -13,7 +13,7 @@ export default async function CreateTournamentPage() {
     .from('locations')
     .select('id, name, court_count, access_type, subarea')
     .eq('is_active', true)
-    .order('name', { ascending: true })
+    .order('sort_order', { ascending: true })
 
   const locations = (locationData ?? []) as LocationOption[]
 

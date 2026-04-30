@@ -10,8 +10,7 @@ export default async function CreateLeaguePage() {
     .from('locations')
     .select('id, name, court_count, access_type, subarea')
     .eq('is_active', true)
-    .order('court_count', { ascending: false })
-    .order('name', { ascending: true })
+    .order('sort_order', { ascending: true })
 
   const locations = (data ?? []) as LocationOption[]
 

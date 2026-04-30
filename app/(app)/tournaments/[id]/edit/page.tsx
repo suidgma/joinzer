@@ -26,7 +26,7 @@ export default async function EditTournamentPage({ params }: { params: { id: str
       .from('locations')
       .select('id, name, court_count, access_type, subarea')
       .eq('is_active', true)
-      .order('name', { ascending: true }),
+      .order('sort_order', { ascending: true }),
   ])
 
   if (!tournamentData) notFound()
