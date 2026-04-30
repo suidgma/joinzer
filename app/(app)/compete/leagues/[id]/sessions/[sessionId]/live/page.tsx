@@ -89,6 +89,27 @@ export default async function LiveSessionPage({
     .order('player_type')
     .order('display_name')
 
+  // --- Fetch player self-check-in statuses ---
+  const { data: attendanceRows } = await db
+    .from('league_session_attendance')
+    .select('user_id, attendance_status, checked_in_at')
+    .eq('league_session_id', params.sessionId)
+
+  const attendanceByUserId = Object.fromEntries(
+    (attendanceRows ?? []).map((a) => [a.user_id as string, a.attendance_status as string])
+  )
+
+  // --- Fetch open sub requests for this session ---
+  const { data: subRequests } = await db
+    .from('league_sub_requests')
+    .select(`
+      id, status, requesting_player_id, claimed_by_user_id,
+      requesting_player:profiles!requesting_player_id(name),
+      claimed_by:profiles!claimed_by_user_id(name)
+    `)
+    .eq('league_session_id', params.sessionId)
+    .in('status', ['open', 'claimed', 'approved'])
+
   // --- Fetch profiles not already in this session (for Add Sub dropdown) ---
   const existingUserIds = (players ?? []).map(p => p.user_id).filter(Boolean) as string[]
   const profileQuery = db.from('profiles').select('id, name').order('name')
@@ -135,6 +156,9 @@ export default async function LiveSessionPage({
         roundsPlanned={session.rounds_planned ?? 7}
         initialScoredRounds={scoredRoundNumbers}
         availableSubs={(availableProfiles ?? []).map(p => ({ id: p.id, name: p.name }))}
+        attendanceByUserId={attendanceByUserId}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        subRequests={(subRequests ?? []) as any[]}
       />
 
     </main>

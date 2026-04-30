@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
+import MatchesSection from '@/components/features/tournaments/MatchesSection'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
@@ -31,20 +32,12 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function PlaceholderSection({ title }: { title: string }) {
-  return (
-    <div className="bg-brand-surface border border-brand-border rounded-2xl p-5 space-y-2">
-      <h2 className="font-heading text-base font-bold text-brand-dark">{title}</h2>
-      <p className="text-sm text-brand-muted">Coming in next build phase.</p>
-    </div>
-  )
-}
 
 export default async function TournamentDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data }, { data: divisionsData }] = await Promise.all([
+  const [{ data }, { data: divisionsData }, { data: matchesData }] = await Promise.all([
     supabase
       .from('tournaments')
       .select(`
@@ -60,7 +53,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     supabase
       .from('tournament_divisions')
       .select(`
-        id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status,
+        id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json,
         tournament_registrations!division_id (
           id, user_id, partner_user_id, team_name, status,
           user_profile:profiles!user_id (name)
@@ -68,6 +61,15 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       `)
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
+    supabase
+      .from('tournament_matches')
+      .select(`
+        id, division_id, round_number, match_number, match_stage, pool_number,
+        court_number, scheduled_time, team_1_registration_id, team_2_registration_id,
+        team_1_score, team_2_score, winner_registration_id, status
+      `)
+      .eq('tournament_id', params.id)
+      .order('match_number', { ascending: true }),
   ])
 
   if (!data) notFound()
@@ -82,6 +84,8 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const divisions = (divisionsData ?? []) as any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matches = (matchesData ?? []) as any[]
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
@@ -156,9 +160,15 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         currentUserId={user?.id ?? null}
       />
 
-      {/* Future placeholders */}
-      <PlaceholderSection title="Format" />
-      <PlaceholderSection title="Matches / Brackets" />
+      {/* Matches, scoring, and standings */}
+      {divisions.length > 0 && (
+        <MatchesSection
+          tournamentId={tournament.id}
+          divisions={divisions}
+          initialMatches={matches}
+          isOrganizer={isOrganizer}
+        />
+      )}
     </main>
   )
 }

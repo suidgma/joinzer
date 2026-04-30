@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import FormatSettingsFields, {
+  FORMAT_DEFAULTS, FormatType, FormatSettings,
+  validateFormatSettings, formatSummaryLines,
+} from './FormatSettingsFields'
 
 const CATEGORY_LABELS: Record<string, string> = {
   mens_doubles:   "Men's Doubles",
@@ -31,6 +35,8 @@ type Division = {
   max_entries: number
   waitlist_enabled: boolean
   status: string
+  format_type: FormatType
+  format_settings_json: FormatSettings
   tournament_registrations: Registration[]
 }
 
@@ -45,6 +51,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [showAddForm, setShowAddForm] = useState(false)
   const [managingId, setManagingId] = useState<string | null>(null)
+  const [editingFormatId, setEditingFormatId] = useState<string | null>(null)
   const [registeringDiv, setRegisteringDiv] = useState<Division | null>(null)
 
   // Add-division form state
@@ -54,8 +61,16 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [fTeamType, setFTeamType] = useState('doubles')
   const [fMax, setFMax] = useState(16)
   const [fWaitlist, setFWaitlist] = useState(false)
+  const [fFormatType, setFFormatType] = useState<FormatType>('round_robin')
+  const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
   const [fLoading, setFLoading] = useState(false)
   const [fError, setFError] = useState<string | null>(null)
+
+  // Inline format edit state (per division)
+  const [editFormatType, setEditFormatType] = useState<FormatType>('round_robin')
+  const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
+  const [editFormatLoading, setEditFormatLoading] = useState(false)
+  const [editFormatError, setEditFormatError] = useState<string | null>(null)
 
   // Registration modal state
   const [teamName, setTeamName] = useState('')
@@ -65,6 +80,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   // ── Add division ──────────────────────────────────────────────────
   async function handleAddDivision(e: React.FormEvent) {
     e.preventDefault()
+    const validErr = validateFormatSettings(fFormatType, fFormatSettings)
+    if (validErr) { setFError(validErr); return }
+
     setFLoading(true)
     setFError(null)
 
@@ -83,8 +101,10 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         max_entries: fMax,
         waitlist_enabled: fWaitlist,
         status: 'active',
+        format_type: fFormatType,
+        format_settings_json: fFormatSettings,
       })
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status')
+      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -93,7 +113,41 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setShowAddForm(false)
     setFName(''); setFCategory('mixed_doubles'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
+    setFFormatType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
     setFLoading(false)
+  }
+
+  // ── Open format editor for a division ────────────────────────────
+  function openFormatEdit(div: Division) {
+    setEditFormatType(div.format_type)
+    setEditFormatSettings(div.format_settings_json ?? FORMAT_DEFAULTS[div.format_type])
+    setEditFormatError(null)
+    setEditingFormatId(div.id)
+  }
+
+  // ── Save format edits ─────────────────────────────────────────────
+  async function handleSaveFormat(divisionId: string) {
+    const validErr = validateFormatSettings(editFormatType, editFormatSettings)
+    if (validErr) { setEditFormatError(validErr); return }
+
+    setEditFormatLoading(true)
+    setEditFormatError(null)
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('tournament_divisions')
+      .update({ format_type: editFormatType, format_settings_json: editFormatSettings })
+      .eq('id', divisionId)
+
+    if (error) { setEditFormatError(error.message); setEditFormatLoading(false); return }
+
+    setDivisions(prev => prev.map(d =>
+      d.id === divisionId
+        ? { ...d, format_type: editFormatType, format_settings_json: editFormatSettings }
+        : d
+    ))
+    setEditingFormatId(null)
+    setEditFormatLoading(false)
   }
 
   // ── Register ─────────────────────────────────────────────────────
@@ -253,6 +307,15 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             <span className="text-sm text-brand-dark">Enable waitlist when full</span>
           </label>
 
+          <div className="border-t border-brand-border pt-3">
+            <FormatSettingsFields
+              formatType={fFormatType}
+              formatSettings={fFormatSettings}
+              onTypeChange={t => { setFFormatType(t); setFFormatSettings(FORMAT_DEFAULTS[t]) }}
+              onSettingsChange={setFFormatSettings}
+            />
+          </div>
+
           {fError && <p className="text-sm text-red-600">{fError}</p>}
 
           <div className="flex gap-2 pt-1">
@@ -296,6 +359,12 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             const isClosed  = div.status === 'closed'
             const canReg    = !myReg && !isClosed && (!isFull || div.waitlist_enabled)
             const isManaging = managingId === div.id
+            const isEditingFormat = editingFormatId === div.id
+            const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
+
+            const fType = div.format_type ?? 'round_robin'
+            const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
+            const summaryLines = formatSummaryLines(fType, fSettings)
 
             return (
               <div key={div.id} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
@@ -319,6 +388,58 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     {isClosed ? 'Closed' : isFull && !div.waitlist_enabled ? 'Full' : 'Open'}
                   </span>
                 </div>
+
+                {/* Format summary */}
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    {summaryLines.map((line, i) => (
+                      <p key={i} className={`text-xs ${i === 0 ? 'font-semibold text-brand-dark' : 'text-brand-muted'}`}>
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                  {isOrganizer && !isEditingFormat && (
+                    <button
+                      onClick={() => openFormatEdit(div)}
+                      className="shrink-0 text-xs text-brand-active hover:underline"
+                    >
+                      Edit Format
+                    </button>
+                  )}
+                </div>
+
+                {/* Inline format editor */}
+                {isOrganizer && isEditingFormat && (
+                  <div className="border border-brand-border rounded-xl p-3 space-y-3 bg-white">
+                    {hasRegistrants && (
+                      <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                        This division has registrants. Changing the format may affect match generation.
+                      </p>
+                    )}
+                    <FormatSettingsFields
+                      formatType={editFormatType}
+                      formatSettings={editFormatSettings}
+                      onTypeChange={t => { setEditFormatType(t); setEditFormatSettings(FORMAT_DEFAULTS[t]) }}
+                      onSettingsChange={setEditFormatSettings}
+                    />
+                    {editFormatError && <p className="text-xs text-red-600">{editFormatError}</p>}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => handleSaveFormat(div.id)}
+                        disabled={editFormatLoading}
+                        className="flex-1 py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+                      >
+                        {editFormatLoading ? 'Saving…' : 'Save Format'}
+                      </button>
+                      <button
+                        onClick={() => { setEditingFormatId(null); setEditFormatError(null) }}
+                        className="px-4 py-2 rounded-xl border border-brand-border text-sm text-brand-muted hover:bg-brand-soft transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Counts */}
                 <div className="flex items-center gap-3 text-xs text-brand-muted">

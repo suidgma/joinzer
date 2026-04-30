@@ -44,6 +44,15 @@ type Round = {
   matches: Match[]
 }
 
+type SubRequest = {
+  id: string
+  status: string
+  requesting_player_id: string
+  claimed_by_user_id: string | null
+  requesting_player: { name: string } | null
+  claimed_by: { name: string } | null
+}
+
 type Props = {
   sessionId: string
   leagueId: string
@@ -53,6 +62,8 @@ type Props = {
   roundsPlanned: number
   initialScoredRounds: number[]
   availableSubs: { id: string; name: string }[]
+  attendanceByUserId: Record<string, string>
+  subRequests: SubRequest[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -85,16 +96,28 @@ function playerName(id: string | null, players: Player[]) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+const SELF_STATUS_BADGE: Record<string, string> = {
+  planning_to_attend:  '🟢 Coming',
+  checked_in_present:  '✅ Here',
+  running_late:        '🟡 Late',
+  cannot_attend:       '🔴 Out',
+  not_responded:       '⚪ No response',
+}
+
 function PlayerRow({
   player,
   index,
   onStatusChange,
   disabled,
+  selfStatus,
+  hasSub,
 }: {
   player: Player
   index: number
   onStatusChange: (id: string, status: ActualStatus) => void
   disabled: boolean
+  selfStatus?: string
+  hasSub?: boolean
 }) {
   const statuses: ActualStatus[] = ['present', 'late', 'left_early', 'not_present']
   const isSub = player.player_type === 'sub'
@@ -111,8 +134,18 @@ function PlayerRow({
               {isSub ? 'Sub' : 'Guest'}
             </span>
           )}
+          {hasSub && (
+            <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+              Sub needed
+            </span>
+          )}
         </span>
-        <span className="text-[10px] text-brand-muted">{player.joinzer_rating ?? 1000}</span>
+        <div className="flex items-center gap-1.5">
+          {selfStatus && selfStatus !== 'not_responded' && (
+            <span className="text-[10px] text-brand-muted">{SELF_STATUS_BADGE[selfStatus] ?? selfStatus}</span>
+          )}
+          <span className="text-[10px] text-brand-muted">{player.joinzer_rating ?? 1000}</span>
+        </div>
       </div>
       <div className="flex gap-1.5">
         {statuses.map(s => (
@@ -422,6 +455,8 @@ export default function LiveSessionManager({
   roundsPlanned,
   initialScoredRounds,
   availableSubs,
+  attendanceByUserId,
+  subRequests,
 }: Props) {
   const router = useRouter()
   const currentRoundRef = useRef<HTMLElement>(null)
@@ -434,6 +469,8 @@ export default function LiveSessionManager({
   const [showFairness, setShowFairness] = useState(false)
   const [endingDay, setEndingDay] = useState(false)
   const [scoredRounds, setScoredRounds] = useState(() => new Set(initialScoredRounds))
+  const [sendingReminder, setSendingReminder] = useState(false)
+  const [reminderSent, setReminderSent] = useState(false)
 
   // Sync when server re-fetches after router.refresh()
   useEffect(() => {
@@ -575,6 +612,16 @@ export default function LiveSessionManager({
     }
   }
 
+  // --- Send reminder ---
+  async function handleSendReminder() {
+    if (!confirm('Send a check-in reminder email to all registered players?')) return
+    setSendingReminder(true)
+    const res = await fetch(`/api/league-sessions/${sessionId}/send-reminder`, { method: 'POST' })
+    setSendingReminder(false)
+    if (res.ok) setReminderSent(true)
+    else { const d = await res.json(); setError(d.error ?? 'Failed to send reminder') }
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const rosterPlayers   = players.filter(p => p.player_type === 'roster_player')
@@ -611,20 +658,59 @@ export default function LiveSessionManager({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-base font-bold text-brand-dark">Attendance</h2>
-          <button
-            onClick={() => setShowAddSub(true)}
-            className="text-xs bg-brand-soft border border-brand-border text-brand-active font-medium px-3 py-1 rounded-full hover:bg-brand-surface"
-          >
-            + Add Sub
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSendReminder}
+              disabled={sendingReminder || reminderSent}
+              className="text-xs bg-brand-soft border border-brand-border text-brand-active font-medium px-3 py-1 rounded-full hover:bg-brand-surface disabled:opacity-50"
+            >
+              {reminderSent ? '✓ Sent' : sendingReminder ? 'Sending…' : 'Send Reminder'}
+            </button>
+            <button
+              onClick={() => setShowAddSub(true)}
+              className="text-xs bg-brand-soft border border-brand-border text-brand-active font-medium px-3 py-1 rounded-full hover:bg-brand-surface"
+            >
+              + Add Sub
+            </button>
+          </div>
         </div>
+
+        {/* Sub requests panel */}
+        {subRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-orange-800 uppercase tracking-wide">Sub Requests</p>
+            {subRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).map(sr => (
+              <div key={sr.id} className="flex items-center justify-between gap-2">
+                <p className="text-sm text-brand-dark">
+                  <span className="font-medium">{sr.requesting_player?.name ?? 'Unknown'}</span>
+                  <span className="text-brand-muted"> needs a sub</span>
+                </p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                  sr.status === 'claimed' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'
+                }`}>
+                  {sr.status === 'claimed'
+                    ? `${sr.claimed_by?.name ?? 'Someone'} volunteered`
+                    : 'Open'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Roster players */}
         {rosterPlayers.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Roster Players</p>
             {rosterPlayers.map((p, i) => (
-              <PlayerRow key={p.id} player={p} index={i + 1} onStatusChange={handleStatusChange} disabled={loading || generating} />
+              <PlayerRow
+                key={p.id}
+                player={p}
+                index={i + 1}
+                onStatusChange={handleStatusChange}
+                disabled={loading || generating}
+                selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
+                hasSub={subRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+              />
             ))}
           </div>
         )}
@@ -634,7 +720,15 @@ export default function LiveSessionManager({
           <div className="space-y-2">
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Subs & Guests</p>
             {subPlayers.map((p, i) => (
-              <PlayerRow key={p.id} player={p} index={i + 1} onStatusChange={handleStatusChange} disabled={loading || generating} />
+              <PlayerRow
+                key={p.id}
+                player={p}
+                index={i + 1}
+                onStatusChange={handleStatusChange}
+                disabled={loading || generating}
+                selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
+                hasSub={subRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+              />
             ))}
           </div>
         )}

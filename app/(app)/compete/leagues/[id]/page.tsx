@@ -5,6 +5,8 @@ import LeagueActions from './LeagueActions'
 import SessionSubList from './SessionSubList'
 import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
+import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
+import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
@@ -28,7 +30,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: openSubRequests }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, organization:organizations(name)')
@@ -56,11 +58,35 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
     user
       ? supabase.from('profiles').select('gender').eq('id', user.id).single()
       : Promise.resolve({ data: null }),
+    // Player self-check-in attendance for this league's sessions
+    user
+      ? supabase.from('league_session_attendance')
+          .select('league_session_id, attendance_status')
+          .eq('user_id', user.id)
+      : Promise.resolve({ data: [] }),
+    // Open sub requests in this league (not from current user)
+    user
+      ? supabase.from('league_sub_requests')
+          .select(`
+            id, league_id, league_session_id, status, notes,
+            requesting_player:profiles!requesting_player_id(name),
+            claimed_by:profiles!claimed_by_user_id(name),
+            session:league_sessions!league_session_id(session_date, session_number),
+            league:leagues!league_id(name)
+          `)
+          .eq('league_id', params.id)
+          .eq('status', 'open')
+          .neq('requesting_player_id', user.id)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] }),
   ])
 
   if (!league) notFound()
 
   const isManager = user?.id === league.created_by
+  const attendanceMap = Object.fromEntries(
+    (myAttendance ?? []).map((a) => [a.league_session_id as string, a.attendance_status as string])
+  )
   const mySubSessionIds = new Set((mySessionSubs ?? []).map((s) => s.session_id as string))
   const registeredCount = regCounts?.filter((r) => r.status === 'registered').length ?? 0
   const waitlistCount = regCounts?.filter((r) => r.status === 'waitlist').length ?? 0
@@ -171,30 +197,57 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
             <SessionScheduleManager leagueId={league.id} sessions={sessions} />
           ) : (
             <div className="space-y-2">
-              {sessions.map((s) => (
-                <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-dark">
-                      Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                    </p>
-                    {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
-                    {(s.status === 'completed' || s.status === 'in_progress') && (
-                      <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2 mt-1 block">
-                        Results →
-                      </Link>
+              {sessions.map((s) => {
+                const myStatus = (attendanceMap[s.id] ?? 'not_responded') as
+                  'planning_to_attend' | 'cannot_attend' | 'checked_in_present' | 'running_late' | 'not_responded'
+                const isUpcoming = s.status === 'scheduled'
+                const canCheckIn = myReg?.status === 'registered' && isUpcoming
+
+                return (
+                  <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 space-y-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-brand-dark">
+                          Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </p>
+                        {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
+                        {(s.status === 'completed' || s.status === 'in_progress') && (
+                          <Link href={`/compete/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2 mt-1 block">
+                            Results →
+                          </Link>
+                        )}
+                      </div>
+                      <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        s.status === 'completed' ? 'bg-brand-soft text-brand-muted' :
+                        s.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                        s.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                        'bg-brand text-brand-dark'
+                      }`}>{s.status.replace('_', ' ')}</span>
+                    </div>
+
+                    {canCheckIn && (
+                      <PlayerCheckIn
+                        sessionId={s.id}
+                        leagueId={league.id}
+                        initialStatus={myStatus}
+                        leagueSkillLevel={league.skill_level ?? null}
+                      />
                     )}
                   </div>
-                  <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                    s.status === 'completed' ? 'bg-brand-soft text-brand-muted' :
-                    s.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                    s.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                    'bg-brand text-brand-dark'
-                  }`}>{s.status.replace('_', ' ')}</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>
+      )}
+
+      {/* Open sub requests for registered players */}
+      {user && myReg?.status === 'registered' && (openSubRequests ?? []).length > 0 && (
+        <SubRequestsSection
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          initialRequests={(openSubRequests ?? []) as any[]}
+          currentUserId={user.id}
+        />
       )}
 
       {/* Session sub availability for non-registered users */}
