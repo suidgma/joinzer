@@ -1,0 +1,66 @@
+import { createClient } from '@/lib/supabase/server'
+import TournamentCard from '@/components/features/tournaments/TournamentCard'
+import Link from 'next/link'
+import type { TournamentListItem } from '@/lib/types'
+
+export default async function TournamentsPage() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+
+  const { data } = await supabase
+    .from('tournaments')
+    .select(`
+      id, name, description, start_date, start_time, estimated_end_time,
+      status, visibility, registration_status,
+      location:locations!location_id (name),
+      organizer:profiles!organizer_id (name)
+    `)
+    .gte('start_date', today)
+    .order('start_date', { ascending: true })
+
+  const tournaments = (data ?? []) as unknown as TournamentListItem[]
+
+  const isLoggedIn = !!user
+
+  return (
+    <main className="max-w-lg mx-auto p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="font-heading text-xl font-bold text-brand-dark">Tournaments</h1>
+        {isLoggedIn && (
+          <Link
+            href="/tournaments/create"
+            className="bg-brand text-brand-dark text-sm rounded-xl px-4 py-2 font-semibold hover:bg-brand-hover transition-colors"
+          >
+            + Create
+          </Link>
+        )}
+      </div>
+
+      {tournaments.length === 0 ? (
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-8 text-center space-y-3">
+          <p className="text-2xl">🏆</p>
+          <p className="text-sm font-medium text-brand-dark">No tournaments yet</p>
+          <p className="text-xs text-brand-muted">
+            Check back soon for upcoming local pickleball tournaments.
+          </p>
+          {isLoggedIn && (
+            <Link
+              href="/tournaments/create"
+              className="inline-block mt-2 bg-brand text-brand-dark text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-brand-hover transition-colors"
+            >
+              Create Tournament
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {tournaments.map((t) => (
+            <TournamentCard key={t.id} tournament={t} />
+          ))}
+        </div>
+      )}
+    </main>
+  )
+}

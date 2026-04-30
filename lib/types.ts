@@ -32,6 +32,38 @@ export type EventListItem = {
   event_participants: { participant_status: string }[]
 }
 
+export type TournamentListItem = {
+  id: string
+  name: string
+  description: string | null
+  start_date: string
+  start_time: string
+  estimated_end_time: string | null
+  status: string
+  visibility: string
+  registration_status: string
+  location: { name: string } | null
+  organizer: { name: string } | null
+}
+
+export type TournamentDetail = {
+  id: string
+  name: string
+  description: string | null
+  start_date: string
+  start_time: string
+  estimated_end_time: string | null
+  status: string
+  visibility: string
+  registration_status: string
+  organizer_id: string
+  location_id: string | null
+  location: { id: string; name: string; subarea: string | null } | null
+  organizer: { name: string } | null
+  created_at: string
+  updated_at: string
+}
+
 export type EventDetail = {
   id: string
   title: string
