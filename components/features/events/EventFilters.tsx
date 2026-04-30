@@ -38,10 +38,30 @@ export default function EventFilters({ locations, view }: Props) {
   const hasFilters =
     params.has('skill') ||
     params.has('time') ||
-    params.has('location')
+    params.has('location') ||
+    params.has('type')
 
   return (
     <div className="space-y-2">
+      {/* Type toggle: All | Games | Clinics */}
+      <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden self-start">
+        {(['', 'game', 'clinic'] as const).map((t) => {
+          const label = t === '' ? 'All' : t === 'game' ? 'Games' : 'Clinics'
+          const active = (params.get('type') ?? '') === t
+          return (
+            <button
+              key={t}
+              onClick={() => update('type', t)}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                active ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
+              }`}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+
       {/* View toggle + clear */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">

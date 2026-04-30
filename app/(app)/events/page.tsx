@@ -21,6 +21,7 @@ type SearchParams = {
   skill?: string
   time?: string
   location?: string
+  type?: string
 }
 
 export default async function EventsPage({
@@ -35,13 +36,14 @@ export default async function EventsPage({
   const skillFilter = searchParams.skill ? parseFloat(searchParams.skill) : null
   const timeFilter = searchParams.time ?? null
   const locationFilter = searchParams.location ?? null
+  const typeFilter = searchParams.type ?? null
 
   // Build base query
   let query = supabase
     .from('events')
     .select(`
       id, title, starts_at, duration_minutes, court_count, max_players, status,
-      min_skill_level, max_skill_level, location_id,
+      session_type, notes, min_skill_level, max_skill_level, location_id,
       location:locations!location_id (name, court_count),
       captain:profiles!captain_user_id (name),
       event_participants!event_id (participant_status)
@@ -89,12 +91,17 @@ export default async function EventsPage({
     })
   }
 
-  // Sort: facility court count DESC, then title ASC
+  // Type filter
+  if (typeFilter === 'game' || typeFilter === 'clinic') {
+    events = events.filter((ev) => ev.session_type === typeFilter)
+  }
+
+  // Sort: clinics first, then by starts_at ASC within each group
   events.sort((a, b) => {
-    const aCourts = a.location?.court_count ?? 0
-    const bCourts = b.location?.court_count ?? 0
-    if (bCourts !== aCourts) return bCourts - aCourts
-    return a.title.localeCompare(b.title)
+    const aIsClinic = a.session_type === 'clinic' ? 0 : 1
+    const bIsClinic = b.session_type === 'clinic' ? 0 : 1
+    if (aIsClinic !== bIsClinic) return aIsClinic - bIsClinic
+    return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
   })
 
   // Fetch locations for the filter dropdown

@@ -20,6 +20,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
   const [minSkill, setMinSkill] = useState('')
   const [maxSkill, setMaxSkill] = useState('')
   const [notes, setNotes] = useState('')
+  const [isClinic, setIsClinic] = useState(false)
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +74,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
       min_skill_level: minSkill ? parseFloat(minSkill) : null,
       max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
       status: 'open',
+      session_type: isClinic ? 'clinic' : 'game',
       recurrence_group_id: recurrenceGroupId,
     }))
 
@@ -295,6 +297,19 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
           </select>
         </div>
       </div>
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={isClinic}
+          onChange={(e) => setIsClinic(e.target.checked)}
+          className="mt-0.5 w-4 h-4 accent-amber-500"
+        />
+        <div>
+          <span className="text-sm font-medium text-brand-dark">This is a clinic</span>
+          <p className="text-xs text-brand-muted mt-0.5">Clinics are highlighted and shown above regular play sessions.</p>
+        </div>
+      </label>
 
       <div>
         <label className="block text-sm font-medium mb-1">

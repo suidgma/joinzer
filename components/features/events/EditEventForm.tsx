@@ -15,6 +15,7 @@ type Props = {
     max_players: number
     notes: string | null
     status: string
+    session_type: string
   }
 }
 
@@ -26,6 +27,7 @@ export default function EditEventForm({ event }: Props) {
   const [playersPerCourt, setPlayersPerCourt] = useState(event.players_per_court)
   const [notes, setNotes] = useState(event.notes ?? '')
   const [status, setStatus] = useState(event.status)
+  const [isClinic, setIsClinic] = useState(event.session_type === 'clinic')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,6 +61,7 @@ export default function EditEventForm({ event }: Props) {
         max_players: maxPlayers,
         notes: notes.trim() || null,
         status,
+        session_type: isClinic ? 'clinic' : 'game',
       })
       .eq('id', event.id)
 
@@ -171,6 +174,19 @@ export default function EditEventForm({ event }: Props) {
           <option value="completed">Completed</option>
         </select>
       </div>
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={isClinic}
+          onChange={(e) => setIsClinic(e.target.checked)}
+          className="mt-0.5 w-4 h-4 accent-amber-500"
+        />
+        <div>
+          <span className="text-sm font-medium">This is a clinic</span>
+          <p className="text-xs text-gray-400 mt-0.5">Clinics are highlighted and shown above regular play sessions.</p>
+        </div>
+      </label>
 
       <div>
         <label className="block text-sm font-medium mb-1">
