@@ -123,34 +123,41 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1 uppercase tracking-wide">Status</label>
-          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
-            {['draft', 'published', 'cancelled', 'completed'].map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatus(s)}
-                className={`flex-1 py-1.5 text-[10px] font-semibold transition-colors capitalize ${
-                  status === s ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
-                }`}
-              >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </button>
-            ))}
-          </div>
+      {/* Status — full width, 4 options need room */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Status</label>
+        <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+          {[
+            { value: 'draft',     label: 'Draft' },
+            { value: 'published', label: 'Published' },
+            { value: 'cancelled', label: 'Cancelled' },
+            { value: 'completed', label: 'Completed' },
+          ].map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              onClick={() => setStatus(s.value)}
+              className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                status === s.value ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
+      </div>
 
+      {/* Visibility + Registration — 2-column, each only 2 options */}
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1 uppercase tracking-wide">Visibility</label>
+          <label className="block text-sm font-medium mb-1">Visibility</label>
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {(['public', 'private'] as const).map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setVisibility(v)}
-                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${
                   visibility === v ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
                 }`}
               >
@@ -161,14 +168,14 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1 uppercase tracking-wide">Registration</label>
+          <label className="block text-sm font-medium mb-1">Registration</label>
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {(['open', 'closed'] as const).map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRegistrationStatus(r)}
-                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${
                   registrationStatus === r ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
                 }`}
               >
