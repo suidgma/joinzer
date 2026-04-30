@@ -164,7 +164,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         <Field label="Play Days">
           <input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} placeholder="8" className="w-full input" />
         </Field>
-        <Field label="Games/Session">
+        <Field label="Games/Play">
           <input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} placeholder="7" className="w-full input" />
         </Field>
         <Field label="Max Players">
@@ -181,7 +181,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
           <div className="space-y-0.5 max-h-40 overflow-y-auto">
             {generatedDates.map((d, i) => (
               <p key={d} className="text-xs text-brand-muted">
-                Session {i + 1} — {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                Play {i + 1} — {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
               </p>
             ))}
           </div>

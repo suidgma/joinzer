@@ -18,9 +18,9 @@ export default async function CreateEventPage() {
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <Link href="/events" className="text-sm text-gray-500 hover:text-black">
-        ← Back to sessions
+        ← Back to play
       </Link>
-      <h1 className="text-xl font-bold">Create Session</h1>
+      <h1 className="text-xl font-bold">Create Play</h1>
       <CreateEventForm locations={locations} />
     </main>
   )

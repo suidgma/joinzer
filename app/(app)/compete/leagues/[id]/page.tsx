@@ -110,7 +110,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         {fmt(league.start_date) && <Row label="Starts" value={fmt(league.start_date)!} />}
         {fmt(displayEndDate) && <Row label="Ends" value={fmt(displayEndDate)!} />}
         {league.play_days != null && <Row label="Play Days" value={`${league.play_days}`} />}
-        {league.games_per_session != null && <Row label="Games/Session" value={`${league.games_per_session}`} />}
+        {league.games_per_session != null && <Row label="Games/Play" value={`${league.games_per_session}`} />}
         {league.max_players != null && (
           <Row label="Players" value={`${registeredCount} registered${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''} / ${league.max_players} max`} />
         )}
@@ -175,7 +175,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
                 <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-brand-dark">
-                      Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      Play {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </p>
                     {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
                     {(s.status === 'completed' || s.status === 'in_progress') && (

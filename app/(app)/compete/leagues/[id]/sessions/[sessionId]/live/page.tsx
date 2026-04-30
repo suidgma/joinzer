@@ -122,8 +122,8 @@ export default async function LiveSessionPage({
       </div>
 
       <div>
-        <h1 className="font-heading text-xl font-bold text-brand-dark">League Session Manager</h1>
-        <p className="text-sm text-brand-muted">{league.name} · Session {session.session_number} · {dateStr}</p>
+        <h1 className="font-heading text-xl font-bold text-brand-dark">League Play Manager</h1>
+        <p className="text-sm text-brand-muted">{league.name} · Play {session.session_number} · {dateStr}</p>
       </div>
 
       <LiveSessionManager

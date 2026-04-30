@@ -184,7 +184,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
         </Field>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Play Days"><input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} className="w-full input" /></Field>
-          <Field label="Games/Session"><input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} className="w-full input" /></Field>
+          <Field label="Games/Play"><input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} className="w-full input" /></Field>
           <Field label="Max Players"><input type="number" min="2" value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} className="w-full input" /></Field>
         </div>
 
@@ -198,7 +198,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
               <div className="space-y-0.5 max-h-40 overflow-y-auto">
                 {generatedDates.map((d, i) => (
                   <p key={d} className="text-xs text-brand-muted">
-                    Session {i + 1} — {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    Play {i + 1} — {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                   </p>
                 ))}
               </div>

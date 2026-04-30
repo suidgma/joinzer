@@ -70,7 +70,7 @@ export default function SessionScheduleManager({ leagueId, sessions: initial }: 
               <div className="min-w-0 flex-1">
                 {isEditing ? (
                   <div className="space-y-2">
-                    <p className="text-xs text-brand-muted font-medium">Session {s.session_number}</p>
+                    <p className="text-xs text-brand-muted font-medium">Play {s.session_number}</p>
                     <input
                       type="date"
                       value={editDate}
@@ -98,7 +98,7 @@ export default function SessionScheduleManager({ leagueId, sessions: initial }: 
                 ) : (
                   <>
                     <p className="text-sm font-medium text-brand-dark">
-                      Session {s.session_number} — {dateStr}
+                      Play {s.session_number} — {dateStr}
                     </p>
                     {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
                     <div className="flex gap-3 mt-1 flex-wrap">

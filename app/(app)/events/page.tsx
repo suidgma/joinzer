@@ -126,7 +126,7 @@ export default async function EventsPage({
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="font-heading text-xl font-bold text-brand-dark">Sessions</h1>
+        <h1 className="font-heading text-xl font-bold text-brand-dark">Play</h1>
         <div className="flex items-center gap-2">
           {user && (
             <AvailabilityButton

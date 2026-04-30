@@ -141,7 +141,7 @@ export default async function SessionResultsPage({
       </div>
 
       <div>
-        <h1 className="font-heading text-xl font-bold text-brand-dark">Session {session.session_number} Results</h1>
+        <h1 className="font-heading text-xl font-bold text-brand-dark">Play {session.session_number} Results</h1>
         <p className="text-sm text-brand-muted">{dateStr}</p>
       </div>
 

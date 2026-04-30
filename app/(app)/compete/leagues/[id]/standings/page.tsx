@@ -142,7 +142,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
               href={`/compete/leagues/${params.id}/sessions/${firstSession.id}/results`}
               className="inline-block mt-2 text-xs text-brand-active font-medium underline underline-offset-2"
             >
-              Enter results for session 1 →
+              Enter results for play 1 →
             </Link>
           )}
         </div>

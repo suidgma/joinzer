@@ -22,9 +22,9 @@ export default async function EditEventPage({ params }: { params: { id: string }
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <Link href={`/events/${params.id}`} className="text-sm text-gray-500 hover:text-black">
-        ← Back to session
+        ← Back to play
       </Link>
-      <h1 className="text-xl font-bold">Edit Session</h1>
+      <h1 className="text-xl font-bold">Edit Play</h1>
       <EditEventForm event={event} />
     </main>
   )

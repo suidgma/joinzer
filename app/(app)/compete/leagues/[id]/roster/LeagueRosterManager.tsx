@@ -289,7 +289,7 @@ export default function LeagueRosterManager({
       {sessions.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">
-            Manage Sessions
+            Manage Play
           </h2>
           {sessions.map((s) => {
             const subs = s.league_session_subs ?? []
@@ -306,7 +306,7 @@ export default function LeagueRosterManager({
                   className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-brand-soft transition-colors"
                 >
                   <p className="text-sm font-medium text-brand-dark">
-                    Session {s.session_number} · {dateStr}
+                    Play {s.session_number} · {dateStr}
                   </p>
                   <span className="text-xs text-brand-muted">{isOpen ? '▲' : '▼'}</span>
                 </button>
@@ -319,7 +319,7 @@ export default function LeagueRosterManager({
                       href={`/compete/leagues/${leagueId}/sessions/${s.id}/live`}
                       className="block w-full text-center py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover transition-colors"
                     >
-                      Open Live Session →
+                      Open Play →
                     </Link>
 
                     {/* Date editor */}

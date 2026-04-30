@@ -29,7 +29,7 @@ export default function UnsubscribedPage({ searchParams }: Props) {
           href="/events"
           className="inline-block bg-brand text-brand-dark text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-brand-hover transition-colors"
         >
-          Go to Sessions
+          Go to Play
         </a>
       </div>
     </main>
