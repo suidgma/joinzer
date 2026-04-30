@@ -474,6 +474,7 @@ export default function LiveSessionManager({
   const [reminderSent, setReminderSent] = useState(false)
   const [localSubRequests, setLocalSubRequests] = useState<SubRequest[]>(subRequests)
   const [approvingSubId, setApprovingSubId] = useState<string | null>(null)
+  const [justCompletedRoundId, setJustCompletedRoundId] = useState<string | null>(null)
 
   // Sync when server re-fetches after router.refresh()
   useEffect(() => {
@@ -487,6 +488,16 @@ export default function LiveSessionManager({
       setTimeout(() => currentRoundRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to a just-completed round in the Completed Rounds section
+  useEffect(() => {
+    if (!justCompletedRoundId) return
+    const el = document.getElementById(`completed-round-${justCompletedRoundId}`)
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    }
+    setJustCompletedRoundId(null)
+  }, [justCompletedRoundId])
 
   // Realtime: sync player status changes (e.g. self-check-in from player's device)
   useEffect(() => {
@@ -611,7 +622,7 @@ export default function LiveSessionManager({
     setRounds(prev => prev.map(r => r.id === roundId ? { ...r, status: updated.status, locked_at: updated.locked_at, completed_at: updated.completed_at } : r))
     setLoading(false)
     if (action === 'complete') {
-      window.location.href = `/compete/leagues/${leagueId}/sessions/${sessionId}/results`
+      setJustCompletedRoundId(roundId)
     }
   }
 
@@ -836,16 +847,17 @@ export default function LiveSessionManager({
         <section className="space-y-2">
           <h2 className="font-heading text-base font-bold text-brand-dark">Completed Rounds</h2>
           {[...completedRounds].reverse().map(r => (
-            <RoundCard
-              key={r.id}
-              round={r}
-              players={players}
-              onLock={() => {}}
-              onUnlock={() => {}}
-              onComplete={() => {}}
-              onRegenerate={() => {}}
-              loading={false}
-            />
+            <div key={r.id} id={`completed-round-${r.id}`}>
+              <RoundCard
+                round={r}
+                players={players}
+                onLock={() => {}}
+                onUnlock={() => {}}
+                onComplete={() => {}}
+                onRegenerate={() => {}}
+                loading={false}
+              />
+            </div>
           ))}
         </section>
       )}
