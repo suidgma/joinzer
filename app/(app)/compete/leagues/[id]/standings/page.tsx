@@ -2,6 +2,47 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length === 0) return <span className="text-xs text-brand-muted">—</span>
+
+  const W = 72, H = 24, pad = 3
+
+  if (values.length === 1) {
+    return (
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        <circle cx={W / 2} cy={H / 2} r="3" fill="#65a30d" />
+      </svg>
+    )
+  }
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+
+  const coords = values.map((v, i) => ({
+    x: pad + (i / (values.length - 1)) * (W - pad * 2),
+    y: H - pad - ((v - min) / range) * (H - pad * 2),
+  }))
+
+  const polyline = coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      <polyline
+        points={polyline}
+        fill="none"
+        stroke="#84cc16"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      {coords.map((c, i) => (
+        <circle key={i} cx={c.x.toFixed(1)} cy={c.y.toFixed(1)} r="2" fill="#65a30d" />
+      ))}
+    </svg>
+  )
+}
+
 export default async function LeagueStandingsPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -121,12 +162,18 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
                       Wk {s.session_number}
                     </th>
                   ))}
+                  {sessionsWithData.length >= 2 && (
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
+                      Trend
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {standings.map((p, i) => {
                   const bySession = sessionPts.get(p.userId) ?? new Map()
                   const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-brand-surface'
+                  const sparkValues = sessionsWithData.map(s => bySession.get(s.id) ?? 0)
                   return (
                     <tr key={p.id}>
                       <td className={`sticky left-0 px-3 py-2.5 border-r border-b border-brand-border whitespace-nowrap z-10 ${rowBg}`}>
@@ -163,6 +210,11 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
                           </td>
                         )
                       })}
+                      {sessionsWithData.length >= 2 && (
+                        <td className={`px-2 py-1 text-center border-b border-l border-brand-border ${rowBg}`}>
+                          <Sparkline values={sparkValues} />
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
