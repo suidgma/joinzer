@@ -31,6 +31,7 @@ export default function GroupChat({
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -92,10 +93,12 @@ export default function GroupChat({
     if (!trimmed || sending || !currentUserId) return
 
     setSending(true)
+    setSendError(null)
     setText('')
 
+    const optimisticId = crypto.randomUUID()
     const optimistic: Message = {
-      id: crypto.randomUUID(),
+      id: optimisticId,
       user_id: currentUserId,
       message_text: trimmed,
       created_at: new Date().toISOString(),
@@ -104,11 +107,17 @@ export default function GroupChat({
     setMessages((prev) => [...prev, optimistic])
 
     const supabase = createClient()
-    await supabase.from(table).insert({
+    const { error } = await supabase.from(table).insert({
       [entityField]: entityId,
       user_id: currentUserId,
       message_text: trimmed,
     })
+
+    if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
+      setSendError('Failed to send. Try again.')
+      setText(trimmed)
+    }
 
     setSending(false)
   }
@@ -129,7 +138,11 @@ export default function GroupChat({
       )
     }
     return (
-      <form onSubmit={handleSend} className="flex gap-2 p-2 border-t bg-white">
+      <form onSubmit={handleSend} className="border-t bg-white">
+        {sendError && (
+          <p className="text-xs text-red-500 px-3 pt-2">{sendError}</p>
+        )}
+        <div className="flex gap-2 p-2">
         <input
           type="text"
           value={text}
@@ -144,6 +157,7 @@ export default function GroupChat({
         >
           Send
         </button>
+        </div>
       </form>
     )
   }
