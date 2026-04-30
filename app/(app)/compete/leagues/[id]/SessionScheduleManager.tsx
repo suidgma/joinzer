@@ -23,6 +23,7 @@ export default function SessionScheduleManager({ leagueId, sessions: initial }: 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDate, setEditDate] = useState('')
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   function startEdit(s: Session) {
@@ -34,6 +35,20 @@ export default function SessionScheduleManager({ leagueId, sessions: initial }: 
   function cancelEdit() {
     setEditingId(null)
     setError(null)
+  }
+
+  async function deleteSession(sessionId: string) {
+    if (!confirm('Delete this session? This cannot be undone.')) return
+    setDeletingId(sessionId)
+    const res = await fetch(`/api/league-sessions/${sessionId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const d = await res.json()
+      setError(d.error ?? 'Failed to delete session')
+      setDeletingId(null)
+      return
+    }
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId))
+    setDeletingId(null)
   }
 
   async function saveEdit(sessionId: string) {
@@ -122,6 +137,13 @@ export default function SessionScheduleManager({ leagueId, sessions: initial }: 
                         className="text-xs text-brand-muted underline underline-offset-2 hover:text-brand-active"
                       >
                         Edit date
+                      </button>
+                      <button
+                        onClick={() => deleteSession(s.id)}
+                        disabled={deletingId === s.id}
+                        className="text-xs text-red-500 underline underline-offset-2 hover:text-red-700 disabled:opacity-40"
+                      >
+                        {deletingId === s.id ? 'Deleting…' : 'Delete'}
                       </button>
                     </div>
                   </>

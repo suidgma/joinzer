@@ -51,3 +51,34 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(updated)
 }
+
+// DELETE /api/league-sessions/[sessionId] — organizer deletes a session
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const supabase = createClient()
+  const { data: { session: authSession } } = await supabase.auth.getSession()
+  const user = authSession?.user ?? null
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const db = admin()
+
+  const { data: session } = await db
+    .from('league_sessions')
+    .select('id, league_id, leagues(created_by)')
+    .eq('id', params.sessionId)
+    .single()
+
+  if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const league = session.leagues as unknown as { created_by: string } | null
+  if (!league || league.created_by !== user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { error } = await db
+    .from('league_sessions')
+    .delete()
+    .eq('id', params.sessionId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
