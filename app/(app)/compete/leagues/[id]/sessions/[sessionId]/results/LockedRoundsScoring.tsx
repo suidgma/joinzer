@@ -89,15 +89,22 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
     setSavingAll(false)
   }
 
-  async function generateNext() {
+  async function generateNext(replaceExisting = false) {
     setGenerating(true)
     setGenerateError(null)
     const res = await fetch(`/api/league-sessions/${sessionId}/generate-next-round`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ replace_existing_draft: false }),
+      body: JSON.stringify({ replace_existing_draft: replaceExisting }),
     })
     const data = await res.json()
+    if (res.status === 409) {
+      setGenerating(false)
+      if (confirm('A draft round already exists. Replace it with a new one?')) {
+        generateNext(true)
+      }
+      return
+    }
     if (!res.ok) {
       setGenerateError(data.error ?? 'Failed to generate round')
       setGenerating(false)
@@ -216,7 +223,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
             </button>
           ) : (
             <button
-              onClick={generateNext}
+              onClick={() => generateNext()}
               disabled={generating}
               className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-50 transition-colors"
             >
