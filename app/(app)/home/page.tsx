@@ -208,7 +208,6 @@ export default async function HomePage() {
       {/* ── Open sub requests in my leagues ── */}
       {(openSubRequests ?? []).length > 0 && (
         <SubRequestsSection
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           initialRequests={(openSubRequests ?? []) as any[]}
           currentUserId={user.id}
         />

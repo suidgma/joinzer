@@ -82,9 +82,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
     : formatTime(tournament.start_time)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const divisions = (divisionsData ?? []) as any[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const matches = (matchesData ?? []) as any[]
 
   return (

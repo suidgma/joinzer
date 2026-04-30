@@ -261,8 +261,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
               <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
               <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
                 <option value="mixed_doubles">Mixed Doubles</option>
-                <option value="mens_doubles">Men's Doubles</option>
-                <option value="womens_doubles">Women's Doubles</option>
+                <option value="mens_doubles">Men&apos;s Doubles</option>
+                <option value="womens_doubles">Women&apos;s Doubles</option>
                 <option value="singles">Singles</option>
                 <option value="open">Open</option>
               </select>
