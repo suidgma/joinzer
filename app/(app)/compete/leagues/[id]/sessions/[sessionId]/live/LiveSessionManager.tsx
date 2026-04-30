@@ -472,6 +472,8 @@ export default function LiveSessionManager({
   const [scoredRounds, setScoredRounds] = useState(() => new Set(initialScoredRounds))
   const [sendingReminder, setSendingReminder] = useState(false)
   const [reminderSent, setReminderSent] = useState(false)
+  const [localSubRequests, setLocalSubRequests] = useState<SubRequest[]>(subRequests)
+  const [approvingSubId, setApprovingSubId] = useState<string | null>(null)
 
   // Sync when server re-fetches after router.refresh()
   useEffect(() => {
@@ -641,6 +643,19 @@ export default function LiveSessionManager({
     else { const d = await res.json(); setError(d.error ?? 'Failed to send reminder') }
   }
 
+  // --- Approve sub ---
+  async function handleApproveSub(subRequestId: string) {
+    setApprovingSubId(subRequestId)
+    const res = await fetch(`/api/league-sub-requests/${subRequestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve' }),
+    })
+    setApprovingSubId(null)
+    if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Failed to approve sub'); return }
+    setLocalSubRequests(prev => prev.map(sr => sr.id === subRequestId ? { ...sr, status: 'approved' } : sr))
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const rosterPlayers   = players.filter(p => p.player_type === 'roster_player')
@@ -695,22 +710,33 @@ export default function LiveSessionManager({
         </div>
 
         {/* Sub requests panel */}
-        {subRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).length > 0 && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
+        {localSubRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-3">
             <p className="text-xs font-semibold text-orange-800 uppercase tracking-wide">Sub Requests</p>
-            {subRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).map(sr => (
-              <div key={sr.id} className="flex items-center justify-between gap-2">
-                <p className="text-sm text-brand-dark">
-                  <span className="font-medium">{sr.requesting_player?.name ?? 'Unknown'}</span>
-                  <span className="text-brand-muted"> needs a sub</span>
-                </p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                  sr.status === 'claimed' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'
-                }`}>
-                  {sr.status === 'claimed'
-                    ? `${sr.claimed_by?.name ?? 'Someone'} volunteered`
-                    : 'Open'}
-                </span>
+            {localSubRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).map(sr => (
+              <div key={sr.id} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-brand-dark">
+                    <span className="font-medium">{sr.requesting_player?.name ?? 'Unknown'}</span>
+                    <span className="text-brand-muted"> needs a sub</span>
+                  </p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                    sr.status === 'claimed' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'
+                  }`}>
+                    {sr.status === 'claimed'
+                      ? `${sr.claimed_by?.name ?? 'Someone'} volunteered`
+                      : 'Open'}
+                  </span>
+                </div>
+                {sr.status === 'claimed' && (
+                  <button
+                    onClick={() => handleApproveSub(sr.id)}
+                    disabled={approvingSubId === sr.id}
+                    className="w-full py-1.5 rounded-lg text-xs font-semibold bg-brand text-brand-dark hover:bg-brand-hover disabled:opacity-50 transition-colors"
+                  >
+                    {approvingSubId === sr.id ? 'Approving…' : `Approve ${sr.claimed_by?.name ?? 'Sub'}`}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -728,7 +754,7 @@ export default function LiveSessionManager({
                 onStatusChange={handleStatusChange}
                 disabled={loading || generating}
                 selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
-                hasSub={subRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
               />
             ))}
           </div>
@@ -746,7 +772,7 @@ export default function LiveSessionManager({
                 onStatusChange={handleStatusChange}
                 disabled={loading || generating}
                 selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
-                hasSub={subRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
               />
             ))}
           </div>
