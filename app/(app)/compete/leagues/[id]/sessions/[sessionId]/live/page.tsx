@@ -33,6 +33,25 @@ export default async function LiveSessionPage({
     .eq('session_id', params.sessionId)
 
   if (count === 0) {
+    // Check for any self-reported attendance statuses already submitted
+    const { data: existingAttendance } = await db
+      .from('league_session_attendance')
+      .select('user_id, attendance_status')
+      .eq('league_session_id', params.sessionId)
+
+    const selfStatusMap: Record<string, string> = {}
+    for (const a of existingAttendance ?? []) {
+      selfStatusMap[a.user_id as string] = a.attendance_status as string
+    }
+
+    // Default to present; only override if player actively said cannot_attend or running_late
+    const resolveActualStatus = (userId: string): string => {
+      const self = selfStatusMap[userId]
+      if (self === 'cannot_attend') return 'not_present'
+      if (self === 'running_late') return 'late'
+      return 'present'
+    }
+
     // Seed from registered players + their profile data
     const { data: registrations } = await db
       .from('league_registrations')
@@ -44,14 +63,14 @@ export default async function LiveSessionPage({
       const rows = registrations.map((r: Record<string, unknown>) => {
         const profile = r.profile as Record<string, unknown>
         return {
-          session_id:     params.sessionId,
-          user_id:        r.user_id,
-          display_name:   profile?.name ?? 'Unknown',
-          player_type:    'roster_player',
-          expected_status: 'expected',
-          actual_status:  'not_present',
-          joinzer_rating: profile?.joinzer_rating ?? 1000,
-          dupr_rating:    profile?.dupr_rating ?? null,
+          session_id:       params.sessionId,
+          user_id:          r.user_id,
+          display_name:     profile?.name ?? 'Unknown',
+          player_type:      'roster_player',
+          expected_status:  'expected',
+          actual_status:    resolveActualStatus(r.user_id as string),
+          joinzer_rating:   profile?.joinzer_rating ?? 1000,
+          dupr_rating:      profile?.dupr_rating ?? null,
           estimated_rating: profile?.estimated_rating ?? null,
         }
       })
@@ -73,7 +92,7 @@ export default async function LiveSessionPage({
           display_name:   profile?.name ?? 'Sub',
           player_type:    'sub',
           expected_status: 'expected',
-          actual_status:  'not_present',
+          actual_status:  resolveActualStatus(s.user_id as string),
           joinzer_rating: profile?.joinzer_rating ?? 1000,
         }
       })

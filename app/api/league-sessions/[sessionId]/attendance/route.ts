@@ -9,12 +9,13 @@ function admin() {
 }
 
 // Maps player self-reported status → organizer actual_status
+// Default assumption: player is present unless they actively say otherwise
 const ACTUAL_STATUS_MAP: Record<string, string> = {
   checked_in_present: 'present',
   planning_to_attend: 'present',
+  not_responded:      'present',
   running_late:       'late',
   cannot_attend:      'not_present',
-  not_responded:      'not_present',
 }
 
 // GET — all attendance records for this session
