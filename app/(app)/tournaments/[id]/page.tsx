@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { TournamentDetail } from '@/lib/types'
+import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
@@ -43,18 +44,31 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data } = await supabase
-    .from('tournaments')
-    .select(`
-      id, name, description, start_date, start_time, estimated_end_time,
-      status, visibility, registration_status, organizer_id,
-      location_id,
-      location:locations!location_id (id, name, subarea),
-      organizer:profiles!organizer_id (name),
-      created_at, updated_at
-    `)
-    .eq('id', params.id)
-    .single()
+  const [{ data }, { data: divisionsData }] = await Promise.all([
+    supabase
+      .from('tournaments')
+      .select(`
+        id, name, description, start_date, start_time, estimated_end_time,
+        status, visibility, registration_status, organizer_id,
+        location_id,
+        location:locations!location_id (id, name, subarea),
+        organizer:profiles!organizer_id (name),
+        created_at, updated_at
+      `)
+      .eq('id', params.id)
+      .single(),
+    supabase
+      .from('tournament_divisions')
+      .select(`
+        id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status,
+        tournament_registrations!division_id (
+          id, user_id, partner_user_id, team_name, status,
+          user_profile:profiles!user_id (name)
+        )
+      `)
+      .eq('tournament_id', params.id)
+      .order('created_at', { ascending: true }),
+  ])
 
   if (!data) notFound()
 
@@ -65,6 +79,9 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const timeRange = tournament.estimated_end_time
     ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
     : formatTime(tournament.start_time)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const divisions = (divisionsData ?? []) as any[]
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
@@ -131,9 +148,15 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         </Link>
       )}
 
-      {/* Placeholder sections for future prompts */}
-      <PlaceholderSection title="Divisions" />
-      <PlaceholderSection title="Registration" />
+      {/* Divisions + Registration */}
+      <DivisionsSection
+        tournamentId={tournament.id}
+        initialDivisions={divisions}
+        isOrganizer={isOrganizer}
+        currentUserId={user?.id ?? null}
+      />
+
+      {/* Future placeholders */}
       <PlaceholderSection title="Format" />
       <PlaceholderSection title="Matches / Brackets" />
     </main>
