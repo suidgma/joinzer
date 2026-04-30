@@ -20,7 +20,7 @@ export default function EventCard({ event }: { event: EventListItem }) {
           {/* Badges row */}
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-extrabold tracking-widest px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 uppercase">
-              {isFreeClinic ? 'Free Clinic' : 'Paid Clinic'}
+              Clinic
             </span>
             <span
               className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
