@@ -82,14 +82,14 @@ export default function AvailabilityButton({ userId, locations, existing }: Prop
     <>
       <button
         onClick={() => setOpen(true)}
-        className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full border transition-colors ${
+        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors whitespace-nowrap ${
           active
             ? 'bg-brand text-brand-dark border-brand'
             : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
         }`}
       >
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-brand-dark' : 'bg-brand-muted'}`} />
-        {active ? `Available ${windowLabel}` : 'Set availability'}
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? 'bg-brand-dark' : 'bg-brand-muted'}`} />
+        {active ? windowLabel : 'Availability'}
       </button>
 
       {open && (

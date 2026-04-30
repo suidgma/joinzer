@@ -42,66 +42,63 @@ export default function EventFilters({ locations, view }: Props) {
     params.has('type')
 
   return (
-    <div className="space-y-2">
-      {/* Type toggle: All | Games | Clinics */}
-      <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden self-start">
-        {(['', 'game', 'clinic'] as const).map((t) => {
-          const label = t === '' ? 'All' : t === 'game' ? 'Games' : 'Clinics'
-          const active = (params.get('type') ?? '') === t
-          return (
-            <button
-              key={t}
-              onClick={() => update('type', t)}
-              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                active ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
-              }`}
-            >
-              {label}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* View toggle + clear */}
+    <div className="space-y-2.5">
+      {/* Row 1: Type tabs (left) + View toggle (right) — one row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
-          <button
-            onClick={() => update('view', '')}
-            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-              view !== 'calendar'
-                ? 'bg-brand-dark text-white'
-                : 'text-brand-muted hover:text-brand-dark'
-            }`}
-          >
-            List
-          </button>
-          <button
-            onClick={() => update('view', 'calendar')}
-            className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-              view === 'calendar'
-                ? 'bg-brand-dark text-white'
-                : 'text-brand-muted hover:text-brand-dark'
-            }`}
-          >
-            Calendar
-          </button>
+          {(['', 'game', 'clinic'] as const).map((t) => {
+            const label = t === '' ? 'All' : t === 'game' ? 'Games' : 'Clinics'
+            const active = (params.get('type') ?? '') === t
+            return (
+              <button
+                key={t}
+                onClick={() => update('type', t)}
+                className={`px-4 py-2 text-xs font-semibold transition-colors ${
+                  active ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
 
-        {hasFilters && (
-          <button
-            onClick={clear}
-            className="text-xs text-brand-active font-medium hover:underline"
-          >
-            Clear filters
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hasFilters && (
+            <button
+              onClick={clear}
+              className="text-xs text-brand-active font-medium hover:underline"
+            >
+              Clear
+            </button>
+          )}
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            <button
+              onClick={() => update('view', '')}
+              className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                view !== 'calendar' ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
+              }`}
+            >
+              List
+            </button>
+            <button
+              onClick={() => update('view', 'calendar')}
+              className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                view === 'calendar' ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
+              }`}
+            >
+              Cal
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      {/* Row 2: Filters */}
+      <div className="flex gap-2">
         <select
           value={params.get('skill') ?? ''}
           onChange={(e) => update('skill', e.target.value)}
-          className="w-full input-sm"
+          className="flex-1 min-w-0 input-sm"
         >
           <option value="">Any skill</option>
           {skillOptions.map((v) => (
@@ -112,18 +109,18 @@ export default function EventFilters({ locations, view }: Props) {
         <select
           value={params.get('time') ?? ''}
           onChange={(e) => update('time', e.target.value)}
-          className="w-full input-sm"
+          className="flex-1 min-w-0 input-sm"
         >
           <option value="">Any time</option>
           <option value="morning">Morning</option>
-          <option value="afternoon">Afternoon (12–5 pm)</option>
-          <option value="evening">Evening (5 pm+)</option>
+          <option value="afternoon">Afternoon</option>
+          <option value="evening">Evening</option>
         </select>
 
         <select
           value={params.get('location') ?? ''}
           onChange={(e) => update('location', e.target.value)}
-          className="w-full input-sm"
+          className="flex-1 min-w-0 input-sm"
         >
           <option value="">Any location</option>
           {locations.map((l) => (

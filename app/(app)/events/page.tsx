@@ -134,8 +134,8 @@ export default async function EventsPage({
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-xl font-bold text-brand-dark">Play</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="font-heading text-2xl font-bold text-brand-dark">Play</h1>
         <div className="flex items-center gap-2">
           {user && (
             <AvailabilityButton
@@ -146,7 +146,7 @@ export default async function EventsPage({
           )}
           <Link
             href="/events/create"
-            className="bg-brand text-brand-dark text-sm rounded-xl px-4 py-2 font-semibold hover:bg-brand-hover transition-colors"
+            className="bg-brand text-brand-dark text-sm rounded-xl px-4 py-2 font-semibold hover:bg-brand-hover transition-colors whitespace-nowrap"
           >
             + Create
           </Link>
