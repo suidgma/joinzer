@@ -306,7 +306,7 @@ export default function LeagueRosterManager({
                   className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-brand-soft transition-colors"
                 >
                   <p className="text-sm font-medium text-brand-dark">
-                    Play {s.session_number} · {dateStr}
+                    Session {s.session_number} · {dateStr}
                   </p>
                   <span className="text-xs text-brand-muted">{isOpen ? '▲' : '▼'}</span>
                 </button>

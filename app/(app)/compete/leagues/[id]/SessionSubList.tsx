@@ -46,7 +46,7 @@ export default function SessionSubList({ sessions, mySubSessionIds }: Props) {
         return (
           <div key={s.id} className="flex items-center justify-between bg-brand-surface border border-brand-border rounded-xl px-3 py-2.5">
             <div>
-              <p className="text-sm font-medium text-brand-dark">Play {s.session_number} · {dateStr}</p>
+              <p className="text-sm font-medium text-brand-dark">Session {s.session_number} · {dateStr}</p>
             </div>
             <button
               onClick={() => toggle(s.id)}

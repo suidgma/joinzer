@@ -175,7 +175,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
                 <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-brand-dark">
-                      Play {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </p>
                     {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
                     {(s.status === 'completed' || s.status === 'in_progress') && (
