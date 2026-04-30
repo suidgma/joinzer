@@ -4,7 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { tournamentId: string; matchId: string } }
+  { params }: { params: { id: string; matchId: string } }
 ) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,7 +33,7 @@ export async function PATCH(
   const { data: tournament } = await service
     .from('tournaments')
     .select('organizer_id')
-    .eq('id', params.tournamentId)
+    .eq('id', params.id)
     .single()
   if (!tournament || tournament.organizer_id !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -44,7 +44,7 @@ export async function PATCH(
     .from('tournament_matches')
     .select('id, team_1_registration_id, team_2_registration_id, tournament_id')
     .eq('id', params.matchId)
-    .eq('tournament_id', params.tournamentId)
+    .eq('tournament_id', params.id)
     .single()
 
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 })

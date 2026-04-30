@@ -4,7 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { tournamentId: string; divisionId: string } }
+  { params }: { params: { id: string; divisionId: string } }
 ) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -23,7 +23,7 @@ export async function POST(
     .from('tournament_divisions')
     .select('id, tournament_id, max_entries, waitlist_enabled, status')
     .eq('id', params.divisionId)
-    .eq('tournament_id', params.tournamentId)
+    .eq('tournament_id', params.id)
     .single()
 
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
@@ -59,7 +59,7 @@ export async function POST(
   const { data: registration, error: insertErr } = await service
     .from('tournament_registrations')
     .insert({
-      tournament_id: params.tournamentId,
+      tournament_id: params.id,
       division_id: params.divisionId,
       user_id: user.id,
       team_name: team_name || null,

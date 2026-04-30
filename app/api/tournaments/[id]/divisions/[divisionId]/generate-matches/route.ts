@@ -51,7 +51,7 @@ function poolPlayMatches(teams: string[], numPools: number, base: object): objec
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { tournamentId: string; divisionId: string } }
+  { params }: { params: { id: string; divisionId: string } }
 ) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -66,7 +66,7 @@ export async function POST(
   const { data: tournament } = await service
     .from('tournaments')
     .select('organizer_id')
-    .eq('id', params.tournamentId)
+    .eq('id', params.id)
     .single()
   if (!tournament || tournament.organizer_id !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -86,7 +86,7 @@ export async function POST(
     .from('tournament_divisions')
     .select('id, format_type, format_settings_json')
     .eq('id', params.divisionId)
-    .eq('tournament_id', params.tournamentId)
+    .eq('tournament_id', params.id)
     .single()
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
 
@@ -105,7 +105,7 @@ export async function POST(
 
   const ft = division.format_type as string
   const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
-  const base = { tournament_id: params.tournamentId, division_id: params.divisionId, status: 'scheduled' }
+  const base = { tournament_id: params.id, division_id: params.divisionId, status: 'scheduled' }
 
   let matchRows: object[]
   if (ft === 'round_robin') {
