@@ -14,7 +14,7 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
   const [title, setTitle] = useState('')
   const [locationId, setLocationId] = useState('')
   const [date, setDate] = useState('')
-  const [time, setTime] = useState('')
+  const [time, setTime] = useState('08:00')
   const [durationMinutes, setDurationMinutes] = useState(120)
   const [courtCount, setCourtCount] = useState(1)
   const [playersPerCourt, setPlayersPerCourt] = useState(6)
@@ -40,6 +40,8 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
 
     setLoading(true)
     setError(null)
+
+    try {
 
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -140,6 +142,10 @@ export default function CreateEventForm({ locations }: { locations: LocationOpti
     }).catch(() => {})
 
     router.push(`/events/${event.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setLoading(false)
+    }
   }
 
   return (
