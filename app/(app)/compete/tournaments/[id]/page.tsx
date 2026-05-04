@@ -44,7 +44,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   if (!tournament) notFound()
 
-  const isManager = user?.id === tournament.created_by
+  const isManager = user?.id === tournament.organizer_id
   const orgName = (tournament.organization as { name: string } | null)?.name
   const myRegMap = new Map((myRegs ?? []).map((r) => [r.tournament_event_id, r.status]))
 

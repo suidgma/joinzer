@@ -79,7 +79,7 @@ export default function CreateTournamentForm({ locations }: { locations: Locatio
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         description: description.trim() || null,
         status,
-        created_by: user.id,
+        organizer_id: user.id,
       })
       .select('id')
       .single()
