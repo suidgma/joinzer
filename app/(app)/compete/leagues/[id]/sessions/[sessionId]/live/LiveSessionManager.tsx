@@ -533,7 +533,7 @@ function AssignSubModal({
           <p className="text-sm text-brand-muted">Covering for <span className="font-medium text-brand-dark">{absentPlayer.display_name}</span></p>
         </div>
         {options.length === 0 ? (
-          <p className="text-sm text-brand-muted">No available players. Use "+ Add Sub" to add someone first.</p>
+          <p className="text-sm text-brand-muted">No available players. Use &quot;+ Add Sub&quot; to add someone first.</p>
         ) : (
           <select
             autoFocus
