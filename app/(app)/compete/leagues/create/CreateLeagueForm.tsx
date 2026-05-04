@@ -44,10 +44,21 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [maxPlayers, setMaxPlayers] = useState('')
   const [registrationStatus, setRegistrationStatus] = useState('upcoming')
   const [description, setDescription] = useState('')
+  const [pointsToWin, setPointsToWin] = useState('11')
+  const [winBy, setWinBy] = useState<1 | 2>(1)
+  const [subCreditCap, setSubCreditCap] = useState('7')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedLocation = locations.find((l) => l.id === locationId)
+
+  const pointsToWinNum = parseInt(pointsToWin) || 11
+
+  function handlePointsToWinChange(val: string) {
+    setPointsToWin(val)
+    const max = parseInt(val) || 11
+    if (parseInt(subCreditCap) > max) setSubCreditCap(String(max))
+  }
 
   // Auto-generate weekly session dates from startDate + playDays
   function generateDates(start: string, count: number): string[] {
@@ -92,6 +103,9 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
         description: description.trim() || null,
+        points_to_win: pointsToWinNum,
+        win_by: winBy,
+        sub_credit_cap: parseInt(subCreditCap) || 7,
         created_by: user.id,
       })
       .select('id')
@@ -171,6 +185,45 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
           <input type="number" min="2" value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} placeholder="16" className="w-full input" />
         </Field>
       </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Points to Win">
+          <input
+            type="number"
+            min="1"
+            value={pointsToWin}
+            onChange={(e) => handlePointsToWinChange(e.target.value)}
+            placeholder="11"
+            className="w-full input"
+          />
+        </Field>
+        <Field label="Win By">
+          <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
+            <button
+              type="button"
+              onClick={() => setWinBy(1)}
+              className={`flex-1 text-sm font-medium transition-colors ${winBy === 1 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+            >
+              Win by 1
+            </button>
+            <button
+              type="button"
+              onClick={() => setWinBy(2)}
+              className={`flex-1 text-sm font-medium transition-colors ${winBy === 2 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+            >
+              Win by 2
+            </button>
+          </div>
+        </Field>
+      </div>
+
+      <Field label="Sub Credit Cap" hint="Max points credited to an absent player when a sub plays in their place.">
+        <select value={subCreditCap} onChange={(e) => setSubCreditCap(e.target.value)} className="w-full input">
+          {Array.from({ length: pointsToWinNum }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
+          ))}
+        </select>
+      </Field>
 
       {/* Auto-generated schedule preview */}
       {generatedDates.length > 0 ? (

@@ -19,20 +19,28 @@ type Props = {
   leagueId: string
   matches: LockedMatch[]
   roundsPlanned: number
+  pointsToWin: number
 }
 
-export default function LockedRoundsScoring({ sessionId, leagueId, matches, roundsPlanned }: Props) {
+type ScoreEntry = { winner: '1' | '2' | ''; loserScore: string }
+
+function initFromExisting(score: { team1Score: number; team2Score: number }): ScoreEntry {
+  if (score.team1Score > score.team2Score) {
+    return { winner: '1', loserScore: String(score.team2Score) }
+  }
+  return { winner: '2', loserScore: String(score.team1Score) }
+}
+
+export default function LockedRoundsScoring({ sessionId, leagueId, matches, roundsPlanned, pointsToWin }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
-  // score state keyed by roundMatchId
-  const [scores, setScores] = useState<Record<string, { t1: string; t2: string }>>(() => {
-    const init: Record<string, { t1: string; t2: string }> = {}
+  const [scores, setScores] = useState<Record<string, ScoreEntry>>(() => {
+    const init: Record<string, ScoreEntry> = {}
     for (const m of matches) {
-      init[m.roundMatchId] = {
-        t1: m.existingScore != null ? String(m.existingScore.team1Score) : '',
-        t2: m.existingScore != null ? String(m.existingScore.team2Score) : '',
-      }
+      init[m.roundMatchId] = m.existingScore != null
+        ? initFromExisting(m.existingScore)
+        : { winner: '', loserScore: '' }
     }
     return init
   })
@@ -50,12 +58,22 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
   const unsaved = matches.filter((m) => !saved[m.roundMatchId])
   const allSaved = unsaved.length === 0
 
+  function setWinner(id: string, winner: '1' | '2') {
+    setScores((prev) => ({ ...prev, [id]: { ...prev[id], winner } }))
+    setErrors((prev) => { const next = { ...prev }; delete next[id]; return next })
+  }
+
+  function setLoserScore(id: string, loserScore: string) {
+    setScores((prev) => ({ ...prev, [id]: { ...prev[id], loserScore } }))
+    setErrors((prev) => { const next = { ...prev }; delete next[id]; return next })
+  }
+
   async function saveAll() {
-    // Validate — flag any unsaved match missing scores
     const newErrors: Record<string, string> = {}
     for (const m of unsaved) {
       const s = scores[m.roundMatchId]
-      if (s.t1 === '' || s.t2 === '') newErrors[m.roundMatchId] = 'Both scores required'
+      if (!s.winner) newErrors[m.roundMatchId] = 'Select a winner'
+      else if (s.loserScore === '') newErrors[m.roundMatchId] = 'Enter loser score'
     }
     if (Object.keys(newErrors).length > 0) {
       setErrors((prev) => ({ ...prev, ...newErrors }))
@@ -65,17 +83,21 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
     setSaveError(null)
     setSavingAll(true)
 
-    const rows = unsaved.map((m) => ({
-      session_id: sessionId,
-      round_number: m.roundNumber,
-      court_number: m.courtNumber,
-      team1_player1_id: m.team1[0]?.userId ?? null,
-      team1_player2_id: m.team1[1]?.userId ?? null,
-      team2_player1_id: m.team2[0]?.userId ?? null,
-      team2_player2_id: m.team2[1]?.userId ?? null,
-      team1_score: parseInt(scores[m.roundMatchId].t1),
-      team2_score: parseInt(scores[m.roundMatchId].t2),
-    }))
+    const rows = unsaved.map((m) => {
+      const s = scores[m.roundMatchId]
+      const loser = parseInt(s.loserScore)
+      return {
+        session_id: sessionId,
+        round_number: m.roundNumber,
+        court_number: m.courtNumber,
+        team1_player1_id: m.team1[0]?.userId ?? null,
+        team1_player2_id: m.team1[1]?.userId ?? null,
+        team2_player1_id: m.team2[0]?.userId ?? null,
+        team2_player2_id: m.team2[1]?.userId ?? null,
+        team1_score: s.winner === '1' ? pointsToWin : loser,
+        team2_score: s.winner === '2' ? pointsToWin : loser,
+      }
+    })
 
     const { error } = await supabase.from('league_matches').insert(rows)
     if (error) {
@@ -131,7 +153,6 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
     router.push(`/compete/leagues/${leagueId}/standings`)
   }
 
-  // Group by round
   const rounds = Array.from(new Set(matches.map((m) => m.roundNumber))).sort((a, b) => a - b)
   const maxRoundNumber = rounds.length > 0 ? Math.max(...rounds) : 0
   const isLastRound = maxRoundNumber >= roundsPlanned
@@ -152,6 +173,14 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
               const s = scores[m.roundMatchId]
               const isSaved = saved[m.roundMatchId]
               const err = errors[m.roundMatchId]
+              const t1Won = s.winner === '1'
+              const t2Won = s.winner === '2'
+              const displayScore = s.winner && s.loserScore !== ''
+                ? t1Won
+                  ? `${pointsToWin} – ${s.loserScore}`
+                  : `${s.loserScore} – ${pointsToWin}`
+                : null
+
               return (
                 <div key={m.roundMatchId} className={`bg-brand-surface border rounded-xl p-3 space-y-2 ${isSaved ? 'border-green-200' : 'border-brand-border'}`}>
                   <div className="flex items-center justify-between gap-1 text-xs text-brand-muted">
@@ -159,44 +188,55 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
                     {m.courtNumber && <span>Court {m.courtNumber}</span>}
                     {isSaved && <span className="text-green-600 font-medium">✓ Saved</span>}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {/* Team 1 */}
-                    <div className="flex-1 min-w-0">
-                      {m.team1.map((p) => (
-                        <p key={p.userId} className="text-sm font-medium text-brand-dark truncate">{p.name}</p>
-                      ))}
+
+                  {/* Player names */}
+                  <div className="flex items-start gap-2 text-sm">
+                    <div className={`flex-1 min-w-0 ${t1Won ? 'font-semibold text-brand-dark' : 'text-brand-muted'}`}>
+                      {m.team1.map((p) => <p key={p.userId} className="truncate">{p.name}</p>)}
                     </div>
-                    {/* Scores */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={s.t1}
-                        onChange={(e) => setScores((prev) => ({ ...prev, [m.roundMatchId]: { ...prev[m.roundMatchId], t1: e.target.value } }))}
-                        placeholder="0"
-                        className="w-16 input text-sm text-center"
-                        disabled={isSaved}
-                      />
-                      <span className="text-brand-muted text-sm">–</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={s.t2}
-                        onChange={(e) => setScores((prev) => ({ ...prev, [m.roundMatchId]: { ...prev[m.roundMatchId], t2: e.target.value } }))}
-                        placeholder="0"
-                        className="w-16 input text-sm text-center"
-                        disabled={isSaved}
-                      />
-                    </div>
-                    {/* Team 2 */}
-                    <div className="flex-1 min-w-0 text-right">
-                      {m.team2.map((p) => (
-                        <p key={p.userId} className="text-sm font-medium text-brand-dark truncate">{p.name}</p>
-                      ))}
+                    <div className="flex-shrink-0 text-center text-xs text-brand-muted self-center px-1">vs</div>
+                    <div className={`flex-1 min-w-0 text-right ${t2Won ? 'font-semibold text-brand-dark' : 'text-brand-muted'}`}>
+                      {m.team2.map((p) => <p key={p.userId} className="truncate">{p.name}</p>)}
                     </div>
                   </div>
+
+                  {/* Score entry */}
+                  {isSaved ? (
+                    <p className="text-center font-bold text-brand-dark text-sm">{displayScore}</p>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setWinner(m.roundMatchId, '1')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${t1Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+                      >
+                        T1 Won
+                      </button>
+                      <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                        <span className="text-[10px] text-brand-muted leading-none">Loser</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={s.loserScore}
+                          onChange={(e) => setLoserScore(m.roundMatchId, e.target.value)}
+                          placeholder="0"
+                          className="w-14 input text-sm text-center"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setWinner(m.roundMatchId, '2')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${t2Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+                      >
+                        T2 Won
+                      </button>
+                    </div>
+                  )}
+
+                  {displayScore && !isSaved && (
+                    <p className="text-center text-xs text-brand-muted">Score: {displayScore}</p>
+                  )}
                   {err && <p className="text-xs text-red-600">{err}</p>}
                 </div>
               )
@@ -205,9 +245,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
         )
       })}
 
-      {saveError && (
-        <p className="text-sm text-red-600">{saveError}</p>
-      )}
+      {saveError && <p className="text-sm text-red-600">{saveError}</p>}
 
       {allSaved ? (
         <div className="space-y-2">

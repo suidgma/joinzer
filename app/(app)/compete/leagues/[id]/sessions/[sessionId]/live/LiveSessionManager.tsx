@@ -20,6 +20,7 @@ type Player = {
   actual_status: ActualStatus
   arrived_after_round: number | null
   joinzer_rating: number
+  sub_for_session_player_id: string | null
 }
 
 type Match = {
@@ -112,6 +113,9 @@ function PlayerRow({
   disabled,
   selfStatus,
   hasSub,
+  assignedSubName,
+  subForName,
+  onAssignSub,
 }: {
   player: Player
   index: number
@@ -119,10 +123,14 @@ function PlayerRow({
   disabled: boolean
   selfStatus?: string
   hasSub?: boolean
+  assignedSubName?: string
+  subForName?: string
+  onAssignSub?: () => void
 }) {
   const statuses: ActualStatus[] = ['present', 'late', 'left_early', 'not_present']
   const isSub = player.player_type === 'sub'
   const isGuest = player.player_type === 'guest'
+  const showAssignRow = player.player_type === 'roster_player' && player.actual_status === 'not_present'
 
   return (
     <div className={`rounded-xl border px-3 py-2.5 transition-colors ${STATUS_STYLE[player.actual_status]}`}>
@@ -135,7 +143,12 @@ function PlayerRow({
               {isSub ? 'Sub' : 'Guest'}
             </span>
           )}
-          {hasSub && (
+          {isSub && subForName && (
+            <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+              for {subForName}
+            </span>
+          )}
+          {hasSub && !assignedSubName && (
             <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
               Sub needed
             </span>
@@ -164,6 +177,30 @@ function PlayerRow({
           </button>
         ))}
       </div>
+      {showAssignRow && (
+        <div className="mt-2 flex items-center gap-2">
+          {assignedSubName ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg font-medium">
+                ✓ Subbed by {assignedSubName}
+              </span>
+              <button
+                onClick={onAssignSub}
+                className="text-[11px] text-brand-muted underline"
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onAssignSub}
+              className="text-[11px] text-brand-active font-semibold bg-brand-soft border border-brand-border px-2 py-1 rounded-lg hover:bg-brand-surface transition-colors"
+            >
+              + Assign Sub
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -445,6 +482,89 @@ function AddSubModal({
   )
 }
 
+// ─── Assign Sub Modal ─────────────────────────────────────────────────────────
+
+function AssignSubModal({
+  sessionId,
+  absentPlayer,
+  unassignedSubPlayers,
+  availableSubs,
+  onClose,
+  onAssigned,
+}: {
+  sessionId: string
+  absentPlayer: Player
+  unassignedSubPlayers: Player[]
+  availableSubs: { id: string; name: string }[]
+  onClose: () => void
+  onAssigned: (subPlayer: Player) => void
+}) {
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Combine already-in-session subs + available profiles into one list
+  const options: { id: string; name: string; inSession: boolean }[] = [
+    ...unassignedSubPlayers.map(p => ({ id: p.userId!, name: p.display_name, inSession: true })),
+    ...availableSubs.filter(p => !unassignedSubPlayers.some(sp => sp.userId === p.id))
+      .map(p => ({ id: p.id, name: p.name, inSession: false })),
+  ].sort((a, b) => a.name.localeCompare(b.name))
+
+  async function handleAssign() {
+    if (!selectedUserId) return
+    setSaving(true)
+    setError(null)
+    const res = await fetch(`/api/league-sessions/${sessionId}/assign-sub`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subUserId: selectedUserId, absentPlayerId: absentPlayer.id }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setError(data.error ?? 'Failed to assign sub'); setSaving(false); return }
+    onAssigned(data.subPlayer as Player)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+        <div>
+          <h2 className="font-heading text-lg font-bold text-brand-dark">Assign Sub</h2>
+          <p className="text-sm text-brand-muted">Covering for <span className="font-medium text-brand-dark">{absentPlayer.display_name}</span></p>
+        </div>
+        {options.length === 0 ? (
+          <p className="text-sm text-brand-muted">No available players. Use "+ Add Sub" to add someone first.</p>
+        ) : (
+          <select
+            autoFocus
+            value={selectedUserId}
+            onChange={e => setSelectedUserId(e.target.value)}
+            className="w-full input text-sm"
+          >
+            <option value="">— Select a sub —</option>
+            {options.map(p => (
+              <option key={p.id} value={p.id}>{p.name}{p.inSession ? ' (already here)' : ''}</option>
+            ))}
+          </select>
+        )}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-muted">
+            Cancel
+          </button>
+          <button
+            onClick={handleAssign}
+            disabled={saving || !selectedUserId}
+            className="flex-1 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold disabled:opacity-50"
+          >
+            {saving ? 'Assigning…' : 'Assign'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LiveSessionManager({
@@ -468,6 +588,7 @@ export default function LiveSessionManager({
   const [error, setError]       = useState<string | null>(null)
   const [showAddSub, setShowAddSub] = useState(false)
   const [showFairness, setShowFairness] = useState(false)
+  const [assignSubForPlayer, setAssignSubForPlayer] = useState<Player | null>(null)
   const [endingDay, setEndingDay] = useState(false)
   const [scoredRounds, setScoredRounds] = useState(() => new Set(initialScoredRounds))
   const [sendingReminder, setSendingReminder] = useState(false)
@@ -667,11 +788,40 @@ export default function LiveSessionManager({
     setLocalSubRequests(prev => prev.map(sr => sr.id === subRequestId ? { ...sr, status: 'approved' } : sr))
   }
 
+  // --- Handle sub assignment ---
+  function handleSubAssigned(subPlayer: Player) {
+    setPlayers(prev => {
+      const exists = prev.find(p => p.id === subPlayer.id)
+      if (exists) {
+        return prev.map(p => p.id === subPlayer.id ? { ...p, ...subPlayer } : p)
+      }
+      return [...prev, subPlayer]
+    })
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const rosterPlayers   = players.filter(p => p.player_type === 'roster_player')
   const subPlayers      = players.filter(p => p.player_type !== 'roster_player')
   const completedRounds = rounds.filter(r => r.status === 'completed')
+
+  // absentPlayerId → sub player (for roster row "Subbed by X" display)
+  const subByAbsentId = new Map<string, Player>()
+  for (const p of subPlayers) {
+    if (p.sub_for_session_player_id) subByAbsentId.set(p.sub_for_session_player_id, p)
+  }
+
+  // sub player id → absent roster player name (for sub row "for X" display)
+  const absentNameById = new Map<string, string>()
+  for (const p of rosterPlayers) {
+    const sub = subByAbsentId.get(p.id)
+    if (sub) absentNameById.set(sub.id, p.display_name)
+  }
+
+  // Unassigned present/late sub players eligible for new assignments
+  const unassignedSubPlayers = subPlayers.filter(
+    p => !p.sub_for_session_player_id && (p.actual_status === 'present' || p.actual_status === 'late') && p.userId
+  )
 
   return (
     <div className="space-y-5">
@@ -766,6 +916,8 @@ export default function LiveSessionManager({
                 disabled={loading || generating}
                 selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
                 hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+                assignedSubName={subByAbsentId.get(p.id)?.display_name}
+                onAssignSub={() => setAssignSubForPlayer(p)}
               />
             ))}
           </div>
@@ -784,6 +936,7 @@ export default function LiveSessionManager({
                 disabled={loading || generating}
                 selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
                 hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+                subForName={absentNameById.get(p.id)}
               />
             ))}
           </div>
@@ -909,6 +1062,18 @@ export default function LiveSessionManager({
           availableSubs={availableSubs}
           onClose={() => setShowAddSub(false)}
           onAdded={() => window.location.reload()}
+        />
+      )}
+
+      {/* ── Assign sub modal ───────────────────────────────────── */}
+      {assignSubForPlayer && (
+        <AssignSubModal
+          sessionId={sessionId}
+          absentPlayer={assignSubForPlayer}
+          unassignedSubPlayers={unassignedSubPlayers}
+          availableSubs={availableSubs}
+          onClose={() => setAssignSubForPlayer(null)}
+          onAssigned={handleSubAssigned}
         />
       )}
     </div>

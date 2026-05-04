@@ -10,33 +10,31 @@ type Props = {
   sessionId: string
   leagueId: string
   players: Player[]
+  pointsToWin: number
 }
 
-export default function MatchEntryForm({ sessionId, leagueId, players }: Props) {
+export default function MatchEntryForm({ sessionId, leagueId, players, pointsToWin }: Props) {
   const router = useRouter()
   const [t1p1, setT1p1] = useState('')
   const [t1p2, setT1p2] = useState('')
   const [t2p1, setT2p1] = useState('')
   const [t2p2, setT2p2] = useState('')
-  const [t1Score, setT1Score] = useState('')
-  const [t2Score, setT2Score] = useState('')
+  const [winner, setWinner] = useState<'1' | '2' | ''>('')
+  const [loserScore, setLoserScore] = useState('')
   const [court, setCourt] = useState('')
   const [round, setRound] = useState('1')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const selected = new Set([t1p1, t1p2, t2p1, t2p2].filter(Boolean))
-
-  function playerOptions(exclude: string[]) {
-    return players.filter((p) => !exclude.includes(p.id) || selected.has(p.id))
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!t1p1 || !t2p1) { setError('At least Team 1 Player 1 and Team 2 Player 1 are required.'); return }
+    if (!winner) { setError('Select a winning team.'); return }
+    if (loserScore === '') { setError('Enter the loser score.'); return }
     setLoading(true)
     setError(null)
 
+    const loser = parseInt(loserScore)
     const supabase = createClient()
     const { error: insertErr } = await supabase.from('league_matches').insert({
       session_id: sessionId,
@@ -46,15 +44,14 @@ export default function MatchEntryForm({ sessionId, leagueId, players }: Props) 
       team1_player2_id: t1p2 || null,
       team2_player1_id: t2p1 || null,
       team2_player2_id: t2p2 || null,
-      team1_score: t1Score !== '' ? parseInt(t1Score) : null,
-      team2_score: t2Score !== '' ? parseInt(t2Score) : null,
+      team1_score: winner === '1' ? pointsToWin : loser,
+      team2_score: winner === '2' ? pointsToWin : loser,
     })
 
     if (insertErr) { setError(insertErr.message); setLoading(false); return }
 
-    // Reset form
     setT1p1(''); setT1p2(''); setT2p1(''); setT2p2('')
-    setT1Score(''); setT2Score(''); setCourt('')
+    setWinner(''); setLoserScore(''); setCourt('')
     router.refresh()
     setLoading(false)
   }
@@ -90,12 +87,6 @@ export default function MatchEntryForm({ sessionId, leagueId, players }: Props) 
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          <input
-            type="number" min="0" value={t1Score}
-            onChange={(e) => setT1Score(e.target.value)}
-            placeholder="Score"
-            className="w-full input text-sm"
-          />
         </div>
 
         {/* Team 2 */}
@@ -113,13 +104,45 @@ export default function MatchEntryForm({ sessionId, leagueId, players }: Props) 
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          <input
-            type="number" min="0" value={t2Score}
-            onChange={(e) => setT2Score(e.target.value)}
-            placeholder="Score"
-            className="w-full input text-sm"
-          />
         </div>
+      </div>
+
+      {/* Winner + loser score */}
+      <div>
+        <p className="text-xs font-medium text-brand-muted mb-2">Who won?</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setWinner('1')}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${winner === '1' ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+          >
+            Team 1
+          </button>
+          <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+            <span className="text-[10px] text-brand-muted leading-none">Loser score</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={loserScore}
+              onChange={(e) => setLoserScore(e.target.value)}
+              placeholder="0"
+              className="w-16 input text-sm text-center"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setWinner('2')}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${winner === '2' ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+          >
+            Team 2
+          </button>
+        </div>
+        {winner && loserScore !== '' && (
+          <p className="text-center text-xs text-brand-muted mt-1">
+            Score: {winner === '1' ? `${pointsToWin} – ${loserScore}` : `${loserScore} – ${pointsToWin}`}
+          </p>
+        )}
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}

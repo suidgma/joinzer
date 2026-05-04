@@ -16,7 +16,7 @@ export default async function SessionResultsPage({
   if (!user) redirect('/login')
 
   const [{ data: league }, { data: session }] = await Promise.all([
-    supabase.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, created_by, points_to_win').eq('id', params.id).single(),
     supabase.from('league_sessions').select('id, session_number, session_date, status, rounds_planned').eq('id', params.sessionId).single(),
   ])
 
@@ -146,7 +146,7 @@ export default async function SessionResultsPage({
       </div>
 
       {/* Auto-populated from locked rounds */}
-      <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} roundsPlanned={session.rounds_planned ?? 7} />
+      <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} roundsPlanned={session.rounds_planned ?? 7} pointsToWin={league.points_to_win ?? 11} />
 
       {/* Manually entered matches (not from locked rounds) */}
       {manualMatches.length > 0 && (
@@ -185,7 +185,7 @@ export default async function SessionResultsPage({
       {/* Manual add form */}
       <section className="space-y-2">
         <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Add Match Manually</h2>
-        <MatchEntryForm sessionId={params.sessionId} players={players} leagueId={params.id} />
+        <MatchEntryForm sessionId={params.sessionId} players={players} leagueId={params.id} pointsToWin={league.points_to_win ?? 11} />
       </section>
     </main>
   )
