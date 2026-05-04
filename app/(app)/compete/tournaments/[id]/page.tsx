@@ -26,7 +26,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const [{ data: tournament }, { data: events }, { data: myRegs }, { data: myProfile }] = await Promise.all([
     supabase
       .from('tournaments')
-      .select('*, organization:organizations(name)')
+      .select('*, location:location_id(name), organization:organizations(name)')
       .eq('id', params.id)
       .single(),
     supabase
@@ -84,7 +84,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
       {/* Details card */}
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
-        {tournament.location_name && <Row label="Location" value={tournament.location_name} />}
+        {(tournament.location as { name: string } | null)?.name && <Row label="Location" value={(tournament.location as { name: string }).name} />}
         {fmt(tournament.start_date) && <Row label="Dates" value={`${fmt(tournament.start_date)}${tournament.end_date && tournament.end_date !== tournament.start_date ? ` – ${fmt(tournament.end_date)}` : ''}`} />}
         {fmt(tournament.registration_open) && <Row label="Reg. Opens" value={fmt(tournament.registration_open)!} />}
         {fmt(tournament.registration_close) && <Row label="Reg. Closes" value={fmt(tournament.registration_close)!} />}

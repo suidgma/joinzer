@@ -4,12 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import type { LocationOption } from '@/lib/types'
 
 const STATUS_OPTIONS = [
-  { value: 'upcoming', label: 'Coming Soon' },
-  { value: 'registration_open', label: 'Registration Open' },
-  { value: 'registration_closed', label: 'Registration Closed' },
-  { value: 'in_progress', label: 'In Progress' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'published', label: 'Published' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
@@ -17,31 +16,37 @@ const STATUS_OPTIONS = [
 export default function EditTournamentPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [name, setName] = useState('')
-  const [locationName, setLocationName] = useState('')
+  const [locationId, setLocationId] = useState('')
+  const [locations, setLocations] = useState<LocationOption[]>([])
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [regOpen, setRegOpen] = useState('')
   const [regClose, setRegClose] = useState('')
   const [costDollars, setCostDollars] = useState('')
   const [description, setDescription] = useState('')
-  const [status, setStatus] = useState('upcoming')
+  const [status, setStatus] = useState('draft')
   const [fetching, setFetching] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('tournaments').select('*').eq('id', params.id).single().then(({ data }) => {
-      if (!data) return
-      setName(data.name ?? '')
-      setLocationName(data.location_name ?? '')
-      setStartDate(data.start_date ?? '')
-      setEndDate(data.end_date ?? '')
-      setRegOpen(data.registration_open ?? '')
-      setRegClose(data.registration_close ?? '')
-      setCostDollars(data.cost_cents ? (data.cost_cents / 100).toString() : '')
-      setDescription(data.description ?? '')
-      setStatus(data.status ?? 'upcoming')
+    Promise.all([
+      supabase.from('tournaments').select('*').eq('id', params.id).single(),
+      supabase.from('locations').select('id, name, subarea, court_count').order('court_count', { ascending: false }).order('name'),
+    ]).then(([{ data }, { data: locs }]) => {
+      if (data) {
+        setName(data.name ?? '')
+        setLocationId(data.location_id ?? '')
+        setStartDate(data.start_date ?? '')
+        setEndDate(data.end_date ?? '')
+        setRegOpen(data.registration_open ?? '')
+        setRegClose(data.registration_close ?? '')
+        setCostDollars(data.cost_cents ? (data.cost_cents / 100).toString() : '')
+        setDescription(data.description ?? '')
+        setStatus(data.status ?? 'draft')
+      }
+      setLocations((locs ?? []) as LocationOption[])
       setFetching(false)
     })
   }, [params.id])
@@ -56,7 +61,7 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
       .from('tournaments')
       .update({
         name: name.trim(),
-        location_name: locationName.trim() || null,
+        location_id: locationId || null,
         start_date: startDate || null,
         end_date: endDate || null,
         registration_open: regOpen || null,
@@ -90,7 +95,14 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
           </select>
         </Field>
         <Field label="Location">
-          <input value={locationName} onChange={(e) => setLocationName(e.target.value)} className="w-full input" />
+          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-full input">
+            <option value="">— Select a location —</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}{l.subarea ? ` (${l.subarea})` : ''} · {l.court_count} courts
+              </option>
+            ))}
+          </select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start Date"><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" /></Field>

@@ -13,8 +13,8 @@ export default async function CompetePage() {
       .order('start_date', { ascending: true }),
     supabase
       .from('tournaments')
-      .select('id, name, location_name, start_date, end_date, status, cost_cents')
-      .not('status', 'eq', 'cancelled')
+      .select('id, name, location:location_id(name), start_date, end_date, status, cost_cents')
+      .eq('status', 'published')
       .order('start_date', { ascending: true }),
     supabase
       .from('tournament_events')
@@ -31,6 +31,7 @@ export default async function CompetePage() {
 
   const tournamentList = (tournaments ?? []).map((t) => ({
     ...t,
+    location_name: (t.location as unknown as { name: string } | null)?.name ?? null,
     eventSkillLevels: Array.from(eventSkillMap.get(t.id) ?? []),
   }))
 

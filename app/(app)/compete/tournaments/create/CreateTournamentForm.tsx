@@ -71,7 +71,7 @@ export default function CreateTournamentForm({ locations }: { locations: Locatio
       .from('tournaments')
       .insert({
         name: name.trim(),
-        location_name: selectedLocation?.name ?? null,
+        location_id: locationId || null,
         start_date: startDate || null,
         end_date: endDate || null,
         registration_open: regOpen || null,
