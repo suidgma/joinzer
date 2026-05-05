@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter, Manrope } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
-import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
+import PwaInstallButton from '@/components/PwaInstallButton'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' })
@@ -28,7 +29,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${manrope.variable}`}>
       <body suppressHydrationWarning className="font-sans">
-        <ServiceWorkerRegistration />
+        <Script
+          id="sw-register"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(console.error)}`
+          }}
+        />
+        <PwaInstallButton />
         {children}
       </body>
     </html>
