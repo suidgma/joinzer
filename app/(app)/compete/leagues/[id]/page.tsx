@@ -31,7 +31,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: openSubRequests }, { data: leagueMessages }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, organization:organizations(name)')
@@ -65,6 +65,13 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
           .select('league_session_id, attendance_status')
           .eq('user_id', user.id)
       : Promise.resolve({ data: [] }),
+    // Sessions where this user is formally assigned as a sub
+    user
+      ? supabase.from('league_session_players')
+          .select('id, session_id, player_type')
+          .eq('user_id', user.id)
+          .eq('player_type', 'sub')
+      : Promise.resolve({ data: [] }),
     // Open sub requests in this league (not from current user)
     user
       ? supabase.from('league_sub_requests')
@@ -95,6 +102,14 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
     (myAttendance ?? []).map((a) => [a.league_session_id as string, a.attendance_status as string])
   )
   const mySubSessionIds = new Set((mySessionSubs ?? []).map((s) => s.session_id as string))
+
+  // Sessions where the user is an assigned sub (from league_session_players)
+  const sessionIdSet = new Set((sessions ?? []).map((s) => s.id))
+  const assignedSubSessions = (mySubAssignments ?? [])
+    .filter((sp) => sessionIdSet.has(sp.session_id as string))
+    .map((sp) => (sessions ?? []).find((s) => s.id === sp.session_id))
+    .filter(Boolean)
+    .filter((s) => s!.status === 'scheduled' || s!.status === 'in_progress')
   const registeredCount = regCounts?.filter((r) => r.status === 'registered').length ?? 0
   const waitlistCount = regCounts?.filter((r) => r.status === 'waitlist').length ?? 0
   const isFull = league.max_players != null && registeredCount >= league.max_players
@@ -186,6 +201,36 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         <p className="text-sm text-brand-muted text-center">
           <Link href="/login" className="text-brand-active underline">Sign in</Link> to register or express sub interest.
         </p>
+      )}
+
+      {/* Sub assignments — sessions where user is formally assigned as a sub */}
+      {user && assignedSubSessions.length > 0 && (
+        <section className="space-y-2">
+          <div className="bg-yellow-50 border border-yellow-300 rounded-2xl p-4 space-y-3">
+            <div>
+              <p className="text-sm font-bold text-yellow-900">You&apos;re subbing in this league</p>
+              <p className="text-xs text-yellow-700 mt-0.5">Let the organizer know if you&apos;re coming.</p>
+            </div>
+            {assignedSubSessions.map((s) => {
+              const myStatus = (attendanceMap[s!.id] ?? 'not_responded') as
+                'planning_to_attend' | 'cannot_attend' | 'checked_in_present' | 'running_late' | 'not_responded'
+              return (
+                <div key={s!.id} className="space-y-2">
+                  <p className="text-sm font-semibold text-yellow-900">
+                    Session {s!.session_number} — {new Date(s!.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </p>
+                  <PlayerCheckIn
+                    sessionId={s!.id}
+                    leagueId={league.id}
+                    initialStatus={myStatus}
+                    showSubRequest={false}
+                    leagueSkillLevel={league.skill_level ?? null}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </section>
       )}
 
       {/* Standings link */}
