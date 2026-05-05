@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ActualStatus = 'present' | 'coming' | 'late' | 'cannot_attend' | 'not_present'
+type ActualStatus = 'present' | 'coming' | 'late' | 'cannot_attend' | 'has_sub' | 'not_present'
 type PlayerType   = 'roster_player' | 'sub' | 'guest'
 type RoundStatus  = 'draft' | 'locked' | 'completed'
 
@@ -70,28 +70,30 @@ type Props = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const STATUS_LABEL: Record<ActualStatus, string> = {
-  present:       'Here',
-  coming:        'Coming',
-  late:          'Late',
-  cannot_attend: "Can't Make It",
-  not_present:   'Not Here',
-}
+const ROSTER_STATUSES: { key: ActualStatus; label: string }[] = [
+  { key: 'present',       label: 'Here' },
+  { key: 'coming',        label: 'Cmg' },
+  { key: 'late',          label: 'Late' },
+  { key: 'cannot_attend', label: "Can't" },
+  { key: 'has_sub',       label: 'Sub' },
+  { key: 'not_present',   label: 'Out' },
+]
 
-const STATUS_STYLE: Record<ActualStatus, string> = {
-  present:       'bg-brand/20 border-brand text-brand-dark',
-  coming:        'bg-blue-50 border-blue-200 text-blue-800',
-  late:          'bg-yellow-50 border-yellow-300 text-yellow-800',
-  cannot_attend: 'bg-red-50 border-red-200 text-red-600',
-  not_present:   'bg-brand-surface border-brand-border text-brand-muted',
-}
+const SUB_STATUSES: { key: ActualStatus; label: string }[] = [
+  { key: 'present',       label: 'Here' },
+  { key: 'coming',        label: 'Cmg' },
+  { key: 'late',          label: 'Late' },
+  { key: 'cannot_attend', label: "Can't" },
+  { key: 'not_present',   label: 'Out' },
+]
 
-const BTN_STATUS_STYLE: Record<ActualStatus, string> = {
-  present:       'bg-brand text-brand-dark',
-  coming:        'bg-blue-100 text-blue-800 border border-blue-300',
-  late:          'bg-yellow-100 text-yellow-800 border border-yellow-300',
-  cannot_attend: 'bg-red-100 text-red-700 border border-red-200',
-  not_present:   'bg-brand-soft text-brand-muted border border-brand-border',
+const ROW_BG: Record<ActualStatus, string> = {
+  present:       'bg-brand/10',
+  coming:        'bg-blue-50',
+  late:          'bg-yellow-50',
+  cannot_attend: 'bg-red-50/60',
+  has_sub:       'bg-orange-50',
+  not_present:   '',
 }
 
 function playerName(id: string | null, players: Player[]) {
@@ -102,111 +104,10 @@ function playerName(id: string | null, players: Player[]) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const SELF_STATUS_BADGE: Record<string, string> = {
-  planning_to_attend:  '🟢 Coming',
-  checked_in_present:  '✅ Here',
-  running_late:        '🟡 Late',
-  cannot_attend:       '🔴 Out',
-  not_responded:       '⚪ No response',
-}
-
-function PlayerRow({
-  player,
-  index,
-  onStatusChange,
-  disabled,
-  selfStatus,
-  hasSub,
-  assignedSubName,
-  subForName,
-  onAssignSub,
-}: {
-  player: Player
-  index: number
-  onStatusChange: (id: string, status: ActualStatus) => void
-  disabled: boolean
-  selfStatus?: string
-  hasSub?: boolean
-  assignedSubName?: string
-  subForName?: string
-  onAssignSub?: () => void
-}) {
-  const statuses: ActualStatus[] = ['present', 'coming', 'late', 'cannot_attend', 'not_present']
-  const isSub = player.player_type === 'sub'
-  const isGuest = player.player_type === 'guest'
-  const showAssignRow = player.player_type === 'roster_player' &&
-    (player.actual_status === 'not_present' || player.actual_status === 'cannot_attend')
-
-  return (
-    <div className={`rounded-xl border px-3 py-2.5 transition-colors ${STATUS_STYLE[player.actual_status]}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-brand-muted w-5 text-right flex-shrink-0">{index}</span>
-        <span className="flex-1 text-sm font-medium leading-tight">
-          {player.display_name}
-          {(isSub || isGuest) && (
-            <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isSub ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'}`}>
-              {isSub ? 'Sub' : 'Guest'}
-            </span>
-          )}
-          {isSub && subForName && (
-            <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
-              for {subForName}
-            </span>
-          )}
-          {hasSub && !assignedSubName && (
-            <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
-              Sub needed
-            </span>
-          )}
-        </span>
-        <div className="flex items-center gap-1.5">
-          {selfStatus && selfStatus !== 'not_responded' && (
-            <span className="text-[10px] text-brand-muted">{SELF_STATUS_BADGE[selfStatus] ?? selfStatus}</span>
-          )}
-          <span className="text-[10px] text-brand-muted">{player.joinzer_rating ?? 1000}</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        {statuses.map((s, idx) => (
-          <button
-            key={s}
-            onClick={() => onStatusChange(player.id, s)}
-            disabled={disabled || player.actual_status === s}
-            className={`${idx === 4 ? 'col-span-2' : ''} py-1.5 rounded-lg text-[11px] font-semibold transition-colors disabled:cursor-default ${
-              player.actual_status === s
-                ? BTN_STATUS_STYLE[s]
-                : 'bg-brand-surface text-brand-muted border border-brand-border hover:border-brand-active'
-            }`}
-          >
-            {STATUS_LABEL[s]}
-          </button>
-        ))}
-      </div>
-      {showAssignRow && (
-        <div className="mt-2 flex items-center gap-2">
-          {assignedSubName ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg font-medium">
-                ✓ Subbed by {assignedSubName}
-              </span>
-              <button
-                onClick={onAssignSub}
-                className="text-[11px] text-brand-muted underline"
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={onAssignSub}
-              className="text-[11px] text-brand-active font-semibold bg-brand-soft border border-brand-border px-2 py-1 rounded-lg hover:bg-brand-surface transition-colors"
-            >
-              + Assign Sub
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
+  planning_to_attend: 'Cmg',
+  checked_in_present: 'Here',
+  running_late:       'Late',
+  cannot_attend:      'Out',
 }
 
 function MatchCard({ match, players }: { match: Match; players: Player[] }) {
@@ -913,42 +814,117 @@ export default function LiveSessionManager({
           </div>
         )}
 
-        {/* Roster players */}
+        {/* Roster players — spreadsheet table */}
         {rosterPlayers.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Roster Players</p>
-            {rosterPlayers.map((p, i) => (
-              <PlayerRow
-                key={p.id}
-                player={p}
-                index={i + 1}
-                onStatusChange={handleStatusChange}
-                disabled={loading || generating}
-                selfStatus={p.user_id ? attendanceByUserId[p.user_id] : undefined}
-                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.user_id && ['open', 'claimed'].includes(sr.status))}
-                assignedSubName={subByAbsentId.get(p.id)?.display_name}
-                onAssignSub={() => setAssignSubForPlayer(p)}
-              />
-            ))}
+          <div>
+            <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1.5">Roster Players</p>
+            <div className="rounded-xl border border-brand-border overflow-hidden">
+              {/* Header */}
+              <div className="grid grid-cols-[1fr_repeat(6,28px)] bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
+                <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
+                {ROSTER_STATUSES.map(s => (
+                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">{s.label}</span>
+                ))}
+              </div>
+              {rosterPlayers.map((p, idx) => {
+                const selfStatus = p.user_id ? attendanceByUserId[p.user_id] : undefined
+                const assignedSub = subByAbsentId.get(p.id)
+                const isLast = idx === rosterPlayers.length - 1
+                return (
+                  <div key={p.id}>
+                    <div className={`grid grid-cols-[1fr_repeat(6,28px)] items-center px-2 py-2 gap-x-1 border-b border-brand-border ${ROW_BG[p.actual_status]}`}>
+                      <div className="min-w-0 pr-1 space-y-0.5">
+                        <p className="text-xs font-medium text-brand-dark truncate">{p.display_name}</p>
+                        {selfStatus && SELF_STATUS_BADGE[selfStatus] && (
+                          <p className="text-[9px] text-brand-muted leading-none">{SELF_STATUS_BADGE[selfStatus]}</p>
+                        )}
+                        {p.actual_status === 'has_sub' && assignedSub && (
+                          <p className="text-[9px] text-green-700 font-medium leading-none truncate">✓ {assignedSub.display_name}</p>
+                        )}
+                      </div>
+                      {ROSTER_STATUSES.map(s => (
+                        <div key={s.key} className="flex justify-center">
+                          <input
+                            type="radio"
+                            name={`status-${p.id}`}
+                            checked={p.actual_status === s.key}
+                            onChange={() => handleStatusChange(p.id, s.key)}
+                            disabled={loading || generating}
+                            className="w-3.5 h-3.5 accent-brand-dark cursor-pointer disabled:opacity-50"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {p.actual_status === 'has_sub' && (
+                      <div className={`px-3 py-1.5 bg-orange-50 flex items-center gap-2 ${!isLast ? 'border-b border-brand-border' : ''}`}>
+                        {assignedSub ? (
+                          <>
+                            <span className="text-[11px] text-green-700 font-medium">✓ Subbed by {assignedSub.display_name}</span>
+                            <button onClick={() => setAssignSubForPlayer(p)} className="text-[11px] text-brand-muted underline">Change</button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setAssignSubForPlayer(p)}
+                            className="text-[11px] text-orange-700 font-semibold bg-orange-100 border border-orange-200 px-2 py-1 rounded-lg"
+                          >
+                            + Assign Sub
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
-        {/* Subs */}
+        {/* Subs & Guests — spreadsheet table */}
         {subPlayers.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Subs & Guests</p>
-            {subPlayers.map((p, i) => (
-              <PlayerRow
-                key={p.id}
-                player={p}
-                index={i + 1}
-                onStatusChange={handleStatusChange}
-                disabled={loading || generating}
-                selfStatus={p.user_id ? attendanceByUserId[p.user_id] : undefined}
-                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.user_id && ['open', 'claimed'].includes(sr.status))}
-                subForName={absentNameById.get(p.id)}
-              />
-            ))}
+          <div>
+            <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1.5">Subs & Guests</p>
+            <div className="rounded-xl border border-brand-border overflow-hidden">
+              {/* Header */}
+              <div className="grid grid-cols-[1fr_repeat(5,28px)] bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
+                <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
+                {SUB_STATUSES.map(s => (
+                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">{s.label}</span>
+                ))}
+              </div>
+              {subPlayers.map((p, idx) => {
+                const selfStatus = p.user_id ? attendanceByUserId[p.user_id] : undefined
+                const subForName = absentNameById.get(p.id)
+                const isLast = idx === subPlayers.length - 1
+                return (
+                  <div key={p.id} className={`grid grid-cols-[1fr_repeat(5,28px)] items-center px-2 py-2 gap-x-1 ${!isLast ? 'border-b border-brand-border' : ''} ${ROW_BG[p.actual_status]}`}>
+                    <div className="min-w-0 pr-1 space-y-0.5">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <p className="text-xs font-medium text-brand-dark truncate">{p.display_name}</p>
+                        <span className={`flex-shrink-0 text-[8px] font-bold px-1 py-0.5 rounded-full ${p.player_type === 'sub' ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {p.player_type === 'sub' ? 'Sub' : 'G'}
+                        </span>
+                      </div>
+                      {subForName && <p className="text-[9px] text-green-700 leading-none">for {subForName}</p>}
+                      {selfStatus && SELF_STATUS_BADGE[selfStatus] && (
+                        <p className="text-[9px] text-brand-muted leading-none">{SELF_STATUS_BADGE[selfStatus]}</p>
+                      )}
+                    </div>
+                    {SUB_STATUSES.map(s => (
+                      <div key={s.key} className="flex justify-center">
+                        <input
+                          type="radio"
+                          name={`status-${p.id}`}
+                          checked={p.actual_status === s.key}
+                          onChange={() => handleStatusChange(p.id, s.key)}
+                          disabled={loading || generating}
+                          className="w-3.5 h-3.5 accent-brand-dark cursor-pointer disabled:opacity-50"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
       </section>
