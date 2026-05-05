@@ -109,8 +109,7 @@ export default async function LiveSessionPage({
   // This corrects stale defaults (e.g. 'present') set by older code before the session starts.
   if ((completedRoundCount ?? 0) === 0 && (existingSessionPlayers ?? []).length > 0) {
     const updates = (existingSessionPlayers ?? [])
-      .filter(p => p.user_id)
-      .map(p => ({ id: p.id, actual_status: resolveActualStatus(p.user_id as string) }))
+      .map(p => ({ id: p.id, actual_status: resolveActualStatus((p.user_id as string) ?? '') }))
     await Promise.all(
       updates.map(u =>
         db.from('league_session_players').update({ actual_status: u.actual_status }).eq('id', u.id)
