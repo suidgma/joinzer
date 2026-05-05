@@ -55,6 +55,16 @@ type SubRequest = {
   claimed_by: { name: string } | null
 }
 
+type MatchScoreData = {
+  round_number: number
+  team1_player1_id: string | null
+  team1_player2_id: string | null
+  team2_player1_id: string | null
+  team2_player2_id: string | null
+  team1_score: number | null
+  team2_score: number | null
+}
+
 type Props = {
   sessionId: string
   leagueId: string
@@ -63,6 +73,7 @@ type Props = {
   numberOfCourts: number
   roundsPlanned: number
   initialScoredRounds: number[]
+  initialMatchScores: MatchScoreData[]
   availableSubs: { id: string; name: string }[]
   attendanceByUserId: Record<string, string>
   subRequests: SubRequest[]
@@ -110,22 +121,33 @@ const SELF_STATUS_BADGE: Record<string, string> = {
   cannot_attend:      'Out',
 }
 
-function MatchCard({ match, players }: { match: Match; players: Player[] }) {
+type Score = { t1: number; t2: number }
+
+function ScoreBadge({ score, t1Won }: { score: Score; t1Won: boolean }) {
+  return (
+    <div className="text-center shrink-0 px-2">
+      <p className="text-sm font-bold text-brand-dark">{score.t1} – {score.t2}</p>
+    </div>
+  )
+}
+
+function MatchCard({ match, players, score }: { match: Match; players: Player[]; score?: Score | null }) {
   if (match.match_type === 'doubles') {
+    const t1Won = score ? score.t1 > score.t2 : null
     return (
       <div className="bg-brand-surface border border-brand-border rounded-xl p-3">
         <p className="text-[10px] font-semibold text-brand-muted uppercase mb-2">
           {match.court_number ? `Court ${match.court_number} — Doubles` : 'Doubles'}
         </p>
         <div className="flex items-center gap-2 text-sm">
-          <div className="flex-1 space-y-0.5">
-            <p className="font-medium text-brand-dark">{playerName(match.team1_player1_id, players)}</p>
-            <p className="font-medium text-brand-dark">{playerName(match.team1_player2_id, players)}</p>
+          <div className={`flex-1 space-y-0.5 ${score && t1Won ? 'font-semibold' : ''}`}>
+            <p className={score && t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team1_player1_id, players)}</p>
+            <p className={score && t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team1_player2_id, players)}</p>
           </div>
-          <span className="text-brand-muted font-bold text-xs">vs</span>
-          <div className="flex-1 text-right space-y-0.5">
-            <p className="font-medium text-brand-dark">{playerName(match.team2_player1_id, players)}</p>
-            <p className="font-medium text-brand-dark">{playerName(match.team2_player2_id, players)}</p>
+          {score ? <ScoreBadge score={score} t1Won={!!t1Won} /> : <span className="text-brand-muted font-bold text-xs">vs</span>}
+          <div className={`flex-1 text-right space-y-0.5 ${score && !t1Won ? 'font-semibold' : ''}`}>
+            <p className={score && !t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team2_player1_id, players)}</p>
+            <p className={score && !t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team2_player2_id, players)}</p>
           </div>
         </div>
       </div>
@@ -133,15 +155,16 @@ function MatchCard({ match, players }: { match: Match; players: Player[] }) {
   }
 
   if (match.match_type === 'singles') {
+    const t1Won = score ? score.t1 > score.t2 : null
     return (
       <div className="bg-brand-surface border border-yellow-200 rounded-xl p-3">
         <p className="text-[10px] font-semibold text-yellow-700 uppercase mb-2">
           {match.court_number ? `Court ${match.court_number} — Singles` : 'Singles'}
         </p>
         <div className="flex items-center gap-2 text-sm">
-          <p className="flex-1 font-medium text-brand-dark">{playerName(match.singles_player1_id, players)}</p>
-          <span className="text-brand-muted font-bold text-xs">vs</span>
-          <p className="flex-1 text-right font-medium text-brand-dark">{playerName(match.singles_player2_id, players)}</p>
+          <p className={`flex-1 ${score && t1Won ? 'font-semibold text-brand-dark' : score ? 'text-brand-muted' : 'font-medium text-brand-dark'}`}>{playerName(match.singles_player1_id, players)}</p>
+          {score ? <ScoreBadge score={score} t1Won={!!t1Won} /> : <span className="text-brand-muted font-bold text-xs">vs</span>}
+          <p className={`flex-1 text-right ${score && !t1Won ? 'font-semibold text-brand-dark' : score ? 'text-brand-muted' : 'font-medium text-brand-dark'}`}>{playerName(match.singles_player2_id, players)}</p>
         </div>
       </div>
     )
@@ -159,6 +182,8 @@ function MatchCard({ match, players }: { match: Match; players: Player[] }) {
 function RoundCard({
   round,
   players,
+  scoreMap,
+  spToUserId,
   onLock,
   onUnlock,
   onComplete,
@@ -167,17 +192,29 @@ function RoundCard({
 }: {
   round: Round
   players: Player[]
+  scoreMap?: Map<string, Score>
+  spToUserId?: Map<string, string>
   onLock: (id: string) => void
   onUnlock: (id: string) => void
   onComplete: (id: string) => void
   onRegenerate: () => void
   loading: boolean
 }) {
+  function matchScore(m: Match): Score | null {
+    if (!scoreMap || !spToUserId) return null
+    const ids: string[] = []
+    const candidates = m.match_type === 'singles'
+      ? [m.singles_player1_id, m.singles_player2_id]
+      : [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id]
+    for (const spId of candidates) {
+      if (!spId) continue
+      const uid = spToUserId.get(spId)
+      if (uid) ids.push(uid)
+    }
+    const sig = `${round.round_number}:${ids.sort().join(',')}`
+    return scoreMap.get(sig) ?? null
+  }
   const notes = round.generation_notes?.split('\n').filter(Boolean) ?? []
-  const doublesCount = round.matches.filter(m => m.match_type === 'doubles').length
-  const singlesCount = round.matches.filter(m => m.match_type === 'singles').length
-  const byeCount     = round.matches.filter(m => m.match_type === 'bye').length
-
   const statusLabel = round.status === 'draft' ? 'Draft' : round.status === 'locked' ? 'Locked' : 'Completed'
   const statusStyle = round.status === 'draft'
     ? 'bg-yellow-100 text-yellow-800'
@@ -191,9 +228,6 @@ function RoundCard({
       <div className="flex items-center justify-between px-4 py-3 border-b border-brand-border">
         <div>
           <h3 className="font-semibold text-brand-dark text-sm">Round {round.round_number}</h3>
-          <p className="text-xs text-brand-muted">
-            {doublesCount}D {singlesCount > 0 ? `· ${singlesCount}S` : ''} {byeCount > 0 ? `· ${byeCount} bye` : ''}
-          </p>
         </div>
         <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${statusStyle}`}>{statusLabel}</span>
       </div>
@@ -202,7 +236,7 @@ function RoundCard({
       <div className="p-3 space-y-2">
         {round.matches
           .sort((a, b) => (a.court_number ?? 99) - (b.court_number ?? 99))
-          .map(m => <MatchCard key={m.id} match={m} players={players} />)
+          .map(m => <MatchCard key={m.id} match={m} players={players} score={matchScore(m)} />)
         }
       </div>
 
@@ -480,6 +514,7 @@ export default function LiveSessionManager({
   numberOfCourts,
   roundsPlanned,
   initialScoredRounds,
+  initialMatchScores,
   availableSubs,
   attendanceByUserId,
   subRequests,
@@ -500,7 +535,21 @@ export default function LiveSessionManager({
   const [reminderSent, setReminderSent] = useState(false)
   const [localSubRequests, setLocalSubRequests] = useState<SubRequest[]>(subRequests)
   const [approvingSubId, setApprovingSubId] = useState<string | null>(null)
-  const [justCompletedRoundId, setJustCompletedRoundId] = useState<string | null>(null)
+
+  // session_player_id → user_id (for score lookup)
+  const spToUserId = new Map<string, string>(
+    players.filter(p => p.user_id).map(p => [p.id, p.user_id!])
+  )
+
+  // round_number + sorted user_ids → Score (from entered match results)
+  const scoreMap = new Map<string, Score>()
+  for (const m of initialMatchScores) {
+    if (m.team1_score == null || m.team2_score == null) continue
+    const ids = [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id]
+      .filter(Boolean).sort() as string[]
+    if (ids.length === 0) continue
+    scoreMap.set(`${m.round_number}:${ids.join(',')}`, { t1: m.team1_score, t2: m.team2_score })
+  }
 
   // Sync when server re-fetches after router.refresh()
   useEffect(() => {
@@ -515,17 +564,7 @@ export default function LiveSessionManager({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to a just-completed round in the Completed Rounds section
-  useEffect(() => {
-    if (!justCompletedRoundId) return
-    const el = document.getElementById(`completed-round-${justCompletedRoundId}`)
-    if (el) {
-      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
-    }
-    setJustCompletedRoundId(null)
-  }, [justCompletedRoundId])
-
-  // Realtime: sync player status changes (e.g. self-check-in from player's device)
+// Realtime: sync player status changes (e.g. self-check-in from player's device)
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -652,7 +691,7 @@ export default function LiveSessionManager({
     setRounds(prev => prev.map(r => r.id === roundId ? { ...r, status: updated.status, locked_at: updated.locked_at, completed_at: updated.completed_at } : r))
     setLoading(false)
     if (action === 'complete') {
-      setJustCompletedRoundId(roundId)
+      router.push(`/compete/leagues/${leagueId}/sessions/${sessionId}/results`)
     }
   }
 
@@ -738,12 +777,11 @@ export default function LiveSessionManager({
     <div className="space-y-5">
 
       {/* Stats bar */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {[
           { label: 'Present', value: presentCount, color: 'text-brand-dark font-bold' },
           { label: 'Roster', value: presentRoster, color: 'text-brand-muted' },
           { label: 'Subs', value: presentSubs, color: presentSubs > 0 ? 'text-yellow-700 font-semibold' : 'text-brand-muted' },
-          { label: `Rnd ${completedCount}/${roundsPlanned}`, value: '', color: 'text-brand-muted' },
         ].map(s => (
           <div key={s.label} className="bg-brand-surface border border-brand-border rounded-xl p-2 text-center">
             <p className={`text-lg ${s.color}`}>{s.value}</p>
@@ -820,7 +858,7 @@ export default function LiveSessionManager({
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1.5">Roster Players</p>
             <div className="rounded-xl border border-brand-border overflow-hidden">
               {/* Header */}
-              <div className="grid grid-cols-[1fr_repeat(6,28px)] bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
+              <div className="grid grid-cols-[1fr_repeat(6,36px)] items-end bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
                 <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
                 {ROSTER_STATUSES.map(s => (
                   <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">
@@ -834,7 +872,7 @@ export default function LiveSessionManager({
                 const isLast = idx === rosterPlayers.length - 1
                 return (
                   <div key={p.id}>
-                    <div className={`grid grid-cols-[1fr_repeat(6,28px)] items-center px-2 py-2 gap-x-1 border-b border-brand-border ${ROW_BG[p.actual_status]}`}>
+                    <div className={`grid grid-cols-[1fr_repeat(6,36px)] items-center px-2 py-2 gap-x-1 border-b border-brand-border ${ROW_BG[p.actual_status]}`}>
                       <div className="min-w-0 pr-1 space-y-0.5">
                         <p className="text-xs font-medium text-brand-dark truncate">{p.display_name}</p>
                         {selfStatus && SELF_STATUS_BADGE[selfStatus] && (
@@ -887,7 +925,7 @@ export default function LiveSessionManager({
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1.5">Subs & Guests</p>
             <div className="rounded-xl border border-brand-border overflow-hidden">
               {/* Header */}
-              <div className="grid grid-cols-[1fr_repeat(5,28px)] bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
+              <div className="grid grid-cols-[1fr_repeat(5,36px)] items-end bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
                 <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
                 {SUB_STATUSES.map(s => (
                   <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">
@@ -900,7 +938,7 @@ export default function LiveSessionManager({
                 const subForName = absentNameById.get(p.id)
                 const isLast = idx === subPlayers.length - 1
                 return (
-                  <div key={p.id} className={`grid grid-cols-[1fr_repeat(5,28px)] items-center px-2 py-2 gap-x-1 ${!isLast ? 'border-b border-brand-border' : ''} ${ROW_BG[p.actual_status]}`}>
+                  <div key={p.id} className={`grid grid-cols-[1fr_repeat(5,36px)] items-center px-2 py-2 gap-x-1 ${!isLast ? 'border-b border-brand-border' : ''} ${ROW_BG[p.actual_status]}`}>
                     <div className="min-w-0 pr-1 space-y-0.5">
                       <div className="flex items-center gap-1 min-w-0">
                         <p className="text-xs font-medium text-brand-dark truncate">{p.display_name}</p>
@@ -994,6 +1032,8 @@ export default function LiveSessionManager({
               <RoundCard
                 round={r}
                 players={players}
+                scoreMap={scoreMap}
+                spToUserId={spToUserId}
                 onLock={() => {}}
                 onUnlock={() => {}}
                 onComplete={() => {}}

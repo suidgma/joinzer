@@ -160,13 +160,14 @@ export default async function LiveSessionPage({
     .eq('session_id', params.sessionId)
     .order('round_number')
 
-  // --- Which rounds have at least one score entered ---
-  const { data: scoredMatchRows } = await db
+  // --- Fetch entered match scores ---
+  const { data: matchScoreRows } = await db
     .from('league_matches')
-    .select('round_number')
+    .select('round_number, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, team1_score, team2_score')
     .eq('session_id', params.sessionId)
     .not('team1_score', 'is', null)
-  const scoredRoundNumbers = Array.from(new Set((scoredMatchRows ?? []).map(r => r.round_number as number)))
+
+  const scoredRoundNumbers = Array.from(new Set((matchScoreRows ?? []).map(r => r.round_number as number)))
 
   const dateStr = new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -191,6 +192,7 @@ export default async function LiveSessionPage({
         numberOfCourts={session.number_of_courts ?? 4}
         roundsPlanned={session.rounds_planned ?? 7}
         initialScoredRounds={scoredRoundNumbers}
+        initialMatchScores={(matchScoreRows ?? []) as any[]}
         availableSubs={(availableProfiles ?? []).map(p => ({ id: p.id, name: p.name }))}
         attendanceByUserId={attendanceByUserId}
         subRequests={(subRequests ?? []) as any[]}

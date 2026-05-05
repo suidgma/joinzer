@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       display_name:   displayName.trim(),
       player_type:    playerType,
       expected_status: 'expected',
-      actual_status:  'present',  // subs added mid-session default to present
+      actual_status:  'not_present',
     })
     .select()
     .single()

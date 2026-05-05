@@ -14,6 +14,27 @@ const FORMAT_LABELS: Record<string, string> = {
   custom: 'Custom',
 }
 
+const SKILL_LABELS: Record<string, string> = {
+  beginner:          'Beginner',
+  beginner_plus:     'Beginner+',
+  intermediate:      'Intermediate',
+  intermediate_plus: 'Intermediate+',
+  advanced:          'Advanced',
+}
+
+const ALL_SKILL_TIERS = ['beginner', 'beginner_plus', 'intermediate', 'intermediate_plus', 'advanced']
+
+function matchingSkillLevels(duprRating: number | null, estimatedRating: number | null): string[] {
+  const r = duprRating ?? estimatedRating
+  if (!r) return ALL_SKILL_TIERS
+  let idx = 0
+  if (r >= 4.0) idx = 4
+  else if (r >= 3.5) idx = 3
+  else if (r >= 3.0) idx = 2
+  else if (r >= 2.5) idx = 1
+  return ALL_SKILL_TIERS.slice(Math.max(0, idx - 1), idx + 2)
+}
+
 function sessionDateLabel(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
@@ -64,7 +85,7 @@ export default async function HomePage() {
           .order('session_date', { ascending: true })
           .limit(10)
       : Promise.resolve({ data: [] }),
-    db.from('profiles').select('name').eq('id', user.id).single(),
+    db.from('profiles').select('name, dupr_rating, estimated_rating').eq('id', user.id).single(),
     // Events the user is joined in (not just captain — any joined participant)
     db.from('event_participants')
       .select(`
@@ -78,9 +99,15 @@ export default async function HomePage() {
       .eq('participant_status', 'joined'),
   ])
 
+  // Skill-matched league discovery
+  const skillTiers = matchingSkillLevels(
+    (profile as any)?.dupr_rating ?? null,
+    (profile as any)?.estimated_rating ?? null,
+  )
+
   const sessionIds = (upcomingSessions ?? []).map((s) => s.id as string)
 
-  const [{ data: attendance }, { data: openSubRequests }] = await Promise.all([
+  const [{ data: attendance }, { data: openSubRequests }, { data: discoverLeagues }, { data: upcomingTournaments }] = await Promise.all([
     sessionIds.length > 0
       ? db.from('league_session_attendance')
           .select('league_session_id, attendance_status')
@@ -102,6 +129,26 @@ export default async function HomePage() {
           .order('created_at', { ascending: false })
           .limit(5)
       : Promise.resolve({ data: [] }),
+    // Leagues near user's skill level they haven't joined
+    (() => {
+      let q = db.from('leagues')
+        .select('id, name, format, skill_level, location_name, registration_status, start_date')
+        .in('skill_level', skillTiers)
+        .in('registration_status', ['open', 'waitlist_only'])
+        .gte('start_date', today)
+        .order('start_date', { ascending: true })
+        .limit(5)
+      if (leagueIds.length > 0) q = q.not('id', 'in', `(${leagueIds.join(',')})`)
+      return q
+    })(),
+    // Upcoming public tournaments
+    db.from('tournaments')
+      .select('id, name, start_date, location:locations!location_id(name)')
+      .eq('status', 'published')
+      .eq('visibility', 'public')
+      .gte('start_date', today)
+      .order('start_date', { ascending: true })
+      .limit(5),
   ])
 
   // Upcoming joined play events (future only, sorted by starts_at)
@@ -259,6 +306,69 @@ export default async function HomePage() {
               </div>
             )
           })}
+        </section>
+      )}
+
+      {/* ── Leagues near your skill level ── */}
+      {(discoverLeagues ?? []).length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-heading text-base font-bold text-brand-dark">Leagues Near Your Level</h2>
+          {(discoverLeagues ?? []).map((league) => (
+            <Link
+              key={league.id as string}
+              href={`/compete/leagues/${league.id as string}`}
+              className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-brand-dark">{league.name as string}</p>
+                  <p className="text-xs text-brand-muted">
+                    {FORMAT_LABELS[league.format as string] ?? league.format as string}
+                    {' · '}
+                    {SKILL_LABELS[league.skill_level as string] ?? league.skill_level as string}
+                  </p>
+                  {league.location_name && (
+                    <p className="text-xs text-brand-muted">{league.location_name as string}</p>
+                  )}
+                  {league.start_date && (
+                    <p className="text-xs text-brand-muted">Starts {sessionDateLabel(league.start_date as string)}</p>
+                  )}
+                </div>
+                <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand text-brand-dark capitalize">
+                  {league.registration_status === 'waitlist_only' ? 'Waitlist' : 'Open'}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </section>
+      )}
+
+      {/* ── Upcoming tournaments ── */}
+      {(upcomingTournaments ?? []).length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-heading text-base font-bold text-brand-dark">Upcoming Tournaments</h2>
+          {(upcomingTournaments ?? []).map((t) => (
+            <Link
+              key={t.id as string}
+              href={`/compete/tournaments/${t.id as string}`}
+              className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-brand-dark">{t.name as string}</p>
+                  {(t.location as any)?.name && (
+                    <p className="text-xs text-brand-muted">{(t.location as any).name}</p>
+                  )}
+                  {t.start_date && (
+                    <p className="text-xs text-brand-muted">{sessionDateLabel(t.start_date as string)}</p>
+                  )}
+                </div>
+                <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand/20 text-brand-dark">
+                  Tournament
+                </span>
+              </div>
+            </Link>
+          ))}
         </section>
       )}
 
