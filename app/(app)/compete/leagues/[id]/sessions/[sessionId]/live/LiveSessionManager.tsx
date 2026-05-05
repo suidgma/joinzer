@@ -13,7 +13,7 @@ type RoundStatus  = 'draft' | 'locked' | 'completed'
 
 type Player = {
   id: string
-  userId: string | null
+  user_id: string | null
   display_name: string
   player_type: PlayerType
   expected_status: string
@@ -509,8 +509,8 @@ function AssignSubModal({
 
   // Combine already-in-session subs + available profiles into one list
   const options: { id: string; name: string; inSession: boolean }[] = [
-    ...unassignedSubPlayers.map(p => ({ id: p.userId!, name: p.display_name, inSession: true })),
-    ...availableSubs.filter(p => !unassignedSubPlayers.some(sp => sp.userId === p.id))
+    ...unassignedSubPlayers.map(p => ({ id: p.user_id!, name: p.display_name, inSession: true })),
+    ...availableSubs.filter(p => !unassignedSubPlayers.some(sp => sp.user_id === p.id))
       .map(p => ({ id: p.id, name: p.name, inSession: false })),
   ].sort((a, b) => a.name.localeCompare(b.name))
 
@@ -826,7 +826,7 @@ export default function LiveSessionManager({
   const unassignedSubPlayers = subPlayers.filter(
     p => !p.sub_for_session_player_id &&
       (p.actual_status === 'present' || p.actual_status === 'coming' || p.actual_status === 'late') &&
-      p.userId
+      p.user_id
   )
 
   return (
@@ -920,8 +920,8 @@ export default function LiveSessionManager({
                 index={i + 1}
                 onStatusChange={handleStatusChange}
                 disabled={loading || generating}
-                selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
-                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+                selfStatus={p.user_id ? attendanceByUserId[p.user_id] : undefined}
+                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.user_id && ['open', 'claimed'].includes(sr.status))}
                 assignedSubName={subByAbsentId.get(p.id)?.display_name}
                 onAssignSub={() => setAssignSubForPlayer(p)}
               />
@@ -940,8 +940,8 @@ export default function LiveSessionManager({
                 index={i + 1}
                 onStatusChange={handleStatusChange}
                 disabled={loading || generating}
-                selfStatus={p.userId ? attendanceByUserId[p.userId] : undefined}
-                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.userId && ['open', 'claimed'].includes(sr.status))}
+                selfStatus={p.user_id ? attendanceByUserId[p.user_id] : undefined}
+                hasSub={localSubRequests.some(sr => sr.requesting_player_id === p.user_id && ['open', 'claimed'].includes(sr.status))}
                 subForName={absentNameById.get(p.id)}
               />
             ))}
