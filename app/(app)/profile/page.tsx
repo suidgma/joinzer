@@ -47,6 +47,13 @@ export default async function ProfilePage() {
           <p className="font-medium text-brand-dark">{profile.name}</p>
         </div>
 
+        {profile.display_name && (
+          <div>
+            <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Display Name</p>
+            <p className="font-medium text-brand-dark">{profile.display_name}</p>
+          </div>
+        )}
+
         <div>
           <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Email</p>
           <p className="text-sm text-brand-body">{profile.email ?? user.email}</p>

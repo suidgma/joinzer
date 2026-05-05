@@ -10,6 +10,7 @@ type RatingSource = 'dupr_known' | 'estimated' | 'skipped'
 type Profile = {
   id: string
   name: string
+  display_name: string | null
   phone: string | null
   gender: string | null
   rating_source: string | null
@@ -22,6 +23,7 @@ type Profile = {
 export default function ProfileEditForm({ profile }: { profile: Profile }) {
   const router = useRouter()
   const [name, setName] = useState(profile.name)
+  const [displayName, setDisplayName] = useState(profile.display_name ?? '')
   const [phone, setPhone] = useState(profile.phone ?? '')
   const [ratingSource, setRatingSource] = useState<RatingSource>(
     (profile.rating_source as RatingSource) ?? 'skipped'
@@ -55,6 +57,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
       .from('profiles')
       .update({
         name: name.trim(),
+        display_name: displayName.trim() || null,
         phone: phone.trim() || null,
         rating_source: ratingSource,
         dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
@@ -95,6 +98,21 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
           onChange={(e) => setName(e.target.value)}
           className="w-full input"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Display Name{' '}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder={name.trim() || 'e.g. Marty S.'}
+          className="w-full input"
+        />
+        <p className="text-xs text-brand-muted mt-1">Shown on the Players page. Leave blank to use your full name.</p>
       </div>
 
       <div>
