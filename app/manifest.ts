@@ -6,6 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'Joinzer',
     description: 'Pickleball league & play session management',
     start_url: '/',
+    scope: '/',
     display: 'standalone',
     background_color: '#f9faf8',
     theme_color: '#a3c87a',
