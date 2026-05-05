@@ -48,7 +48,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: league }, { data: registrations }, { data: sessions }] = await Promise.all([
-    supabase.from('leagues').select('id, name, format, created_by').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
       .select('user_id, profile:profiles(id, name, profile_photo_url)')
@@ -64,14 +64,47 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   if (!league) notFound()
 
   const sessionIds = (sessions ?? []).map((s) => s.id)
+  const subCreditCap: number = (league as unknown as Record<string, unknown>)?.sub_credit_cap as number ?? 7
 
-  const { data: matches } = sessionIds.length > 0
-    ? await supabase
-        .from('league_matches')
-        .select('session_id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, team1_score, team2_score')
-        .in('session_id', sessionIds)
-        .not('team1_score', 'is', null)
+  const [{ data: matches }, { data: subSessionPlayers }] = await Promise.all([
+    sessionIds.length > 0
+      ? supabase
+          .from('league_matches')
+          .select('session_id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, team1_score, team2_score')
+          .in('session_id', sessionIds)
+          .not('team1_score', 'is', null)
+      : Promise.resolve({ data: [] }),
+    // Fetch sub assignments to redirect and cap points
+    sessionIds.length > 0
+      ? supabase
+          .from('league_session_players')
+          .select('id, user_id, session_id, sub_for_session_player_id')
+          .in('session_id', sessionIds)
+          .not('sub_for_session_player_id', 'is', null)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  // Build sub redirect maps per session
+  // We need absent players' user_ids — fetch by their session player IDs
+  const absentSpIds = (subSessionPlayers ?? []).map(s => s.sub_for_session_player_id as string).filter(Boolean)
+  const { data: absentSpRows } = absentSpIds.length > 0
+    ? await supabase.from('league_session_players').select('id, user_id').in('id', absentSpIds)
     : { data: [] }
+  const absentUserBySpId = new Map((absentSpRows ?? []).map(p => [p.id as string, p.user_id as string]))
+
+  // sessionId → { subToAbsent: subUserId → absentUserId, absentUserIds: Set }
+  type SubInfo = { subToAbsent: Map<string, string>; absentUserIds: Set<string> }
+  const subInfoBySession = new Map<string, SubInfo>()
+  for (const sp of subSessionPlayers ?? []) {
+    const sid = sp.session_id as string
+    const subUid = sp.user_id as string
+    const absentUid = absentUserBySpId.get(sp.sub_for_session_player_id as string)
+    if (!subUid || !absentUid) continue
+    if (!subInfoBySession.has(sid)) subInfoBySession.set(sid, { subToAbsent: new Map(), absentUserIds: new Set() })
+    const info = subInfoBySession.get(sid)!
+    info.subToAbsent.set(subUid, absentUid)
+    info.absentUserIds.add(absentUid)
+  }
 
   // Build overall stats + per-session points
   type Stats = { points: number; games: number }
@@ -86,14 +119,24 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
     if (m.team1_score == null || m.team2_score == null) continue
     const team1Players = [m.team1_player1_id, m.team1_player2_id].filter(Boolean)
     const team2Players = [m.team2_player1_id, m.team2_player2_id].filter(Boolean)
+    const info = subInfoBySession.get(m.session_id)
 
     const apply = (pid: string, pts: number) => {
-      const s = statsMap.get(pid) ?? { points: 0, games: 0 }
-      s.games++; s.points += pts
-      statsMap.set(pid, s)
-      if (!sessionPts.has(pid)) sessionPts.set(pid, new Map())
-      const bySession = sessionPts.get(pid)!
-      bySession.set(m.session_id, (bySession.get(m.session_id) ?? 0) + pts)
+      let effectivePid = pid
+      let effectivePts = pts
+      if (info) {
+        // Old data: sub's userId stored directly → redirect to absent player
+        const absentUid = info.subToAbsent.get(pid)
+        if (absentUid) { effectivePid = absentUid; effectivePts = Math.min(pts, subCreditCap) }
+        // New data: absent player's userId stored → apply cap
+        else if (info.absentUserIds.has(pid)) { effectivePts = Math.min(pts, subCreditCap) }
+      }
+      const s = statsMap.get(effectivePid) ?? { points: 0, games: 0 }
+      s.games++; s.points += effectivePts
+      statsMap.set(effectivePid, s)
+      if (!sessionPts.has(effectivePid)) sessionPts.set(effectivePid, new Map())
+      const bySession = sessionPts.get(effectivePid)!
+      bySession.set(m.session_id, (bySession.get(m.session_id) ?? 0) + effectivePts)
     }
 
     for (const pid of team1Players) { if (pid) apply(pid, m.team1_score) }

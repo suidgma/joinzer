@@ -48,14 +48,25 @@ export default async function SessionResultsPage({
       .order('round_number', { ascending: true }),
     supabase
       .from('league_session_players')
-      .select('id, user_id, display_name')
+      .select('id, user_id, display_name, sub_for_session_player_id')
       .eq('session_id', params.sessionId),
   ])
 
   // Map session_player_id → { userId, name }
+  // Subs are redirected to the absent player's userId so match credits go to them.
   const spMap = new Map<string, { userId: string; name: string }>()
+  // First pass: non-subs
   for (const sp of sessionPlayers ?? []) {
-    if (sp.user_id) spMap.set(sp.id, { userId: sp.user_id, name: sp.display_name })
+    if (sp.user_id && !sp.sub_for_session_player_id) {
+      spMap.set(sp.id, { userId: sp.user_id, name: sp.display_name })
+    }
+  }
+  // Second pass: subs → use absent player's entry
+  for (const sp of sessionPlayers ?? []) {
+    if (sp.sub_for_session_player_id) {
+      const absentEntry = spMap.get(sp.sub_for_session_player_id as string)
+      if (absentEntry) spMap.set(sp.id, { userId: absentEntry.userId, name: absentEntry.name })
+    }
   }
 
   // Build a set of existing match signatures to detect already-saved scores
