@@ -12,7 +12,7 @@ export default async function PlayersPage() {
   const [{ data }, { data: availabilityData }, { data: mySessions }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender')
+      .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender')
       .eq('dummy', false)
       .order('name', { ascending: true }),
     supabase
@@ -42,6 +42,7 @@ export default async function PlayersPage() {
   const players = (data ?? []).map((p) => ({
     id: p.id as string,
     name: p.name as string,
+    display_name: p.display_name as string | null,
     profile_photo_url: p.profile_photo_url as string | null,
     rating_source: p.rating_source as string | null,
     dupr_rating: p.dupr_rating as number | null,

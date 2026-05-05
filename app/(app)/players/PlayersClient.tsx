@@ -7,6 +7,7 @@ import PlayerInviteModal from '@/components/features/players/PlayerInviteModal'
 type Player = {
   id: string
   name: string
+  display_name: string | null
   profile_photo_url: string | null
   rating_source: string | null
   dupr_rating: number | null
@@ -140,7 +141,8 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
         <div className="grid grid-cols-3 gap-3">
           {filtered.map((player) => {
             const label = ratingLabel(player)
-            const firstName = player.name.split(' ')[0]
+            const displayName = player.display_name ?? player.name
+            const firstName = displayName.split(' ')[0]
             const isMe = player.id === currentUserId
             const canInvite = player.availableToday && !isMe
 
@@ -162,7 +164,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
                   {player.profile_photo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={player.profile_photo_url} alt={firstName} className="w-full h-full object-cover" />
+                    <img src={player.profile_photo_url} alt={displayName} className="w-full h-full object-cover" />
                   ) : (
                     <span className="flex items-center justify-center w-full h-full text-brand-muted">
                       <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
@@ -171,7 +173,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-medium text-brand-dark text-center leading-tight">{firstName}</p>
+                <p className="text-sm font-medium text-brand-dark text-center leading-tight">{displayName}</p>
                 {label && (
                   <p className="text-xs text-brand-muted text-center">{label}</p>
                 )}
@@ -191,7 +193,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
         <PlayerInviteModal
           player={{
             userId: inviteTarget.id,
-            name: inviteTarget.name,
+            name: inviteTarget.display_name ?? inviteTarget.name,
             photoUrl: inviteTarget.profile_photo_url,
             timeWindows: inviteTarget.timeWindows,
           }}
