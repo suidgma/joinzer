@@ -61,11 +61,11 @@ export default async function SessionResultsPage({
       spMap.set(sp.id, { userId: sp.user_id, name: sp.display_name })
     }
   }
-  // Second pass: subs → use absent player's entry
+  // Second pass: subs → credit goes to absent player's userId, but display the sub's name
   for (const sp of sessionPlayers ?? []) {
     if (sp.sub_for_session_player_id) {
       const absentEntry = spMap.get(sp.sub_for_session_player_id as string)
-      if (absentEntry) spMap.set(sp.id, { userId: absentEntry.userId, name: absentEntry.name })
+      if (absentEntry) spMap.set(sp.id, { userId: absentEntry.userId, name: sp.display_name })
     }
   }
 
