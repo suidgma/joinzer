@@ -37,6 +37,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/privacy' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
+    pathname === '/manifest.webmanifest' ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/compete')
 
