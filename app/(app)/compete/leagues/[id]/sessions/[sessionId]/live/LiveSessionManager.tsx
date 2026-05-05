@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ActualStatus = 'present' | 'not_present' | 'late' | 'left_early'
+type ActualStatus = 'present' | 'coming' | 'late' | 'cannot_attend' | 'not_present'
 type PlayerType   = 'roster_player' | 'sub' | 'guest'
 type RoundStatus  = 'draft' | 'locked' | 'completed'
 
@@ -71,24 +71,27 @@ type Props = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const STATUS_LABEL: Record<ActualStatus, string> = {
-  present:      'Present',
-  not_present:  'Not Here',
-  late:         'Late',
-  left_early:   'Left',
+  present:       'Here',
+  coming:        'Coming',
+  late:          'Late',
+  cannot_attend: "Can't Make It",
+  not_present:   'Not Here',
 }
 
 const STATUS_STYLE: Record<ActualStatus, string> = {
-  present:     'bg-brand/20 border-brand text-brand-dark',
-  late:        'bg-yellow-50 border-yellow-300 text-yellow-800',
-  left_early:  'bg-red-50 border-red-200 text-red-600',
-  not_present: 'bg-brand-surface border-brand-border text-brand-muted',
+  present:       'bg-brand/20 border-brand text-brand-dark',
+  coming:        'bg-blue-50 border-blue-200 text-blue-800',
+  late:          'bg-yellow-50 border-yellow-300 text-yellow-800',
+  cannot_attend: 'bg-red-50 border-red-200 text-red-600',
+  not_present:   'bg-brand-surface border-brand-border text-brand-muted',
 }
 
 const BTN_STATUS_STYLE: Record<ActualStatus, string> = {
-  present:     'bg-brand text-brand-dark',
-  late:        'bg-yellow-100 text-yellow-800 border border-yellow-300',
-  left_early:  'bg-red-100 text-red-700 border border-red-200',
-  not_present: 'bg-brand-soft text-brand-muted border border-brand-border',
+  present:       'bg-brand text-brand-dark',
+  coming:        'bg-blue-100 text-blue-800 border border-blue-300',
+  late:          'bg-yellow-100 text-yellow-800 border border-yellow-300',
+  cannot_attend: 'bg-red-100 text-red-700 border border-red-200',
+  not_present:   'bg-brand-soft text-brand-muted border border-brand-border',
 }
 
 function playerName(id: string | null, players: Player[]) {
@@ -127,10 +130,11 @@ function PlayerRow({
   subForName?: string
   onAssignSub?: () => void
 }) {
-  const statuses: ActualStatus[] = ['present', 'late', 'left_early', 'not_present']
+  const statuses: ActualStatus[] = ['present', 'coming', 'late', 'cannot_attend', 'not_present']
   const isSub = player.player_type === 'sub'
   const isGuest = player.player_type === 'guest'
-  const showAssignRow = player.player_type === 'roster_player' && player.actual_status === 'not_present'
+  const showAssignRow = player.player_type === 'roster_player' &&
+    (player.actual_status === 'not_present' || player.actual_status === 'cannot_attend')
 
   return (
     <div className={`rounded-xl border px-3 py-2.5 transition-colors ${STATUS_STYLE[player.actual_status]}`}>
@@ -161,13 +165,13 @@ function PlayerRow({
           <span className="text-[10px] text-brand-muted">{player.joinzer_rating ?? 1000}</span>
         </div>
       </div>
-      <div className="flex gap-1.5">
-        {statuses.map(s => (
+      <div className="grid grid-cols-2 gap-1.5">
+        {statuses.map((s, idx) => (
           <button
             key={s}
             onClick={() => onStatusChange(player.id, s)}
             disabled={disabled || player.actual_status === s}
-            className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors disabled:cursor-default ${
+            className={`${idx === 4 ? 'col-span-2' : ''} py-1.5 rounded-lg text-[11px] font-semibold transition-colors disabled:cursor-default ${
               player.actual_status === s
                 ? BTN_STATUS_STYLE[s]
                 : 'bg-brand-surface text-brand-muted border border-brand-border hover:border-brand-active'
@@ -820,7 +824,9 @@ export default function LiveSessionManager({
 
   // Unassigned present/late sub players eligible for new assignments
   const unassignedSubPlayers = subPlayers.filter(
-    p => !p.sub_for_session_player_id && (p.actual_status === 'present' || p.actual_status === 'late') && p.userId
+    p => !p.sub_for_session_player_id &&
+      (p.actual_status === 'present' || p.actual_status === 'coming' || p.actual_status === 'late') &&
+      p.userId
   )
 
   return (

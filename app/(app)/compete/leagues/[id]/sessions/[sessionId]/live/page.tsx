@@ -44,12 +44,13 @@ export default async function LiveSessionPage({
       selfStatusMap[a.user_id as string] = a.attendance_status as string
     }
 
-    // Default to present; only override if player actively said cannot_attend or running_late
     const resolveActualStatus = (userId: string): string => {
       const self = selfStatusMap[userId]
-      if (self === 'cannot_attend') return 'not_present'
+      if (self === 'checked_in_present') return 'present'
+      if (self === 'planning_to_attend') return 'coming'
       if (self === 'running_late') return 'late'
-      return 'present'
+      if (self === 'cannot_attend') return 'cannot_attend'
+      return 'not_present'
     }
 
     // Seed from registered players + their profile data
