@@ -27,8 +27,14 @@ export default async function LiveSessionPage({
   if (league.created_by !== user.id) redirect(`/compete/leagues/${params.id}`)
 
   // --- Sync session players: seed missing roster players on every load ---
-  const [{ data: existingSessionPlayers }, { data: existingAttendance }, { data: registrations }, { data: sessionSubs }] = await Promise.all([
-    db.from('league_session_players').select('user_id').eq('session_id', params.sessionId),
+  const [
+    { data: existingSessionPlayers },
+    { data: existingAttendance },
+    { data: registrations },
+    { data: sessionSubs },
+    { count: completedRoundCount },
+  ] = await Promise.all([
+    db.from('league_session_players').select('user_id, id').eq('session_id', params.sessionId),
     db.from('league_session_attendance').select('user_id, attendance_status').eq('league_session_id', params.sessionId),
     db.from('league_registrations')
       .select('user_id, profile:profiles(id, name, joinzer_rating, dupr_rating, estimated_rating)')
@@ -37,6 +43,10 @@ export default async function LiveSessionPage({
     db.from('league_session_subs')
       .select('user_id, profile:profiles(id, name, joinzer_rating)')
       .eq('session_id', params.sessionId),
+    db.from('league_rounds')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', params.sessionId)
+      .eq('status', 'completed'),
   ])
 
   const seededUserIds = new Set((existingSessionPlayers ?? []).map(p => p.user_id as string))
@@ -76,7 +86,7 @@ export default async function LiveSessionPage({
     await db.from('league_session_players').insert(newRosterRows)
   }
 
-  // Insert any session subs not yet in session players (first-open only effectively)
+  // Insert any session subs not yet in session players
   const newSubRows = (sessionSubs ?? [])
     .filter((s: Record<string, unknown>) => !seededUserIds.has(s.user_id as string))
     .map((s: Record<string, unknown>) => {
@@ -93,6 +103,19 @@ export default async function LiveSessionPage({
     })
   if (newSubRows.length > 0) {
     await db.from('league_session_players').insert(newSubRows)
+  }
+
+  // Before any rounds are completed, re-sync existing players' statuses from self-reports.
+  // This corrects stale defaults (e.g. 'present') set by older code before the session starts.
+  if ((completedRoundCount ?? 0) === 0 && (existingSessionPlayers ?? []).length > 0) {
+    const updates = (existingSessionPlayers ?? [])
+      .filter(p => p.user_id)
+      .map(p => ({ id: p.id, actual_status: resolveActualStatus(p.user_id as string) }))
+    await Promise.all(
+      updates.map(u =>
+        db.from('league_session_players').update({ actual_status: u.actual_status }).eq('id', u.id)
+      )
+    )
   }
 
   // --- Fetch current session players ---
