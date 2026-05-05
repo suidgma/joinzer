@@ -5,14 +5,13 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Joinzer',
     short_name: 'Joinzer',
     description: 'Pickleball league & play session management',
-    start_url: '/home',
+    start_url: '/',
     display: 'standalone',
     background_color: '#f9faf8',
     theme_color: '#a3c87a',
     icons: [
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
   }
 }
