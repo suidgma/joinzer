@@ -646,6 +646,10 @@ export default function LiveSessionManager({
   const presentCount    = presentPlayers.length
   const presentRoster   = presentPlayers.filter(p => p.player_type === 'roster_player').length
   const presentSubs     = presentPlayers.filter(p => p.player_type === 'sub').length
+  // Only assigned subs (covering an absent player) count toward round generation
+  const eligibleCount   = presentPlayers.filter(
+    p => p.player_type !== 'sub' || p.sub_for_session_player_id !== null
+  ).length
   const completedCount  = rounds.filter(r => r.status === 'completed').length
   const draftRound      = rounds.find(r => r.status === 'draft')
   const lockedRound     = rounds.find(r => r.status === 'locked')
@@ -659,17 +663,17 @@ export default function LiveSessionManager({
 
   // --- Quick court preview ---
   function courtsPreview() {
-    if (presentCount < 2) return 'No players present yet.'
+    if (eligibleCount < 2) return 'No players present yet.'
     const courts = numberOfCourts
-    const maxD = Math.min(Math.floor(presentCount / 4), courts)
-    const rem = presentCount - maxD * 4
+    const maxD = Math.min(Math.floor(eligibleCount / 4), courts)
+    const rem = eligibleCount - maxD * 4
     const courtsLeft = courts - maxD
     const singles = rem >= 2 && courtsLeft >= 1 ? 1 : 0
     const byes = rem - (singles > 0 ? 2 : 0)
     const parts = [`${maxD} doubles`]
     if (singles) parts.push('1 singles')
     if (byes > 0) parts.push(`${byes} bye${byes > 1 ? 's' : ''}`)
-    return `${presentCount} players present — ${parts.join(', ')} across ${courts} courts.`
+    return `${eligibleCount} players eligible — ${parts.join(', ')} across ${courts} courts.`
   }
 
   // --- Status update ---
@@ -972,7 +976,7 @@ export default function LiveSessionManager({
 
         <button
           onClick={() => handleGenerate(false)}
-          disabled={generating || presentCount < 2 || !!draftRound || pendingScores || nextRoundNumber > roundsPlanned}
+          disabled={generating || eligibleCount < 2 || !!draftRound || pendingScores || nextRoundNumber > roundsPlanned}
           className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-40 transition-colors"
         >
           {generating ? 'Generating…' : draftRound ? `Round ${draftRound.round_number} draft ready` : `Generate Round ${nextRoundNumber}`}

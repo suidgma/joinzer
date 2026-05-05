@@ -41,15 +41,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     .select('*')
     .eq('session_id', params.sessionId)
 
-  const players: SessionPlayer[] = (rawPlayers ?? []).map((p: Record<string, unknown>) => ({
-    id:                p.id as string,
-    userId:            p.user_id as string | null,
-    name:              p.display_name as string,
-    playerType:        (p.player_type as SessionPlayer['playerType']) ?? 'roster_player',
-    actualStatus:      (p.actual_status as SessionPlayer['actualStatus']) ?? 'not_present',
-    arrivedAfterRound: p.arrived_after_round as number | null,
-    joinzerRating:     (p.joinzer_rating as number) ?? 1000,
-  }))
+  const players: SessionPlayer[] = (rawPlayers ?? [])
+    // Unassigned subs sit out — only assigned subs (covering an absent player) play
+    .filter((p: Record<string, unknown>) =>
+      p.player_type !== 'sub' || p.sub_for_session_player_id !== null
+    )
+    .map((p: Record<string, unknown>) => ({
+      id:                p.id as string,
+      userId:            p.user_id as string | null,
+      name:              p.display_name as string,
+      playerType:        (p.player_type as SessionPlayer['playerType']) ?? 'roster_player',
+      actualStatus:      (p.actual_status as SessionPlayer['actualStatus']) ?? 'not_present',
+      arrivedAfterRound: p.arrived_after_round as number | null,
+      joinzerRating:     (p.joinzer_rating as number) ?? 1000,
+    }))
 
   const presentCount = players.filter(p => p.actualStatus === 'present').length
   if (presentCount < 2) {
