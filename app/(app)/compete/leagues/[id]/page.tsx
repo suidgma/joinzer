@@ -271,7 +271,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
       {/* Manager view */}
       {isManager && (
         <section className="space-y-2">
-          <h2 className="font-heading text-base font-bold text-brand-dark">Manager</h2>
+          <h2 className="font-heading text-base font-bold text-brand-dark">Court Monitor</h2>
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
             <p className="text-sm text-brand-body">{registeredCount} registered · {waitlistCount} waitlisted</p>
             <Link href={`/compete/leagues/${league.id}/roster`} className="block text-sm text-brand-active underline underline-offset-2">
