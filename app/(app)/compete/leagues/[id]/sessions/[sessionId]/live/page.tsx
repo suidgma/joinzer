@@ -26,79 +26,73 @@ export default async function LiveSessionPage({
   if (!league || !session) notFound()
   if (league.created_by !== user.id) redirect(`/compete/leagues/${params.id}`)
 
-  // --- Auto-populate session players on first open ---
-  const { count } = await db
-    .from('league_session_players')
-    .select('id', { count: 'exact', head: true })
-    .eq('session_id', params.sessionId)
-
-  if (count === 0) {
-    // Check for any self-reported attendance statuses already submitted
-    const { data: existingAttendance } = await db
-      .from('league_session_attendance')
-      .select('user_id, attendance_status')
-      .eq('league_session_id', params.sessionId)
-
-    const selfStatusMap: Record<string, string> = {}
-    for (const a of existingAttendance ?? []) {
-      selfStatusMap[a.user_id as string] = a.attendance_status as string
-    }
-
-    const resolveActualStatus = (userId: string): string => {
-      const self = selfStatusMap[userId]
-      if (self === 'checked_in_present') return 'present'
-      if (self === 'planning_to_attend') return 'coming'
-      if (self === 'running_late') return 'late'
-      if (self === 'cannot_attend') return 'cannot_attend'
-      return 'not_present'
-    }
-
-    // Seed from registered players + their profile data
-    const { data: registrations } = await db
-      .from('league_registrations')
+  // --- Sync session players: seed missing roster players on every load ---
+  const [{ data: existingSessionPlayers }, { data: existingAttendance }, { data: registrations }, { data: sessionSubs }] = await Promise.all([
+    db.from('league_session_players').select('user_id').eq('session_id', params.sessionId),
+    db.from('league_session_attendance').select('user_id, attendance_status').eq('league_session_id', params.sessionId),
+    db.from('league_registrations')
       .select('user_id, profile:profiles(id, name, joinzer_rating, dupr_rating, estimated_rating)')
       .eq('league_id', params.id)
-      .eq('status', 'registered')
-
-    if (registrations && registrations.length > 0) {
-      const rows = registrations.map((r: Record<string, unknown>) => {
-        const profile = r.profile as Record<string, unknown>
-        return {
-          session_id:       params.sessionId,
-          user_id:          r.user_id,
-          display_name:     profile?.name ?? 'Unknown',
-          player_type:      'roster_player',
-          expected_status:  'expected',
-          actual_status:    resolveActualStatus(r.user_id as string),
-          joinzer_rating:   profile?.joinzer_rating ?? 1000,
-          dupr_rating:      profile?.dupr_rating ?? null,
-          estimated_rating: profile?.estimated_rating ?? null,
-        }
-      })
-      await db.from('league_session_players').insert(rows)
-    }
-
-    // Also seed subs who signed up for this specific session
-    const { data: sessionSubs } = await db
-      .from('league_session_subs')
+      .eq('status', 'registered'),
+    db.from('league_session_subs')
       .select('user_id, profile:profiles(id, name, joinzer_rating)')
-      .eq('session_id', params.sessionId)
+      .eq('session_id', params.sessionId),
+  ])
 
-    if (sessionSubs && sessionSubs.length > 0) {
-      const subRows = sessionSubs.map((s: Record<string, unknown>) => {
-        const profile = s.profile as Record<string, unknown>
-        return {
-          session_id:     params.sessionId,
-          user_id:        s.user_id,
-          display_name:   profile?.name ?? 'Sub',
-          player_type:    'sub',
-          expected_status: 'expected',
-          actual_status:  resolveActualStatus(s.user_id as string),
-          joinzer_rating: profile?.joinzer_rating ?? 1000,
-        }
-      })
-      await db.from('league_session_players').insert(subRows)
-    }
+  const seededUserIds = new Set((existingSessionPlayers ?? []).map(p => p.user_id as string))
+
+  const selfStatusMap: Record<string, string> = {}
+  for (const a of existingAttendance ?? []) {
+    selfStatusMap[a.user_id as string] = a.attendance_status as string
+  }
+
+  const resolveActualStatus = (userId: string): string => {
+    const self = selfStatusMap[userId]
+    if (self === 'checked_in_present') return 'present'
+    if (self === 'planning_to_attend') return 'coming'
+    if (self === 'running_late') return 'late'
+    if (self === 'cannot_attend') return 'cannot_attend'
+    return 'not_present'
+  }
+
+  // Insert any registered players not yet in session players
+  const newRosterRows = (registrations ?? [])
+    .filter((r: Record<string, unknown>) => !seededUserIds.has(r.user_id as string))
+    .map((r: Record<string, unknown>) => {
+      const profile = r.profile as Record<string, unknown>
+      return {
+        session_id:       params.sessionId,
+        user_id:          r.user_id,
+        display_name:     profile?.name ?? 'Unknown',
+        player_type:      'roster_player',
+        expected_status:  'expected',
+        actual_status:    resolveActualStatus(r.user_id as string),
+        joinzer_rating:   profile?.joinzer_rating ?? 1000,
+        dupr_rating:      profile?.dupr_rating ?? null,
+        estimated_rating: profile?.estimated_rating ?? null,
+      }
+    })
+  if (newRosterRows.length > 0) {
+    await db.from('league_session_players').insert(newRosterRows)
+  }
+
+  // Insert any session subs not yet in session players (first-open only effectively)
+  const newSubRows = (sessionSubs ?? [])
+    .filter((s: Record<string, unknown>) => !seededUserIds.has(s.user_id as string))
+    .map((s: Record<string, unknown>) => {
+      const profile = s.profile as Record<string, unknown>
+      return {
+        session_id:      params.sessionId,
+        user_id:         s.user_id,
+        display_name:    profile?.name ?? 'Sub',
+        player_type:     'sub',
+        expected_status: 'expected',
+        actual_status:   resolveActualStatus(s.user_id as string),
+        joinzer_rating:  profile?.joinzer_rating ?? 1000,
+      }
+    })
+  if (newSubRows.length > 0) {
+    await db.from('league_session_players').insert(newSubRows)
   }
 
   // --- Fetch current session players ---
