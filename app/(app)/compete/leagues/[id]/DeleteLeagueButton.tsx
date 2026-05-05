@@ -15,6 +15,7 @@ export default function DeleteLeagueButton({ leagueId }: { leagueId: string }) {
     const res = await fetch(`/api/leagues/${leagueId}`, { method: 'DELETE' })
     if (res.ok) {
       router.push('/compete')
+      router.refresh()
     } else {
       const body = await res.json()
       setError(body.error ?? 'Failed to delete league')
