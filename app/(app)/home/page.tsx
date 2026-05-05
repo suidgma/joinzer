@@ -57,24 +57,29 @@ export default async function HomePage() {
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const today = new Date().toISOString().slice(0, 10)
 
-  // All user's active league registrations
-  const { data: registrations } = await db
-    .from('league_registrations')
-    .select('league_id')
-    .eq('user_id', user.id)
-    .eq('status', 'registered')
+  // All user's active league registrations + leagues they organize
+  const [{ data: registrations }, { data: organizedLeagues }] = await Promise.all([
+    db.from('league_registrations').select('league_id').eq('user_id', user.id).eq('status', 'registered'),
+    db.from('leagues').select('id, name, format, skill_level, location_name, created_by').eq('created_by', user.id),
+  ])
 
-  const leagueIds = (registrations ?? []).map((r) => r.league_id as string)
+  const registeredLeagueIds = (registrations ?? []).map((r) => r.league_id as string)
+  // Merge registered + organized league IDs (deduplicated)
+  const myLeagueIdSet = new Set([
+    ...registeredLeagueIds,
+    ...((organizedLeagues ?? []).map((l) => l.id as string)),
+  ])
+  const leagueIds = Array.from(myLeagueIdSet)
 
   // Fetch leagues, upcoming sessions, play events, and profile in parallel
   const [
-    { data: leagues },
+    { data: registeredLeagueRows },
     { data: upcomingSessions },
     { data: profile },
     { data: joinedEventRows },
   ] = await Promise.all([
-    leagueIds.length > 0
-      ? db.from('leagues').select('id, name, format, skill_level, location_name, created_by').in('id', leagueIds)
+    registeredLeagueIds.length > 0
+      ? db.from('leagues').select('id, name, format, skill_level, location_name, created_by').in('id', registeredLeagueIds)
       : Promise.resolve({ data: [] }),
     leagueIds.length > 0
       ? db.from('league_sessions')
@@ -129,14 +134,13 @@ export default async function HomePage() {
           .order('created_at', { ascending: false })
           .limit(5)
       : Promise.resolve({ data: [] }),
-    // Leagues near user's skill level they haven't joined
+    // Leagues near user's skill level they haven't joined/organized
     (() => {
       let q = db.from('leagues')
         .select('id, name, format, skill_level, location_name, registration_status, start_date')
         .in('skill_level', skillTiers)
         .in('registration_status', ['open', 'waitlist_only'])
-        .gte('start_date', today)
-        .order('start_date', { ascending: true })
+        .order('start_date', { ascending: true, nullsFirst: false })
         .limit(5)
       if (leagueIds.length > 0) q = q.not('id', 'in', `(${leagueIds.join(',')})`)
       return q
@@ -163,7 +167,12 @@ export default async function HomePage() {
     (attendance ?? []).map((a) => [a.league_session_id as string, a.attendance_status as string])
   )
 
-  const leagueMap = Object.fromEntries((leagues ?? []).map((l) => [l.id as string, l]))
+  // Merge registered leagues + organized leagues (deduplicated by id)
+  const allMyLeagues = [
+    ...(registeredLeagueRows ?? []),
+    ...(organizedLeagues ?? []).filter(ol => !registeredLeagueIds.includes(ol.id as string)),
+  ]
+  const leagueMap = Object.fromEntries(allMyLeagues.map((l) => [l.id as string, l]))
 
   // Group sessions by league for "my leagues" section
   type Session = NonNullable<typeof upcomingSessions>[number]
@@ -270,10 +279,10 @@ export default async function HomePage() {
       )}
 
       {/* ── My leagues ── */}
-      {(leagues ?? []).length > 0 && (
+      {allMyLeagues.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-heading text-base font-bold text-brand-dark">My Leagues</h2>
-          {(leagues ?? []).map((league) => {
+          {allMyLeagues.map((league) => {
             const nextSession = (sessionsByLeague[league.id as string] ?? [])[0]
             const isManager = league.created_by === user.id
             return (
