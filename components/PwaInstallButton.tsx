@@ -32,7 +32,7 @@ export default function PwaInstallButton() {
           if (outcome === 'accepted') setInstalled(true)
           setPrompt(null)
         }}
-        className="pointer-events-auto bg-brand-dark text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2"
+        className="pointer-events-auto bg-brand-dark text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-lg flex items-center gap-1.5"
       >
         <span>📲</span> Install Joinzer App
       </button>
