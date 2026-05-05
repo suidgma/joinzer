@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     description: 'Find and join local pickleball sessions in Las Vegas.',
     images: ['/logo.png'],
   },
+  icons: {
+    apple: '/apple-touch-icon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -24,9 +27,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${manrope.variable}`}>
-      <head>
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-      </head>
       <body suppressHydrationWarning className="font-sans">
         <ServiceWorkerRegistration />
         {children}
