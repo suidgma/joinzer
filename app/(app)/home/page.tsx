@@ -49,6 +49,17 @@ function eventDateLabel(isoStr: string) {
   })
 }
 
+// Haversine distance in miles between two lat/lng points
+function distanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.asin(Math.sqrt(a))
+}
+
 // Unified schedule item for chronological sort
 type ScheduleItem =
   | { kind: 'session'; sortKey: string; data: any; league: any; myStatus: string; isManager: boolean }
@@ -94,7 +105,7 @@ export default async function HomePage() {
           .order('session_date', { ascending: true })
           .limit(15)
       : Promise.resolve({ data: [] }),
-    db.from('profiles').select('name, dupr_rating, estimated_rating').eq('id', user.id).single(),
+    db.from('profiles').select('name, dupr_rating, estimated_rating, home_court:locations!home_court_id(lat, lng)').eq('id', user.id).single(),
     db.from('event_participants')
       .select(`
         event:events!event_id (
@@ -147,13 +158,31 @@ export default async function HomePage() {
       return q
     })(),
     db.from('tournaments')
-      .select('id, name, start_date, location:locations!location_id(name)')
+      .select('id, name, start_date, location:locations!location_id(name, lat, lng)')
       .eq('status', 'published')
       .eq('visibility', 'public')
       .gte('start_date', today)
       .order('start_date', { ascending: true })
-      .limit(5),
+      .limit(20),
   ])
+
+  // Sort tournaments by distance from home court if available, otherwise by date
+  const homeCourt = (profile as any)?.home_court as { lat: number; lng: number } | null
+  const sortedTournaments = [...(upcomingTournaments ?? [])].sort((a, b) => {
+    if (homeCourt) {
+      const aLat = (a.location as any)?.lat
+      const aLng = (a.location as any)?.lng
+      const bLat = (b.location as any)?.lat
+      const bLng = (b.location as any)?.lng
+      if (aLat && bLat) {
+        return (
+          distanceMiles(homeCourt.lat, homeCourt.lng, aLat, aLng) -
+          distanceMiles(homeCourt.lat, homeCourt.lng, bLat, bLng)
+        )
+      }
+    }
+    return (a.start_date as string ?? '').localeCompare(b.start_date as string ?? '')
+  }).slice(0, 5)
 
   const attendanceMap = Object.fromEntries(
     (attendance ?? []).map((a) => [a.league_session_id as string, a.attendance_status as string])
@@ -195,7 +224,7 @@ export default async function HomePage() {
   const firstName = (profile?.name as string | null)?.split(' ')[0] ?? 'there'
   const hasSchedule = scheduleItems.length > 0
   const scheduleIsSparse = scheduleItems.length < 3
-  const hasDiscover = (discoverLeagues ?? []).length > 0 || (upcomingTournaments ?? []).length > 0
+  const hasDiscover = (discoverLeagues ?? []).length > 0 || sortedTournaments.length > 0
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
@@ -323,13 +352,13 @@ export default async function HomePage() {
           )}
 
           {/* Upcoming tournaments */}
-          {(upcomingTournaments ?? []).length > 0 && (
+          {sortedTournaments.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-brand-dark">Upcoming Tournaments</h3>
                 <Link href="/compete" className="text-xs text-brand-active hover:underline">See all →</Link>
               </div>
-              {(upcomingTournaments ?? []).map((t) => (
+              {sortedTournaments.map((t) => (
                 <Link
                   key={t.id as string}
                   href={`/compete/tournaments/${t.id as string}`}
