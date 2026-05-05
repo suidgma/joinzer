@@ -39,14 +39,6 @@ const REG_BADGE: Record<string, { label: string; cls: string }> = {
   upcoming:      { label: 'Coming Soon',  cls: 'bg-brand-soft text-brand-muted' },
 }
 
-const TOURN_BADGE: Record<string, { label: string; cls: string }> = {
-  upcoming:            { label: 'Coming Soon',       cls: 'bg-brand-soft text-brand-muted' },
-  registration_open:   { label: 'Registration Open', cls: 'bg-brand text-brand-dark' },
-  registration_closed: { label: 'Reg. Closed',       cls: 'bg-red-100 text-red-700' },
-  in_progress:         { label: 'In Progress',        cls: 'bg-yellow-100 text-yellow-800' },
-  completed:           { label: 'Completed',          cls: 'bg-brand-soft text-brand-muted' },
-  cancelled:           { label: 'Cancelled',          cls: 'bg-red-100 text-red-700' },
-}
 
 type League = {
   id: string
@@ -60,20 +52,8 @@ type League = {
   registration_status: string
 }
 
-type Tournament = {
-  id: string
-  name: string
-  location_name: string | null
-  start_date: string | null
-  end_date: string | null
-  status: string
-  cost_cents: number | null
-  eventSkillLevels: string[]
-}
-
 type Props = {
   leagues: League[]
-  tournaments: Tournament[]
   isLoggedIn: boolean
 }
 
@@ -84,7 +64,7 @@ function fmtDate(d: string | null, year = false) {
   })
 }
 
-export default function CompeteClient({ leagues, tournaments, isLoggedIn }: Props) {
+export default function CompeteClient({ leagues, isLoggedIn }: Props) {
   const [activeFilters, setActiveFilters] = useState<Set<SkillTier>>(new Set())
 
   function toggleTier(tier: SkillTier) {
@@ -103,15 +83,6 @@ export default function CompeteClient({ leagues, tournaments, isLoggedIn }: Prop
         return tier ? activeFilters.has(tier) : false
       })
     : leagues
-
-  const visibleTournaments = filtering
-    ? tournaments.filter((t) =>
-        t.eventSkillLevels.some((sl) => {
-          const tier = SKILL_LEVEL_TO_TIER[sl]
-          return tier ? activeFilters.has(tier) : false
-        })
-      )
-    : tournaments
 
   return (
     <div className="space-y-6">
@@ -195,55 +166,6 @@ export default function CompeteClient({ leagues, tournaments, isLoggedIn }: Prop
         )}
       </section>
 
-      {/* Tournaments */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-heading text-base font-bold text-brand-dark">Tournaments</h2>
-          {isLoggedIn && (
-            <Link href="/compete/tournaments/create" className="text-xs text-brand-active font-medium underline underline-offset-2">
-              + Create
-            </Link>
-          )}
-        </div>
-
-        {visibleTournaments.length === 0 ? (
-          <p className="text-sm text-brand-muted text-center py-8">
-            {filtering ? 'No tournaments match this skill level.' : 'No tournaments listed yet.'}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {visibleTournaments.map((t) => {
-              const badge = TOURN_BADGE[t.status] ?? TOURN_BADGE.upcoming
-              const cost = t.cost_cents ? `$${(t.cost_cents / 100).toFixed(0)}` : 'Free'
-              return (
-                <Link
-                  key={t.id}
-                  href={`/compete/tournaments/${t.id}`}
-                  className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-brand-dark truncate">{t.name}</p>
-                      {t.location_name && (
-                        <p className="text-xs text-brand-muted mt-0.5">📍 {t.location_name}</p>
-                      )}
-                      {(t.start_date || t.end_date) && (
-                        <p className="text-xs text-brand-muted mt-0.5">
-                          📅 {fmtDate(t.start_date)}{t.end_date ? ` – ${fmtDate(t.end_date, true)}` : ''}
-                        </p>
-                      )}
-                      <p className="text-xs text-brand-muted mt-0.5">💰 {cost}</p>
-                    </div>
-                    <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-full ${badge.cls}`}>
-                      {badge.label}
-                    </span>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        )}
-      </section>
     </div>
   )
 }

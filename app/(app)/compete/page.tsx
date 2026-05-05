@@ -5,42 +5,17 @@ export default async function CompetePage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: leagues }, { data: tournaments }, { data: tournamentEvents }] = await Promise.all([
-    supabase
-      .from('leagues')
-      .select('id, name, format, skill_level, location_name, start_date, end_date, max_players, registration_status')
-      .eq('status', 'active')
-      .order('start_date', { ascending: true }),
-    supabase
-      .from('tournaments')
-      .select('id, name, location:location_id(name), start_date, end_date, status, cost_cents')
-      .eq('status', 'published')
-      .order('start_date', { ascending: true }),
-    supabase
-      .from('tournament_events')
-      .select('tournament_id, skill_level'),
-  ])
-
-  // Build a map of tournament_id → distinct skill levels from its events
-  const eventSkillMap = new Map<string, Set<string>>()
-  for (const ev of tournamentEvents ?? []) {
-    if (!ev.skill_level) continue
-    if (!eventSkillMap.has(ev.tournament_id)) eventSkillMap.set(ev.tournament_id, new Set())
-    eventSkillMap.get(ev.tournament_id)!.add(ev.skill_level)
-  }
-
-  const tournamentList = (tournaments ?? []).map((t) => ({
-    ...t,
-    location_name: (t.location as unknown as { name: string } | null)?.name ?? null,
-    eventSkillLevels: Array.from(eventSkillMap.get(t.id) ?? []),
-  }))
+  const { data: leagues } = await supabase
+    .from('leagues')
+    .select('id, name, format, skill_level, location_name, start_date, end_date, max_players, registration_status')
+    .eq('status', 'active')
+    .order('start_date', { ascending: true })
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <h1 className="font-heading text-xl font-bold text-brand-dark">Compete</h1>
       <CompeteClient
         leagues={leagues ?? []}
-        tournaments={tournamentList}
         isLoggedIn={!!user}
       />
     </main>
