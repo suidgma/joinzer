@@ -70,21 +70,21 @@ type Props = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const ROSTER_STATUSES: { key: ActualStatus; label: string }[] = [
+const ROSTER_STATUSES: { key: ActualStatus; label: string; sublabel?: string }[] = [
   { key: 'present',       label: 'Here' },
-  { key: 'coming',        label: 'Cmg' },
+  { key: 'coming',        label: 'Coming' },
   { key: 'late',          label: 'Late' },
-  { key: 'cannot_attend', label: "Can't" },
+  { key: 'cannot_attend', label: "Can't",  sublabel: 'Come' },
   { key: 'has_sub',       label: 'Sub' },
-  { key: 'not_present',   label: 'Out' },
+  { key: 'not_present',   label: 'Not',    sublabel: 'Here' },
 ]
 
-const SUB_STATUSES: { key: ActualStatus; label: string }[] = [
+const SUB_STATUSES: { key: ActualStatus; label: string; sublabel?: string }[] = [
   { key: 'present',       label: 'Here' },
-  { key: 'coming',        label: 'Cmg' },
+  { key: 'coming',        label: 'Coming' },
   { key: 'late',          label: 'Late' },
-  { key: 'cannot_attend', label: "Can't" },
-  { key: 'not_present',   label: 'Out' },
+  { key: 'cannot_attend', label: "Can't",  sublabel: 'Come' },
+  { key: 'not_present',   label: 'Not',    sublabel: 'Here' },
 ]
 
 const ROW_BG: Record<ActualStatus, string> = {
@@ -823,7 +823,9 @@ export default function LiveSessionManager({
               <div className="grid grid-cols-[1fr_repeat(6,28px)] bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
                 <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
                 {ROSTER_STATUSES.map(s => (
-                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">{s.label}</span>
+                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">
+                    {s.label}{s.sublabel && <><br />{s.sublabel}</>}
+                  </span>
                 ))}
               </div>
               {rosterPlayers.map((p, idx) => {
@@ -888,7 +890,9 @@ export default function LiveSessionManager({
               <div className="grid grid-cols-[1fr_repeat(5,28px)] bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
                 <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
                 {SUB_STATUSES.map(s => (
-                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">{s.label}</span>
+                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">
+                    {s.label}{s.sublabel && <><br />{s.sublabel}</>}
+                  </span>
                 ))}
               </div>
               {subPlayers.map((p, idx) => {
