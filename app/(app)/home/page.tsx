@@ -149,11 +149,11 @@ export default async function HomePage() {
       : Promise.resolve({ data: [] }),
     (() => {
       let q = db.from('leagues')
-        .select('id, name, format, skill_level, location_name, registration_status, start_date')
+        .select('id, name, format, skill_level, location_name, registration_status, start_date, location:locations!location_id(lat, lng)')
         .in('skill_level', skillTiers)
         .in('registration_status', ['open', 'waitlist_only'])
         .order('start_date', { ascending: true, nullsFirst: false })
-        .limit(6)
+        .limit(20)
       if (leagueIds.length > 0) q = q.not('id', 'in', `(${leagueIds.join(',')})`)
       return q
     })(),
@@ -166,8 +166,28 @@ export default async function HomePage() {
       .limit(20),
   ])
 
-  // Sort tournaments by distance from home court if available, otherwise by date
   const homeCourt = (profile as any)?.home_court as { lat: number; lng: number } | null
+
+  // Sort leagues by distance from home court if available, otherwise by start_date
+  const sortedDiscoverLeagues = [...(discoverLeagues ?? [])].sort((a, b) => {
+    if (homeCourt) {
+      const aLat = (a.location as any)?.lat
+      const aLng = (a.location as any)?.lng
+      const bLat = (b.location as any)?.lat
+      const bLng = (b.location as any)?.lng
+      if (aLat && bLat) {
+        return (
+          distanceMiles(homeCourt.lat, homeCourt.lng, aLat, aLng) -
+          distanceMiles(homeCourt.lat, homeCourt.lng, bLat, bLng)
+        )
+      }
+      if (aLat) return -1
+      if (bLat) return 1
+    }
+    return (a.start_date as string ?? '').localeCompare(b.start_date as string ?? '')
+  }).slice(0, 6)
+
+  // Sort tournaments by distance from home court if available, otherwise by date
   const sortedTournaments = [...(upcomingTournaments ?? [])].sort((a, b) => {
     if (homeCourt) {
       const aLat = (a.location as any)?.lat
@@ -224,7 +244,7 @@ export default async function HomePage() {
   const firstName = (profile?.name as string | null)?.split(' ')[0] ?? 'there'
   const hasSchedule = scheduleItems.length > 0
   const scheduleIsSparse = scheduleItems.length < 3
-  const hasDiscover = (discoverLeagues ?? []).length > 0 || sortedTournaments.length > 0
+  const hasDiscover = sortedDiscoverLeagues.length > 0 || sortedTournaments.length > 0
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
@@ -315,13 +335,13 @@ export default async function HomePage() {
           </h2>
 
           {/* Featured leagues */}
-          {(discoverLeagues ?? []).length > 0 && (
+          {sortedDiscoverLeagues.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-brand-dark">Leagues Near Your Level</h3>
                 <Link href="/compete" className="text-xs text-brand-active hover:underline">See all →</Link>
               </div>
-              {(discoverLeagues ?? []).map((league) => (
+              {sortedDiscoverLeagues.map((league) => (
                 <Link
                   key={league.id as string}
                   href={`/compete/leagues/${league.id as string}`}

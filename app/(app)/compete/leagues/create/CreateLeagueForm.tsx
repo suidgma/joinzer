@@ -95,6 +95,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         format,
         skill_level: skillLevel,
         location_name: selectedLocation?.name ?? null,
+        location_id: locationId || null,
         schedule_description: scheduleDescription.trim() || null,
         start_date: startDate || null,
         end_date: lastDate || null,
