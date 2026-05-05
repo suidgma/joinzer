@@ -7,8 +7,8 @@ type Status = 'planning_to_attend' | 'cannot_attend' | 'checked_in_present' | 'r
 const BUTTONS: { status: Status; label: string; active: string; inactive: string }[] = [
   { status: 'planning_to_attend', label: "I'm coming",    active: 'bg-brand text-brand-dark border-brand',                inactive: 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand' },
   { status: 'checked_in_present', label: "I'm here",      active: 'bg-brand-dark text-white border-brand-dark',          inactive: 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-dark' },
-  { status: 'running_late',       label: 'Running late',  active: 'bg-yellow-100 text-yellow-800 border-yellow-300',     inactive: 'bg-brand-surface text-brand-muted border-brand-border hover:border-yellow-300' },
-  { status: 'cannot_attend',      label: "Can't make it", active: 'bg-red-50 text-red-700 border-red-300',               inactive: 'bg-brand-surface text-brand-muted border-brand-border hover:border-red-300' },
+  { status: 'running_late',       label: "I'm running late",  active: 'bg-yellow-100 text-yellow-800 border-yellow-300',     inactive: 'bg-brand-surface text-brand-muted border-brand-border hover:border-yellow-300' },
+  { status: 'cannot_attend',      label: "I can't make it",   active: 'bg-red-50 text-red-700 border-red-300',               inactive: 'bg-brand-surface text-brand-muted border-brand-border hover:border-red-300' },
 ]
 
 type Props = {
