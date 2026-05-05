@@ -122,7 +122,7 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
               : 'bg-brand-surface border-brand-border text-brand-muted hover:border-brand-active'
           }`}
         >
-          {subLoading ? 'Saving…' : localSub ? 'Sub interest removed ✓ (tap to undo)' : 'I\'m interested in subbing'}
+          {subLoading ? 'Saving…' : localSub ? '✓ Interested in subbing (tap to remove)' : "I'm interested in subbing"}
         </button>
       )}
     </div>
