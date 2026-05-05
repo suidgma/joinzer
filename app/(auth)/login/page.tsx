@@ -67,7 +67,7 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push('/events')
+      router.push('/home')
       router.refresh()
     } else {
       const { data, error } = await supabase.auth.signUp({ email, password })

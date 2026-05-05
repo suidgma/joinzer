@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && pathname === '/login') {
-    return NextResponse.redirect(new URL('/events', request.url))
+    return NextResponse.redirect(new URL('/home', request.url))
   }
 
   // Forward pathname so server layouts can read it via headers()

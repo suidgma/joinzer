@@ -94,7 +94,7 @@ export default function ProfileSetupPage() {
       body: JSON.stringify({ name: name.trim(), email: user.email ?? '' }),
     })
 
-    router.push('/events')
+    router.push('/home')
   }
 
   const canSubmit = name.trim().length > 0 && ratingSource !== null && !loading

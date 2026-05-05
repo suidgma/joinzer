@@ -47,7 +47,7 @@ function ResetPasswordForm() {
       return
     }
 
-    router.push('/events')
+    router.push('/home')
     router.refresh()
   }
 
