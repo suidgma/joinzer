@@ -9,11 +9,18 @@ export default async function ProfileEditPage() {
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, name, display_name, phone, gender, rating_source, dupr_rating, estimated_rating, notify_new_sessions, profile_photo_url')
-    .eq('id', user.id)
-    .single()
+  const [{ data: profile }, { data: locations }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, name, display_name, phone, gender, rating_source, dupr_rating, estimated_rating, notify_new_sessions, profile_photo_url, home_court_id')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('locations')
+      .select('id, name')
+      .order('court_count', { ascending: false })
+      .order('name', { ascending: true }),
+  ])
 
   if (!profile) redirect('/profile/setup')
 
@@ -23,7 +30,7 @@ export default async function ProfileEditPage() {
         ← Back to profile
       </Link>
       <h1 className="text-xl font-bold">Edit Profile</h1>
-      <ProfileEditForm profile={profile} />
+      <ProfileEditForm profile={profile} locations={locations ?? []} />
     </main>
   )
 }

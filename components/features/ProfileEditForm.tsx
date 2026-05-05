@@ -18,9 +18,12 @@ type Profile = {
   estimated_rating: number | null
   notify_new_sessions: boolean
   profile_photo_url: string | null
+  home_court_id: string | null
 }
 
-export default function ProfileEditForm({ profile }: { profile: Profile }) {
+type Location = { id: string; name: string }
+
+export default function ProfileEditForm({ profile, locations }: { profile: Profile; locations: Location[] }) {
   const router = useRouter()
   const [name, setName] = useState(profile.name)
   const [displayName, setDisplayName] = useState(profile.display_name ?? '')
@@ -39,6 +42,8 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
     (profile.gender as 'male' | 'female' | null) ?? null
   )
   const [notifyNewSessions, setNotifyNewSessions] = useState(profile.notify_new_sessions)
+  const [homeCourt, setHomeCourt] = useState<string>(profile.home_court_id ?? '')
+  const [courtSearch, setCourtSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,6 +71,7 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
         profile_photo_url: photoUrl,
         joinzer_rating: seedJoinzerRating(numericRating),
         gender,
+        home_court_id: homeCourt || null,
       })
       .eq('id', profile.id)
 
@@ -151,6 +157,40 @@ export default function ProfileEditForm({ profile }: { profile: Profile }) {
           ))}
         </div>
       </div>
+
+      {locations.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Home court{' '}
+            <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={courtSearch}
+            onChange={(e) => setCourtSearch(e.target.value)}
+            placeholder="Search courts…"
+            className="w-full input mb-1"
+          />
+          <select
+            value={homeCourt}
+            onChange={(e) => setHomeCourt(e.target.value)}
+            className="w-full input"
+            size={4}
+          >
+            <option value="">None</option>
+            {locations
+              .filter((l) => l.name.toLowerCase().includes(courtSearch.toLowerCase()))
+              .map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+          </select>
+          {homeCourt && (
+            <p className="text-xs text-brand-muted mt-1">
+              Selected: {locations.find((l) => l.id === homeCourt)?.name}
+            </p>
+          )}
+        </div>
+      )}
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium">DUPR rating</legend>

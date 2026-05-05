@@ -21,10 +21,12 @@ export default function ProfileSetupPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [gender, setGender] = useState<'male' | 'female' | null>(null)
   const [notifyNewSessions, setNotifyNewSessions] = useState(true)
+  const [homeCourt, setHomeCourt] = useState('')
+  const [courtSearch, setCourtSearch] = useState('')
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Pre-fill name from Google OAuth metadata if available
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -33,6 +35,12 @@ export default function ProfileSetupPage() {
       const googleName = user?.user_metadata?.full_name as string | undefined
       if (googleName && !name) setName(googleName)
     })
+    supabase
+      .from('locations')
+      .select('id, name')
+      .order('court_count', { ascending: false })
+      .order('name', { ascending: true })
+      .then(({ data }) => setLocations(data ?? []))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -65,6 +73,7 @@ export default function ProfileSetupPage() {
       phone: phone.trim() || null,
       notify_new_sessions: notifyNewSessions,
       profile_photo_url: photoUrl,
+      home_court_id: homeCourt || null,
       rating_source: ratingSource,
       dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
       estimated_rating: ratingSource === 'estimated' ? numericRating : null,
@@ -162,6 +171,40 @@ export default function ProfileSetupPage() {
                 ))}
               </div>
             </div>
+
+            {locations.length > 0 && (
+              <div>
+                <label className={labelClass}>
+                  Home court{' '}
+                  <span className="text-brand-muted font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={courtSearch}
+                  onChange={(e) => setCourtSearch(e.target.value)}
+                  placeholder="Search courts…"
+                  className={`${inputClass} mb-1`}
+                />
+                <select
+                  value={homeCourt}
+                  onChange={(e) => setHomeCourt(e.target.value)}
+                  className={inputClass}
+                  size={4}
+                >
+                  <option value="">None</option>
+                  {locations
+                    .filter((l) => l.name.toLowerCase().includes(courtSearch.toLowerCase()))
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                </select>
+                {homeCourt && (
+                  <p className="text-xs text-brand-muted mt-1">
+                    Selected: {locations.find((l) => l.id === homeCourt)?.name}
+                  </p>
+                )}
+              </div>
+            )}
 
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium text-brand-dark">
