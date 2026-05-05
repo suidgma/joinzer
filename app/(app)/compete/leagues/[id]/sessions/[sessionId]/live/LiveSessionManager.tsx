@@ -4,6 +4,8 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
+import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -536,6 +538,11 @@ export default function LiveSessionManager({
   const [localSubRequests, setLocalSubRequests] = useState<SubRequest[]>(subRequests)
   const [approvingSubId, setApprovingSubId] = useState<string | null>(null)
 
+  type SyncStatus = 'synced' | 'saving' | 'saved_locally' | 'syncing' | 'sync_failed'
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced')
+  const [realtimeOk, setRealtimeOk] = useState(true)
+  const isOnline = useOnlineStatus()
+
   // session_player_id → user_id (for score lookup)
   const spToUserId = new Map<string, string>(
     players.filter(p => p.user_id).map(p => [p.id, p.user_id!])
@@ -564,7 +571,7 @@ export default function LiveSessionManager({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-// Realtime: sync player status changes (e.g. self-check-in from player's device)
+  // Realtime: sync player status changes (e.g. self-check-in from player's device)
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -577,10 +584,23 @@ export default function LiveSessionManager({
           setPlayers(prev => prev.map(p => p.id === updated.id ? { ...p, actual_status: updated.actual_status } : p))
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        setRealtimeOk(status === 'SUBSCRIBED')
+      })
 
     return () => { supabase.removeChannel(channel) }
   }, [sessionId])
+
+  // Drain pending queue when coming back online
+  useEffect(() => {
+    if (!isOnline) return
+    const queue = getQueue(sessionId)
+    if (queue.length === 0) return
+    setSyncStatus('syncing')
+    drainQueue(sessionId).then(({ failed }) => {
+      setSyncStatus(failed > 0 ? 'sync_failed' : 'synced')
+    })
+  }, [isOnline, sessionId])
 
   const presentPlayers  = players.filter(p => p.actual_status === 'present')
   const presentCount    = presentPlayers.length
@@ -616,8 +636,10 @@ export default function LiveSessionManager({
     return `${eligibleCount} players eligible — ${parts.join(', ')} across ${courts} courts.`
   }
 
-  // --- Status update ---
+  // --- Status update (offline-safe) ---
   const handleStatusChange = useCallback(async (playerId: string, status: ActualStatus) => {
+    // Remember previous status for rollback
+    const prev_status = players.find(p => p.id === playerId)?.actual_status
     // Optimistic update
     setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, actual_status: status } : p))
 
@@ -630,13 +652,36 @@ export default function LiveSessionManager({
       }
     }
 
-    await fetch(`/api/league-sessions/${sessionId}/players/${playerId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    // No router.refresh() — state is already updated optimistically
-  }, [sessionId, players, rounds])
+    const url = `/api/league-sessions/${sessionId}/players/${playerId}`
+    const bodyStr = JSON.stringify(body)
+
+    if (!isOnline) {
+      enqueue(sessionId, { url, method: 'PATCH', body: bodyStr, dedupeKey: `player-status-${playerId}` })
+      setSyncStatus('saved_locally')
+      return
+    }
+
+    setSyncStatus('saving')
+    try {
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: bodyStr,
+      })
+      if (res.ok) {
+        setSyncStatus('synced')
+      } else {
+        // Roll back optimistic update and queue for retry
+        if (prev_status) setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, actual_status: prev_status } : p))
+        enqueue(sessionId, { url, method: 'PATCH', body: bodyStr, dedupeKey: `player-status-${playerId}` })
+        setSyncStatus('sync_failed')
+      }
+    } catch {
+      // Network error — queue it
+      enqueue(sessionId, { url, method: 'PATCH', body: bodyStr, dedupeKey: `player-status-${playerId}` })
+      setSyncStatus('saved_locally')
+    }
+  }, [sessionId, players, rounds, isOnline])
 
   // --- Generate round ---
   async function handleGenerate(replaceExisting = false) {
@@ -679,17 +724,29 @@ export default function LiveSessionManager({
 
   // --- Round actions ---
   async function roundAction(roundId: string, action: 'lock' | 'unlock' | 'complete') {
+    if (!isOnline) {
+      setError('You\'re offline. Please reconnect before locking or completing a round.')
+      return
+    }
     setLoading(true)
     setError(null)
+    setSyncStatus('saving')
     const res = await fetch(`/api/league-rounds/${roundId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),
     })
-    if (!res.ok) { const d = await res.json(); setError(d.error); setLoading(false); return }
+    if (!res.ok) {
+      const d = await res.json()
+      setError(d.error)
+      setLoading(false)
+      setSyncStatus('sync_failed')
+      return
+    }
     const updated = await res.json()
     setRounds(prev => prev.map(r => r.id === roundId ? { ...r, status: updated.status, locked_at: updated.locked_at, completed_at: updated.completed_at } : r))
     setLoading(false)
+    setSyncStatus('synced')
     if (action === 'complete') {
       router.push(`/compete/leagues/${leagueId}/sessions/${sessionId}/results`)
     }
@@ -773,8 +830,37 @@ export default function LiveSessionManager({
       p.user_id
   )
 
+  // ─── Sync / connection status bar ────────────────────────────────────────────
+  const syncBar = (() => {
+    if (!isOnline) return { text: 'Offline — changes saved locally', bg: 'bg-yellow-50 border-yellow-300 text-yellow-800' }
+    if (syncStatus === 'syncing')     return { text: 'Syncing changes…', bg: 'bg-blue-50 border-blue-200 text-blue-800' }
+    if (syncStatus === 'saved_locally') return { text: 'Saved locally — will sync when reconnected', bg: 'bg-yellow-50 border-yellow-300 text-yellow-800' }
+    if (syncStatus === 'sync_failed') return { text: 'Sync failed — tap to retry', bg: 'bg-red-50 border-red-300 text-red-800', retry: true }
+    if (syncStatus === 'saving')      return { text: 'Saving…', bg: 'bg-brand-soft border-brand-border text-brand-muted' }
+    if (!realtimeOk)                  return { text: 'Live updates paused — reconnecting…', bg: 'bg-yellow-50 border-yellow-300 text-yellow-800' }
+    return null
+  })()
+
   return (
     <div className="space-y-5">
+
+      {/* Connection / sync status bar */}
+      {syncBar && (
+        <div className={`border rounded-xl px-3 py-2 text-xs font-medium flex items-center justify-between gap-2 ${syncBar.bg}`}>
+          <span>{syncBar.text}</span>
+          {(syncBar as any).retry && (
+            <button
+              onClick={() => {
+                setSyncStatus('syncing')
+                drainQueue(sessionId).then(({ failed }) => setSyncStatus(failed > 0 ? 'sync_failed' : 'synced'))
+              }}
+              className="underline font-semibold"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-3 gap-2">
