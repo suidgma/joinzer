@@ -321,7 +321,7 @@ export default async function HomePage() {
               return (
                 <Link
                   key={`t-${t.id}`}
-                  href={`/compete/tournaments/${t.id}`}
+                  href={`/tournaments/${t.id}`}
                   className="block bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-1 hover:border-brand-active transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -414,7 +414,7 @@ export default async function HomePage() {
               {sortedTournaments.map((t) => (
                 <Link
                   key={t.id as string}
-                  href={`/compete/tournaments/${t.id as string}`}
+                  href={`/tournaments/${t.id as string}`}
                   className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
