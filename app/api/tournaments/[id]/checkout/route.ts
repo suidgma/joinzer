@@ -3,8 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -16,6 +14,7 @@ export async function POST(
   const { registration_id } = await req.json().catch(() => ({}))
   if (!registration_id) return NextResponse.json({ error: 'registration_id required' }, { status: 400 })
 
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
   const service = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
