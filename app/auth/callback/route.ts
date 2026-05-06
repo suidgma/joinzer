@@ -70,6 +70,6 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(
-    profile ? `${origin}/events` : `${origin}/profile/setup`
+    profile ? `${origin}/home` : `${origin}/profile/setup`
   )
 }
