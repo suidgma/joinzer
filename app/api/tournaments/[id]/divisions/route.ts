@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const db = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,5 +37,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     tournament_registrations: regsByDivision[div.id] ?? [],
   }))
 
-  return NextResponse.json({ divisions: result })
+  return NextResponse.json({ divisions: result }, {
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }
