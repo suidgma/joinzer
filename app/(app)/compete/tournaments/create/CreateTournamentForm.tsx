@@ -106,7 +106,7 @@ export default function CreateTournamentForm({ locations }: { locations: Locatio
       )
     }
 
-    router.push(`/compete/tournaments/${tournament.id}`)
+    router.push(`/tournaments/${tournament.id}`)
   }
 
   return (
