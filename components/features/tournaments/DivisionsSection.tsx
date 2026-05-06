@@ -79,6 +79,13 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
 
+  // Add player state (organizer)
+  const [addingPlayerId, setAddingPlayerId] = useState<string | null>(null) // division id
+  const [playerSearch, setPlayerSearch] = useState('')
+  const [playerResults, setPlayerResults] = useState<{ id: string; name: string }[]>([])
+  const [addPlayerLoading, setAddPlayerLoading] = useState(false)
+  const [addPlayerError, setAddPlayerError] = useState<string | null>(null)
+
   // ── Add division ──────────────────────────────────────────────────
   async function handleAddDivision(e: React.FormEvent) {
     e.preventDefault()
@@ -217,6 +224,44 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       .eq('id', divisionId)
     if (error) return
     setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'closed' } : d))
+  }
+
+  // ── Organizer: search players ─────────────────────────────────────
+  async function searchPlayers(query: string) {
+    setPlayerSearch(query)
+    if (query.trim().length < 2) { setPlayerResults([]); return }
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .ilike('name', `%${query}%`)
+      .limit(8)
+    setPlayerResults(data ?? [])
+  }
+
+  // ── Organizer: add player to division ─────────────────────────────
+  async function handleAddPlayer(divisionId: string, userId: string, userName: string) {
+    setAddPlayerLoading(true)
+    setAddPlayerError(null)
+    const res = await fetch(
+      `/api/tournaments/${tournamentId}/divisions/${divisionId}/register`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }) }
+    )
+    const json = await res.json()
+    if (!res.ok) { setAddPlayerError(json.error ?? 'Failed to add player'); setAddPlayerLoading(false); return }
+
+    const reg = { ...json.registration, user_profile: { name: userName } }
+    setDivisions(prev => prev.map(d =>
+      d.id === divisionId
+        ? { ...d, tournament_registrations: [...d.tournament_registrations, reg] }
+        : d
+    ))
+    setAddingPlayerId(null)
+    setPlayerSearch('')
+    setPlayerResults([])
+    setAddPlayerLoading(false)
+    router.refresh()
   }
 
   function updateReg(divisionId: string, regId: string, status: string) {
@@ -542,6 +587,49 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                             </li>
                           ))}
                       </ul>
+                    )}
+
+                    {/* Add Player */}
+                    {addingPlayerId === div.id ? (
+                      <div className="pt-2 space-y-2">
+                        <input
+                          type="text"
+                          value={playerSearch}
+                          onChange={e => searchPlayers(e.target.value)}
+                          placeholder="Search player by name…"
+                          className="w-full input text-xs"
+                          autoFocus
+                        />
+                        {playerResults.length > 0 && (
+                          <ul className="border border-brand-border rounded-xl overflow-hidden">
+                            {playerResults.map(p => (
+                              <li key={p.id}>
+                                <button
+                                  onClick={() => handleAddPlayer(div.id, p.id, p.name)}
+                                  disabled={addPlayerLoading}
+                                  className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors"
+                                >
+                                  {p.name}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {addPlayerError && <p className="text-xs text-red-600">{addPlayerError}</p>}
+                        <button
+                          onClick={() => { setAddingPlayerId(null); setPlayerSearch(''); setPlayerResults([]); setAddPlayerError(null) }}
+                          className="text-xs text-brand-muted hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setAddingPlayerId(div.id); setPlayerSearch(''); setPlayerResults([]); setAddPlayerError(null) }}
+                        className="text-xs text-brand-active font-medium hover:underline pt-1"
+                      >
+                        + Add Player
+                      </button>
                     )}
                   </div>
                 )}
