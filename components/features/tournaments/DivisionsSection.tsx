@@ -189,6 +189,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       .eq('id', regId)
     if (error) return
     updateReg(divisionId, regId, 'cancelled')
+    router.refresh()
   }
 
   // ── Organizer: remove registrant ──────────────────────────────────
