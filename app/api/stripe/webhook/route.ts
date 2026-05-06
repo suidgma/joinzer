@@ -4,8 +4,7 @@ import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
-// Stripe requires the raw body for signature verification
-export const config = { api: { bodyParser: false } }
+// App Router reads raw body via req.text() — no config needed
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
