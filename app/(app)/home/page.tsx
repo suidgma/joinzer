@@ -245,9 +245,12 @@ export default async function HomePage() {
     scheduleItems.push({ kind: 'event', sortKey: ev.starts_at, data: ev })
   }
 
+  const seenTournamentIds = new Set<string>()
   for (const reg of tournamentRegistrations ?? []) {
     const t = reg.tournament as any
     if (!t || !t.start_date || t.start_date < today) continue
+    if (seenTournamentIds.has(t.id)) continue
+    seenTournamentIds.add(t.id)
     scheduleItems.push({ kind: 'tournament', sortKey: t.start_date + 'T12:00:00Z', data: t })
   }
 
