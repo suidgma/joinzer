@@ -47,7 +47,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .from('tournaments')
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
-        status, visibility, registration_status, organizer_id, cost_cents,
+        status, visibility, registration_status, organizer_id,
         location_id,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),
@@ -82,6 +82,14 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   ])
 
   if (!data) notFound()
+
+  // Fetch cost_cents separately so a missing column doesn't 404 the whole page
+  const { data: costRow } = await db
+    .from('tournaments')
+    .select('cost_cents')
+    .eq('id', params.id)
+    .single()
+  const costCents: number = (costRow as any)?.cost_cents ?? 0
 
   const tournament = data as unknown as TournamentDetail
   const isOrganizer = user?.id === tournament.organizer_id
@@ -188,7 +196,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         initialDivisions={divisions}
         isOrganizer={isOrganizer}
         currentUserId={user?.id ?? null}
-        tournamentCostCents={(tournament as any).cost_cents ?? 0}
+        tournamentCostCents={costCents}
       />
 
       {/* Matches, scoring, and standings */}
