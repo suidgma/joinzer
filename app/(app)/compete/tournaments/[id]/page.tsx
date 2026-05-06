@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import TournamentEventList from './TournamentEventList'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
+import { formatSessionDate } from '@/lib/utils/date'
 
 const CATEGORY_LABELS: Record<string, string> = {
   mens_singles: "Men's Singles",
@@ -55,7 +56,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     : null
 
   const fmt = (d: string | null) =>
-    d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
+    d ? formatSessionDate(d, { weekday: undefined, month: 'long', day: 'numeric', year: 'numeric' }) : null
 
   const cost = tournament.cost_cents ? `$${(tournament.cost_cents / 100).toFixed(0)} per event` : 'Free'
 

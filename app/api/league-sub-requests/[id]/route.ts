@@ -93,7 +93,7 @@ async function sendClaimNotification(
   const session = sr.session as { session_date: string; session_number: number }
 
   const dateStr = session
-    ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
     : ''
 
   const leagueUrl = `https://joinzer.com/compete/leagues/${sr.league_id}`

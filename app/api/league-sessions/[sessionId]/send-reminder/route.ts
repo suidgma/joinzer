@@ -46,7 +46,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const dateStr = new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
+    timeZone: 'America/Los_Angeles', weekday: 'long', month: 'long', day: 'numeric',
   })
   const leagueUrl = `https://joinzer.com/compete/leagues/${league.id}`
 

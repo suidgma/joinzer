@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { formatSessionDate } from '@/lib/utils/date'
 
 type Session = {
   id: string
@@ -74,9 +75,7 @@ export default function SessionScheduleManager({ leagueId, sessions: initial }: 
   return (
     <div className="space-y-2">
       {sessions.map((s) => {
-        const dateStr = new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', {
-          weekday: 'short', month: 'short', day: 'numeric',
-        })
+        const dateStr = formatSessionDate(s.session_date)
         const isEditing = editingId === s.id
 
         return (

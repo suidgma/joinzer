@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { formatSessionDate } from '@/lib/utils/date'
 
 type EventItem = {
   id: string
@@ -106,7 +107,7 @@ export default function TournamentEventList({ tournamentStatus, events, isLogged
                 )}
                 {evt.event_date && (
                   <p className="text-xs text-brand-muted">
-                    {new Date(evt.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {formatSessionDate(evt.event_date)}
                   </p>
                 )}
                 {evt.max_teams != null && (

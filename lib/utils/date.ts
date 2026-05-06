@@ -1,5 +1,31 @@
 const VEGAS_TZ = 'America/Los_Angeles'
 
+// Format a date-only string (YYYY-MM-DD) in Pacific time.
+// Uses noon UTC as anchor so the calendar day is unambiguous on any server.
+export function formatSessionDate(dateStr: string, opts?: Intl.DateTimeFormatOptions): string {
+  const d = new Date(dateStr + 'T12:00:00Z')
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: VEGAS_TZ,
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...opts,
+  }).format(d)
+}
+
+// Format a full ISO timestamp in Pacific time.
+export function formatTimestamp(isoStr: string, opts?: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: VEGAS_TZ,
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    ...opts,
+  }).format(new Date(isoStr))
+}
+
 export function joinzerRatingLabel(rating: number): string {
   if (rating >= 1200) return 'Advanced'
   if (rating >= 1100) return 'Intermediate Plus'

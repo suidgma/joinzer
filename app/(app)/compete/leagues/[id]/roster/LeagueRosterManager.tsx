@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { formatSessionDate } from '@/lib/utils/date'
 
 type PlayerReg = {
   status: string
@@ -293,9 +294,7 @@ export default function LeagueRosterManager({
           </h2>
           {sessions.map((s) => {
             const subs = s.league_session_subs ?? []
-            const dateStr = new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', {
-              weekday: 'short', month: 'short', day: 'numeric',
-            })
+            const dateStr = formatSessionDate(s.session_date)
             const isOpen = editingSessionId === s.id
 
             return (

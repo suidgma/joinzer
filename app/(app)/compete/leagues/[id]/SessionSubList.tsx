@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { formatSessionDate } from '@/lib/utils/date'
 
 type Session = {
   id: string
@@ -40,9 +41,7 @@ export default function SessionSubList({ sessions, mySubSessionIds }: Props) {
       {sessions.map((s) => {
         const isSubbed = subbed.has(s.id)
         const loading = loadingId === s.id
-        const dateStr = new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', {
-          weekday: 'short', month: 'short', day: 'numeric',
-        })
+        const dateStr = formatSessionDate(s.session_date)
         return (
           <div key={s.id} className="flex items-center justify-between bg-brand-surface border border-brand-border rounded-xl px-3 py-2.5">
             <div>

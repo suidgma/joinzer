@@ -3,6 +3,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import Link from 'next/link'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
+import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual RR',
@@ -36,17 +37,11 @@ function matchingSkillLevels(duprRating: number | null, estimatedRating: number 
 }
 
 function sessionDateLabel(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-  })
+  return formatSessionDate(d)
 }
 
 function eventDateLabel(isoStr: string) {
-  return new Date(isoStr).toLocaleString('en-US', {
-    timeZone: 'America/Los_Angeles',
-    weekday: 'short', month: 'short', day: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  })
+  return formatTimestamp(isoStr)
 }
 
 // Haversine distance in miles between two lat/lng points

@@ -3,6 +3,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LiveSessionManager from './LiveSessionManager'
+import { formatSessionDate } from '@/lib/utils/date'
 
 export default async function LiveSessionPage({
   params,
@@ -169,9 +170,7 @@ export default async function LiveSessionPage({
 
   const scoredRoundNumbers = Array.from(new Set((matchScoreRows ?? []).map(r => r.round_number as number)))
 
-  const dateStr = new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  })
+  const dateStr = formatSessionDate(session.session_date, { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">

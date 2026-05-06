@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
+import { formatSessionDate } from '@/lib/utils/date'
 import MatchEntryForm from './MatchEntryForm'
 import LockedRoundsScoring, { type LockedMatch } from './LockedRoundsScoring'
 
@@ -132,9 +133,7 @@ export default async function SessionResultsPage({
     return { id: p.id, name: p.name }
   }).sort((a, b) => a.name.localeCompare(b.name))
 
-  const dateStr = new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  })
+  const dateStr = formatSessionDate(session.session_date, { weekday: 'long', month: 'long', day: 'numeric' })
 
   // Manually-entered matches (those not from locked rounds)
   const lockedPlayerSigs = new Set(

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { formatSessionDate } from '@/lib/utils/date'
 import LeagueActions from './LeagueActions'
 import SessionSubList from './SessionSubList'
 import DeleteLeagueButton from './DeleteLeagueButton'
@@ -126,7 +127,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const genderMismatch = user && requiredGender && userGender !== requiredGender
 
   const fmt = (d: string | null) =>
-    d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
+    d ? formatSessionDate(d, { weekday: undefined, month: 'long', day: 'numeric', year: 'numeric' }) : null
 
   // Derive end date from last session so it stays accurate after session edits
   const lastSessionDate = sessions && sessions.length > 0 ? sessions[sessions.length - 1].session_date : null
@@ -217,7 +218,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
               return (
                 <div key={s!.id} className="space-y-2">
                   <p className="text-sm font-semibold text-yellow-900">
-                    Session {s!.session_number} — {new Date(s!.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    Session {s!.session_number} — {formatSessionDate(s!.session_date)}
                   </p>
                   <PlayerCheckIn
                     sessionId={s!.id}
@@ -260,7 +261,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-brand-dark">
-                          Session {s.session_number} — {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          Session {s.session_number} — {formatSessionDate(s.session_date)}
                         </p>
                         {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
                         {(s.status === 'completed' || s.status === 'in_progress') && (

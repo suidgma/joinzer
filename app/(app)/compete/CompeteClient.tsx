@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { formatSessionDate } from '@/lib/utils/date'
 
 const SKILL_TIERS = [
   'Beginner',
@@ -59,8 +60,8 @@ type Props = {
 
 function fmtDate(d: string | null, year = false) {
   if (!d) return null
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}),
+  return formatSessionDate(d, {
+    weekday: undefined, month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}),
   })
 }
 

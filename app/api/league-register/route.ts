@@ -23,7 +23,7 @@ const SKILL_LABELS: Record<string, string> = {
 
 function fmtDate(d: string | null) {
   if (!d) return null
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 export async function POST(request: NextRequest) {

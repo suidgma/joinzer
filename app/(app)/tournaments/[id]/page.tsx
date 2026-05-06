@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { formatSessionDate } from '@/lib/utils/date'
 import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
 import MatchesSection from '@/components/features/tournaments/MatchesSection'
@@ -8,9 +9,7 @@ import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  })
+  return formatSessionDate(dateStr, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 function formatTime(timeStr: string) {

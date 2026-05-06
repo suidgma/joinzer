@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { formatSessionDate } from '@/lib/utils/date'
 
 const FORMAT_OPTIONS = [
   { value: 'individual_round_robin', label: 'Individual Round Robin' },
@@ -198,7 +199,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
               <div className="space-y-0.5 max-h-40 overflow-y-auto">
                 {generatedDates.map((d, i) => (
                   <p key={d} className="text-xs text-brand-muted">
-                    Play {i + 1} — {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    Play {i + 1} — {formatSessionDate(d)}
                   </p>
                 ))}
               </div>
