@@ -59,6 +59,7 @@ function distanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): 
 type ScheduleItem =
   | { kind: 'session'; sortKey: string; data: any; league: any; myStatus: string; isManager: boolean }
   | { kind: 'event'; sortKey: string; data: any }
+  | { kind: 'tournament'; sortKey: string; data: any }
 
 export default async function HomePage() {
   const supabase = createClient()
@@ -87,6 +88,7 @@ export default async function HomePage() {
     { data: upcomingSessions },
     { data: profile },
     { data: joinedEventRows },
+    { data: tournamentRegistrations },
   ] = await Promise.all([
     registeredLeagueIds.length > 0
       ? db.from('leagues').select('id, name, format, skill_level, location_name, created_by').in('id', registeredLeagueIds)
@@ -111,6 +113,15 @@ export default async function HomePage() {
       `)
       .eq('user_id', user.id)
       .eq('participant_status', 'joined'),
+    db.from('tournament_registrations')
+      .select(`
+        tournament:tournaments!tournament_id (
+          id, name, start_date,
+          location:locations!location_id (name)
+        )
+      `)
+      .eq('user_id', user.id)
+      .in('status', ['registered', 'confirmed', 'approved']),
   ])
 
   const skillTiers = matchingSkillLevels(
@@ -234,6 +245,12 @@ export default async function HomePage() {
     scheduleItems.push({ kind: 'event', sortKey: ev.starts_at, data: ev })
   }
 
+  for (const reg of tournamentRegistrations ?? []) {
+    const t = reg.tournament as any
+    if (!t || !t.start_date || t.start_date < today) continue
+    scheduleItems.push({ kind: 'tournament', sortKey: t.start_date + 'T12:00:00Z', data: t })
+  }
+
   scheduleItems.sort((a, b) => new Date(a.sortKey).getTime() - new Date(b.sortKey).getTime())
   const visibleSchedule = scheduleItems.slice(0, 5)
 
@@ -296,6 +313,26 @@ export default async function HomePage() {
                     />
                   )}
                 </div>
+              )
+            }
+
+            if (item.kind === 'tournament') {
+              const t = item.data
+              return (
+                <Link
+                  key={`t-${t.id}`}
+                  href={`/compete/tournaments/${t.id}`}
+                  className="block bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-1 hover:border-brand-active transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-brand-dark leading-snug">{t.name}</p>
+                    <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand/20 text-brand-dark">
+                      Tournament
+                    </span>
+                  </div>
+                  {t.location?.name && <p className="text-xs text-brand-muted">{t.location.name}</p>}
+                  <p className="text-xs text-brand-muted">{formatSessionDate(t.start_date)}</p>
+                </Link>
               )
             }
 
