@@ -320,14 +320,20 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
 
   // ── Pay for registration via Stripe Checkout ─────────────────────
   async function handlePay(regId: string) {
-    const res = await fetch(`/api/tournaments/${tournamentId}/checkout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ registration_id: regId }),
-    })
-    const json = await res.json()
-    if (json.free) { router.refresh(); return }
-    if (json.url) { window.location.href = json.url; return }
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration_id: regId }),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(`Payment error: ${json.error ?? 'Unknown error'}`); return }
+      if (json.free) { router.refresh(); return }
+      if (json.url) { window.location.href = json.url; return }
+      alert('No checkout URL returned — check console')
+    } catch (err) {
+      alert(`Failed to start checkout: ${err}`)
+    }
   }
 
   function updateReg(divisionId: string, regId: string, status: string) {
