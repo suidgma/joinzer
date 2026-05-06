@@ -240,9 +240,10 @@ export default async function HomePage() {
   }
 
   scheduleItems.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+  const visibleSchedule = scheduleItems.slice(0, 5)
 
   const firstName = (profile?.name as string | null)?.split(' ')[0] ?? 'there'
-  const hasSchedule = scheduleItems.length > 0
+  const hasSchedule = visibleSchedule.length > 0
   const scheduleIsSparse = scheduleItems.length < 3
   const hasDiscover = sortedDiscoverLeagues.length > 0 || sortedTournaments.length > 0
 
@@ -260,7 +261,7 @@ export default async function HomePage() {
       {hasSchedule && (
         <section className="space-y-3">
           <h2 className="font-heading text-base font-bold text-brand-dark">My Schedule</h2>
-          {scheduleItems.map((item) => {
+          {visibleSchedule.map((item) => {
             if (item.kind === 'session') {
               const s = item.data
               const { league, myStatus, isManager } = item
