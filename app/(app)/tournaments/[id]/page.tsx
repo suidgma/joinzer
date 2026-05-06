@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
@@ -38,10 +39,11 @@ function StatusBadge({ status }: { status: string }) {
 
 export default async function TournamentDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
+  const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data }, { data: divisionsData }, { data: matchesData }, { data: tournamentMessages }] = await Promise.all([
-    supabase
+    db
       .from('tournaments')
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
@@ -53,7 +55,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       `)
       .eq('id', params.id)
       .single(),
-    supabase
+    db
       .from('tournament_divisions')
       .select(`
         id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json,
@@ -64,7 +66,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       `)
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
-    supabase
+    db
       .from('tournament_matches')
       .select(`
         id, division_id, round_number, match_number, match_stage, pool_number,
@@ -73,7 +75,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       `)
       .eq('tournament_id', params.id)
       .order('match_number', { ascending: true }),
-    supabase
+    db
       .from('tournament_messages')
       .select('id, user_id, message_text, created_at, profile:profiles!user_id(name)')
       .eq('tournament_id', params.id)
