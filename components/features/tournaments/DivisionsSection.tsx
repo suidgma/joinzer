@@ -47,9 +47,10 @@ type Props = {
   initialDivisions: Division[]
   isOrganizer: boolean
   currentUserId: string | null
+  tournamentCostCents: number
 }
 
-export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId }: Props) {
+export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -317,6 +318,18 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     router.refresh()
   }
 
+  // ── Pay for registration via Stripe Checkout ─────────────────────
+  async function handlePay(regId: string) {
+    const res = await fetch(`/api/tournaments/${tournamentId}/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ registration_id: regId }),
+    })
+    const json = await res.json()
+    if (json.free) { router.refresh(); return }
+    if (json.url) { window.location.href = json.url; return }
+  }
+
   function updateReg(divisionId: string, regId: string, status: string) {
     setDivisions(prev => prev.map(d =>
       d.id !== divisionId ? d : {
@@ -556,11 +569,24 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
 
                 {/* My status */}
                 {myReg && (
-                  <div className={`text-xs px-2.5 py-1.5 rounded-lg font-medium ${
-                    myReg.status === 'registered' ? 'bg-brand-soft text-brand-active' : 'bg-yellow-50 text-yellow-700'
-                  }`}>
-                    {myReg.status === 'registered' ? '✓ Registered' : '⏳ On waitlist'}
-                    {myReg.team_name && ` · ${myReg.team_name}`}
+                  <div className="space-y-2">
+                    <div className={`text-xs px-2.5 py-1.5 rounded-lg font-medium ${
+                      myReg.status === 'registered' ? 'bg-brand-soft text-brand-active' : 'bg-yellow-50 text-yellow-700'
+                    }`}>
+                      {myReg.status === 'registered' ? '✓ Registered' : '⏳ On waitlist'}
+                      {myReg.team_name && ` · ${myReg.team_name}`}
+                    </div>
+                    {myReg.payment_status === 'unpaid' && tournamentCostCents > 0 && (
+                      <button
+                        onClick={() => handlePay(myReg.id)}
+                        className="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                      >
+                        Pay Entry Fee · ${(tournamentCostCents / 100).toFixed(2)}
+                      </button>
+                    )}
+                    {myReg.payment_status === 'paid' && (
+                      <p className="text-xs text-green-600 font-medium">$ Payment received</p>
+                    )}
                   </div>
                 )}
 

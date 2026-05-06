@@ -47,7 +47,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .from('tournaments')
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
-        status, visibility, registration_status, organizer_id,
+        status, visibility, registration_status, organizer_id, cost_cents,
         location_id,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),
@@ -188,6 +188,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         initialDivisions={divisions}
         isOrganizer={isOrganizer}
         currentUserId={user?.id ?? null}
+        tournamentCostCents={(tournament as any).cost_cents ?? 0}
       />
 
       {/* Matches, scoring, and standings */}
