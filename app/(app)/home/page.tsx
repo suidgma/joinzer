@@ -223,7 +223,7 @@ export default async function HomePage() {
     const isManager = league?.created_by === user.id
     scheduleItems.push({
       kind: 'session',
-      sortKey: (s.session_date as string) + 'T00:00:00',
+      sortKey: (s.session_date as string) + 'T12:00:00Z',
       data: s,
       league,
       myStatus,
@@ -239,7 +239,7 @@ export default async function HomePage() {
     scheduleItems.push({ kind: 'event', sortKey: ev.starts_at, data: ev })
   }
 
-  scheduleItems.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+  scheduleItems.sort((a, b) => new Date(a.sortKey).getTime() - new Date(b.sortKey).getTime())
   const visibleSchedule = scheduleItems.slice(0, 5)
 
   const firstName = (profile?.name as string | null)?.split(' ')[0] ?? 'there'
