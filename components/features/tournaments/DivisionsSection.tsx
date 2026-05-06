@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FormatSettingsFields, {
@@ -51,16 +51,6 @@ type Props = {
 export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
-  const [loading, setLoading] = useState(initialDivisions.length === 0)
-
-  useEffect(() => {
-    fetch(`/api/tournaments/${tournamentId}/divisions`)
-      .then(r => r.json())
-      .then(({ divisions: fetched }) => {
-        if (fetched) setDivisions(fetched)
-      })
-      .finally(() => setLoading(false))
-  }, [tournamentId])
   const [showAddForm, setShowAddForm] = useState(false)
   const [managingId, setManagingId] = useState<string | null>(null)
   const [editingFormatId, setEditingFormatId] = useState<string | null>(null)
@@ -352,11 +342,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       )}
 
       {/* ── Division list ── */}
-      {loading ? (
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center">
-          <p className="text-sm text-brand-muted">Loading divisions…</p>
-        </div>
-      ) : divisions.length === 0 ? (
+      {divisions.length === 0 ? (
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
           <p className="text-sm text-brand-muted">No divisions yet.</p>
           {isOrganizer && (

@@ -42,7 +42,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data }, { data: divisionsData }, { data: matchesData }, { data: tournamentMessages }] = await Promise.all([
+  const [{ data }, { data: divisionsRaw }, { data: regsRaw }, { data: matchesData }, { data: tournamentMessages }] = await Promise.all([
     db
       .from('tournaments')
       .select(`
@@ -57,15 +57,13 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .single(),
     db
       .from('tournament_divisions')
-      .select(`
-        id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json,
-        tournament_registrations!division_id (
-          id, user_id, partner_user_id, team_name, status,
-          user_profile:profiles!user_id (name)
-        )
-      `)
+      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
+    db
+      .from('tournament_registrations')
+      .select('id, division_id, user_id, partner_user_id, team_name, status')
+      .eq('tournament_id', params.id),
     db
       .from('tournament_matches')
       .select(`
@@ -93,7 +91,16 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
     : formatTime(tournament.start_time)
 
-  const divisions = (divisionsData ?? []) as any[]
+  // Join registrations onto their divisions server-side
+  const regsByDivision: Record<string, any[]> = {}
+  for (const reg of regsRaw ?? []) {
+    if (!regsByDivision[reg.division_id]) regsByDivision[reg.division_id] = []
+    regsByDivision[reg.division_id].push(reg)
+  }
+  const divisions = (divisionsRaw ?? []).map((div: any) => ({
+    ...div,
+    tournament_registrations: regsByDivision[div.id] ?? [],
+  }))
   const matches = (matchesData ?? []) as any[]
 
   // True if the current user has a 'registered' entry in any division
