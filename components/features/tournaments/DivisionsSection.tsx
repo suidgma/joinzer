@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FormatSettingsFields, {
   FORMAT_DEFAULTS, FormatType, FormatSettings,
@@ -48,6 +49,7 @@ type Props = {
 }
 
 export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId }: Props) {
+  const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [showAddForm, setShowAddForm] = useState(false)
   const [managingId, setManagingId] = useState<string | null>(null)
@@ -110,6 +112,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
 
     setDivisions(prev => [...prev, { ...data, tournament_registrations: [] }])
+    router.refresh()
     setShowAddForm(false)
     setFName(''); setFCategory('mixed_doubles'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
@@ -171,6 +174,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         ? { ...d, tournament_registrations: [...d.tournament_registrations, reg] }
         : d
     ))
+    router.refresh()
     setRegisteringDiv(null)
     setTeamName('')
     setRegLoading(false)
