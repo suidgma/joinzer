@@ -24,6 +24,7 @@ type Registration = {
   partner_user_id: string | null
   team_name: string | null
   status: string
+  payment_status?: string
   user_profile: { name: string } | null
 }
 
@@ -78,6 +79,12 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [teamName, setTeamName] = useState('')
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
+  // Partner invite step (shown after registration succeeds for doubles)
+  const [justRegistered, setJustRegistered] = useState<{ regId: string; divisionId: string } | null>(null)
+  const [partnerEmail, setPartnerEmail] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSent, setInviteSent] = useState(false)
 
   // Add player state (organizer)
   const [addingPlayerId, setAddingPlayerId] = useState<string | null>(null) // division id
@@ -182,9 +189,37 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         : d
     ))
     router.refresh()
-    setRegisteringDiv(null)
+
+    // For doubles, show partner invite step instead of closing modal
+    if (div.team_type === 'doubles') {
+      setJustRegistered({ regId: json.registration.id, divisionId: div.id })
+      setPartnerEmail('')
+      setInviteError(null)
+      setInviteSent(false)
+    } else {
+      setRegisteringDiv(null)
+    }
     setTeamName('')
     setRegLoading(false)
+  }
+
+  // ── Send partner invite ───────────────────────────────────────────
+  async function handleSendInvite() {
+    if (!justRegistered || !partnerEmail.trim()) return
+    setInviteLoading(true)
+    setInviteError(null)
+    const res = await fetch(
+      `/api/tournaments/${tournamentId}/divisions/${justRegistered.divisionId}/invite-partner`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration_id: justRegistered.regId, partner_email: partnerEmail.trim() }),
+      }
+    )
+    const json = await res.json()
+    if (!res.ok) { setInviteError(json.error ?? 'Failed to send invite'); setInviteLoading(false); return }
+    setInviteSent(true)
+    setInviteLoading(false)
   }
 
   // ── Cancel own registration ───────────────────────────────────────
@@ -202,6 +237,24 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   // ── Organizer: remove registrant ──────────────────────────────────
   async function handleRemove(divisionId: string, regId: string) {
     await handleCancel(divisionId, regId)
+  }
+
+  // ── Organizer: mark payment as paid ───────────────────────────────
+  async function handleMarkPaid(divisionId: string, regId: string) {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('tournament_registrations')
+      .update({ payment_status: 'paid' })
+      .eq('id', regId)
+    if (error) return
+    setDivisions(prev => prev.map(d =>
+      d.id !== divisionId ? d : {
+        ...d,
+        tournament_registrations: d.tournament_registrations.map(r =>
+          r.id === regId ? { ...r, payment_status: 'paid' } : r
+        ),
+      }
+    ))
   }
 
   // ── Organizer: promote waitlisted → registered ────────────────────
@@ -560,29 +613,54 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                         {div.tournament_registrations
                           .filter(r => r.status !== 'cancelled')
                           .map(reg => (
-                            <li key={reg.id} className="flex items-center justify-between gap-2 text-xs">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-medium text-brand-dark truncate">
-                                  {reg.user_profile?.name ?? reg.user_id.slice(0, 8)}
-                                </span>
-                                {reg.team_name && (
-                                  <span className="text-brand-muted truncate">· {reg.team_name}</span>
-                                )}
-                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                  reg.status === 'registered' ? 'bg-brand-soft text-brand-active' : 'bg-yellow-50 text-yellow-700'
-                                }`}>
-                                  {reg.status === 'registered' ? 'Registered' : 'Waitlisted'}
-                                </span>
+                            <li key={reg.id} className="text-xs border border-brand-border rounded-xl px-3 py-2 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-medium text-brand-dark truncate">
+                                    {reg.user_profile?.name ?? reg.user_id.slice(0, 8)}
+                                  </span>
+                                  {reg.team_name && (
+                                    <span className="text-brand-muted truncate">· {reg.team_name}</span>
+                                  )}
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                    reg.status === 'registered' ? 'bg-brand-soft text-brand-active' : 'bg-yellow-50 text-yellow-700'
+                                  }`}>
+                                    {reg.status === 'registered' ? 'Registered' : 'Waitlisted'}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex shrink-0 gap-2">
-                                {reg.status === 'waitlisted' && !isFull && (
-                                  <button onClick={() => handlePromote(div.id, reg.id)} className="text-brand-active hover:underline">
-                                    Promote
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                    reg.payment_status === 'paid'   ? 'bg-green-100 text-green-700' :
+                                    reg.payment_status === 'waived' ? 'bg-gray-100 text-gray-500'   :
+                                                                      'bg-red-50 text-red-600'
+                                  }`}>
+                                    {reg.payment_status === 'paid' ? '$ Paid' : reg.payment_status === 'waived' ? 'Waived' : '$ Unpaid'}
+                                  </span>
+                                  {reg.partner_user_id ? (
+                                    <span className="text-brand-muted">Partner ✓</span>
+                                  ) : div.team_type === 'doubles' ? (
+                                    <span className="text-amber-600">No partner</span>
+                                  ) : null}
+                                </div>
+                                <div className="flex shrink-0 gap-2">
+                                  {reg.payment_status !== 'paid' && (
+                                    <button onClick={() => handleMarkPaid(div.id, reg.id)} className="text-green-600 hover:underline">
+                                      Mark Paid
+                                    </button>
+                                  )}
+                                  {reg.status === 'waitlisted' && !isFull && (
+                                    <button onClick={() => handlePromote(div.id, reg.id)} className="text-brand-active hover:underline">
+                                      Promote
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleRemove(div.id, reg.id)} className="text-red-500 hover:underline">
+                                    Remove
                                   </button>
-                                )}
-                                <button onClick={() => handleRemove(div.id, reg.id)} className="text-red-500 hover:underline">
-                                  Remove
-                                </button>
+                                </div>
                               </div>
                             </li>
                           ))}
@@ -640,7 +718,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       )}
 
       {/* ── Registration modal ── */}
-      {registeringDiv && (
+      {registeringDiv && !justRegistered && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) { setRegisteringDiv(null); setRegError(null) } }}
@@ -668,7 +746,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                   className="w-full input"
                 />
                 <p className="text-xs text-brand-muted mt-1.5">
-                  Partner can be coordinated with the organizer after registration.
+                  You&apos;ll invite your partner in the next step.
                 </p>
               </div>
             )}
@@ -694,6 +772,74 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Partner invite modal (shown after doubles registration) ── */}
+      {justRegistered && registeringDiv && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
+            {inviteSent ? (
+              <>
+                <div className="text-center space-y-2">
+                  <p className="text-3xl">📧</p>
+                  <h2 className="font-heading text-base font-bold text-brand-dark">Invite Sent!</h2>
+                  <p className="text-sm text-brand-muted">
+                    We emailed <span className="font-medium text-brand-dark">{partnerEmail}</span> with a link to accept your partner invitation.
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setJustRegistered(null); setRegisteringDiv(null) }}
+                  className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+                >
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="text-xs font-semibold text-brand-active uppercase tracking-wide mb-1">Step 2 of 2</p>
+                  <h2 className="font-heading text-base font-bold text-brand-dark">Invite Your Partner</h2>
+                  <p className="text-sm text-brand-muted mt-1">
+                    You&apos;re registered! Now invite your doubles partner.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Partner&apos;s Email</label>
+                  <input
+                    type="email"
+                    value={partnerEmail}
+                    onChange={e => setPartnerEmail(e.target.value)}
+                    placeholder="partner@email.com"
+                    className="w-full input"
+                    autoFocus
+                  />
+                </div>
+
+                {inviteError && <p className="text-sm text-red-600">{inviteError}</p>}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSendInvite}
+                    disabled={inviteLoading || !partnerEmail.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+                  >
+                    {inviteLoading ? 'Sending…' : 'Send Invite'}
+                  </button>
+                  <button
+                    onClick={() => { setJustRegistered(null); setRegisteringDiv(null) }}
+                    className="px-4 py-2.5 rounded-xl border border-brand-border text-sm text-brand-muted hover:bg-brand-soft transition-colors"
+                  >
+                    Skip
+                  </button>
+                </div>
+                <p className="text-xs text-brand-muted text-center">
+                  You can also coordinate your partner with the organizer later.
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}

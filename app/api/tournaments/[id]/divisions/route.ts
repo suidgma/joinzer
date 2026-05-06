@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .order('created_at', { ascending: true }),
     db
       .from('tournament_registrations')
-      .select('id, division_id, user_id, partner_user_id, team_name, status')
+      .select('id, division_id, user_id, partner_user_id, team_name, status, payment_status')
       .eq('tournament_id', params.id),
   ])
 

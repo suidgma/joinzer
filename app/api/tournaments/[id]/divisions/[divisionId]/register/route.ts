@@ -80,7 +80,7 @@ export async function POST(
       team_name: team_name || null,
       status,
     })
-    .select('id, user_id, partner_user_id, team_name, status')
+    .select('id, user_id, partner_user_id, team_name, status, payment_status')
     .single()
 
   if (insertErr || !registration) {
