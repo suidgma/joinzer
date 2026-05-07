@@ -41,7 +41,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         description: description.trim() || null,
         location_id: locationId || null,
         start_date: startDate,
-        start_time: startTime,
+        start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
         status,
         visibility,
@@ -122,11 +122,8 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Start Time <span className="text-red-500">*</span>
-          </label>
+          <label className="block text-sm font-medium mb-1">Start Time</label>
           <input
-            required
             type="time"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
