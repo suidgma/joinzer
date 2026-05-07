@@ -99,11 +99,24 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
     : formatTime(tournament.start_time)
 
+  // Fetch profile names for all registered users
+  const allUserIds = [...new Set((regsRaw ?? []).map((r: any) => r.user_id).filter(Boolean))]
+  const { data: profilesRaw } = allUserIds.length > 0
+    ? await db.from('profiles').select('id, name').in('id', allUserIds)
+    : { data: [] }
+  const profileNames: Record<string, string> = {}
+  for (const p of profilesRaw ?? []) {
+    profileNames[p.id] = p.name
+  }
+
   // Join registrations onto their divisions server-side
   const regsByDivision: Record<string, any[]> = {}
   for (const reg of regsRaw ?? []) {
     if (!regsByDivision[reg.division_id]) regsByDivision[reg.division_id] = []
-    regsByDivision[reg.division_id].push(reg)
+    regsByDivision[reg.division_id].push({
+      ...reg,
+      user_profile: { name: profileNames[reg.user_id] ?? null },
+    })
   }
   const divisions = (divisionsRaw ?? []).map((div: any) => ({
     ...div,

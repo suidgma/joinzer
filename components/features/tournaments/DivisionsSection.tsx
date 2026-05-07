@@ -230,6 +230,15 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     if (!justRegistered || !partnerEmail.trim()) return
     setInviteLoading(true)
     setInviteError(null)
+
+    // Prevent self-invite — check against current user's profile email
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user?.email && user.email.toLowerCase() === partnerEmail.trim().toLowerCase()) {
+      setInviteError("You can't invite yourself as a partner.")
+      setInviteLoading(false)
+      return
+    }
     const res = await fetch(
       `/api/tournaments/${tournamentId}/divisions/${justRegistered.divisionId}/invite-partner`,
       {
@@ -306,11 +315,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setPlayerSearch(query)
     if (query.trim().length < 2) { setPlayerResults([]); return }
     const supabase = createClient()
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, name')
-      .ilike('name', `%${query}%`)
-      .limit(8)
+    let q = supabase.from('profiles').select('id, name').ilike('name', `%${query}%`).limit(9)
+    if (currentUserId) q = q.neq('id', currentUserId)
+    const { data } = await q
     setPlayerResults(data ?? [])
   }
 
