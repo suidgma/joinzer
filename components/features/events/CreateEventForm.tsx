@@ -6,23 +6,26 @@ import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from './LocationCombobox'
 import TimeSelect from './TimeSelect'
 import type { LocationOption } from '@/lib/types'
+import type { EventDefaults } from '@/app/(app)/events/create/page'
 
 const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
 
-export default function CreateEventForm({ locations }: { locations: LocationOption[] }) {
+export default function CreateEventForm({ locations, defaults }: { locations: LocationOption[]; defaults?: EventDefaults }) {
   const router = useRouter()
-  const [title, setTitle] = useState('')
-  const [locationId, setLocationId] = useState('')
+  const [title, setTitle] = useState(defaults?.title ?? '')
+  const [locationId, setLocationId] = useState(defaults?.locationId ?? '')
   const [date, setDate] = useState('')
-  const [time, setTime] = useState('08:00')
-  const [durationMinutes, setDurationMinutes] = useState(120)
-  const [courtCount, setCourtCount] = useState(1)
-  const [playersPerCourt, setPlayersPerCourt] = useState(6)
-  const [minSkill, setMinSkill] = useState('')
-  const [maxSkill, setMaxSkill] = useState('')
-  const [notes, setNotes] = useState('')
-  const [clinicType, setClinicType] = useState<'none' | 'free' | 'paid'>('none')
-  const [priceCents, setPriceCents] = useState<number>(1000)
+  const [time, setTime] = useState(defaults?.time ?? '08:00')
+  const [durationMinutes, setDurationMinutes] = useState(defaults?.durationMinutes ?? 120)
+  const [courtCount, setCourtCount] = useState(defaults?.courtCount ?? 1)
+  const [playersPerCourt, setPlayersPerCourt] = useState(defaults?.playersPerCourt ?? 6)
+  const [minSkill, setMinSkill] = useState(defaults?.minSkill ?? '')
+  const [maxSkill, setMaxSkill] = useState(defaults?.maxSkill ?? '')
+  const [notes, setNotes] = useState(defaults?.notes ?? '')
+  const [clinicType, setClinicType] = useState<'none' | 'free' | 'paid'>(
+    defaults?.sessionType === 'free_clinic' ? 'free' : defaults?.sessionType === 'paid_clinic' ? 'paid' : 'none'
+  )
+  const [priceCents, setPriceCents] = useState<number>(defaults?.priceCents ?? 1000)
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

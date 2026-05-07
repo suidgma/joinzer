@@ -97,10 +97,17 @@ export default async function EventDetailPage({
         <Link href="/events" className="text-sm text-brand-muted hover:text-brand-dark">
           ← Back
         </Link>
-        {isCaptain && isActive && (
-          <Link href={`/events/${event.id}/edit`} className="text-sm text-brand-active font-medium underline underline-offset-2">
-            Edit
-          </Link>
+        {isCaptain && (
+          <div className="flex items-center gap-3">
+            {isActive && (
+              <Link href={`/events/${event.id}/edit`} className="text-sm text-brand-active font-medium underline underline-offset-2">
+                Edit
+              </Link>
+            )}
+            <Link href={`/events/create?from=${event.id}`} className="text-sm text-brand-muted hover:text-brand-dark font-medium underline underline-offset-2">
+              Duplicate
+            </Link>
+          </div>
         )}
       </div>
 
