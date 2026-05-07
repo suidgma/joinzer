@@ -74,7 +74,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       setPaymentBanner('cancelled')
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [])
+  }, [router, currentUserId])
   const [showAddForm, setShowAddForm] = useState(false)
   const [managingId, setManagingId] = useState<string | null>(null)
   const [editingFormatId, setEditingFormatId] = useState<string | null>(null)

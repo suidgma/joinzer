@@ -136,6 +136,8 @@ export default function LeagueRosterManager({
       const newReg: PlayerReg = {
         status: 'registered',
         registered_at: new Date().toISOString(),
+        is_co_admin: false,
+        user_id: player.id,
         profile: {
           id: player.id,
           name: player.name,
