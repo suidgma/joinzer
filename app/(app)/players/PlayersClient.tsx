@@ -148,7 +148,6 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
       ) : (
         <div className="grid grid-cols-3 gap-3">
           {filtered.map((player) => {
-            const label = ratingLabel(player)
             const displayName = player.display_name ?? player.name
             const firstName = displayName.split(' ')[0]
             const isMe = player.id === currentUserId
