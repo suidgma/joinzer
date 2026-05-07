@@ -340,12 +340,12 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   }
 
   // ── Pay for registration via Stripe Checkout ─────────────────────
-  async function handlePay(regId: string) {
+  async function handlePay(regId: string, payForPartner = false) {
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registration_id: regId }),
+        body: JSON.stringify({ registration_id: regId, pay_for_partner: payForPartner }),
       })
       const json = await res.json()
       if (!res.ok) { alert(`Payment error: ${json.error ?? 'Unknown error'}`); return }
@@ -616,12 +616,22 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       {myReg.team_name && ` · ${myReg.team_name}`}
                     </div>
                     {myReg.payment_status === 'unpaid' && tournamentCostCents > 0 && (
-                      <button
-                        onClick={() => handlePay(myReg.id)}
-                        className="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
-                      >
-                        Pay Entry Fee · ${(tournamentCostCents / 100).toFixed(2)}
-                      </button>
+                      <div className="space-y-1.5">
+                        <button
+                          onClick={() => handlePay(myReg.id)}
+                          className="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                        >
+                          Pay My Fee · ${(tournamentCostCents / 100).toFixed(2)}
+                        </button>
+                        {myReg.partner_user_id && (
+                          <button
+                            onClick={() => handlePay(myReg.id, true)}
+                            className="w-full py-2 rounded-xl bg-indigo-100 text-indigo-700 text-xs font-semibold hover:bg-indigo-200 transition-colors"
+                          >
+                            Pay for Both · ${((tournamentCostCents * 2) / 100).toFixed(2)}
+                          </button>
+                        )}
+                      </div>
                     )}
                     {myReg.payment_status === 'paid' && (
                       <p className="text-xs text-green-600 font-medium">$ Payment received</p>

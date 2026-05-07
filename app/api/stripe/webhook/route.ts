@@ -29,11 +29,20 @@ export async function POST(req: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       )
 
-      // Mark paid
+      // Mark registrant paid
       await service
         .from('tournament_registrations')
         .update({ payment_status: 'paid' })
         .eq('id', registration_id)
+
+      // Mark partner paid if covered in this checkout
+      const { partner_registration_id } = session.metadata ?? {}
+      if (partner_registration_id) {
+        await service
+          .from('tournament_registrations')
+          .update({ payment_status: 'paid' })
+          .eq('id', partner_registration_id)
+      }
 
       // Fetch context for confirmation email
       const [{ data: reg }, { data: tournament }] = await Promise.all([

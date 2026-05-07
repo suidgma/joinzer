@@ -12,7 +12,7 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { registration_id } = await req.json().catch(() => ({}))
+    const { registration_id, pay_for_partner } = await req.json().catch(() => ({}))
     if (!registration_id) return NextResponse.json({ error: 'registration_id required' }, { status: 400 })
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
@@ -24,7 +24,7 @@ export async function POST(
     // Verify registration belongs to caller and is unpaid
     const { data: reg } = await service
       .from('tournament_registrations')
-      .select('id, user_id, payment_status, division_id')
+      .select('id, user_id, payment_status, division_id, partner_user_id')
       .eq('id', registration_id)
       .eq('tournament_id', params.id)
       .single()
@@ -45,12 +45,22 @@ export async function POST(
 
     if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
-    const amount = (tournament as any).cost_cents ?? 0
-    if (amount <= 0) {
-      await service
-        .from('tournament_registrations')
-        .update({ payment_status: 'waived' })
-        .eq('id', registration_id)
+    const unitAmount = (tournament as any).cost_cents ?? 0
+    if (unitAmount <= 0) {
+      // Free — mark both as waived
+      await service.from('tournament_registrations').update({ payment_status: 'waived' }).eq('id', registration_id)
+      if (pay_for_partner && reg.partner_user_id) {
+        const { data: partnerReg } = await service
+          .from('tournament_registrations')
+          .select('id')
+          .eq('division_id', reg.division_id)
+          .eq('user_id', reg.partner_user_id)
+          .eq('tournament_id', params.id)
+          .maybeSingle()
+        if (partnerReg) {
+          await service.from('tournament_registrations').update({ payment_status: 'waived' }).eq('id', partnerReg.id)
+        }
+      }
       return NextResponse.json({ free: true })
     }
 
@@ -60,7 +70,27 @@ export async function POST(
       .eq('id', reg.division_id)
       .single()
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+    // Find partner registration if paying for both
+    let partnerRegId: string | null = null
+    if (pay_for_partner && reg.partner_user_id) {
+      const { data: partnerReg } = await service
+        .from('tournament_registrations')
+        .select('id, payment_status')
+        .eq('division_id', reg.division_id)
+        .eq('user_id', reg.partner_user_id)
+        .eq('tournament_id', params.id)
+        .maybeSingle()
+      if (partnerReg && partnerReg.payment_status !== 'paid') {
+        partnerRegId = partnerReg.id
+      }
+    }
+
+    const quantity = partnerRegId ? 2 : 1
+    const label = partnerRegId
+      ? `${tournament.name} — ${division?.name ?? 'Entry Fee'} (2 players)`
+      : `${tournament.name} — ${division?.name ?? 'Entry Fee'}`
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -68,17 +98,16 @@ export async function POST(
         {
           price_data: {
             currency: 'usd',
-            unit_amount: amount,
-            product_data: {
-              name: `${tournament.name} — ${division?.name ?? 'Entry Fee'}`,
-            },
+            unit_amount: unitAmount,
+            product_data: { name: label },
           },
-          quantity: 1,
+          quantity,
         },
       ],
       metadata: {
         registration_id,
         tournament_id: params.id,
+        partner_registration_id: partnerRegId ?? '',
       },
       success_url: `${siteUrl}/tournaments/${params.id}?payment=success`,
       cancel_url: `${siteUrl}/tournaments/${params.id}?payment=cancelled`,
