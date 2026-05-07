@@ -10,6 +10,7 @@ import DivisionsSection from '@/components/features/tournaments/DivisionsSection
 import MatchesSection from '@/components/features/tournaments/MatchesSection'
 import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
+import ShareButton from '@/components/features/ShareButton'
 
 function formatDate(dateStr: string) {
   return formatSessionDate(dateStr, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -135,7 +136,13 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
-      <Link href="/tournaments" className="text-brand-muted text-sm">← Back</Link>
+      <div className="flex items-center justify-between">
+        <Link href="/tournaments" className="text-brand-muted text-sm">← Back</Link>
+        <ShareButton
+          title={tournament.name}
+          url={`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'}/tournaments/${tournament.id}`}
+        />
+      </div>
 
       {/* Header */}
       <div className="space-y-2">

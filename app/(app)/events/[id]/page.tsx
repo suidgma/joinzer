@@ -7,6 +7,7 @@ import AssignCaptainButton from '@/components/features/events/AssignCaptainButto
 import EventChat from '@/components/features/events/EventChat'
 import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
+import ShareButton from '@/components/features/ShareButton'
 
 type ChatMessage = {
   id: string
@@ -97,18 +98,24 @@ export default async function EventDetailPage({
         <Link href="/events" className="text-sm text-brand-muted hover:text-brand-dark">
           ← Back
         </Link>
-        {isCaptain && (
-          <div className="flex items-center gap-3">
-            {isActive && (
-              <Link href={`/events/${event.id}/edit`} className="text-sm text-brand-active font-medium underline underline-offset-2">
-                Edit
+        <div className="flex items-center gap-3">
+          <ShareButton
+            title={event.title}
+            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'}/events/${event.id}`}
+          />
+          {isCaptain && (
+            <>
+              {isActive && (
+                <Link href={`/events/${event.id}/edit`} className="text-sm text-brand-active font-medium underline underline-offset-2">
+                  Edit
+                </Link>
+              )}
+              <Link href={`/events/create?from=${event.id}`} className="text-sm text-brand-muted hover:text-brand-dark font-medium underline underline-offset-2">
+                Duplicate
               </Link>
-            )}
-            <Link href={`/events/create?from=${event.id}`} className="text-sm text-brand-muted hover:text-brand-dark font-medium underline underline-offset-2">
-              Duplicate
-            </Link>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Header card */}
