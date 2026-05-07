@@ -32,7 +32,7 @@ function shuffle<T>(arr: T[]): T[] {
  */
 export function singleEliminationBracket(
   teams: string[],
-  stage: 'single_elimination' | 'winners_bracket',
+  stage: 'single_elimination' | 'winners_bracket' | 'playoffs',
   base: BaseMatch,
   startMatchNum = 1
 ): { rows: BaseMatch[]; nextMatchNum: number } {
