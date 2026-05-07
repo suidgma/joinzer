@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FormatSettingsFields, {
   FORMAT_DEFAULTS, FormatType, FormatSettings,
@@ -52,22 +52,22 @@ type Props = {
 
 export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents }: Props) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
 
   useEffect(() => {
-    const payment = searchParams.get('payment')
+    // Read directly from window.location to avoid Suspense requirement on useSearchParams
+    const params = new URLSearchParams(window.location.search)
+    const payment = params.get('payment')
     if (payment === 'success') {
       setPaymentBanner('success')
       router.refresh()
-      // Clear the query param from the URL without triggering a navigation
       window.history.replaceState({}, '', window.location.pathname)
     } else if (payment === 'cancelled') {
       setPaymentBanner('cancelled')
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [searchParams, router])
+  }, [])
   const [showAddForm, setShowAddForm] = useState(false)
   const [managingId, setManagingId] = useState<string | null>(null)
   const [editingFormatId, setEditingFormatId] = useState<string | null>(null)
