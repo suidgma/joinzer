@@ -100,7 +100,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     : formatTime(tournament.start_time)
 
   // Fetch profile names for all registered users
-  const allUserIds = [...new Set((regsRaw ?? []).map((r: any) => r.user_id).filter(Boolean))]
+  const allUserIds = Array.from(new Set((regsRaw ?? []).map((r: any) => r.user_id).filter(Boolean)))
   const { data: profilesRaw } = allUserIds.length > 0
     ? await db.from('profiles').select('id, name').in('id', allUserIds)
     : { data: [] }
