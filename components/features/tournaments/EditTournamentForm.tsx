@@ -22,6 +22,9 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [status, setStatus] = useState(tournament.status)
   const [visibility, setVisibility] = useState(tournament.visibility)
   const [registrationStatus, setRegistrationStatus] = useState(tournament.registration_status)
+  const [costDollars, setCostDollars] = useState(
+    tournament.cost_cents ? String((tournament.cost_cents as any) / 100) : ''
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +46,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         status,
         visibility,
         registration_status: registrationStatus,
+        cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
       })
       .eq('id', tournament.id)
 
@@ -79,6 +83,23 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
           rows={3}
           className="w-full input resize-none"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Registration Fee (per player/team)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
+          <input
+            type="number"
+            min="0"
+            step="5"
+            value={costDollars}
+            onChange={(e) => setCostDollars(e.target.value)}
+            placeholder="0.00"
+            className="w-full input pl-7"
+          />
+        </div>
+        <p className="text-xs text-brand-muted mt-1">Leave at 0 for a free tournament</p>
       </div>
 
       <div>
