@@ -56,11 +56,17 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
 
   useEffect(() => {
-    // Read directly from window.location to avoid Suspense requirement on useSearchParams
     const params = new URLSearchParams(window.location.search)
     const payment = params.get('payment')
     if (payment === 'success') {
       setPaymentBanner('success')
+      // Optimistically mark current user's registrations as paid so button disappears immediately
+      setDivisions(prev => prev.map(d => ({
+        ...d,
+        tournament_registrations: d.tournament_registrations.map(r =>
+          r.user_id === currentUserId ? { ...r, payment_status: 'paid' } : r
+        ),
+      })))
       router.refresh()
       window.history.replaceState({}, '', window.location.pathname)
     } else if (payment === 'cancelled') {
