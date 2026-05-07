@@ -32,10 +32,10 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain }: P
   async function handleLeave() {
     setLoading(true)
     setError(null)
-    const supabase = createClient()
-    const { error } = await supabase.rpc('leave_event', { p_event_id: eventId })
-    if (error) {
-      setError(error.message)
+    const res = await fetch(`/api/events/${eventId}/leave`, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError(body.error ?? 'Failed to leave. Please try again.')
     } else {
       router.refresh()
     }
