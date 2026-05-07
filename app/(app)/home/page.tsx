@@ -275,7 +275,10 @@ export default async function HomePage() {
       {/* ── My Schedule ── */}
       {hasSchedule && (
         <section className="space-y-3">
-          <h2 className="font-heading text-base font-bold text-brand-dark">My Schedule</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading text-base font-bold text-brand-dark">My Schedule</h2>
+            <Link href="/schedule" className="text-xs text-brand-active hover:underline">See all →</Link>
+          </div>
           {visibleSchedule.map((item) => {
             if (item.kind === 'session') {
               const s = item.data
