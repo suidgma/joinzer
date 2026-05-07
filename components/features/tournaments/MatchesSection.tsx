@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import BracketView from './BracketView'
 
 type Match = {
   id: string
@@ -299,6 +300,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
   }
 
   const showsStandings = (ft: string) => ft === 'round_robin' || ft === 'pool_play_playoffs'
+  const showsBracket = (ft: string) => ft === 'single_elimination' || ft === 'double_elimination' || ft === 'pool_play_playoffs'
 
   return (
     <div className="space-y-4">
@@ -347,18 +349,43 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
             )}
 
             {hasMatches && (
-              <div className="space-y-2">
-                {pools.length > 0 ? (
-                  pools.map(poolNum => (
-                    <div key={poolNum} className="space-y-2">
-                      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Pool {poolNum}</p>
-                      {divMatches.filter(m => m.pool_number === poolNum).map(m => (
-                        <MatchCard key={m.id} match={m} {...matchCardProps} />
-                      ))}
-                    </div>
-                  ))
-                ) : (
-                  divMatches.map(m => <MatchCard key={m.id} match={m} {...matchCardProps} />)
+              <div className="space-y-3">
+                {/* Pool play / round-robin: card list per pool */}
+                {pools.length > 0 && (
+                  <div className="space-y-2">
+                    {pools.map(poolNum => (
+                      <div key={poolNum} className="space-y-2">
+                        <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Pool {poolNum}</p>
+                        {divMatches.filter(m => m.pool_number === poolNum).map(m => (
+                          <MatchCard key={m.id} match={m} {...matchCardProps} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Bracket view for elimination formats */}
+                {showsBracket(div.format_type) && (
+                  <BracketView
+                    matches={divMatches.filter(m => m.pool_number == null)}
+                    regs={div.tournament_registrations}
+                    isOrganizer={isOrganizer}
+                    tournamentId={tournamentId}
+                    divisionId={div.id}
+                    onScoreUpdate={(updated) => {
+                      setMatchesByDiv(prev => ({
+                        ...prev,
+                        [div.id]: prev[div.id].map(m => m.id === updated.id ? updated : m),
+                      }))
+                    }}
+                  />
+                )}
+
+                {/* Flat list for plain round-robin (no pools, no bracket) */}
+                {pools.length === 0 && !showsBracket(div.format_type) && (
+                  <div className="space-y-2">
+                    {divMatches.map(m => <MatchCard key={m.id} match={m} {...matchCardProps} />)}
+                  </div>
                 )}
 
                 {showsStandings(div.format_type) && hasCompletedMatches && (
