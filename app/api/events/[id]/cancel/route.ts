@@ -61,8 +61,7 @@ export async function POST(
 
   const emails = participants
     .map((p) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const profile = (p.profile as any) as { name: string; email: string | null } | null
+      const profile = (p.profile as unknown) as { name: string; email: string | null } | null
       if (!profile?.email) return null
       const firstName = profile.name?.split(' ')[0] ?? 'there'
       return {
