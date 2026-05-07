@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FormatSettingsFields, {
   FORMAT_DEFAULTS, FormatType, FormatSettings,
@@ -52,7 +52,22 @@ type Props = {
 
 export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
+  const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
+
+  useEffect(() => {
+    const payment = searchParams.get('payment')
+    if (payment === 'success') {
+      setPaymentBanner('success')
+      router.refresh()
+      // Clear the query param from the URL without triggering a navigation
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (payment === 'cancelled') {
+      setPaymentBanner('cancelled')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [searchParams, router])
   const [showAddForm, setShowAddForm] = useState(false)
   const [managingId, setManagingId] = useState<string | null>(null)
   const [editingFormatId, setEditingFormatId] = useState<string | null>(null)
@@ -350,6 +365,18 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
+      {paymentBanner === 'success' && (
+        <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+          <p className="text-sm text-green-700 font-medium">✓ Payment received — you&apos;re all set!</p>
+          <button onClick={() => setPaymentBanner(null)} className="text-green-500 text-lg leading-none">×</button>
+        </div>
+      )}
+      {paymentBanner === 'cancelled' && (
+        <div className="flex items-center justify-between gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+          <p className="text-sm text-yellow-700 font-medium">Payment was cancelled — your spot is still reserved.</p>
+          <button onClick={() => setPaymentBanner(null)} className="text-yellow-500 text-lg leading-none">×</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-base font-bold text-brand-dark">Divisions</h2>
         {isOrganizer && !showAddForm && (
