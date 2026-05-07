@@ -40,7 +40,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js' ||
     pathname.startsWith('/auth/') ||
-    pathname.startsWith('/compete')
+    pathname.startsWith('/compete') ||
+    pathname.startsWith('/api/stripe/')
 
   if (!user && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
