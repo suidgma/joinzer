@@ -41,7 +41,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/sw.js' ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/compete') ||
-    pathname.startsWith('/api/stripe/')
+    pathname.startsWith('/api/stripe/') ||
+    pathname.startsWith('/api/cron/')
 
   if (!user && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
@@ -59,6 +60,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/stripe|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/stripe|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
