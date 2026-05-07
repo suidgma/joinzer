@@ -56,6 +56,7 @@ type Props = {
 }
 
 export default function PlayersClient({ players, sessions, currentUserId }: Props) {
+  const [q, setQ] = useState('')
   const [activeLabels, setActiveLabels] = useState<Set<string>>(new Set())
   const [genderFilter, setGenderFilter] = useState<'male' | 'female' | null>(null)
   const [inviteTarget, setInviteTarget] = useState<Player | null>(null)
@@ -73,6 +74,10 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
   }
 
   const filtered = players.filter((p) => {
+    if (q.trim()) {
+      const name = (p.display_name || p.name).toLowerCase()
+      if (!name.includes(q.trim().toLowerCase())) return false
+    }
     if (genderFilter && p.gender !== genderFilter) return false
     if (activeLabels.size === 0) return true
     const tier = SKILL_TIERS.find((t) => p.joinzer_rating >= t.min && p.joinzer_rating <= t.max)
@@ -81,6 +86,15 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
 
   return (
     <div className="space-y-3">
+      {/* Name search */}
+      <input
+        type="search"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search players…"
+        className="w-full input-sm"
+      />
+
       {/* Gender filter */}
       <div className="space-y-1">
         <div className="flex gap-2">

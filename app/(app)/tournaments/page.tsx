@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import TournamentCard from '@/components/features/tournaments/TournamentCard'
+import TournamentSearch from '@/components/features/tournaments/TournamentSearch'
 import Link from 'next/link'
 import type { TournamentListItem } from '@/lib/types'
 
@@ -55,11 +55,7 @@ export default async function TournamentsPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {tournaments.map((t) => (
-            <TournamentCard key={t.id} tournament={t} />
-          ))}
-        </div>
+        <TournamentSearch tournaments={tournaments} isLoggedIn={isLoggedIn} />
       )}
     </main>
   )

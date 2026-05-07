@@ -56,6 +56,7 @@ export default function EventFilters({ locations, view }: Props) {
   }, [pathname, router])
 
   const hasFilters =
+    params.has('q') ||
     params.has('skill') ||
     params.has('time') ||
     params.has('location') ||
@@ -64,6 +65,15 @@ export default function EventFilters({ locations, view }: Props) {
 
   return (
     <div className="space-y-2.5">
+      {/* Search */}
+      <input
+        type="search"
+        value={params.get('q') ?? ''}
+        onChange={(e) => update('q', e.target.value)}
+        placeholder="Search sessions…"
+        className="w-full input-sm"
+      />
+
       {/* Row 1: Type tabs (left) + View toggle (right) */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">

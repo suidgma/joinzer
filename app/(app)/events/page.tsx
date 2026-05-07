@@ -22,6 +22,7 @@ type SearchParams = {
   time?: string
   location?: string
   type?: string
+  q?: string
 }
 
 export default async function EventsPage({
@@ -37,6 +38,7 @@ export default async function EventsPage({
   const timeFilter = searchParams.time ?? null
   const locationFilter = searchParams.location ?? null
   const typeFilter = searchParams.type ?? null
+  const qFilter = searchParams.q?.trim() ?? null
 
   // Build base query
   let query = supabase
@@ -65,6 +67,11 @@ export default async function EventsPage({
   // Location filter
   if (locationFilter) {
     query = query.eq('location_id', locationFilter)
+  }
+
+  // Title search
+  if (qFilter) {
+    query = query.ilike('title', `%${qFilter}%`)
   }
 
   const { data } = await query.order('starts_at', { ascending: true })
