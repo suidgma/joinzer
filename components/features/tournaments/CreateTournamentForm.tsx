@@ -19,6 +19,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
   const [visibility, setVisibility] = useState<'public' | 'private'>('public')
   const [registrationStatus, setRegistrationStatus] = useState<'open' | 'closed'>('open')
+  const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +47,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         status,
         visibility,
         registration_status: registrationStatus,
+        registration_closes_at: registrationClosesAt || null,
       })
       .select('id')
       .single()
@@ -104,6 +106,18 @@ export default function CreateTournamentForm({ locations }: Props) {
           min={todayStr}
           className="w-full input"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Registration Deadline</label>
+        <input
+          type="date"
+          value={registrationClosesAt}
+          onChange={(e) => setRegistrationClosesAt(e.target.value)}
+          min={todayStr}
+          className="w-full input"
+        />
+        <p className="text-xs text-brand-muted mt-1">Registration closes automatically at end of this date. Leave blank to manage manually.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

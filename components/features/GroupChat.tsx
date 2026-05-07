@@ -18,6 +18,7 @@ type Props = {
   initialMessages: Message[]
   currentUserId: string | null
   canChat: boolean
+  fullscreen?: boolean
 }
 
 export default function GroupChat({
@@ -27,6 +28,7 @@ export default function GroupChat({
   initialMessages,
   currentUserId,
   canChat,
+  fullscreen = false,
 }: Props) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [text, setText] = useState('')
@@ -134,36 +136,36 @@ export default function GroupChat({
       )
     }
     return (
-      <form onSubmit={handleSend} className="border-t bg-white">
+      <form onSubmit={handleSend} className="border-t border-brand-border bg-white">
         {sendError && (
           <p className="text-xs text-red-500 px-3 pt-2">{sendError}</p>
         )}
         <div className="flex gap-2 p-2">
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Message…"
-          className="flex-1 text-sm px-3 py-1.5 border rounded-full focus:outline-none focus:ring-2 focus:ring-black"
-        />
-        <button
-          type="submit"
-          disabled={!text.trim() || sending}
-          className="bg-black text-white text-sm px-4 py-1.5 rounded-full font-medium disabled:opacity-40"
-        >
-          Send
-        </button>
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Message…"
+            className="flex-1 text-sm px-3 py-1.5 border border-brand-border rounded-full focus:outline-none focus:ring-2 focus:ring-brand bg-brand-surface"
+          />
+          <button
+            type="submit"
+            disabled={!text.trim() || sending}
+            className="bg-brand text-brand-dark text-sm px-4 py-1.5 rounded-full font-semibold disabled:opacity-40 hover:bg-brand-hover transition-colors"
+          >
+            Send
+          </button>
         </div>
       </form>
     )
   }
 
   return (
-    <div className="border rounded-xl overflow-hidden">
-      <div className="h-64 overflow-y-auto p-3 space-y-2 bg-gray-50">
+    <div className={fullscreen ? 'flex flex-col h-full' : 'border border-brand-border rounded-2xl overflow-hidden'}>
+      <div className={`overflow-y-auto p-3 space-y-2 bg-brand-surface ${fullscreen ? 'flex-1 min-h-0' : 'h-80'}`}>
         {messages.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center pt-10">
-            No messages yet
+          <p className="text-xs text-brand-muted text-center pt-10">
+            No messages yet — start the conversation
           </p>
         ) : (
           messages.map((msg) => {
@@ -174,15 +176,15 @@ export default function GroupChat({
                 className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {!isOwn && (
-                  <span className="text-xs text-gray-400 mb-0.5">
+                  <span className="text-xs text-brand-muted mb-0.5">
                     {msg.profile?.name ?? 'Unknown'}
                   </span>
                 )}
                 <div
                   className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${
                     isOwn
-                      ? 'bg-black text-white rounded-br-sm'
-                      : 'bg-white border rounded-bl-sm'
+                      ? 'bg-brand text-brand-dark rounded-br-sm'
+                      : 'bg-white border border-brand-border rounded-bl-sm'
                   }`}
                 >
                   {msg.message_text}

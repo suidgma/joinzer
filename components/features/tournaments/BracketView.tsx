@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
 
 type Match = {
   id: string
@@ -59,6 +60,9 @@ function getRoundLabel(roundNum: number, totalRounds: number, stage: string): st
 // Height of one match card in px (must match the rendered card)
 const CARD_H = 72
 
+// Queue key scoped to this tournament's bracket score ops
+const bracketQueueKey = (tournamentId: string) => `bracket_${tournamentId}`
+
 function BracketMatchCard({
   match, regs, isOrganizer, tournamentId, divisionId, onScoreUpdate,
 }: {
@@ -74,6 +78,13 @@ function BracketMatchCard({
   const [s2, setS2] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [pendingSync, setPendingSync] = useState(() => {
+    // Check if this match already has a queued score on mount
+    try {
+      const q = getQueue(bracketQueueKey(tournamentId))
+      return q.some(op => op.dedupeKey === match.id)
+    } catch { return false }
+  })
 
   const t1 = teamLabel(match.team_1_registration_id, regs)
   const t2 = match.team_2_registration_id ? teamLabel(match.team_2_registration_id, regs) : 'BYE'
@@ -90,20 +101,40 @@ function BracketMatchCard({
     if (n1 === n2) { setErr('Tie not allowed'); return }
 
     setLoading(true); setErr(null)
-    const res = await fetch(`/api/tournaments/${tournamentId}/matches/${match.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team_1_score: n1, team_2_score: n2 }),
-    })
-    const json = await res.json()
-    setLoading(false)
-    if (!res.ok) { setErr(json.error ?? 'Failed'); return }
-    setScoring(false); setS1(''); setS2('')
-    onScoreUpdate(json.match)
+
+    const url = `/api/tournaments/${tournamentId}/matches/${match.id}`
+    const body = JSON.stringify({ team_1_score: n1, team_2_score: n2 })
+
+    if (!navigator.onLine) {
+      enqueue(bracketQueueKey(tournamentId), { url, method: 'PATCH', body, dedupeKey: match.id })
+      setLoading(false)
+      setScoring(false); setS1(''); setS2('')
+      setPendingSync(true)
+      return
+    }
+
+    try {
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
+      const json = await res.json()
+      setLoading(false)
+      if (!res.ok) { setErr(json.error ?? 'Failed'); return }
+      setScoring(false); setS1(''); setS2('')
+      onScoreUpdate(json.match)
+    } catch {
+      // Network error — queue for retry
+      enqueue(bracketQueueKey(tournamentId), { url, method: 'PATCH', body, dedupeKey: match.id })
+      setLoading(false)
+      setScoring(false); setS1(''); setS2('')
+      setPendingSync(true)
+    }
   }
 
   return (
-    <div className={`w-36 rounded-xl border bg-white text-[11px] overflow-hidden ${isDone ? 'border-brand-border' : 'border-brand-border'}`}
+    <div className={`w-36 rounded-xl border bg-white text-[11px] overflow-hidden ${pendingSync ? 'border-amber-400' : 'border-brand-border'}`}
       style={{ minHeight: `${CARD_H}px` }}>
       {/* Team 1 */}
       <div className={`flex items-center justify-between px-2 py-1.5 border-b border-brand-border/60 ${isDone && w === match.team_1_registration_id ? 'bg-brand-soft' : ''}`}>
@@ -119,6 +150,13 @@ function BracketMatchCard({
           <span className={`font-bold ml-1 shrink-0 ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_2_score}</span>
         )}
       </div>
+
+      {/* Pending sync indicator */}
+      {pendingSync && (
+        <div className="px-2 py-1 border-t border-amber-200 bg-amber-50 text-[9px] text-amber-700 font-medium flex items-center gap-1">
+          <span className="animate-pulse">●</span> Pending sync
+        </div>
+      )}
 
       {/* Score entry */}
       {isOrganizer && !isDone && !isBye && (
@@ -237,6 +275,21 @@ function SingleBracket({
 }
 
 export default function BracketView({ matches, regs, isOrganizer, tournamentId, divisionId, onScoreUpdate }: Props) {
+  const handleOnline = useCallback(async () => {
+    const qKey = bracketQueueKey(tournamentId)
+    const queue = getQueue(qKey)
+    if (queue.length === 0) return
+    const { synced } = await drainQueue(qKey)
+    if (synced > 0) {
+      // Refresh the page so parent reloads scores from DB
+      window.location.reload()
+    }
+  }, [tournamentId])
+
+  useEffect(() => {
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [handleOnline])
   // Separate by stage for double elimination
   const winners = matches.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'single_elimination')
   const losers = matches.filter(m => m.match_stage === 'losers_bracket')

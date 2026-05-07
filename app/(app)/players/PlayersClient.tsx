@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { joinzerRatingLabel } from '@/lib/utils/date'
 import PlayerInviteModal from '@/components/features/players/PlayerInviteModal'
+import RatingBadge from '@/components/features/RatingBadge'
 
 type Player = {
   id: string
@@ -41,13 +42,6 @@ const SKILL_TIERS: SkillTier[] = [
   { label: 'Advanced',          min: 1200, max: 99999 },
 ]
 
-function ratingLabel(p: Player): string {
-  if (p.rating_source === 'dupr_known' && p.dupr_rating != null)
-    return `DUPR ${p.dupr_rating.toFixed(2)}`
-  if (p.rating_source === 'estimated' && p.estimated_rating != null)
-    return `~${p.estimated_rating.toFixed(1)}`
-  return ''
-}
 
 type Props = {
   players: Player[]
@@ -188,9 +182,11 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                   )}
                 </div>
                 <p className="text-sm font-medium text-brand-dark text-center leading-tight">{displayName}</p>
-                {label && (
-                  <p className="text-xs text-brand-muted text-center">{label}</p>
-                )}
+                <RatingBadge
+                  ratingSource={player.rating_source}
+                  duprRating={player.dupr_rating}
+                  estimatedRating={player.estimated_rating}
+                />
                 <p className="text-xs text-brand-active font-medium text-center">
                   {joinzerRatingLabel(player.joinzer_rating)}
                 </p>

@@ -1,53 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-
-function roundRobinMatches(teams: string[], base: object): object[] {
-  const rows: object[] = []
-  let matchNum = 1
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      rows.push({ ...base, team_1_registration_id: teams[i], team_2_registration_id: teams[j],
-        match_stage: 'round_robin', round_number: 1, match_number: matchNum++ })
-    }
-  }
-  return rows
-}
-
-function eliminationMatches(teams: string[], stage: string, base: object): object[] {
-  const shuffled = [...teams].sort(() => Math.random() - 0.5)
-  const rows: object[] = []
-  let matchNum = 1
-  for (let i = 0; i < shuffled.length; i += 2) {
-    if (i + 1 < shuffled.length) {
-      rows.push({ ...base, team_1_registration_id: shuffled[i], team_2_registration_id: shuffled[i + 1],
-        match_stage: stage, round_number: 1, match_number: matchNum++ })
-    } else {
-      // Bye — auto-complete with team advancing
-      rows.push({ ...base, team_1_registration_id: shuffled[i], team_2_registration_id: null,
-        match_stage: stage, round_number: 1, match_number: matchNum++,
-        status: 'completed', winner_registration_id: shuffled[i] })
-    }
-  }
-  return rows
-}
-
-function poolPlayMatches(teams: string[], numPools: number, base: object): object[] {
-  const pools: string[][] = Array.from({ length: Math.max(1, numPools) }, () => [])
-  teams.forEach((t, i) => pools[i % pools.length].push(t))
-
-  const rows: object[] = []
-  let matchNum = 1
-  pools.forEach((pool, pi) => {
-    for (let i = 0; i < pool.length; i++) {
-      for (let j = i + 1; j < pool.length; j++) {
-        rows.push({ ...base, team_1_registration_id: pool[i], team_2_registration_id: pool[j],
-          match_stage: 'pool_play', pool_number: pi + 1, match_number: matchNum++ })
-      }
-    }
-  })
-  return rows
-}
+import {
+  singleEliminationBracket,
+  doubleEliminationBracket,
+  poolPlayMatches,
+} from '@/lib/tournament/bracketBuilder'
 
 export async function POST(
   _req: NextRequest,
@@ -90,7 +48,7 @@ export async function POST(
     .single()
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
 
-  // Fetch registered teams only
+  // Fetch registered teams
   const { data: registrations } = await service
     .from('tournament_registrations')
     .select('id')
@@ -108,17 +66,30 @@ export async function POST(
   const base = { tournament_id: params.id, division_id: params.divisionId, status: 'scheduled' }
 
   let matchRows: object[]
-  if (ft === 'round_robin') {
-    matchRows = roundRobinMatches(teams, base)
-  } else if (ft === 'single_elimination') {
-    matchRows = eliminationMatches(teams, 'winners_bracket', base)
+  if (ft === 'single_elimination') {
+    matchRows = singleEliminationBracket(teams, 'single_elimination', base).rows
   } else if (ft === 'double_elimination') {
-    matchRows = eliminationMatches(teams, 'winners_bracket', base)
+    matchRows = doubleEliminationBracket(teams, base)
   } else if (ft === 'pool_play_playoffs') {
     const numPools = (fs.number_of_pools as number) ?? 2
-    matchRows = poolPlayMatches(teams, numPools, base)
+    matchRows = poolPlayMatches(teams, numPools, base).rows
   } else {
-    matchRows = roundRobinMatches(teams, base)
+    // round_robin: all vs all in a single pool
+    const rows: object[] = []
+    let matchNum = 1
+    for (let i = 0; i < teams.length; i++) {
+      for (let j = i + 1; j < teams.length; j++) {
+        rows.push({
+          ...base,
+          team_1_registration_id: teams[i],
+          team_2_registration_id: teams[j],
+          match_stage: 'round_robin',
+          round_number: 1,
+          match_number: matchNum++,
+        })
+      }
+    }
+    matchRows = rows
   }
 
   const { data: inserted, error } = await service

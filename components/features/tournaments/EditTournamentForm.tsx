@@ -22,6 +22,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [status, setStatus] = useState(tournament.status)
   const [visibility, setVisibility] = useState(tournament.visibility)
   const [registrationStatus, setRegistrationStatus] = useState(tournament.registration_status)
+  const [registrationClosesAt, setRegistrationClosesAt] = useState(tournament.registration_closes_at ?? '')
   const [costDollars, setCostDollars] = useState(
     tournament.cost_cents ? String((tournament.cost_cents as any) / 100) : ''
   )
@@ -46,6 +47,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         status,
         visibility,
         registration_status: registrationStatus,
+        registration_closes_at: registrationClosesAt || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
       })
       .eq('id', tournament.id)
@@ -118,6 +120,17 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
           onChange={(e) => setStartDate(e.target.value)}
           className="w-full input"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Registration Deadline</label>
+        <input
+          type="date"
+          value={registrationClosesAt}
+          onChange={(e) => setRegistrationClosesAt(e.target.value)}
+          className="w-full input"
+        />
+        <p className="text-xs text-brand-muted mt-1">Registration closes automatically at end of this date. Leave blank to manage manually.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

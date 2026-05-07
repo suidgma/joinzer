@@ -25,6 +25,7 @@ type Registration = {
   team_name: string | null
   status: string
   payment_status?: string
+  stripe_payment_intent_id?: string | null
   user_profile: { name: string } | null
 }
 
@@ -283,6 +284,25 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         ...d,
         tournament_registrations: d.tournament_registrations.map(r =>
           r.id === regId ? { ...r, payment_status: 'paid' } : r
+        ),
+      }
+    ))
+  }
+
+  // ── Organizer: refund a paid registration ────────────────────────
+  async function handleRefund(divisionId: string, regId: string) {
+    if (!confirm('Issue a full refund to this player via Stripe?')) return
+    const res = await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}/refund`, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      alert(body.error ?? 'Refund failed')
+      return
+    }
+    setDivisions(prev => prev.map(d =>
+      d.id !== divisionId ? d : {
+        ...d,
+        tournament_registrations: d.tournament_registrations.map(r =>
+          r.id === regId ? { ...r, payment_status: 'refunded' } : r
         ),
       }
     ))
@@ -716,11 +736,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                    reg.payment_status === 'paid'   ? 'bg-green-100 text-green-700' :
-                                    reg.payment_status === 'waived' ? 'bg-gray-100 text-gray-500'   :
-                                                                      'bg-red-50 text-red-600'
+                                    reg.payment_status === 'paid'     ? 'bg-green-100 text-green-700' :
+                                    reg.payment_status === 'waived'   ? 'bg-gray-100 text-gray-500'   :
+                                    reg.payment_status === 'refunded' ? 'bg-purple-100 text-purple-700' :
+                                                                        'bg-red-50 text-red-600'
                                   }`}>
-                                    {reg.payment_status === 'paid' ? '$ Paid' : reg.payment_status === 'waived' ? 'Waived' : '$ Unpaid'}
+                                    {reg.payment_status === 'paid'     ? '$ Paid'    :
+                                     reg.payment_status === 'waived'   ? 'Waived'    :
+                                     reg.payment_status === 'refunded' ? 'Refunded'  : '$ Unpaid'}
                                   </span>
                                   {reg.partner_user_id ? (
                                     <span className="text-brand-muted">Partner ✓</span>
@@ -729,9 +752,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                                   ) : null}
                                 </div>
                                 <div className="flex shrink-0 gap-2">
-                                  {reg.payment_status !== 'paid' && (
+                                  {reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && (
                                     <button onClick={() => handleMarkPaid(div.id, reg.id)} className="text-green-600 hover:underline">
                                       Mark Paid
+                                    </button>
+                                  )}
+                                  {reg.payment_status === 'paid' && reg.stripe_payment_intent_id && (
+                                    <button onClick={() => handleRefund(div.id, reg.id)} className="text-purple-600 hover:underline">
+                                      Refund
                                     </button>
                                   )}
                                   {reg.status === 'waitlisted' && !isFull && (

@@ -7,10 +7,11 @@ import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-  paid:    { label: 'Paid',    className: 'bg-green-100 text-green-700' },
-  unpaid:  { label: 'Unpaid',  className: 'bg-yellow-100 text-yellow-700' },
-  waived:  { label: 'Free',    className: 'bg-brand-soft text-brand-active' },
-  pending: { label: 'Pending', className: 'bg-gray-100 text-gray-500' },
+  paid:     { label: 'Paid',     className: 'bg-green-100 text-green-700' },
+  unpaid:   { label: 'Unpaid',   className: 'bg-yellow-100 text-yellow-700' },
+  waived:   { label: 'Free',     className: 'bg-brand-soft text-brand-active' },
+  pending:  { label: 'Pending',  className: 'bg-gray-100 text-gray-500' },
+  refunded: { label: 'Refunded', className: 'bg-purple-100 text-purple-700' },
 }
 
 export default async function PaymentHistoryPage() {

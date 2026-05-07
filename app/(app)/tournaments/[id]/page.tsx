@@ -48,7 +48,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .from('tournaments')
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
-        status, visibility, registration_status, organizer_id,
+        status, visibility, registration_status, registration_closes_at, organizer_id,
         location_id,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),
@@ -63,7 +63,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .order('created_at', { ascending: true }),
     db
       .from('tournament_registrations')
-      .select('id, division_id, user_id, partner_user_id, team_name, status, payment_status')
+      .select('id, division_id, user_id, partner_user_id, team_name, status, payment_status, stripe_payment_intent_id')
       .eq('tournament_id', params.id),
     db
       .from('tournament_matches')
@@ -94,7 +94,9 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   const tournament = data as unknown as TournamentDetail
   const isOrganizer = user?.id === tournament.organizer_id
-  const regOpen = tournament.registration_status === 'open'
+  const todayVegas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+  const deadlinePassed = tournament.registration_closes_at != null && tournament.registration_closes_at < todayVegas
+  const regOpen = tournament.registration_status === 'open' && !deadlinePassed
 
   const timeRange = tournament.estimated_end_time
     ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
@@ -156,7 +158,11 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           <span className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-semibold ${
             regOpen ? 'bg-brand-soft text-brand-active' : 'bg-gray-100 text-gray-500'
           }`}>
-            {regOpen ? 'Registration Open' : 'Registration Closed'}
+            {regOpen
+              ? 'Registration Open'
+              : deadlinePassed
+              ? 'Deadline Passed'
+              : 'Registration Closed'}
           </span>
         </div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">{tournament.name}</h1>
@@ -182,6 +188,15 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
             <p className="text-xs text-brand-muted">{timeRange}</p>
           </div>
         </div>
+        {tournament.registration_closes_at && (
+          <div className="flex items-start gap-2">
+            <span className="text-brand-muted text-xs pt-0.5">⏰</span>
+            <p className={`text-sm ${deadlinePassed ? 'text-red-500 font-medium' : 'text-brand-dark'}`}>
+              {deadlinePassed ? 'Registration closed ' : 'Registration closes '}
+              {formatDate(tournament.registration_closes_at)}
+            </p>
+          </div>
+        )}
         {tournament.organizer && (
           <div className="flex items-start gap-2">
             <span className="text-brand-muted text-xs pt-0.5">👤</span>

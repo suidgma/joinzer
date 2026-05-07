@@ -29,10 +29,14 @@ export async function POST(req: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       )
 
-      // Mark registrant paid
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : null
+
+      // Mark registrant paid + store payment intent for future refunds
       await service
         .from('tournament_registrations')
-        .update({ payment_status: 'paid' })
+        .update({ payment_status: 'paid', stripe_payment_intent_id: paymentIntentId })
         .eq('id', registration_id)
 
       // Mark partner paid if covered in this checkout
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
       if (partner_registration_id) {
         await service
           .from('tournament_registrations')
-          .update({ payment_status: 'paid' })
+          .update({ payment_status: 'paid', stripe_payment_intent_id: paymentIntentId })
           .eq('id', partner_registration_id)
       }
 

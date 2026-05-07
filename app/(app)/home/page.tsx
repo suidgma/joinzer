@@ -102,7 +102,7 @@ export default async function HomePage() {
           .order('session_date', { ascending: true })
           .limit(15)
       : Promise.resolve({ data: [] }),
-    db.from('profiles').select('name, dupr_rating, estimated_rating, home_court:locations!home_court_id(lat, lng)').eq('id', user.id).single(),
+    db.from('profiles').select('name, dupr_rating, estimated_rating, rating_source, gender, home_court:locations!home_court_id(lat, lng)').eq('id', user.id).single(),
     db.from('event_participants')
       .select(`
         event:events!event_id (
@@ -261,6 +261,8 @@ export default async function HomePage() {
   const hasSchedule = visibleSchedule.length > 0
   const scheduleIsSparse = scheduleItems.length < 3
   const hasDiscover = sortedDiscoverLeagues.length > 0 || sortedTournaments.length > 0
+  const ratingSource = (profile as any)?.rating_source as string | null
+  const ratingMissing = !ratingSource || ratingSource === 'skipped'
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
@@ -271,6 +273,21 @@ export default async function HomePage() {
           {hasSchedule ? "Here's what's coming up." : "Nothing on your schedule yet — check out what's available below."}
         </p>
       </div>
+
+      {/* Profile completeness nudge — shown when rating is missing */}
+      {ratingMissing && (
+        <Link
+          href="/profile/edit"
+          className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 hover:border-amber-300 transition-colors"
+        >
+          <span className="text-amber-500 text-lg flex-shrink-0">⚠</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-amber-800">Add your skill rating</p>
+            <p className="text-xs text-amber-700">Helps us show you the right leagues and sessions.</p>
+          </div>
+          <span className="text-amber-400 text-sm flex-shrink-0">→</span>
+        </Link>
+      )}
 
       {/* ── My Schedule ── */}
       {hasSchedule && (

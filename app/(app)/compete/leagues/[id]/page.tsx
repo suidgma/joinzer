@@ -8,7 +8,6 @@ import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
-import GroupChat from '@/components/features/GroupChat'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
@@ -44,7 +43,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
       .eq('league_id', params.id)
       .order('session_date', { ascending: true }),
     user
-      ? supabase.from('league_registrations').select('status').eq('league_id', params.id).eq('user_id', user.id).single()
+      ? supabase.from('league_registrations').select('status, is_co_admin').eq('league_id', params.id).eq('user_id', user.id).single()
       : Promise.resolve({ data: null }),
     user
       ? supabase.from('league_sub_interest').select('id').eq('league_id', params.id).eq('user_id', user.id).single()
@@ -99,6 +98,8 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   if (!league) notFound()
 
   const isManager = user?.id === league.created_by
+  const isCoAdmin = !isManager && myReg?.is_co_admin === true
+  const isAdmin = isManager || isCoAdmin
   const attendanceMap = Object.fromEntries(
     (myAttendance ?? []).map((a) => [a.league_session_id as string, a.attendance_status as string])
   )
@@ -234,16 +235,44 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         </section>
       )}
 
-      {/* Standings link */}
-      <Link
-        href={`/compete/leagues/${league.id}/standings`}
-        className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
-      >
-        View Standings →
-      </Link>
+      {/* Quick links — Chat + Standings */}
+      <div className="grid grid-cols-2 gap-2">
+        {user && (
+          <Link
+            href={`/compete/leagues/${league.id}/chat`}
+            className="flex items-center justify-between bg-brand-surface border border-brand rounded-2xl px-4 py-3 hover:bg-brand-soft transition-colors"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-brand-dark">League Chat</p>
+              {leagueMessages && leagueMessages.length > 0 ? (
+                <p className="text-xs text-brand-muted truncate">
+                  {(leagueMessages[leagueMessages.length - 1] as any).profile?.name?.split(' ')[0] ?? 'Someone'}: {(leagueMessages[leagueMessages.length - 1] as any).message_text}
+                </p>
+              ) : (
+                <p className="text-xs text-brand-muted">No messages yet</p>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
+              {leagueMessages && leagueMessages.length > 0 && (
+                <span className="text-[10px] font-bold bg-brand text-brand-dark px-1.5 py-0.5 rounded-full leading-none">
+                  {leagueMessages.length}
+                </span>
+              )}
+              <span className="text-brand-active text-sm">→</span>
+            </div>
+          </Link>
+        )}
+        <Link
+          href={`/compete/leagues/${league.id}/standings`}
+          className={`flex items-center justify-between bg-brand-surface border border-brand-border rounded-2xl px-4 py-3 hover:bg-brand-soft transition-colors ${!user ? 'col-span-2' : ''}`}
+        >
+          <p className="text-sm font-semibold text-brand-dark">Standings</p>
+          <span className="text-brand-active text-sm">→</span>
+        </Link>
+      </div>
 
-      {/* Sessions list — hidden for managers who use the Manage League page instead */}
-      {!isManager && sessions && sessions.length > 0 && (
+      {/* Sessions list — hidden for admins who use the Manage League page instead */}
+      {!isAdmin && sessions && sessions.length > 0 && (
         <section className="space-y-2">
           <h2 className="font-heading text-base font-bold text-brand-dark">Schedule</h2>
           {isManager ? (
@@ -314,8 +343,8 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         </section>
       )}
 
-      {/* Manager view */}
-      {isManager && (
+      {/* Admin view */}
+      {isAdmin && (
         <section className="space-y-2">
           <h2 className="font-heading text-base font-bold text-brand-dark">Court Monitor</h2>
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
@@ -323,27 +352,15 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
             <Link href={`/compete/leagues/${league.id}/roster`} className="block text-sm text-brand-active underline underline-offset-2">
               Manage League →
             </Link>
-            <div className="pt-2 border-t border-brand-border">
-              <DeleteLeagueButton leagueId={league.id} />
-            </div>
+            {isManager && (
+              <div className="pt-2 border-t border-brand-border">
+                <DeleteLeagueButton leagueId={league.id} />
+              </div>
+            )}
           </div>
         </section>
       )}
 
-      {/* League chat */}
-      {user && (
-        <section className="space-y-2">
-          <h2 className="font-heading text-base font-bold text-brand-dark">League Chat</h2>
-          <GroupChat
-            table="league_messages"
-            entityId={league.id}
-            entityField="league_id"
-            initialMessages={(leagueMessages ?? []) as any[]}
-            currentUserId={user.id}
-            canChat={myReg?.status === 'registered' || isManager}
-          />
-        </section>
-      )}
     </main>
   )
 }

@@ -43,6 +43,18 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
+function StreakBadge({ streak }: { streak: { type: 'W' | 'L'; count: number } | null }) {
+  if (!streak || streak.count === 0) return <span className="text-xs text-brand-muted">—</span>
+  const isWin = streak.type === 'W'
+  return (
+    <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+      isWin ? 'bg-lime-100 text-lime-700' : 'bg-red-50 text-red-500'
+    }`}>
+      {streak.type}{streak.count}
+    </span>
+  )
+}
+
 export default async function LeagueStandingsPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -66,6 +78,9 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   const sessionIds = (sessions ?? []).map((s) => s.id)
   const subCreditCap: number = (league as unknown as Record<string, unknown>)?.sub_credit_cap as number ?? 7
 
+  // Map sessionId → chronological index for streak ordering
+  const sessionOrder = new Map((sessions ?? []).map((s, i) => [s.id, i]))
+
   const [{ data: matches }, { data: subSessionPlayers }] = await Promise.all([
     sessionIds.length > 0
       ? supabase
@@ -74,7 +89,6 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
           .in('session_id', sessionIds)
           .not('team1_score', 'is', null)
       : Promise.resolve({ data: [] }),
-    // Fetch sub assignments to redirect and cap points
     sessionIds.length > 0
       ? supabase
           .from('league_session_players')
@@ -84,15 +98,13 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
       : Promise.resolve({ data: [] }),
   ])
 
-  // Build sub redirect maps per session
-  // We need absent players' user_ids — fetch by their session player IDs
+  // Build sub redirect maps
   const absentSpIds = (subSessionPlayers ?? []).map(s => s.sub_for_session_player_id as string).filter(Boolean)
   const { data: absentSpRows } = absentSpIds.length > 0
     ? await supabase.from('league_session_players').select('id, user_id').in('id', absentSpIds)
     : { data: [] }
   const absentUserBySpId = new Map((absentSpRows ?? []).map(p => [p.id as string, p.user_id as string]))
 
-  // sessionId → { subToAbsent: subUserId → absentUserId, absentUserIds: Set }
   type SubInfo = { subToAbsent: Map<string, string>; absentUserIds: Set<string> }
   const subInfoBySession = new Map<string, SubInfo>()
   for (const sp of subSessionPlayers ?? []) {
@@ -106,13 +118,21 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
     info.absentUserIds.add(absentUid)
   }
 
-  // Build overall stats + per-session points
-  type Stats = { points: number; games: number }
-  const statsMap   = new Map<string, Stats>()
-  const sessionPts = new Map<string, Map<string, number>>() // playerId → sessionId → pts
+  // Per-player stats
+  type Stats = {
+    points: number
+    pointsAgainst: number
+    games: number
+    wins: number
+    losses: number
+    // chronological match results for streak: { sessionOrder, won }
+    matchResults: { order: number; won: boolean }[]
+  }
+  const statsMap = new Map<string, Stats>()
+  const sessionPts = new Map<string, Map<string, number>>()
 
   for (const reg of registrations ?? []) {
-    statsMap.set(reg.user_id, { points: 0, games: 0 })
+    statsMap.set(reg.user_id, { points: 0, pointsAgainst: 0, games: 0, wins: 0, losses: 0, matchResults: [] })
   }
 
   for (const m of matches ?? []) {
@@ -120,42 +140,61 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
     const team1Players = [m.team1_player1_id, m.team1_player2_id].filter(Boolean)
     const team2Players = [m.team2_player1_id, m.team2_player2_id].filter(Boolean)
     const info = subInfoBySession.get(m.session_id)
+    const team1Won = m.team1_score > m.team2_score
+    const order = sessionOrder.get(m.session_id) ?? 0
 
-    const apply = (pid: string, pts: number) => {
+    const apply = (pid: string, pts: number, against: number, won: boolean) => {
       let effectivePid = pid
       let effectivePts = pts
       if (info) {
-        // Old data: sub's userId stored directly → redirect to absent player
         const absentUid = info.subToAbsent.get(pid)
         if (absentUid) { effectivePid = absentUid; effectivePts = Math.min(pts, subCreditCap) }
-        // New data: absent player's userId stored → apply cap
         else if (info.absentUserIds.has(pid)) { effectivePts = Math.min(pts, subCreditCap) }
       }
-      const s = statsMap.get(effectivePid) ?? { points: 0, games: 0 }
-      s.games++; s.points += effectivePts
+      const s = statsMap.get(effectivePid) ?? { points: 0, pointsAgainst: 0, games: 0, wins: 0, losses: 0, matchResults: [] }
+      s.games++
+      s.points += effectivePts
+      s.pointsAgainst += against
+      if (won) s.wins++; else s.losses++
+      s.matchResults.push({ order, won })
       statsMap.set(effectivePid, s)
+
       if (!sessionPts.has(effectivePid)) sessionPts.set(effectivePid, new Map())
       const bySession = sessionPts.get(effectivePid)!
       bySession.set(m.session_id, (bySession.get(m.session_id) ?? 0) + effectivePts)
     }
 
-    for (const pid of team1Players) { if (pid) apply(pid, m.team1_score) }
-    for (const pid of team2Players) { if (pid) apply(pid, m.team2_score) }
+    for (const pid of team1Players) { if (pid) apply(pid, m.team1_score, m.team2_score, team1Won) }
+    for (const pid of team2Players) { if (pid) apply(pid, m.team2_score, m.team1_score, !team1Won) }
+  }
+
+  // Compute streak from chronological match results
+  function computeStreak(results: { order: number; won: boolean }[]): { type: 'W' | 'L'; count: number } | null {
+    if (results.length === 0) return null
+    const sorted = [...results].sort((a, b) => a.order - b.order)
+    const last = sorted[sorted.length - 1]
+    let count = 0
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (sorted[i].won === last.won) count++
+      else break
+    }
+    return { type: last.won ? 'W' : 'L', count }
   }
 
   const standings = (registrations ?? []).map((r) => {
     const p = r.profile as unknown as { id: string; name: string; profile_photo_url: string | null }
-    const s = statsMap.get(r.user_id) ?? { points: 0, games: 0 }
-    return { ...p, userId: r.user_id, ...s }
-  }).sort((a, b) => b.points - a.points || b.games - a.games)
+    const s = statsMap.get(r.user_id) ?? { points: 0, pointsAgainst: 0, games: 0, wins: 0, losses: 0, matchResults: [] }
+    const streak = computeStreak(s.matchResults)
+    const winPct = s.games > 0 ? s.wins / s.games : 0
+    return { ...p, userId: r.user_id, ...s, streak, winPct, diff: s.points - s.pointsAgainst }
+  }).sort((a, b) => b.winPct - a.winPct || b.diff - a.diff || b.points - a.points)
 
-  const hasResults      = !!matches && matches.length > 0
-  const isManager       = user?.id === league.created_by
-  const firstSession    = sessions?.[0]
+  const hasResults = !!matches && matches.length > 0
+  const isManager = user?.id === league.created_by
+  const firstSession = sessions?.[0]
   const registeredCount = (registrations ?? []).length
-  const sessionList     = sessions ?? []
+  const sessionList = sessions ?? []
 
-  // Sessions that have at least one match result
   const sessionsWithData = sessionList.filter(s =>
     (matches ?? []).some(m => m.session_id === s.id)
   )
@@ -168,7 +207,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
 
       <div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
-        <p className="text-xs text-brand-muted">Ranked by total points scored</p>
+        <p className="text-xs text-brand-muted">Ranked by win %, then point differential</p>
       </div>
 
       {!hasResults ? (
@@ -190,80 +229,87 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
           )}
         </div>
       ) : (
-          <div className="overflow-x-auto -mx-4 px-4">
-            <table className="min-w-full text-sm border-separate border-spacing-0">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 bg-brand-soft text-left px-3 py-2 text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-r border-brand-border whitespace-nowrap z-10">
-                    Player
+        <div className="overflow-x-auto -mx-4 px-4">
+          <table className="min-w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="sticky left-0 bg-brand-soft text-left px-3 py-2 text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-r border-brand-border whitespace-nowrap z-10">
+                  Player
+                </th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">W-L</th>
+                <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">Win%</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">+/-</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">Streak</th>
+                {sessionsWithData.map((s) => (
+                  <th key={s.id} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
+                    Wk {s.session_number}
                   </th>
-                  <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">PTS</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">GP</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">AVG</th>
-                  {sessionsWithData.map((s) => (
-                    <th key={s.id} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
-                      Wk {s.session_number}
-                    </th>
-                  ))}
-                  {sessionsWithData.length >= 2 && (
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
-                      Trend
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {standings.map((p, i) => {
-                  const bySession = sessionPts.get(p.userId) ?? new Map()
-                  const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-brand-surface'
-                  const sparkValues = sessionsWithData.map(s => bySession.get(s.id) ?? 0)
-                  return (
-                    <tr key={p.id}>
-                      <td className={`sticky left-0 px-3 py-2.5 border-r border-b border-brand-border whitespace-nowrap z-10 ${rowBg}`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-brand-muted text-xs w-4 text-right flex-shrink-0">{i + 1}</span>
-                          <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
-                            {p.profile_photo_url
-                              ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
-                              : <span className="flex items-center justify-center w-full h-full text-brand-muted text-[10px]">{p.name[0]}</span>
-                            }
-                          </div>
-                          <span className="text-sm font-medium text-brand-dark">{p.name}</span>
+                ))}
+                {sessionsWithData.length >= 2 && (
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
+                    Trend
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {standings.map((p, i) => {
+                const bySession = sessionPts.get(p.userId) ?? new Map()
+                const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-brand-surface'
+                const sparkValues = sessionsWithData.map(s => bySession.get(s.id) ?? 0)
+                const diffStr = p.diff > 0 ? `+${p.diff}` : String(p.diff)
+                return (
+                  <tr key={p.id}>
+                    <td className={`sticky left-0 px-3 py-2.5 border-r border-b border-brand-border whitespace-nowrap z-10 ${rowBg}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-brand-muted text-xs w-4 text-right flex-shrink-0">{i + 1}</span>
+                        <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
+                          {p.profile_photo_url
+                            ? <img src={p.profile_photo_url} alt={p.name} className="w-full h-full object-cover" />
+                            : <span className="flex items-center justify-center w-full h-full text-brand-muted text-[10px]">{p.name[0]}</span>
+                          }
                         </div>
-                      </td>
-                      <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                        <span className="text-sm font-bold text-brand-dark">{p.points}</span>
-                      </td>
-                      <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                        <span className="text-sm text-brand-muted">{p.games}</span>
-                      </td>
-                      <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                        <span className="text-xs text-brand-muted">
-                          {p.games > 0 ? (p.points / p.games).toFixed(1) : '—'}
-                        </span>
-                      </td>
-                      {sessionsWithData.map((s) => {
-                        const val = bySession.get(s.id)
-                        return (
-                          <td key={s.id} className={`px-3 py-2.5 text-center border-b border-l border-brand-border ${rowBg}`}>
-                            {val != null
-                              ? <span className="text-sm text-brand-dark">{val}</span>
-                              : <span className="text-xs text-brand-muted">—</span>
-                            }
-                          </td>
-                        )
-                      })}
-                      {sessionsWithData.length >= 2 && (
-                        <td className={`px-2 py-1 text-center border-b border-l border-brand-border ${rowBg}`}>
-                          <Sparkline values={sparkValues} />
+                        <span className="text-sm font-medium text-brand-dark">{p.name}</span>
+                      </div>
+                    </td>
+                    <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                      <span className="text-xs text-brand-muted">{p.wins}–{p.losses}</span>
+                    </td>
+                    <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                      <span className="text-sm font-bold text-brand-dark">
+                        {p.games > 0 ? (p.winPct * 100).toFixed(0) + '%' : '—'}
+                      </span>
+                    </td>
+                    <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                      <span className={`text-xs font-medium ${p.diff > 0 ? 'text-lime-600' : p.diff < 0 ? 'text-red-400' : 'text-brand-muted'}`}>
+                        {p.games > 0 ? diffStr : '—'}
+                      </span>
+                    </td>
+                    <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                      <StreakBadge streak={p.streak} />
+                    </td>
+                    {sessionsWithData.map((s) => {
+                      const val = bySession.get(s.id)
+                      return (
+                        <td key={s.id} className={`px-3 py-2.5 text-center border-b border-l border-brand-border ${rowBg}`}>
+                          {val != null
+                            ? <span className="text-sm text-brand-dark">{val}</span>
+                            : <span className="text-xs text-brand-muted">—</span>
+                          }
                         </td>
-                      )}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )
+                    })}
+                    {sessionsWithData.length >= 2 && (
+                      <td className={`px-2 py-1 text-center border-b border-l border-brand-border ${rowBg}`}>
+                        <Sparkline values={sparkValues} />
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   )

@@ -57,6 +57,7 @@ export type TournamentDetail = {
   status: string
   visibility: string
   registration_status: string
+  registration_closes_at: string | null
   organizer_id: string
   cost_cents: number
   location_id: string | null

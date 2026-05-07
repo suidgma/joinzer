@@ -25,7 +25,16 @@ export default async function LiveSessionPage({
   ])
 
   if (!league || !session) notFound()
-  if (league.created_by !== user.id) redirect(`/compete/leagues/${params.id}`)
+
+  if (league.created_by !== user.id) {
+    const { data: regRow } = await db
+      .from('league_registrations')
+      .select('is_co_admin')
+      .eq('league_id', params.id)
+      .eq('user_id', user.id)
+      .single()
+    if (!regRow?.is_co_admin) redirect(`/compete/leagues/${params.id}`)
+  }
 
   // --- Sync session players: seed missing roster players on every load ---
   const [

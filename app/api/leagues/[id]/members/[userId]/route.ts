@@ -8,6 +8,34 @@ function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
+// PATCH /api/leagues/[id]/members/[userId] — primary organizer toggles co-admin status
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const db = admin()
+  const { data: league } = await db.from('leagues').select('created_by').eq('id', params.id).single()
+  if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (league.created_by !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Prevent removing own organizer status
+  if (params.userId === user.id) return NextResponse.json({ error: 'Cannot change your own admin status' }, { status: 400 })
+
+  const body = await req.json().catch(() => ({}))
+  const { is_co_admin } = body
+  if (typeof is_co_admin !== 'boolean') return NextResponse.json({ error: 'is_co_admin must be boolean' }, { status: 400 })
+
+  const { error } = await db
+    .from('league_registrations')
+    .update({ is_co_admin })
+    .eq('league_id', params.id)
+    .eq('user_id', params.userId)
+    .eq('status', 'registered')
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, is_co_admin })
+}
+
 // DELETE /api/leagues/[id]/members/[userId] — organizer removes a player
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const supabase = createClient()

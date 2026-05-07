@@ -3,10 +3,13 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
+import RatingBadge from '@/components/features/RatingBadge'
 
 type PlayerReg = {
   status: string
   registered_at: string
+  is_co_admin: boolean
+  user_id: string
   profile: {
     id: string
     name: string
@@ -40,13 +43,9 @@ type Props = {
   subInterest: SubEntry[]
   sessions: SessionRow[]
   availablePlayers: AvailablePlayer[]
+  isPrimaryOrganizer: boolean
 }
 
-function ratingStr(p: { rating_source: string | null; dupr_rating: number | null; estimated_rating: number | null }) {
-  if (p.rating_source === 'dupr_known' && p.dupr_rating) return `DUPR ${p.dupr_rating}`
-  if (p.rating_source === 'estimated' && p.estimated_rating) return `~${p.estimated_rating}`
-  return '—'
-}
 
 export default function LeagueRosterManager({
   leagueId,
@@ -57,6 +56,7 @@ export default function LeagueRosterManager({
   subInterest,
   sessions: initialSessions,
   availablePlayers: initialAvailable,
+  isPrimaryOrganizer,
 }: Props) {
   const [registered, setRegistered] = useState<PlayerReg[]>(initialRegistered)
   const [availablePlayers, setAvailablePlayers] = useState<AvailablePlayer[]>(initialAvailable)
@@ -64,6 +64,7 @@ export default function LeagueRosterManager({
   const [selectedPlayerId, setSelectedPlayerId] = useState('')
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<string | null>(null)
+  const [togglingAdminId, setTogglingAdminId] = useState<string | null>(null)
   const [fullError, setFullError] = useState(false)
 
   const isFull = maxPlayers != null && registered.length >= maxPlayers
@@ -91,6 +92,27 @@ export default function LeagueRosterManager({
       }
     } finally {
       setRemovingId(null)
+    }
+  }
+
+  async function handleToggleAdmin(userId: string, current: boolean) {
+    setTogglingAdminId(userId)
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/members/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_co_admin: !current }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error ?? 'Failed to update admin status')
+        return
+      }
+      setRegistered((prev) =>
+        prev.map((r) => r.user_id === userId ? { ...r, is_co_admin: !current } : r)
+      )
+    } finally {
+      setTogglingAdminId(null)
     }
   }
 
@@ -189,7 +211,29 @@ export default function LeagueRosterManager({
                     }
                   </div>
                   <span className="flex-1 text-sm font-medium text-brand-dark">{p.name}</span>
-                  <span className="text-xs text-brand-muted">{ratingStr(p)}</span>
+                  <RatingBadge
+                    ratingSource={p.rating_source}
+                    duprRating={p.dupr_rating}
+                    estimatedRating={p.estimated_rating}
+                  />
+                  {r.is_co_admin && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand/20 text-brand-dark leading-none">
+                      Co-admin
+                    </span>
+                  )}
+                  {isPrimaryOrganizer && (
+                    <button
+                      onClick={() => handleToggleAdmin(r.user_id, r.is_co_admin)}
+                      disabled={togglingAdminId === r.user_id}
+                      className={`px-2 py-1 rounded text-xs border disabled:opacity-40 transition-colors ${
+                        r.is_co_admin
+                          ? 'text-brand-muted border-brand-border hover:bg-brand-soft'
+                          : 'text-brand-active border-brand-active hover:bg-brand/10'
+                      }`}
+                    >
+                      {togglingAdminId === r.user_id ? '…' : r.is_co_admin ? 'Revoke' : 'Co-admin'}
+                    </button>
+                  )}
                   <button
                     onClick={() => handleRemove(p.id)}
                     disabled={removingId === p.id}

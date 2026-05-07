@@ -14,13 +14,22 @@ export default async function LeagueRosterPage({ params }: { params: { id: strin
     .single()
 
   if (!league) notFound()
-  if (league.created_by !== user.id) redirect(`/compete/leagues/${params.id}`)
+
+  // Co-admins can access roster too
+  const { data: myReg } = await supabase
+    .from('league_registrations')
+    .select('is_co_admin')
+    .eq('league_id', params.id)
+    .eq('user_id', user.id)
+    .single()
+  const isCoAdmin = myReg?.is_co_admin === true
+  if (league.created_by !== user.id && !isCoAdmin) redirect(`/compete/leagues/${params.id}`)
 
   const [{ data: registrations }, { data: subInterest }, { data: sessions }, { data: allProfiles }] =
     await Promise.all([
       supabase
         .from('league_registrations')
-        .select('status, registered_at, profile:profiles(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
+        .select('status, registered_at, is_co_admin, user_id, profile:profiles(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
         .eq('league_id', params.id)
         .neq('status', 'cancelled')
         .order('registered_at', { ascending: true }),
@@ -57,6 +66,7 @@ export default async function LeagueRosterPage({ params }: { params: { id: strin
       subInterest={(subInterest ?? []) as any[]}
       sessions={(sessions ?? []) as any[]}
       availablePlayers={availablePlayers}
+      isPrimaryOrganizer={league.created_by === user.id}
     />
   )
 }

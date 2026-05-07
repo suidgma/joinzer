@@ -50,32 +50,47 @@ export default function EditEventForm({ event }: Props) {
     setLoading(true)
     setError(null)
 
-    const startsAt = new Date(`${date}T${time}:00`).toISOString()
-    const supabase = createClient()
+    try {
+      // Cancellation goes through a server route so joined players get notified
+      if (status === 'cancelled' && event.status !== 'cancelled') {
+        const res = await fetch(`/api/events/${event.id}/cancel`, { method: 'POST' })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          setError(body.error ?? 'Failed to cancel session')
+          return
+        }
+        window.location.href = `/events/${event.id}`
+        return
+      }
 
-    const { error } = await supabase
-      .from('events')
-      .update({
-        title: title.trim(),
-        starts_at: startsAt,
-        duration_minutes: duration,
-        court_count: courtCount,
-        players_per_court: playersPerCourt,
-        max_players: maxPlayers,
-        notes: notes.trim() || null,
-        status,
-        session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
-        price_cents: clinicType === 'paid' ? priceCents : null,
-      })
-      .eq('id', event.id)
+      const startsAt = new Date(`${date}T${time}:00`).toISOString()
+      const supabase = createClient()
 
-    if (error) {
-      setError(error.message)
+      const { error: updateErr } = await supabase
+        .from('events')
+        .update({
+          title: title.trim(),
+          starts_at: startsAt,
+          duration_minutes: duration,
+          court_count: courtCount,
+          players_per_court: playersPerCourt,
+          max_players: maxPlayers,
+          notes: notes.trim() || null,
+          status,
+          session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
+          price_cents: clinicType === 'paid' ? priceCents : null,
+        })
+        .eq('id', event.id)
+
+      if (updateErr) {
+        setError(updateErr.message)
+        return
+      }
+
+      window.location.href = `/events/${event.id}`
+    } finally {
       setLoading(false)
-      return
     }
-
-    window.location.href = `/events/${event.id}`
   }
 
   return (

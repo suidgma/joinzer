@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { joinzerRatingLabel } from '@/lib/utils/date'
 import DeleteAccountButton from '@/components/features/DeleteAccountButton'
+import RatingBadge from '@/components/features/RatingBadge'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -25,6 +26,12 @@ export default async function ProfilePage() {
       ? `Estimated ${profile.estimated_rating}`
       : null
 
+  // Compute missing fields for completeness nudge
+  const missing: string[] = []
+  if (!profile.rating_source || profile.rating_source === 'skipped') missing.push('skill rating')
+  if (!profile.gender) missing.push('gender')
+  if (!profile.profile_photo_url) missing.push('profile photo')
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -33,6 +40,22 @@ export default async function ProfilePage() {
           Edit
         </Link>
       </div>
+
+      {missing.length > 0 && (
+        <Link
+          href="/profile/edit"
+          className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 hover:border-amber-300 transition-colors"
+        >
+          <span className="text-amber-500 mt-0.5 flex-shrink-0">⚠</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-amber-800">Complete your profile</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Missing: {missing.join(', ')}. Skill rating helps you get matched to the right leagues and sessions.
+            </p>
+          </div>
+          <span className="text-amber-400 text-sm flex-shrink-0 self-center">→</span>
+        </Link>
+      )}
 
       {profile.profile_photo_url && (
         <div className="flex justify-center">
@@ -75,7 +98,17 @@ export default async function ProfilePage() {
 
         <div>
           <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Rating</p>
-          <p className="text-sm text-brand-body">{ratingDisplay ?? 'Not set'}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-brand-body">{ratingDisplay ?? 'Not set'}</p>
+            {ratingDisplay && (
+              <RatingBadge
+                ratingSource={profile.rating_source}
+                duprRating={profile.dupr_rating}
+                estimatedRating={profile.estimated_rating}
+                size="sm"
+              />
+            )}
+          </div>
         </div>
 
         <div>

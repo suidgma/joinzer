@@ -14,7 +14,7 @@ export default async function EditTournamentPage({ params }: { params: { id: str
       .from('tournaments')
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
-        status, visibility, registration_status, organizer_id, cost_cents,
+        status, visibility, registration_status, registration_closes_at, organizer_id, cost_cents,
         location_id,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),

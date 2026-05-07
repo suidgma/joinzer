@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
 
 export async function PATCH(
   req: NextRequest,
@@ -29,7 +30,7 @@ export async function PATCH(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Verify organizer via tournament
+  // Verify organizer
   const { data: tournament } = await service
     .from('tournaments')
     .select('organizer_id')
@@ -39,10 +40,10 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Fetch match to get team registration IDs
+  // Fetch match
   const { data: match } = await service
     .from('tournament_matches')
-    .select('id, team_1_registration_id, team_2_registration_id, tournament_id')
+    .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number')
     .eq('id', params.matchId)
     .eq('tournament_id', params.id)
     .single()
@@ -62,6 +63,27 @@ export async function PATCH(
 
   if (error || !updated) {
     return NextResponse.json({ error: error?.message ?? 'Update failed' }, { status: 500 })
+  }
+
+  // Advance winner to next round slot
+  const { data: divisionMatches } = await service
+    .from('tournament_matches')
+    .select('id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status')
+    .eq('division_id', match.division_id)
+
+  if (divisionMatches) {
+    const completedMatch: MatchRow = {
+      ...match,
+      winner_registration_id,
+      status: 'completed',
+    }
+    const advancement = computeAdvancement(completedMatch, divisionMatches as MatchRow[])
+    if (advancement) {
+      await service
+        .from('tournament_matches')
+        .update({ [advancement.field]: advancement.value })
+        .eq('id', advancement.matchId)
+    }
   }
 
   return NextResponse.json({ match: updated })
