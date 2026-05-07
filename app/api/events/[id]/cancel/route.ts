@@ -91,7 +91,7 @@ export async function POST(
         `,
       }
     })
-    .filter(Boolean) as object[]
+    .filter((e): e is NonNullable<typeof e> => e !== null)
 
   if (emails.length > 0) {
     const resend = new Resend(process.env.RESEND_API_KEY)
