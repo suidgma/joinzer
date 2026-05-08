@@ -9,11 +9,11 @@ import FormatSettingsFields, {
 } from './FormatSettingsFields'
 
 const CATEGORY_LABELS: Record<string, string> = {
-  mens_doubles:   "Men's Doubles",
-  womens_doubles: "Women's Doubles",
-  mixed_doubles:  "Mixed Doubles",
-  singles:        "Singles",
-  open:           "Open",
+  mens_doubles:   'Men',
+  womens_doubles: 'Women',
+  mixed_doubles:  'Mixed',
+  singles:        'Singles',
+  open:           'Open',
 }
 
 const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediate Plus', 'Advanced', 'Open']
@@ -445,9 +445,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
               <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
-                <option value="mixed_doubles">Mixed Doubles</option>
-                <option value="mens_doubles">Men&apos;s Doubles</option>
-                <option value="womens_doubles">Women&apos;s Doubles</option>
+                <option value="mixed_doubles">Mixed</option>
+                <option value="mens_doubles">Men</option>
+                <option value="womens_doubles">Women</option>
                 <option value="singles">Singles</option>
                 <option value="open">Open</option>
               </select>
