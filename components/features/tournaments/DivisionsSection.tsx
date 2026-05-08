@@ -340,9 +340,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
     const excludeIds = Array.from(new Set((currentUserId ? [currentUserId] : []).concat(excludeUserIds)))
     if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
-    // Filter by gender when category is Men or Women
-    if (category === 'Men') q = (q as any).eq('gender', 'male')
-    else if (category === 'Women') q = (q as any).eq('gender', 'female')
+    // Filter by gender based on stored category value
+    if (category === 'mens_doubles') q = (q as any).eq('gender', 'male')
+    else if (category === 'womens_doubles') q = (q as any).eq('gender', 'female')
     const { data } = await q
     setPlayerResults(data ?? [])
   }
