@@ -540,7 +540,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
           {divisions.map(div => {
             const active       = div.tournament_registrations.filter(r => r.status === 'registered')
             const waitlist     = div.tournament_registrations.filter(r => r.status === 'waitlisted')
-            const teamRegs     = active.filter(r => r.registration_type === 'team').length
+            const teamRegs     = active.filter(r => !r.registration_type || r.registration_type === 'team').length
             const soloRegs     = active.filter(r => r.registration_type === 'solo').length
             const matchedSolos = active.filter(r => r.registration_type === 'solo' && r.partner_registration_id).length
             const unmatchedSolos = soloRegs - matchedSolos
