@@ -561,6 +561,15 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       {div.team_type === 'doubles' ? 'Doubles' : 'Singles'}
                       {div.skill_level && ` · ${div.skill_level}`}
                     </p>
+                    <p className="text-xs text-brand-muted mt-0.5">{summaryLines.join(' · ')}</p>
+                    {isOrganizer && !isEditingFormat && (
+                      <button
+                        onClick={() => openFormatEdit(div)}
+                        className="text-xs text-brand-active hover:underline mt-0.5"
+                      >
+                        Edit Format
+                      </button>
+                    )}
                   </div>
                   <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
                     isClosed                             ? 'bg-gray-100 text-gray-500'       :
@@ -569,25 +578,6 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                   }`}>
                     {isClosed ? 'Closed' : isFull && !div.waitlist_enabled ? 'Full' : 'Open'}
                   </span>
-                </div>
-
-                {/* Format summary */}
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    {summaryLines.map((line, i) => (
-                      <p key={i} className={`text-xs ${i === 0 ? 'font-semibold text-brand-dark' : 'text-brand-muted'}`}>
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                  {isOrganizer && !isEditingFormat && (
-                    <button
-                      onClick={() => openFormatEdit(div)}
-                      className="shrink-0 text-xs text-brand-active hover:underline"
-                    >
-                      Edit Format
-                    </button>
-                  )}
                 </div>
 
                 {/* Inline format editor */}
