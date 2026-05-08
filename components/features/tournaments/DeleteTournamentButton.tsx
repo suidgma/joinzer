@@ -17,7 +17,7 @@ export default function DeleteTournamentButton({ tournamentId }: { tournamentId:
       setDeleting(false)
       return
     }
-    router.push('/compete')
+    router.refresh()
   }
 
   return (
