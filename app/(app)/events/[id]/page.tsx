@@ -17,6 +17,37 @@ type ChatMessage = {
   profile: { name: string } | null
 }
 
+export async function generateMetadata({ params }: { params: { id: string } }) {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('events')
+    .select('title, starts_at, location:locations!location_id(name)')
+    .eq('id', params.id)
+    .single()
+
+  if (!data) return {}
+
+  const loc = (data.location as { name: string } | null)?.name
+  const date = data.starts_at
+    ? new Date(data.starts_at).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
+    : null
+  const description = [date, loc].filter(Boolean).join(' · ')
+
+  return {
+    title: data.title,
+    openGraph: {
+      title: data.title,
+      description,
+      siteName: 'Joinzer',
+    },
+    twitter: {
+      card: 'summary',
+      title: data.title,
+      description,
+    },
+  }
+}
+
 export default async function EventDetailPage({
   params,
 }: {
