@@ -336,9 +336,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   // ── Organizer: search players ─────────────────────────────────────
   async function searchPlayers(query: string) {
     setPlayerSearch(query)
-    if (query.trim().length < 2) { setPlayerResults([]); return }
     const supabase = createClient()
-    let q = supabase.from('profiles').select('id, name').ilike('name', `%${query}%`).limit(9)
+    let q = supabase.from('profiles').select('id, name').order('name').limit(20)
+    if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
     if (currentUserId) q = q.neq('id', currentUserId)
     const { data } = await q
     setPlayerResults(data ?? [])
@@ -793,6 +793,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           type="text"
                           value={playerSearch}
                           onChange={e => searchPlayers(e.target.value)}
+                          onFocus={() => searchPlayers(playerSearch)}
                           placeholder="Search player by name…"
                           className="w-full input text-xs"
                           autoFocus
