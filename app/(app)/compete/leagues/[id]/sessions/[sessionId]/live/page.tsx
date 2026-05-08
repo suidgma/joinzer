@@ -44,7 +44,7 @@ export default async function LiveSessionPage({
     { data: sessionSubs },
     { count: completedRoundCount },
   ] = await Promise.all([
-    db.from('league_session_players').select('user_id, id').eq('session_id', params.sessionId),
+    db.from('league_session_players').select('user_id, id, player_type').eq('session_id', params.sessionId),
     db.from('league_session_attendance').select('user_id, attendance_status').eq('league_session_id', params.sessionId),
     db.from('league_registrations')
       .select('user_id, profile:profiles(id, name, joinzer_rating, dupr_rating, estimated_rating)')
@@ -113,6 +113,18 @@ export default async function LiveSessionPage({
     })
   if (newSubRows.length > 0) {
     await db.from('league_session_players').insert(newSubRows)
+  }
+
+  // Remove stale roster_players whose registration has since been cancelled.
+  // Only safe before any round is completed — after that, removing a player breaks match history.
+  if ((completedRoundCount ?? 0) === 0) {
+    const registeredUserIds = new Set((registrations ?? []).map(r => r.user_id as string))
+    const staleIds = (existingSessionPlayers ?? [])
+      .filter(p => (p as any).player_type === 'roster_player' && !registeredUserIds.has(p.user_id as string))
+      .map(p => p.id)
+    if (staleIds.length > 0) {
+      await db.from('league_session_players').delete().in('id', staleIds)
+    }
   }
 
   // Before any rounds are completed, re-sync existing players' statuses from self-reports.

@@ -11,6 +11,8 @@ import MatchesSection from '@/components/features/tournaments/MatchesSection'
 import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import ShareButton from '@/components/features/ShareButton'
+import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
+import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
 
 function formatDate(dateStr: string) {
   return formatSessionDate(dateStr, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -36,7 +38,6 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   )
 }
-
 
 export default async function TournamentDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -84,7 +85,6 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   if (!data) notFound()
 
-  // Fetch cost_cents separately so a missing column doesn't 404 the whole page
   const { data: costRow } = await db
     .from('tournaments')
     .select('cost_cents')
@@ -102,42 +102,16 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
     : formatTime(tournament.start_time)
 
-  // Fetch profile names for all registered users
   const allUserIds = Array.from(new Set((regsRaw ?? []).map((r: any) => r.user_id).filter(Boolean)))
   const { data: profilesRaw } = allUserIds.length > 0
     ? await db.from('profiles').select('id, name').in('id', allUserIds)
     : { data: [] }
   const profileNames: Record<string, string> = {}
-  for (const p of profilesRaw ?? []) {
-    profileNames[p.id] = p.name
-  }
+  for (const p of profilesRaw ?? []) profileNames[p.id] = p.name
 
-  // Join registrations onto their divisions server-side
-  const regsByDivision: Record<string, any[]> = {}
-  for (const reg of regsRaw ?? []) {
-    if (!regsByDivision[reg.division_id]) regsByDivision[reg.division_id] = []
-    regsByDivision[reg.division_id].push({
-      ...reg,
-      user_profile: { name: profileNames[reg.user_id] ?? null },
-    })
-  }
-  const divisions = (divisionsRaw ?? []).map((div: any) => ({
-    ...div,
-    tournament_registrations: regsByDivision[div.id] ?? [],
-  }))
-  const matches = (matchesData ?? []) as any[]
-
-  // True if the current user has a 'registered' entry in any division
-  const isRegistered = user
-    ? divisions.some((div) =>
-        (div.tournament_registrations ?? []).some(
-          (reg: any) => reg.user_id === user.id && reg.status === 'registered'
-        )
-      )
-    : false
-
-  return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
+  // Shared page header — used by both organizer and player views
+  const pageHeader = (
+    <>
       <div className="flex items-center justify-between">
         <Link href="/tournaments" className="text-brand-muted text-sm">← Back</Link>
         <ShareButton
@@ -146,7 +120,6 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         />
       </div>
 
-      {/* Header */}
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
@@ -158,17 +131,12 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           <span className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-semibold ${
             regOpen ? 'bg-brand-soft text-brand-active' : 'bg-gray-100 text-gray-500'
           }`}>
-            {regOpen
-              ? 'Registration Open'
-              : deadlinePassed
-              ? 'Deadline Passed'
-              : 'Registration Closed'}
+            {regOpen ? 'Registration Open' : deadlinePassed ? 'Deadline Passed' : 'Registration Closed'}
           </span>
         </div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">{tournament.name}</h1>
       </div>
 
-      {/* Details card */}
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
         {tournament.location && (
           <div className="flex items-start gap-2">
@@ -209,45 +177,91 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           </p>
         )}
       </div>
+    </>
+  )
 
-      {/* Organizer actions */}
-      {isOrganizer && (
-        <div className="space-y-2">
-          <Link
-            href={`/tournaments/${tournament.id}/edit`}
-            className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
-          >
-            Edit Tournament
-          </Link>
-          <div className="flex justify-center">
-            <DeleteTournamentButton tournamentId={tournament.id} />
-          </div>
-        </div>
+  // --- ORGANIZER VIEW ---
+  if (isOrganizer) {
+    const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => ({
+      id: r.id,
+      user_id: r.user_id,
+      division_id: r.division_id,
+      team_name: r.team_name ?? null,
+      status: r.status,
+      player_name: profileNames[r.user_id] ?? null,
+      partner_user_id: r.partner_user_id ?? null,
+    }))
+
+    const orgDivisions: OrgDivision[] = (divisionsRaw ?? []).map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      format_type: d.format_type,
+    }))
+
+    const orgMatches: OrgMatch[] = (matchesData ?? []) as OrgMatch[]
+
+    return (
+      <main className="max-w-lg mx-auto px-4 pb-8 space-y-4">
+        {pageHeader}
+        <TournamentOrganizerView
+          tournamentId={tournament.id}
+          initialMatches={orgMatches}
+          registrations={orgRegs}
+          divisions={orgDivisions}
+        />
+      </main>
+    )
+  }
+
+  // --- PLAYER / SPECTATOR VIEW (unchanged) ---
+  const regsByDivision: Record<string, any[]> = {}
+  for (const reg of regsRaw ?? []) {
+    if (!regsByDivision[reg.division_id]) regsByDivision[reg.division_id] = []
+    regsByDivision[reg.division_id].push({
+      ...reg,
+      user_profile: { name: profileNames[reg.user_id] ?? null },
+    })
+  }
+  const divisions = (divisionsRaw ?? []).map((div: any) => ({
+    ...div,
+    tournament_registrations: regsByDivision[div.id] ?? [],
+  }))
+  const matches = (matchesData ?? []) as any[]
+
+  const isRegistered = user
+    ? divisions.some((div) =>
+        (div.tournament_registrations ?? []).some(
+          (reg: any) => reg.user_id === user.id && reg.status === 'registered'
+        )
+      )
+    : false
+
+  return (
+    <main className="max-w-lg mx-auto p-4 space-y-4">
+      {pageHeader}
+
+      {divisions.length > 0 && (
+        <DivisionsSection
+          tournamentId={tournament.id}
+          initialDivisions={divisions}
+          isOrganizer={false}
+          currentUserId={user?.id ?? null}
+          tournamentCostCents={costCents}
+        />
       )}
 
-      {/* Divisions + Registration */}
-      <DivisionsSection
-        tournamentId={tournament.id}
-        initialDivisions={divisions}
-        isOrganizer={isOrganizer}
-        currentUserId={user?.id ?? null}
-        tournamentCostCents={costCents}
-      />
-
-      {/* Matches, scoring, and standings */}
       {divisions.length > 0 && (
         <MatchesSection
           tournamentId={tournament.id}
           divisions={divisions}
           initialMatches={matches}
-          isOrganizer={isOrganizer}
+          isOrganizer={false}
           tournamentDate={tournament.start_date}
           defaultStartTime={tournament.start_time ?? '08:00'}
           defaultEndTime={tournament.estimated_end_time ?? null}
         />
       )}
 
-      {/* Tournament chat */}
       {user && (
         <section className="space-y-2">
           <h2 className="font-heading text-base font-bold text-brand-dark">Tournament Chat</h2>
@@ -257,7 +271,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
             entityField="tournament_id"
             initialMessages={(tournamentMessages ?? []) as any[]}
             currentUserId={user.id}
-            canChat={isOrganizer || isRegistered}
+            canChat={isRegistered}
           />
         </section>
       )}

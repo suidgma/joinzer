@@ -63,6 +63,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Solo registration is only available for doubles leagues' }, { status: 400 })
   }
 
+  // Gender gate for mens/womens doubles
+  const GENDER_REQUIRED: Record<string, string> = {
+    mens_doubles: 'male',
+    womens_doubles: 'female',
+  }
+  const requiredGender = GENDER_REQUIRED[league.format] ?? null
+  if (requiredGender) {
+    const { data: profile } = await admin.from('profiles').select('gender').eq('id', user.id).single()
+    const userGender = (profile as any)?.gender ?? null
+    if (userGender !== requiredGender) {
+      const label = requiredGender === 'male' ? "Men's" : "Women's"
+      return NextResponse.json(
+        { error: `This is a ${label} Doubles league. Update your gender in your profile to register.` },
+        { status: 403 }
+      )
+    }
+  }
+
   // Count registered players
   const { count: registeredCount } = await admin
     .from('league_registrations')
@@ -86,17 +104,47 @@ export async function POST(request: NextRequest) {
   let matchedWith: { name: string } | null = null
 
   if (registration_type === 'solo' && status === 'registered') {
-    const { data: soloPartner } = await admin
-      .from('league_registrations')
-      .select('id, user_id')
-      .eq('league_id', leagueId)
-      .eq('status', 'registered')
-      .eq('registration_type', 'solo')
-      .is('partner_user_id', null)
-      .neq('user_id', user.id)
-      .order('registered_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+    // For gender-specific leagues, only match with a partner of the same required gender.
+    // For mixed/coed, no gender filter — any solo can match any other solo.
+    let soloPartner: { id: string; user_id: string } | null = null
+
+    if (requiredGender) {
+      // Fetch all unmatched solos, then cross-reference their gender from profiles
+      const { data: candidateRegs } = await admin
+        .from('league_registrations')
+        .select('id, user_id')
+        .eq('league_id', leagueId)
+        .eq('status', 'registered')
+        .eq('registration_type', 'solo')
+        .is('partner_user_id', null)
+        .neq('user_id', user.id)
+        .order('registered_at', { ascending: true })
+
+      if (candidateRegs && candidateRegs.length > 0) {
+        const candidateIds = candidateRegs.map(r => r.user_id)
+        const { data: genderedProfiles } = await admin
+          .from('profiles')
+          .select('id, gender')
+          .in('id', candidateIds)
+          .eq('gender', requiredGender)
+
+        const matchableIds = new Set((genderedProfiles ?? []).map(p => p.id))
+        soloPartner = candidateRegs.find(r => matchableIds.has(r.user_id)) ?? null
+      }
+    } else {
+      const { data } = await admin
+        .from('league_registrations')
+        .select('id, user_id')
+        .eq('league_id', leagueId)
+        .eq('status', 'registered')
+        .eq('registration_type', 'solo')
+        .is('partner_user_id', null)
+        .neq('user_id', user.id)
+        .order('registered_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      soloPartner = data
+    }
 
     if (soloPartner) {
       // Fetch both registrations' IDs

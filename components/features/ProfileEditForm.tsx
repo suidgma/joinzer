@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PhotoUpload from '@/components/features/PhotoUpload'
@@ -43,8 +43,18 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
   )
   const [notifyNewSessions, setNotifyNewSessions] = useState(profile.notify_new_sessions)
   const [homeCourt, setHomeCourt] = useState<string>(profile.home_court_id ?? '')
-  const [courtSearch, setCourtSearch] = useState('')
+  const [courtQuery, setCourtQuery] = useState('')
+  const [courtOpen, setCourtOpen] = useState(false)
+  const courtRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (courtRef.current && !courtRef.current.contains(e.target as Node)) setCourtOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -159,36 +169,58 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
       </div>
 
       {locations.length > 0 && (
-        <div>
+        <div ref={courtRef}>
           <label className="block text-sm font-medium mb-1">
             Home court{' '}
             <span className="text-gray-400 font-normal">(optional)</span>
           </label>
-          <input
-            type="text"
-            value={courtSearch}
-            onChange={(e) => setCourtSearch(e.target.value)}
-            placeholder="Search courts…"
-            className="w-full input mb-1"
-          />
-          <select
-            value={homeCourt}
-            onChange={(e) => setHomeCourt(e.target.value)}
-            className="w-full input"
-            size={4}
-          >
-            <option value="">None</option>
-            {locations
-              .filter((l) => l.name.toLowerCase().includes(courtSearch.toLowerCase()))
-              .map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-          </select>
-          {homeCourt && (
-            <p className="text-xs text-brand-muted mt-1">
-              Selected: {locations.find((l) => l.id === homeCourt)?.name}
-            </p>
-          )}
+          <div className="relative">
+            <input
+              type="text"
+              value={courtOpen ? courtQuery : (locations.find(l => l.id === homeCourt)?.name ?? '')}
+              onChange={(e) => { setCourtQuery(e.target.value); setCourtOpen(true); if (!e.target.value) setHomeCourt('') }}
+              onFocus={() => { setCourtQuery(''); setCourtOpen(true) }}
+              placeholder="Search courts…"
+              autoComplete="off"
+              className="w-full input"
+            />
+            {homeCourt && !courtOpen && (
+              <button
+                type="button"
+                onClick={() => { setHomeCourt(''); setCourtQuery('') }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand-dark text-lg leading-none"
+                aria-label="Clear"
+              >
+                ×
+              </button>
+            )}
+            {courtOpen && (
+              <ul className="absolute z-10 mt-1 w-full bg-brand-surface border border-brand-border rounded-xl shadow-lg max-h-56 overflow-auto">
+                <li>
+                  <button
+                    type="button"
+                    onMouseDown={() => { setHomeCourt(''); setCourtQuery(''); setCourtOpen(false) }}
+                    className="w-full text-left px-3 py-2 text-sm text-brand-muted hover:bg-brand-soft transition-colors"
+                  >
+                    None
+                  </button>
+                </li>
+                {locations
+                  .filter(l => !courtQuery.trim() || l.name.toLowerCase().includes(courtQuery.toLowerCase()))
+                  .map(l => (
+                    <li key={l.id}>
+                      <button
+                        type="button"
+                        onMouseDown={() => { setHomeCourt(l.id); setCourtQuery(''); setCourtOpen(false) }}
+                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${homeCourt === l.id ? 'bg-brand-soft font-semibold text-brand-active' : 'text-brand-body hover:bg-brand-soft'}`}
+                      >
+                        {l.name}
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
