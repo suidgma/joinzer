@@ -110,11 +110,13 @@ export default function FormatSettingsFields({ formatType, formatSettings, onTyp
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-brand-muted mb-1">Games To</label>
-          <select value={s.games_to ?? 11} onChange={e => set({ games_to: Number(e.target.value) })} className="w-full input">
-            <option value={11}>11</option>
-            <option value={15}>15</option>
-            <option value={21}>21</option>
-          </select>
+          <input
+            type="number"
+            min="1"
+            value={s.games_to ?? 11}
+            onChange={e => set({ games_to: Number(e.target.value) || 11 })}
+            className="w-full input"
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-brand-muted mb-1">Win By</label>
