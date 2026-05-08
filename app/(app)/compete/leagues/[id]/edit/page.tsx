@@ -63,6 +63,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
   const [status, setStatus] = useState('active')
   const [description, setDescription] = useState('')
   const [costDollars, setCostDollars] = useState('')
+  const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('win_loss')
   const [existingSessionCount, setExistingSessionCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
@@ -88,6 +89,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
       setStatus(data.status ?? 'active')
       setDescription(data.description ?? '')
       setCostDollars(data.cost_cents ? String(data.cost_cents / 100) : '')
+      setStandingsMethod((data.standings_method as 'win_loss' | 'total_points') ?? 'win_loss')
       setExistingSessionCount(count ?? 0)
       setFetching(false)
     })
@@ -122,6 +124,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
         status,
         description: description.trim() || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        standings_method: standingsMethod,
       })
       .eq('id', params.id)
 
@@ -212,6 +215,25 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
             <p className="text-xs text-brand-muted">Set a start date and number of play days to auto-generate the session schedule.</p>
           )
         )}
+
+        <Field label="Standings Method">
+          <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
+            <button
+              type="button"
+              onClick={() => setStandingsMethod('win_loss')}
+              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'win_loss' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+            >
+              Win-Loss
+            </button>
+            <button
+              type="button"
+              onClick={() => setStandingsMethod('total_points')}
+              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'total_points' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+            >
+              Total Points
+            </button>
+          </div>
+        </Field>
 
         <Field label="Registration Fee (optional)">
           <div className="relative">

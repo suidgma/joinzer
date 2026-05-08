@@ -60,7 +60,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: league }, { data: registrations }, { data: sessions }] = await Promise.all([
-    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
       .select('user_id, profile:profiles(id, name, profile_photo_url)')
@@ -77,6 +77,7 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
 
   const sessionIds = (sessions ?? []).map((s) => s.id)
   const subCreditCap: number = (league as unknown as Record<string, unknown>)?.sub_credit_cap as number ?? 7
+  const standingsMethod: 'win_loss' | 'total_points' = ((league as unknown as Record<string, unknown>)?.standings_method as string ?? 'win_loss') as 'win_loss' | 'total_points'
 
   // Map sessionId → chronological index for streak ordering
   const sessionOrder = new Map((sessions ?? []).map((s, i) => [s.id, i]))
@@ -187,7 +188,11 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
     const streak = computeStreak(s.matchResults)
     const winPct = s.games > 0 ? s.wins / s.games : 0
     return { ...p, userId: r.user_id, ...s, streak, winPct, diff: s.points - s.pointsAgainst }
-  }).sort((a, b) => b.winPct - a.winPct || b.diff - a.diff || b.points - a.points)
+  }).sort((a, b) =>
+    standingsMethod === 'total_points'
+      ? b.points - a.points || b.diff - a.diff || b.winPct - a.winPct
+      : b.winPct - a.winPct || b.diff - a.diff || b.points - a.points
+  )
 
   const hasResults = !!matches && matches.length > 0
   const isManager = user?.id === league.created_by
@@ -207,7 +212,9 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
 
       <div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
-        <p className="text-xs text-brand-muted">Ranked by win %, then point differential</p>
+        <p className="text-xs text-brand-muted">
+          {standingsMethod === 'total_points' ? 'Ranked by total points, then point differential' : 'Ranked by win %, then point differential'}
+        </p>
       </div>
 
       {!hasResults ? (
@@ -237,8 +244,11 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
                   Player
                 </th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">W-L</th>
-                <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">Win%</th>
+                <th className={`px-3 py-2 text-center text-xs uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft ${standingsMethod === 'win_loss' ? 'font-bold text-brand-dark' : 'font-semibold text-brand-muted'}`}>Win%</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">+/-</th>
+                {standingsMethod === 'total_points' && (
+                  <th className="px-3 py-2 text-center text-xs font-bold text-brand-dark uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">Total Pts</th>
+                )}
                 <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border whitespace-nowrap bg-brand-soft">Streak</th>
                 {sessionsWithData.map((s) => (
                   <th key={s.id} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">
@@ -285,6 +295,11 @@ export default async function LeagueStandingsPage({ params }: { params: { id: st
                         {p.games > 0 ? diffStr : '—'}
                       </span>
                     </td>
+                    {standingsMethod === 'total_points' && (
+                      <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                        <span className="text-sm font-bold text-brand-dark">{p.games > 0 ? p.points : '—'}</span>
+                      </td>
+                    )}
                     <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
                       <StreakBadge streak={p.streak} />
                     </td>

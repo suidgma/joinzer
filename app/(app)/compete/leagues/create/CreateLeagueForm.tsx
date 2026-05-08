@@ -49,6 +49,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [winBy, setWinBy] = useState<1 | 2>(1)
   const [subCreditCap, setSubCreditCap] = useState('7')
   const [costDollars, setCostDollars] = useState('')
+  const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('win_loss')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -110,6 +111,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         win_by: winBy,
         sub_credit_cap: parseInt(subCreditCap) || 7,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        standings_method: standingsMethod,
         created_by: user.id,
       })
       .select('id')
@@ -246,6 +248,25 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       ) : (
         <p className="text-xs text-brand-muted">Set a start date and number of play days to auto-generate the session schedule.</p>
       )}
+
+      <Field label="Standings Method">
+        <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
+          <button
+            type="button"
+            onClick={() => setStandingsMethod('win_loss')}
+            className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'win_loss' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+          >
+            Win-Loss
+          </button>
+          <button
+            type="button"
+            onClick={() => setStandingsMethod('total_points')}
+            className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'total_points' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+          >
+            Total Points
+          </button>
+        </div>
+      </Field>
 
       <Field label="Registration Fee (optional)" hint="Leave blank for free. Players pay via Stripe at registration.">
         <div className="relative">
