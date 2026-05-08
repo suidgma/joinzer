@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   // Fetch league details atomically
   const { data: league, error: leagueErr } = await admin
     .from('leagues')
-    .select('name, format, skill_level, location_name, start_date, end_date, max_players, registration_status')
+    .select('name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, cost_cents')
     .eq('id', leagueId)
     .single()
 
@@ -49,6 +49,11 @@ export async function POST(request: NextRequest) {
 
   if (league.registration_status !== 'open' && league.registration_status !== 'waitlist_only') {
     return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
+  }
+
+  // Block direct registration for paid leagues — must go through Stripe checkout
+  if ((league as any).cost_cents > 0) {
+    return NextResponse.json({ error: 'Payment required', requiresPayment: true }, { status: 402 })
   }
 
   // Count current registered players server-side to avoid race condition

@@ -34,7 +34,7 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
   const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }] = await Promise.all([
     supabase
       .from('leagues')
-      .select('*, organization:organizations(name)')
+      .select('*, cost_cents, organization:organizations(name)')
       .eq('id', params.id)
       .single(),
     supabase
@@ -191,13 +191,27 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
 
       {/* Registration actions */}
       {user && (
-        <LeagueActions
-          leagueId={league.id}
-          registrationStatus={league.registration_status}
-          myReg={myReg?.status ?? null}
-          mySubInterest={!!mySubInterest}
-          isFull={isFull}
-        />
+        <>
+          {(league as any).cost_cents > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-2">
+              <span className="text-base">💳</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  Registration fee: ${((league as any).cost_cents / 100).toFixed(0)}/person
+                </p>
+                <p className="text-xs text-amber-700">Paid securely via Stripe</p>
+              </div>
+            </div>
+          )}
+          <LeagueActions
+            leagueId={league.id}
+            registrationStatus={league.registration_status}
+            myReg={myReg?.status ?? null}
+            mySubInterest={!!mySubInterest}
+            isFull={isFull}
+            costCents={(league as any).cost_cents ?? 0}
+          />
+        </>
       )}
       {!user && (
         <p className="text-sm text-brand-muted text-center">

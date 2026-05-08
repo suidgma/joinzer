@@ -48,6 +48,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [pointsToWin, setPointsToWin] = useState('11')
   const [winBy, setWinBy] = useState<1 | 2>(1)
   const [subCreditCap, setSubCreditCap] = useState('7')
+  const [costDollars, setCostDollars] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,6 +109,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         points_to_win: pointsToWinNum,
         win_by: winBy,
         sub_credit_cap: parseInt(subCreditCap) || 7,
+        cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         created_by: user.id,
       })
       .select('id')
@@ -244,6 +246,21 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       ) : (
         <p className="text-xs text-brand-muted">Set a start date and number of play days to auto-generate the session schedule.</p>
       )}
+
+      <Field label="Registration Fee (optional)" hint="Leave blank for free. Players pay via Stripe at registration.">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={costDollars}
+            onChange={(e) => setCostDollars(e.target.value)}
+            placeholder="0"
+            className="w-full input pl-7"
+          />
+        </div>
+      </Field>
 
       <Field label="Description">
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Additional details about the league…" className="w-full input resize-none" />

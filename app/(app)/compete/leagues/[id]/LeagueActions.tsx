@@ -10,19 +10,38 @@ type Props = {
   myReg: 'registered' | 'waitlist' | 'cancelled' | null
   mySubInterest: boolean
   isFull: boolean
+  costCents: number
 }
 
-export default function LeagueActions({ leagueId, registrationStatus, myReg, mySubInterest, isFull }: Props) {
+export default function LeagueActions({ leagueId, registrationStatus, myReg, mySubInterest, isFull, costCents }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [subLoading, setSubLoading] = useState(false)
   const [localReg, setLocalReg] = useState(myReg)
   const [localSub, setLocalSub] = useState(mySubInterest)
+  const [error, setError] = useState<string | null>(null)
 
   const canRegister = registrationStatus === 'open' || registrationStatus === 'waitlist_only'
+  const isPaid = costCents > 0
 
   async function handleRegister() {
     setLoading(true)
+    setError(null)
+
+    if (isPaid) {
+      // Paid league — go to Stripe checkout
+      const res = await fetch(`/api/leagues/${leagueId}/checkout`, { method: 'POST' })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+        return
+      }
+      setError(data.error ?? 'Could not start checkout')
+      setLoading(false)
+      return
+    }
+
+    // Free league — register directly
     const res = await fetch('/api/league-register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -32,12 +51,16 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
       const { status } = await res.json()
       setLocalReg(status)
       router.refresh()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error ?? 'Registration failed')
     }
     setLoading(false)
   }
 
   async function handleCancel() {
     setLoading(true)
+    setError(null)
     const res = await fetch('/api/league-cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,14 +117,28 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
       )}
 
       {(localReg === null || localReg === 'cancelled') && canRegister && (
-        <button
-          onClick={handleRegister}
-          disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-        >
-          {loading ? 'Saving…' : isFull ? 'Join Waitlist' : 'Register'}
-        </button>
+        <div className="space-y-1">
+          {isPaid && (
+            <p className="text-xs text-brand-muted text-center">
+              Registration fee: <span className="font-semibold text-brand-dark">${(costCents / 100).toFixed(0)}</span> — paid securely via Stripe
+            </p>
+          )}
+          <button
+            onClick={handleRegister}
+            disabled={loading}
+            className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+          >
+            {loading
+              ? isPaid ? 'Redirecting to payment…' : 'Saving…'
+              : isPaid
+                ? isFull ? `Pay $${(costCents / 100).toFixed(0)} — Join Waitlist` : `Pay $${(costCents / 100).toFixed(0)} to Register`
+                : isFull ? 'Join Waitlist' : 'Register'
+            }
+          </button>
+        </div>
       )}
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       {(localReg === null || localReg === 'cancelled') && registrationStatus === 'closed' && (
         <p className="text-sm text-center text-brand-muted py-2">Registration is closed.</p>

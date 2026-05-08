@@ -8,21 +8,39 @@ type Props = {
   eventId: string
   currentStatus: string | null
   isCaptain: boolean
+  priceCents?: number
 }
 
-export default function JoinLeaveButton({ eventId, currentStatus, isCaptain }: Props) {
+export default function JoinLeaveButton({ eventId, currentStatus, isCaptain, priceCents = 0 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const isPaid = priceCents > 0
+  const priceLabel = isPaid ? `$${(priceCents / 100).toFixed(0)}` : ''
+
   async function handleJoin() {
     setLoading(true)
     setError(null)
+
+    if (isPaid) {
+      // Paid session — go to Stripe checkout
+      const res = await fetch(`/api/events/${eventId}/checkout`, { method: 'POST' })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+        return // page navigates away
+      }
+      setError(data.error ?? 'Could not start checkout')
+      setLoading(false)
+      return
+    }
+
+    // Free session — join directly via RPC
     const supabase = createClient()
     const { error } = await supabase.rpc('join_event', { p_event_id: eventId })
     if (error) {
       setError(error.message || 'Failed to join. Please try again.')
-      console.error('join_event error:', error)
     } else {
       router.refresh()
     }
@@ -82,12 +100,20 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain }: P
 
   return (
     <div className="space-y-2">
+      {isPaid && (
+        <p className="text-xs text-brand-muted text-center">
+          Session fee: <span className="font-semibold text-brand-dark">{priceLabel}/person</span> — paid securely via Stripe
+        </p>
+      )}
       <button
         onClick={handleJoin}
         disabled={loading}
         className="w-full bg-brand text-brand-dark rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-hover active:bg-brand-active disabled:opacity-50 transition-colors"
       >
-        {loading ? 'Joining…' : 'Join session'}
+        {loading
+          ? isPaid ? 'Redirecting to payment…' : 'Joining…'
+          : isPaid ? `Pay ${priceLabel} & Join` : 'Join session'
+        }
       </button>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>

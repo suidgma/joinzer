@@ -62,6 +62,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
   const [registrationStatus, setRegistrationStatus] = useState('upcoming')
   const [status, setStatus] = useState('active')
   const [description, setDescription] = useState('')
+  const [costDollars, setCostDollars] = useState('')
   const [existingSessionCount, setExistingSessionCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
@@ -86,6 +87,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
       setRegistrationStatus(data.registration_status ?? 'upcoming')
       setStatus(data.status ?? 'active')
       setDescription(data.description ?? '')
+      setCostDollars(data.cost_cents ? String(data.cost_cents / 100) : '')
       setExistingSessionCount(count ?? 0)
       setFetching(false)
     })
@@ -119,6 +121,7 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
         registration_status: registrationStatus,
         status,
         description: description.trim() || null,
+        cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
       })
       .eq('id', params.id)
 
@@ -209,6 +212,21 @@ export default function EditLeaguePage({ params }: { params: { id: string } }) {
             <p className="text-xs text-brand-muted">Set a start date and number of play days to auto-generate the session schedule.</p>
           )
         )}
+
+        <Field label="Registration Fee (optional)">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={costDollars}
+              onChange={(e) => setCostDollars(e.target.value)}
+              placeholder="0"
+              className="w-full input pl-7"
+            />
+          </div>
+        </Field>
 
         <Field label="Description">
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full input resize-none" />
