@@ -241,6 +241,9 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           divisions={divisions}
           initialMatches={matches}
           isOrganizer={isOrganizer}
+          tournamentDate={tournament.start_date}
+          defaultStartTime={tournament.start_time ?? '08:00'}
+          defaultEndTime={tournament.estimated_end_time ?? null}
         />
       )}
 

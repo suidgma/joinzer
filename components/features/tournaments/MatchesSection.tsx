@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import BracketView from './BracketView'
+import ScheduleManager from './ScheduleManager'
 
 type Match = {
   id: string
@@ -40,6 +41,9 @@ type Props = {
   divisions: Division[]
   initialMatches: Match[]
   isOrganizer: boolean
+  tournamentDate: string
+  defaultStartTime: string
+  defaultEndTime: string | null
 }
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
@@ -229,7 +233,7 @@ function MatchCard({
   )
 }
 
-export default function MatchesSection({ tournamentId, divisions, initialMatches, isOrganizer }: Props) {
+export default function MatchesSection({ tournamentId, divisions, initialMatches, isOrganizer, tournamentDate, defaultStartTime, defaultEndTime }: Props) {
   const [matchesByDiv, setMatchesByDiv] = useState<Record<string, Match[]>>(() => {
     const map: Record<string, Match[]> = {}
     for (const div of divisions) map[div.id] = []
@@ -302,9 +306,22 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
   const showsStandings = (ft: string) => ft === 'round_robin' || ft === 'pool_play_playoffs'
   const showsBracket = (ft: string) => ft === 'single_elimination' || ft === 'double_elimination' || ft === 'pool_play_playoffs'
 
+  const allMatches = Object.values(matchesByDiv).flat()
+
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-base font-bold text-brand-dark">Matches</h2>
+
+      {isOrganizer && (
+        <ScheduleManager
+          tournamentId={tournamentId}
+          initialMatches={allMatches}
+          divisions={divisions}
+          tournamentDate={tournamentDate}
+          defaultStartTime={defaultStartTime}
+          defaultEndTime={defaultEndTime}
+        />
+      )}
 
       {divisions.map(div => {
         const divMatches = (matchesByDiv[div.id] ?? []).sort((a, b) => a.match_number - b.match_number)
