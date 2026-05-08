@@ -337,12 +337,12 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   async function searchPlayers(query: string, excludeUserIds: string[] = []) {
     setPlayerSearch(query)
     const supabase = createClient()
-    let q = supabase.from('profiles').select('id, name').order('name').limit(30)
+    let q = supabase.from('profiles').select('id, name').order('name').limit(500)
     if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
     const excludeIds = [...new Set([...(currentUserId ? [currentUserId] : []), ...excludeUserIds])]
     if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
     const { data } = await q
-    setPlayerResults((data ?? []).slice(0, 20))
+    setPlayerResults(data ?? [])
   }
 
   // ── Organizer: add player to division ─────────────────────────────
@@ -800,7 +800,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           autoFocus
                         />
                         {playerResults.length > 0 && (
-                          <ul className="border border-brand-border rounded-xl overflow-hidden">
+                          <ul className="border border-brand-border rounded-xl overflow-y-auto max-h-64">
                             {playerResults.map(p => (
                               <li key={p.id}>
                                 <button
