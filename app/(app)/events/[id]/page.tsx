@@ -8,6 +8,7 @@ import EventChat from '@/components/features/events/EventChat'
 import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
 import ShareButton from '@/components/features/ShareButton'
+import PaymentTracker from '@/components/features/events/PaymentTracker'
 
 type ChatMessage = {
   id: string
@@ -62,10 +63,11 @@ export default async function EventDetailPage({
         .select(`
           id, title, starts_at, duration_minutes, court_count, players_per_court,
           max_players, status, notes, min_skill_level, max_skill_level, creator_user_id, captain_user_id, location_id,
+          session_type, price_cents,
           location:locations!location_id (name, court_count, subarea, access_type),
           captain:profiles!captain_user_id (name),
           event_participants!event_id (
-            id, user_id, participant_status, joined_at,
+            id, user_id, participant_status, payment_status, joined_at,
             profile:profiles!user_id (name)
           )
         `)
@@ -178,6 +180,18 @@ export default async function EventDetailPage({
           </p>
         )}
 
+        {(event as any).session_type === 'free_clinic' && (
+          <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">FREE CLINIC</span>
+        )}
+        {(event as any).session_type === 'paid_clinic' && (event as any).price_cents && (
+          <div className="flex items-center gap-2">
+            <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+              ${((event as any).price_cents / 100).toFixed(0)}/person
+            </span>
+            <span className="text-xs text-brand-muted">Fee required · pay your captain directly</span>
+          </div>
+        )}
+
         <div className="pt-2 border-t border-brand-border flex items-center justify-between text-sm">
           <span className="text-brand-muted">Captain: <span className="text-brand-dark font-medium">{event.captain?.name ?? 'Unknown'}</span></span>
           <span className="font-semibold text-brand-dark">
@@ -214,25 +228,15 @@ export default async function EventDetailPage({
         </div>
       )}
 
-      {/* Players list */}
+      {/* Players list with payment tracking for paid sessions */}
       {joinedParticipants.length > 0 && (
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
-          <h2 className="font-heading text-sm font-semibold text-brand-dark">
-            Players ({joinedParticipants.length})
-          </h2>
-          <ul className="space-y-1.5">
-            {joinedParticipants.map((p) => (
-              <li key={p.id} className="text-sm flex items-center gap-2 text-brand-body">
-                <span>{p.profile?.name ?? 'Unknown'}</span>
-                {p.user_id === event.captain_user_id && (
-                  <span className="text-xs text-brand-active bg-brand-soft px-1.5 py-0.5 rounded-full font-medium">
-                    Captain
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <PaymentTracker
+          eventId={event.id}
+          participants={joinedParticipants as unknown as Parameters<typeof PaymentTracker>[0]['participants']}
+          captainUserId={event.captain_user_id}
+          isCaptain={isCaptain}
+          priceCents={(event as any).price_cents ?? 0}
+        />
       )}
 
       {/* Waitlist */}

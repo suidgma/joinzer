@@ -187,43 +187,47 @@ export default function EditEventForm({ event }: Props) {
         </select>
       </div>
 
-      <div className="space-y-2">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={clinicType === 'free'}
-            onChange={(e) => setClinicType(e.target.checked ? 'free' : 'none')}
-            className="mt-0.5 w-4 h-4 accent-amber-500"
-          />
-          <div>
-            <span className="text-sm font-medium">This is a free clinic</span>
-            <p className="text-xs text-gray-400 mt-0.5">Shown above regular sessions with a FREE CLINIC badge.</p>
-          </div>
-        </label>
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={clinicType === 'paid'}
-            onChange={(e) => setClinicType(e.target.checked ? 'paid' : 'none')}
-            className="mt-0.5 w-4 h-4 accent-amber-500"
-          />
-          <div>
-            <span className="text-sm font-medium">This is a paid clinic</span>
-            <p className="text-xs text-gray-400 mt-0.5">Shown above regular sessions with a PAID CLINIC badge.</p>
-          </div>
-        </label>
+      <div className="bg-brand-soft border border-brand-border rounded-xl p-4 space-y-3">
+        <p className="text-sm font-semibold text-brand-dark">Session type</p>
+        <div className="space-y-2">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={clinicType === 'free'}
+              onChange={(e) => setClinicType(e.target.checked ? 'free' : 'none')}
+              className="mt-0.5 w-4 h-4 accent-amber-500"
+            />
+            <div>
+              <span className="text-sm font-medium text-brand-dark">Free clinic</span>
+              <p className="text-xs text-brand-muted mt-0.5">No charge — shown with a FREE CLINIC badge above regular sessions.</p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={clinicType === 'paid'}
+              onChange={(e) => setClinicType(e.target.checked ? 'paid' : 'none')}
+              className="mt-0.5 w-4 h-4 accent-amber-500"
+            />
+            <div>
+              <span className="text-sm font-medium text-brand-dark">Charge a fee per player</span>
+              <p className="text-xs text-brand-muted mt-0.5">For clinics, court reservation costs, or any session with a player fee.</p>
+            </div>
+          </label>
+        </div>
         {clinicType === 'paid' && (
-          <div className="ml-7">
-            <label className="block text-sm font-medium mb-1">Price per person</label>
+          <div className="pl-7 space-y-1">
+            <label className="block text-sm font-medium text-brand-dark">Fee per person</label>
             <select
               value={priceCents}
               onChange={(e) => setPriceCents(Number(e.target.value))}
-              className="w-40 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-40 input"
             >
-              {[5,10,15,20,25,30,35,40,45,50].map((d) => (
+              {[5,10,15,20,25,30,35,40,45,50,60,70,75,80,90,100].map((d) => (
                 <option key={d} value={d * 100}>${d}</option>
               ))}
             </select>
+            <p className="text-xs text-brand-muted">You collect payment directly (cash, Venmo, etc.). Joinzer tracks who has paid.</p>
           </div>
         )}
       </div>
