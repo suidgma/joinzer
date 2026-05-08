@@ -334,13 +334,16 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   }
 
   // ── Organizer: search players ─────────────────────────────────────
-  async function searchPlayers(query: string, excludeUserIds: string[] = []) {
+  async function searchPlayers(query: string, excludeUserIds: string[] = [], category?: string) {
     setPlayerSearch(query)
     const supabase = createClient()
-    let q = supabase.from('profiles').select('id, name').order('name').limit(500)
+    let q = supabase.from('profiles').select('id, name, gender').order('name').limit(500)
     if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
     const excludeIds = Array.from(new Set((currentUserId ? [currentUserId] : []).concat(excludeUserIds)))
     if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
+    // Filter by gender when category is Men or Women
+    if (category === 'Men') q = (q as any).eq('gender', 'male')
+    else if (category === 'Women') q = (q as any).eq('gender', 'female')
     const { data } = await q
     setPlayerResults(data ?? [])
   }
@@ -793,8 +796,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                         <input
                           type="text"
                           value={playerSearch}
-                          onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id))}
-                          onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id))}
+                          onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.category)}
+                          onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.category)}
                           placeholder="Search player by name…"
                           className="w-full input text-xs"
                           autoFocus
@@ -824,7 +827,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       </div>
                     ) : (
                       <button
-                        onClick={() => { setAddingPlayerId(div.id); setPlayerSearch(''); setAddPlayerError(null); searchPlayers('', div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id)) }}
+                        onClick={() => { setAddingPlayerId(div.id); setPlayerSearch(''); setAddPlayerError(null); searchPlayers('', div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.category) }}
                         className="text-xs text-brand-active font-medium hover:underline pt-1"
                       >
                         + Add Player
