@@ -182,6 +182,21 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   // --- ORGANIZER VIEW ---
   if (isOrganizer) {
+    // Build full divisions shape (with registrations) for DivisionsSection + MatchesSection
+    const regsByDivisionOrg: Record<string, any[]> = {}
+    for (const reg of regsRaw ?? []) {
+      if (!regsByDivisionOrg[reg.division_id]) regsByDivisionOrg[reg.division_id] = []
+      regsByDivisionOrg[reg.division_id].push({
+        ...reg,
+        user_profile: { name: profileNames[reg.user_id] ?? null },
+      })
+    }
+    const divisionsForOrg = (divisionsRaw ?? []).map((div: any) => ({
+      ...div,
+      tournament_registrations: regsByDivisionOrg[div.id] ?? [],
+    }))
+    const matchesForOrg = (matchesData ?? []) as any[]
+
     const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => ({
       id: r.id,
       user_id: r.user_id,
@@ -203,12 +218,51 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     return (
       <main className="max-w-lg mx-auto px-4 pb-8 space-y-4">
         {pageHeader}
-        <TournamentOrganizerView
+
+        {/* Edit / Delete actions */}
+        <div className="space-y-2">
+          <Link
+            href={`/tournaments/${tournament.id}/edit`}
+            className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+          >
+            Edit Tournament
+          </Link>
+          <div className="flex justify-center">
+            <DeleteTournamentButton tournamentId={tournament.id} />
+          </div>
+        </div>
+
+        {/* Divisions + player registration — setup tools always visible to organizer */}
+        <DivisionsSection
           tournamentId={tournament.id}
-          initialMatches={orgMatches}
-          registrations={orgRegs}
-          divisions={orgDivisions}
+          initialDivisions={divisionsForOrg}
+          isOrganizer={true}
+          currentUserId={user!.id}
+          tournamentCostCents={costCents}
         />
+
+        {/* Match generation + schedule manager */}
+        {divisionsForOrg.length > 0 && (
+          <MatchesSection
+            tournamentId={tournament.id}
+            divisions={divisionsForOrg}
+            initialMatches={matchesForOrg}
+            isOrganizer={true}
+            tournamentDate={tournament.start_date}
+            defaultStartTime={tournament.start_time ?? '08:00'}
+            defaultEndTime={tournament.estimated_end_time ?? null}
+          />
+        )}
+
+        {/* Operational day-of tabs — useful once matches exist */}
+        {orgMatches.length > 0 && (
+          <TournamentOrganizerView
+            tournamentId={tournament.id}
+            initialMatches={orgMatches}
+            registrations={orgRegs}
+            divisions={orgDivisions}
+          />
+        )}
       </main>
     )
   }
