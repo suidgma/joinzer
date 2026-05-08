@@ -97,7 +97,6 @@ function generateSchedule(
   const courts = Array.from({ length: lastCourt - firstCourt + 1 }, (_, i) => firstCourt + i)
   if (courts.length === 0) return []
 
-  // Sort matches: by round_number, then match_number
   const sorted = [...matches].sort((a, b) => {
     const ra = a.round_number ?? 999
     const rb = b.round_number ?? 999
@@ -105,12 +104,10 @@ function generateSchedule(
     return a.match_number - b.match_number
   })
 
-  // Group into waves: a wave is a batch of `numCourts` matches
   const startMin = toMinutes(startTime)
   const numCourts = courts.length
   const result: { id: string; court_number: number; scheduled_time: string }[] = []
 
-  // Group by round_number so same-round matches share a time slot
   const rounds = new Map<number, Match[]>()
   for (const m of sorted) {
     const r = m.round_number ?? 0
@@ -120,12 +117,10 @@ function generateSchedule(
 
   let waveIndex = 0
   for (const [, roundMatches] of Array.from(rounds.entries()).sort(([a], [b]) => a - b)) {
-    // Split this round into batches that fit across available courts
     for (let i = 0; i < roundMatches.length; i += numCourts) {
       const batch = roundMatches.slice(i, i + numCourts)
       const timeMin = startMin + waveIndex * matchDuration
       const hhmm = fromMinutes(timeMin)
-      // Build ISO timestamptz string in PT
       const iso = `${date}T${hhmm}:00-07:00`
       batch.forEach((m, j) => {
         result.push({
@@ -148,7 +143,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
   // Generator inputs
   const [genDate, setGenDate] = useState(tournamentDate)
   const [genStartTime, setGenStartTime] = useState(defaultStartTime || '08:00')
-  const [genEndTime, setGenEndTime] = useState(defaultEndTime || '12:00')
+  const [genEndTime, setGenEndTime] = useState(defaultEndTime || '17:00')
   const [genDuration, setGenDuration] = useState(45)
   const [genFirstCourt, setGenFirstCourt] = useState(11)
   const [genLastCourt, setGenLastCourt] = useState(24)
@@ -156,44 +151,71 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
   // Edits pending save
   const [edits, setEdits] = useState<Record<string, { court_number: string; date: string; time: string }>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
+  const [generateResult, setGenerateResult] = useState<{ divisionId: string; name: string; matchCount: number; skipped?: string }[] | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   const allRegs: Registration[] = divisions.flatMap(d => d.tournament_registrations)
 
-  // Group matches by division for display
-  const scheduledMatches = useMemo(() => {
-    return [...matches]
-      .filter(m => m.team_1_registration_id || m.team_2_registration_id)
-      .sort((a, b) => {
-        // Sort by time, then court, then match_number
-        const ta = a.scheduled_time ?? '9999'
-        const tb = b.scheduled_time ?? '9999'
-        if (ta !== tb) return ta.localeCompare(tb)
-        const ca = a.court_number ?? 999
-        const cb = b.court_number ?? 999
-        if (ca !== cb) return ca - cb
-        return a.match_number - b.match_number
-      })
-  }, [matches])
+  const playableMatches = useMemo(() =>
+    matches.filter(m => m.team_1_registration_id || m.team_2_registration_id),
+    [matches]
+  )
 
-  // Estimate schedule end time
+  const scheduledMatches = useMemo(() =>
+    [...playableMatches].sort((a, b) => {
+      const ta = a.scheduled_time ?? '9999'
+      const tb = b.scheduled_time ?? '9999'
+      if (ta !== tb) return ta.localeCompare(tb)
+      const ca = a.court_number ?? 999
+      const cb = b.court_number ?? 999
+      if (ca !== cb) return ca - cb
+      return a.match_number - b.match_number
+    }),
+    [playableMatches]
+  )
+
   const numCourts = Math.max(1, genLastCourt - genFirstCourt + 1)
-  const totalRounds = matches.length > 0
-    ? Math.max(...matches.map(m => m.round_number ?? 1))
-    : 0
-  const numWaves = Math.ceil(matches.filter(m => m.team_1_registration_id || m.team_2_registration_id).length / numCourts)
+  const numWaves = Math.ceil(playableMatches.length / numCourts)
   const estimatedEndMin = toMinutes(genStartTime) + numWaves * genDuration
   const estimatedEndTime = fromMinutes(estimatedEndMin)
-  const requestedEndMin = toMinutes(genEndTime)
-  const overrun = estimatedEndMin > requestedEndMin
+  const overrun = estimatedEndMin > toMinutes(genEndTime)
 
-  function handleGenerate() {
-    const playableMatches = matches.filter(m => m.team_1_registration_id || m.team_2_registration_id)
-    const generated = generateSchedule(playableMatches, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
+  // Step 1: generate all brackets, then immediately schedule
+  async function handleGenerateTournament() {
+    setGenerating(true)
+    setGenerateError(null)
+    setGenerateResult(null)
 
-    // Apply generated schedule to local state
+    // Generate brackets for all divisions without matches
+    const hasExistingMatches = matches.length > 0
+    let allMatches = [...matches]
+
+    if (!hasExistingMatches) {
+      const res = await fetch(`/api/tournaments/${tournamentId}/generate-all`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setGenerateError(data.error ?? 'Failed to generate brackets')
+        setGenerating(false)
+        return
+      }
+
+      // Merge new matches into local state
+      const newMatches = (data.matches ?? []) as Match[]
+      allMatches = [...allMatches, ...newMatches]
+      setMatches(allMatches)
+      setGenerateResult(data.divisions)
+    }
+
+    // Schedule all playable matches
+    const playable = allMatches.filter(m => m.team_1_registration_id || m.team_2_registration_id)
+    const generated = generateSchedule(playable, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
+
     const genMap = new Map(generated.map(g => [g.id, g]))
     setMatches(prev => prev.map(m => {
       const g = genMap.get(m.id)
@@ -201,7 +223,29 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
       return { ...m, court_number: g.court_number, scheduled_time: g.scheduled_time }
     }))
 
-    // Mark all generated matches as pending edits
+    const newEdits: Record<string, { court_number: string; date: string; time: string }> = {}
+    for (const g of generated) {
+      newEdits[g.id] = {
+        court_number: String(g.court_number),
+        date: genDate,
+        time: scheduledHHMM(g.scheduled_time),
+      }
+    }
+    setEdits(newEdits)
+    setShowGenerator(false)
+    setSaveSuccess(false)
+    setGenerating(false)
+  }
+
+  // Re-schedule only (brackets already exist)
+  function handleReschedule() {
+    const generated = generateSchedule(playableMatches, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
+    const genMap = new Map(generated.map(g => [g.id, g]))
+    setMatches(prev => prev.map(m => {
+      const g = genMap.get(m.id)
+      if (!g) return m
+      return { ...m, court_number: g.court_number, scheduled_time: g.scheduled_time }
+    }))
     const newEdits: Record<string, { court_number: string; date: string; time: string }> = {}
     for (const g of generated) {
       newEdits[g.id] = {
@@ -237,9 +281,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     const court = parseInt(e.court_number)
     const iso = e.date && e.time ? `${e.date}T${e.time}:00-07:00` : null
     setMatches(prev => prev.map(m =>
-      m.id === id
-        ? { ...m, court_number: isNaN(court) ? null : court, scheduled_time: iso }
-        : m
+      m.id === id ? { ...m, court_number: isNaN(court) ? null : court, scheduled_time: iso } : m
     ))
     setEditingId(null)
   }
@@ -273,8 +315,8 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
 
   const divisionName = (divId: string) => divisions.find(d => d.id === divId)?.name ?? ''
   const hasPendingEdits = Object.keys(edits).length > 0
+  const hasMatches = matches.length > 0
 
-  // Group by time slot for display
   const byTimeSlot = useMemo(() => {
     const groups = new Map<string, Match[]>()
     for (const m of scheduledMatches) {
@@ -297,14 +339,23 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
           onClick={() => setShowGenerator(!showGenerator)}
           className="text-sm font-medium text-brand-active hover:underline"
         >
-          {showGenerator ? 'Close' : '⚙ Generate Schedule'}
+          {showGenerator ? 'Close' : hasMatches ? '⚙ Reschedule' : '⚙ Generate Tournament'}
         </button>
       </div>
 
       {/* Generator panel */}
       {showGenerator && (
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-4">
-          <h3 className="font-heading text-sm font-bold text-brand-dark">Auto-Generate Schedule</h3>
+          <div>
+            <h3 className="font-heading text-sm font-bold text-brand-dark">
+              {hasMatches ? 'Regenerate Schedule' : 'Generate Full Tournament'}
+            </h3>
+            {!hasMatches && (
+              <p className="text-xs text-brand-muted mt-0.5">
+                Creates brackets for all divisions and assigns courts + times in one step.
+              </p>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
@@ -328,8 +379,8 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                 className="w-full input"
               />
             </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-brand-muted mb-1">Court Range (Sunset Park)</label>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Courts (Sunset Park)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number" min="1" max="100"
@@ -338,7 +389,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                   className="w-full input text-center"
                   placeholder="First"
                 />
-                <span className="text-brand-muted text-sm">–</span>
+                <span className="text-brand-muted text-sm flex-shrink-0">–</span>
                 <input
                   type="number" min="1" max="100"
                   value={genLastCourt}
@@ -347,28 +398,50 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                   placeholder="Last"
                 />
               </div>
-              <p className="text-xs text-brand-muted mt-1">{numCourts} court{numCourts !== 1 ? 's' : ''} · {numWaves} time slot{numWaves !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-brand-muted mt-1">
+                {numCourts} court{numCourts !== 1 ? 's' : ''} · {numWaves > 0 ? `${numWaves} time slot${numWaves !== 1 ? 's' : ''}` : 'brackets generate on confirm'}
+              </p>
             </div>
           </div>
 
           {/* End-time estimate */}
-          <div className={`rounded-xl px-3 py-2.5 text-xs ${overrun ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-brand-soft border border-brand-border text-brand-body'}`}>
-            {matches.filter(m => m.team_1_registration_id || m.team_2_registration_id).length === 0
-              ? 'No matches with players yet — generate brackets first.'
-              : overrun
+          {(hasMatches || numWaves > 0) && (
+            <div className={`rounded-xl px-3 py-2.5 text-xs ${overrun ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-brand-soft border border-brand-border text-brand-body'}`}>
+              {overrun
                 ? `⚠ Estimated finish ${formatTime12(estimatedEndTime)} exceeds your end time of ${formatTime12(genEndTime)}. Add more courts or extend end time.`
                 : `Estimated finish: ${formatTime12(estimatedEndTime)}`
-            }
-          </div>
+              }
+            </div>
+          )}
+
+          {generateError && <p className="text-xs text-red-600">{generateError}</p>}
 
           <button
-            onClick={handleGenerate}
-            disabled={matches.filter(m => m.team_1_registration_id || m.team_2_registration_id).length === 0}
+            onClick={hasMatches ? handleReschedule : handleGenerateTournament}
+            disabled={generating}
             className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
           >
-            Generate Schedule
+            {generating
+              ? 'Generating…'
+              : hasMatches
+                ? 'Regenerate Schedule'
+                : 'Generate Full Tournament'}
           </button>
-          <p className="text-xs text-brand-muted text-center">Schedule will be previewed below — review and save when ready.</p>
+          <p className="text-xs text-brand-muted text-center">
+            Review the schedule below, make any edits, then save.
+          </p>
+        </div>
+      )}
+
+      {/* Generation result summary */}
+      {generateResult && (
+        <div className="bg-brand-soft border border-brand-border rounded-xl px-3 py-2.5 space-y-1">
+          <p className="text-xs font-semibold text-brand-dark">Brackets generated</p>
+          {generateResult.map(r => (
+            <p key={r.divisionId} className="text-xs text-brand-muted">
+              {r.name}: {r.skipped ? <span className="text-amber-600">{r.skipped}</span> : `${r.matchCount} match${r.matchCount !== 1 ? 'es' : ''}`}
+            </p>
+          ))}
         </div>
       )}
 
@@ -390,103 +463,107 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
         <p className="text-xs text-green-600 font-medium">✓ Schedule saved</p>
       )}
 
-      {/* Schedule grid */}
+      {/* Empty state */}
       {scheduledMatches.length === 0 && unscheduled.length === 0 && (
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center">
-          <p className="text-sm text-brand-muted">No matches scheduled yet.</p>
-          <p className="text-xs text-brand-muted mt-1">Generate brackets in the Matches section, then use Generate Schedule above.</p>
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+          <p className="text-2xl">🏆</p>
+          <p className="text-sm font-medium text-brand-dark">No schedule yet</p>
+          <p className="text-xs text-brand-muted">Click ⚙ Generate Tournament to build brackets and assign courts in one step.</p>
         </div>
       )}
 
+      {/* Schedule by time slot */}
       {byTimeSlot.size > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {Array.from(byTimeSlot.entries()).map(([timeKey, slotMatches]) => (
             <div key={timeKey} className="space-y-1.5">
               <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">
                 {timeKey === '__unscheduled__' ? 'Unscheduled' : formatScheduledTime(timeKey)}
               </p>
-              {slotMatches.map(m => {
-                const isEditing = editingId === m.id
-                const e = edits[m.id]
-                const isPending = !!edits[m.id] && !isEditing
-                const divName = divisionName(m.division_id)
-                const t1 = teamLabel(m.team_1_registration_id, allRegs)
-                const t2 = teamLabel(m.team_2_registration_id, allRegs)
+              <div className="space-y-1.5">
+                {slotMatches.map(m => {
+                  const isEditing = editingId === m.id
+                  const e = edits[m.id]
+                  const isPending = !!edits[m.id] && !isEditing
+                  const divName = divisionName(m.division_id)
+                  const t1 = teamLabel(m.team_1_registration_id, allRegs)
+                  const t2 = teamLabel(m.team_2_registration_id, allRegs)
 
-                return (
-                  <div
-                    key={m.id}
-                    className={`bg-brand-surface border rounded-xl p-3 ${isPending ? 'border-amber-300' : 'border-brand-border'}`}
-                  >
-                    {isEditing ? (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <label className="block text-[10px] font-medium text-brand-muted mb-0.5">Court</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={e?.court_number ?? ''}
-                              onChange={ev => updateEdit(m.id, 'court_number', ev.target.value)}
-                              className="w-full input text-sm text-center"
-                              autoFocus
-                            />
+                  return (
+                    <div
+                      key={m.id}
+                      className={`bg-brand-surface border rounded-xl p-3 ${isPending ? 'border-amber-300' : 'border-brand-border'}`}
+                    >
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-medium text-brand-muted mb-0.5">Court</label>
+                              <input
+                                type="number" min="1"
+                                value={e?.court_number ?? ''}
+                                onChange={ev => updateEdit(m.id, 'court_number', ev.target.value)}
+                                className="w-full input text-sm text-center"
+                                autoFocus
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-brand-muted mb-0.5">Date</label>
+                              <input
+                                type="date"
+                                value={e?.date ?? ''}
+                                onChange={ev => updateEdit(m.id, 'date', ev.target.value)}
+                                className="w-full input text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-brand-muted mb-0.5">Time</label>
+                              <input
+                                type="time"
+                                value={e?.time ?? ''}
+                                onChange={ev => updateEdit(m.id, 'time', ev.target.value)}
+                                className="w-full input text-sm"
+                              />
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-[10px] font-medium text-brand-muted mb-0.5">Date</label>
-                            <input
-                              type="date"
-                              value={e?.date ?? ''}
-                              onChange={ev => updateEdit(m.id, 'date', ev.target.value)}
-                              className="w-full input text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-medium text-brand-muted mb-0.5">Time</label>
-                            <input
-                              type="time"
-                              value={e?.time ?? ''}
-                              onChange={ev => updateEdit(m.id, 'time', ev.target.value)}
-                              className="w-full input text-sm"
-                            />
+                          <div className="flex gap-2">
+                            <button onClick={() => applyEdit(m.id)} className="flex-1 py-1.5 rounded-lg bg-brand text-brand-dark text-xs font-semibold">Done</button>
+                            <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg border border-brand-border text-xs text-brand-muted">Cancel</button>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => applyEdit(m.id)} className="flex-1 py-1.5 rounded-lg bg-brand text-brand-dark text-xs font-semibold">Done</button>
-                          <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg border border-brand-border text-xs text-brand-muted">Cancel</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            {m.court_number != null && (
-                              <span className="text-[10px] font-bold bg-brand-soft text-brand-dark px-1.5 py-0.5 rounded">
-                                Court {m.court_number}
-                              </span>
-                            )}
-                            {divName && (
-                              <span className="text-[10px] text-brand-muted">{divName}</span>
-                            )}
-                            {m.round_number != null && (
-                              <span className="text-[10px] text-brand-muted">Rd {m.round_number}</span>
-                            )}
+                      ) : (
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                              {m.court_number != null && (
+                                <span className="text-[10px] font-bold bg-brand-soft text-brand-dark px-1.5 py-0.5 rounded">
+                                  Court {m.court_number}
+                                </span>
+                              )}
+                              {divName && (
+                                <span className="text-[10px] text-brand-muted">{divName}</span>
+                              )}
+                              {m.round_number != null && (
+                                <span className="text-[10px] text-brand-muted">Rd {m.round_number}</span>
+                              )}
+                              <span className="text-[10px] text-brand-muted capitalize">{m.match_stage?.replace(/_/g, ' ')}</span>
+                            </div>
+                            <p className="text-sm font-medium text-brand-dark truncate">
+                              {t1} <span className="text-brand-muted font-normal">vs</span> {t2}
+                            </p>
                           </div>
-                          <p className="text-sm font-medium text-brand-dark truncate">
-                            {t1} <span className="text-brand-muted font-normal">vs</span> {t2}
-                          </p>
+                          <button
+                            onClick={() => startEdit(m)}
+                            className="shrink-0 text-xs text-brand-active hover:underline"
+                          >
+                            Edit
+                          </button>
                         </div>
-                        <button
-                          onClick={() => startEdit(m)}
-                          className="shrink-0 text-xs text-brand-active hover:underline"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -528,10 +605,11 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                   </div>
                 ) : (
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                         {divName && <span className="text-[10px] text-brand-muted">{divName}</span>}
                         {m.round_number != null && <span className="text-[10px] text-brand-muted">Rd {m.round_number}</span>}
+                        <span className="text-[10px] text-brand-muted capitalize">{m.match_stage?.replace(/_/g, ' ')}</span>
                       </div>
                       <p className="text-sm font-medium text-brand-dark truncate">
                         {t1} <span className="text-brand-muted font-normal">vs</span> {t2}
