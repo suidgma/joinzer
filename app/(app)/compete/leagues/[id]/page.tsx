@@ -43,14 +43,14 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
       .eq('league_id', params.id)
       .order('session_date', { ascending: true }),
     user
-      ? supabase.from('league_registrations').select('status, is_co_admin').eq('league_id', params.id).eq('user_id', user.id).single()
+      ? supabase.from('league_registrations').select('status, is_co_admin, registration_type, partner_user_id').eq('league_id', params.id).eq('user_id', user.id).single()
       : Promise.resolve({ data: null }),
     user
       ? supabase.from('league_sub_interest').select('id').eq('league_id', params.id).eq('user_id', user.id).single()
       : Promise.resolve({ data: null }),
     supabase
       .from('league_registrations')
-      .select('status')
+      .select('status, registration_type, partner_user_id')
       .eq('league_id', params.id)
       .neq('status', 'cancelled'),
     user
@@ -97,6 +97,14 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
 
   if (!league) notFound()
 
+  // Fetch partner name if user is a matched solo
+  const partnerUserId = (myReg as any)?.partner_user_id ?? null
+  let partnerUserName: string | null = null
+  if (partnerUserId) {
+    const { data: partnerProfile } = await supabase.from('profiles').select('name').eq('id', partnerUserId).single()
+    partnerUserName = partnerProfile?.name ?? null
+  }
+
   const isManager = user?.id === league.created_by
   const isCoAdmin = !isManager && myReg?.is_co_admin === true
   const isAdmin = isManager || isCoAdmin
@@ -112,9 +120,18 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
     .map((sp) => (sessions ?? []).find((s) => s.id === sp.session_id))
     .filter(Boolean)
     .filter((s) => s!.status === 'scheduled' || s!.status === 'in_progress')
-  const registeredCount = regCounts?.filter((r) => r.status === 'registered').length ?? 0
+  const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
+  const isDoublesLeague = DOUBLES_FORMATS.includes(league.format)
+  const registeredRegs = regCounts?.filter((r) => r.status === 'registered') ?? []
+  const registeredCount = registeredRegs.length
   const waitlistCount = regCounts?.filter((r) => r.status === 'waitlist').length ?? 0
   const isFull = league.max_players != null && registeredCount >= league.max_players
+
+  // For doubles leagues: derive team/solo counts for display
+  const soloRegs = isDoublesLeague ? registeredRegs.filter((r) => (r as any).registration_type === 'solo') : []
+  const unmatchedSoloCount = soloRegs.filter((r) => !(r as any).partner_user_id).length
+  const teamRegsCount = isDoublesLeague ? registeredRegs.filter((r) => (r as any).registration_type === 'team').length : 0
+  const effectiveTeams = isDoublesLeague ? teamRegsCount + Math.floor(soloRegs.length / 2) : 0
 
   const orgName = (league.organization as { name: string } | null)?.name
   const userGender = (myProfile as { gender: string | null } | null)?.gender ?? null
@@ -162,7 +179,14 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
         {league.play_days != null && <Row label="Play Days" value={`${league.play_days}`} />}
         {league.games_per_session != null && <Row label="Games/Play" value={`${league.games_per_session}`} />}
         {league.max_players != null && (
-          <Row label="Players" value={`${registeredCount} registered${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''} / ${league.max_players} max`} />
+          <Row
+            label="Players"
+            value={
+              isDoublesLeague
+                ? `${effectiveTeams}${league.max_players ? `/${Math.floor(league.max_players / 2)}` : ''} teams${unmatchedSoloCount > 0 ? ` (+${unmatchedSoloCount} solo${unmatchedSoloCount > 1 ? 's' : ''} seeking partner)` : ''}${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''}`
+                : `${registeredCount} registered${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''} / ${league.max_players} max`
+            }
+          />
         )}
       </div>
 
@@ -210,6 +234,8 @@ export default async function LeagueDetailPage({ params }: { params: { id: strin
             mySubInterest={!!mySubInterest}
             isFull={isFull}
             costCents={(league as any).cost_cents ?? 0}
+            format={league.format}
+            partnerUserName={partnerUserName}
           />
         </>
       )}

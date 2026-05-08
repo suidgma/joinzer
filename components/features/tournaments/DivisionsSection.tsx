@@ -22,8 +22,10 @@ type Registration = {
   id: string
   user_id: string
   partner_user_id: string | null
+  partner_registration_id: string | null
   team_name: string | null
   status: string
+  registration_type: 'team' | 'solo'
   payment_status?: string
   stripe_payment_intent_id?: string | null
   user_profile: { name: string } | null
@@ -100,6 +102,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
 
   // Registration modal state
   const [teamName, setTeamName] = useState('')
+  const [regType, setRegType] = useState<'team' | 'solo'>('team')
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
   // Partner invite step (shown after registration succeeds for doubles)
@@ -199,13 +202,13 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     const res = await fetch(
       `/api/tournaments/${tournamentId}/divisions/${div.id}/register`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_name: teamName.trim() || null }) }
+        body: JSON.stringify({ team_name: regType === 'team' ? (teamName.trim() || null) : null, registration_type: regType }) }
     )
     const json = await res.json()
 
     if (!res.ok) { setRegError(json.error ?? 'Registration failed'); setRegLoading(false); return }
 
-    const reg: Registration = { ...json.registration, user_profile: null }
+    const reg: Registration = { ...json.registration, registration_type: regType, partner_registration_id: null, user_profile: null }
     setDivisions(prev => prev.map(d =>
       d.id === div.id
         ? { ...d, tournament_registrations: [...d.tournament_registrations, reg] }
@@ -213,8 +216,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     ))
     router.refresh()
 
-    // For doubles, show partner invite step instead of closing modal
-    if (div.team_type === 'doubles') {
+    // For team doubles, show partner invite step; solos are auto-matched
+    if (div.team_type === 'doubles' && regType === 'team') {
       setJustRegistered({ regId: json.registration.id, divisionId: div.id })
       setPartnerEmail('')
       setInviteError(null)
@@ -532,12 +535,17 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       ) : (
         <div className="space-y-3">
           {divisions.map(div => {
-            const active    = div.tournament_registrations.filter(r => r.status === 'registered')
-            const waitlist  = div.tournament_registrations.filter(r => r.status === 'waitlisted')
+            const active       = div.tournament_registrations.filter(r => r.status === 'registered')
+            const waitlist     = div.tournament_registrations.filter(r => r.status === 'waitlisted')
+            const teamRegs     = active.filter(r => r.registration_type === 'team').length
+            const soloRegs     = active.filter(r => r.registration_type === 'solo').length
+            const matchedSolos = active.filter(r => r.registration_type === 'solo' && r.partner_registration_id).length
+            const unmatchedSolos = soloRegs - matchedSolos
+            const effectiveTeams = teamRegs + Math.floor(soloRegs / 2)
             const myReg     = currentUserId
               ? div.tournament_registrations.find(r => r.user_id === currentUserId && r.status !== 'cancelled')
               : undefined
-            const isFull    = active.length >= div.max_entries
+            const isFull    = effectiveTeams >= div.max_entries
             const isClosed  = div.status === 'closed'
             const canReg    = !myReg && !isClosed && (!isFull || div.waitlist_enabled)
             const isManaging = managingId === div.id
@@ -616,9 +624,12 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                 {/* Counts */}
                 <div className="flex items-center gap-3 text-xs text-brand-muted">
                   <span>
-                    <span className="font-semibold text-brand-dark">{active.length}</span>
+                    <span className="font-semibold text-brand-dark">{div.team_type === 'doubles' ? effectiveTeams : active.length}</span>
                     {' / '}{div.max_entries}{' '}
                     {div.team_type === 'doubles' ? 'teams' : 'players'}
+                    {unmatchedSolos > 0 && (
+                      <span className="text-amber-600 ml-1">(+{unmatchedSolos} solo{unmatchedSolos > 1 ? 's' : ''} seeking partner)</span>
+                    )}
                   </span>
                   {waitlist.length > 0 && <span>· {waitlist.length} waitlisted</span>}
                 </div>
@@ -631,6 +642,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     }`}>
                       {myReg.status === 'registered' ? '✓ Registered' : '⏳ On waitlist'}
                       {myReg.team_name && ` · ${myReg.team_name}`}
+                      {myReg.registration_type === 'solo' && (
+                        myReg.partner_registration_id
+                          ? (() => {
+                              const partner = div.tournament_registrations.find(r => r.id === myReg.partner_registration_id)
+                              return partner ? ` · Partner: ${partner.user_profile?.name ?? 'Matched'}` : ' · Partner matched'
+                            })()
+                          : ' · Solo — awaiting partner match'
+                      )}
                     </div>
                     {myReg.payment_status === 'unpaid' && tournamentCostCents > 0 && (
                       <div className="space-y-1.5">
@@ -661,7 +680,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                   <div className="flex gap-2">
                     {canReg && (
                       <button
-                        onClick={() => { setRegisteringDiv(div); setTeamName(''); setRegError(null) }}
+                        onClick={() => { setRegisteringDiv(div); setTeamName(''); setRegType('team'); setRegError(null) }}
                         className="flex-1 py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
                       >
                         {isFull && div.waitlist_enabled ? 'Join Waitlist' : 'Register'}
@@ -836,18 +855,50 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             </p>
 
             {registeringDiv.team_type === 'doubles' && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Team Name <span className="text-brand-muted font-normal">(optional)</span></label>
-                <input
-                  type="text"
-                  value={teamName}
-                  onChange={e => setTeamName(e.target.value)}
-                  placeholder="e.g. Power Smashers"
-                  className="w-full input"
-                />
-                <p className="text-xs text-brand-muted mt-1.5">
-                  You&apos;ll invite your partner in the next step.
-                </p>
+              <div className="space-y-3">
+                {/* Team vs Solo toggle */}
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Register as</label>
+                  <div className="flex rounded-xl overflow-hidden border border-brand-border">
+                    <button
+                      type="button"
+                      onClick={() => setRegType('team')}
+                      className={`flex-1 py-2 text-sm font-medium transition-colors ${regType === 'team' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+                    >
+                      Team (with partner)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegType('solo')}
+                      className={`flex-1 py-2 text-sm font-medium transition-colors ${regType === 'solo' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+                    >
+                      Individual (solo)
+                    </button>
+                  </div>
+                </div>
+
+                {regType === 'team' ? (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Team Name <span className="text-brand-muted font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={teamName}
+                      onChange={e => setTeamName(e.target.value)}
+                      placeholder="e.g. Power Smashers"
+                      className="w-full input"
+                    />
+                    <p className="text-xs text-brand-muted mt-1.5">
+                      You&apos;ll invite your partner in the next step.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                    <p className="text-xs text-amber-800 font-medium">Auto-matched with a partner</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      You&apos;ll be automatically paired with another solo player. Both players will be notified by email when matched.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

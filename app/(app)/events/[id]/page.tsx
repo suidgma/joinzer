@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
 
   if (!data) return {}
 
-  const loc = (data.location as { name: string } | null)?.name
+  const loc = (data.location as unknown as { name: string } | null)?.name
   const date = data.starts_at
     ? new Date(data.starts_at).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
     : null

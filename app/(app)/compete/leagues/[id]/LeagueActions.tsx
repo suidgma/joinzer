@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
+const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
+
 type Props = {
   leagueId: string
   registrationStatus: string
@@ -11,15 +13,21 @@ type Props = {
   mySubInterest: boolean
   isFull: boolean
   costCents: number
+  format: string
+  partnerUserName?: string | null
 }
 
-export default function LeagueActions({ leagueId, registrationStatus, myReg, mySubInterest, isFull, costCents }: Props) {
+export default function LeagueActions({ leagueId, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [subLoading, setSubLoading] = useState(false)
   const [localReg, setLocalReg] = useState(myReg)
   const [localSub, setLocalSub] = useState(mySubInterest)
+  const [localPartner, setLocalPartner] = useState(partnerUserName ?? null)
   const [error, setError] = useState<string | null>(null)
+  const [regType, setRegType] = useState<'team' | 'solo'>('team')
+
+  const isDoubles = DOUBLES_FORMATS.includes(format)
 
   const canRegister = registrationStatus === 'open' || registrationStatus === 'waitlist_only'
   const isPaid = costCents > 0
@@ -45,11 +53,12 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
     const res = await fetch('/api/league-register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leagueId }),
+      body: JSON.stringify({ leagueId, registration_type: regType }),
     })
     if (res.ok) {
-      const { status } = await res.json()
-      setLocalReg(status)
+      const data = await res.json()
+      setLocalReg(data.status)
+      if (data.matchedWith?.name) setLocalPartner(data.matchedWith.name)
       router.refresh()
     } else {
       const data = await res.json().catch(() => ({}))
@@ -96,7 +105,13 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
         <div className="bg-brand/20 border border-brand rounded-2xl p-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-brand-dark">You&apos;re registered ✓</p>
-            <p className="text-xs text-brand-muted">You&apos;re in for this league</p>
+            <p className="text-xs text-brand-muted">
+              {localPartner
+                ? `Partner: ${localPartner}`
+                : isDoubles && !localPartner
+                  ? 'Solo — awaiting partner match'
+                  : "You're in for this league"}
+            </p>
           </div>
           <button onClick={handleCancel} disabled={loading} className="text-xs text-red-500 font-medium underline">
             Cancel
@@ -117,7 +132,30 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
       )}
 
       {(localReg === null || localReg === 'cancelled') && canRegister && (
-        <div className="space-y-1">
+        <div className="space-y-2">
+          {isDoubles && (
+            <div className="flex rounded-xl overflow-hidden border border-brand-border">
+              <button
+                type="button"
+                onClick={() => setRegType('team')}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${regType === 'team' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+              >
+                Team (with partner)
+              </button>
+              <button
+                type="button"
+                onClick={() => setRegType('solo')}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${regType === 'solo' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+              >
+                Individual (solo)
+              </button>
+            </div>
+          )}
+          {isDoubles && regType === 'solo' && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              You&apos;ll be automatically matched with another solo player. Both of you will be notified by email.
+            </p>
+          )}
           {isPaid && (
             <p className="text-xs text-brand-muted text-center">
               Registration fee: <span className="font-semibold text-brand-dark">${(costCents / 100).toFixed(0)}</span> — paid securely via Stripe
@@ -132,7 +170,7 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
               ? isPaid ? 'Redirecting to payment…' : 'Saving…'
               : isPaid
                 ? isFull ? `Pay $${(costCents / 100).toFixed(0)} — Join Waitlist` : `Pay $${(costCents / 100).toFixed(0)} to Register`
-                : isFull ? 'Join Waitlist' : 'Register'
+                : isFull ? 'Join Waitlist' : regType === 'solo' ? 'Register as Individual' : 'Register'
             }
           </button>
         </div>
