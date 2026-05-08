@@ -339,7 +339,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     const supabase = createClient()
     let q = supabase.from('profiles').select('id, name').order('name').limit(500)
     if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
-    const excludeIds = [...new Set([...(currentUserId ? [currentUserId] : []), ...excludeUserIds])]
+    const excludeIds = Array.from(new Set((currentUserId ? [currentUserId] : []).concat(excludeUserIds)))
     if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
     const { data } = await q
     setPlayerResults(data ?? [])
