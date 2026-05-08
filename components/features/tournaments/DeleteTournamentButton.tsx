@@ -17,7 +17,7 @@ export default function DeleteTournamentButton({ tournamentId }: { tournamentId:
       setDeleting(false)
       return
     }
-    router.refresh()
+    router.push('/tournaments')
   }
 
   return (
