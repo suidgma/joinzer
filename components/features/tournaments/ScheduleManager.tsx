@@ -85,7 +85,9 @@ function scheduledHHMM(iso: string | null): string {
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
 }
 
-// Generate schedule: group matches into time waves, assign courts cyclically
+// Generate schedule: assign courts/times while preventing player double-booking.
+// Uses a greedy approach — each match goes into the earliest slot where neither
+// of its players is already scheduled and a court is still free.
 function generateSchedule(
   matches: Match[],
   date: string,
@@ -96,41 +98,65 @@ function generateSchedule(
 ): { id: string; court_number: number; scheduled_time: string }[] {
   const courts = Array.from({ length: lastCourt - firstCourt + 1 }, (_, i) => firstCourt + i)
   if (courts.length === 0) return []
+  const numCourts = courts.length
+  const startMin = toMinutes(startTime)
 
+  // Sort: by stage priority, then round, then match number
+  const stagePriority: Record<string, number> = {
+    pool_play: 0, round_robin: 0,
+    winners_bracket: 1, losers_bracket: 2,
+    single_elimination: 1, playoffs: 3, championship: 4,
+  }
   const sorted = [...matches].sort((a, b) => {
+    const sa = stagePriority[a.match_stage] ?? 1
+    const sb = stagePriority[b.match_stage] ?? 1
+    if (sa !== sb) return sa - sb
     const ra = a.round_number ?? 999
     const rb = b.round_number ?? 999
     if (ra !== rb) return ra - rb
     return a.match_number - b.match_number
   })
 
-  const startMin = toMinutes(startTime)
-  const numCourts = courts.length
-  const result: { id: string; court_number: number; scheduled_time: string }[] = []
+  // Per wave slot: which courts are used, which player IDs are busy
+  type SlotState = { courtIndex: number; playerIds: Set<string> }
+  const slots: SlotState[] = []
 
-  const rounds = new Map<number, Match[]>()
-  for (const m of sorted) {
-    const r = m.round_number ?? 0
-    if (!rounds.has(r)) rounds.set(r, [])
-    rounds.get(r)!.push(m)
+  function getOrCreateSlot(waveIdx: number): SlotState {
+    while (slots.length <= waveIdx) {
+      slots.push({ courtIndex: 0, playerIds: new Set() })
+    }
+    return slots[waveIdx]
   }
 
-  let waveIndex = 0
-  for (const [, roundMatches] of Array.from(rounds.entries()).sort(([a], [b]) => a - b)) {
-    for (let i = 0; i < roundMatches.length; i += numCourts) {
-      const batch = roundMatches.slice(i, i + numCourts)
-      const timeMin = startMin + waveIndex * matchDuration
-      const hhmm = fromMinutes(timeMin)
-      const iso = `${date}T${hhmm}:00-07:00`
-      batch.forEach((m, j) => {
-        result.push({
-          id: m.id,
-          court_number: courts[j % numCourts],
-          scheduled_time: iso,
-        })
-      })
-      waveIndex++
+  const result: { id: string; court_number: number; scheduled_time: string }[] = []
+
+  for (const m of sorted) {
+    const p1 = m.team_1_registration_id
+    const p2 = m.team_2_registration_id
+
+    // Find earliest wave where this match's players are free and a court is available
+    let wave = 0
+    while (true) {
+      const slot = getOrCreateSlot(wave)
+      const hasCourtFree = slot.courtIndex < numCourts
+      const noConflict = (!p1 || !slot.playerIds.has(p1)) && (!p2 || !slot.playerIds.has(p2))
+      if (hasCourtFree && noConflict) break
+      wave++
     }
+
+    const slot = getOrCreateSlot(wave)
+    const court = courts[slot.courtIndex]
+    slot.courtIndex++
+    if (p1) slot.playerIds.add(p1)
+    if (p2) slot.playerIds.add(p2)
+
+    const timeMin = startMin + wave * matchDuration
+    const hhmm = fromMinutes(timeMin)
+    result.push({
+      id: m.id,
+      court_number: court,
+      scheduled_time: `${date}T${hhmm}:00-07:00`,
+    })
   }
 
   return result
