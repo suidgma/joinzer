@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Match = {
   id: string
@@ -159,6 +160,7 @@ function generateSchedule(
 }
 
 export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime }: Props) {
+  const router = useRouter()
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [showGenerator, setShowGenerator] = useState(false)
 
@@ -257,6 +259,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     setShowGenerator(false)
     setSaveSuccess(false)
     setGenerating(false)
+    router.refresh()
   }
 
   // Re-schedule only (brackets already exist)
@@ -328,6 +331,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     if (res.ok) {
       setEdits({})
       setSaveSuccess(true)
+      router.refresh()
     } else {
       const data = await res.json().catch(() => ({}))
       setSaveError(data.error ?? 'Save failed')
