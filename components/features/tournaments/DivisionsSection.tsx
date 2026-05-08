@@ -334,14 +334,15 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   }
 
   // ── Organizer: search players ─────────────────────────────────────
-  async function searchPlayers(query: string) {
+  async function searchPlayers(query: string, excludeUserIds: string[] = []) {
     setPlayerSearch(query)
     const supabase = createClient()
-    let q = supabase.from('profiles').select('id, name').order('name').limit(20)
+    let q = supabase.from('profiles').select('id, name').order('name').limit(30)
     if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
-    if (currentUserId) q = q.neq('id', currentUserId)
+    const excludeIds = [...new Set([...(currentUserId ? [currentUserId] : []), ...excludeUserIds])]
+    if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
     const { data } = await q
-    setPlayerResults(data ?? [])
+    setPlayerResults((data ?? []).slice(0, 20))
   }
 
   // ── Organizer: add player to division ─────────────────────────────
@@ -792,8 +793,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                         <input
                           type="text"
                           value={playerSearch}
-                          onChange={e => searchPlayers(e.target.value)}
-                          onFocus={() => searchPlayers(playerSearch)}
+                          onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id))}
+                          onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id))}
                           placeholder="Search player by name…"
                           className="w-full input text-xs"
                           autoFocus
@@ -823,7 +824,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       </div>
                     ) : (
                       <button
-                        onClick={() => { setAddingPlayerId(div.id); setPlayerSearch(''); setPlayerResults([]); setAddPlayerError(null) }}
+                        onClick={() => { setAddingPlayerId(div.id); setPlayerSearch(''); setAddPlayerError(null); searchPlayers('', div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id)) }}
                         className="text-xs text-brand-active font-medium hover:underline pt-1"
                       >
                         + Add Player
