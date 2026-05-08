@@ -152,7 +152,6 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
 
     setDivisions(prev => [...prev, { ...data, tournament_registrations: [] }])
-    router.refresh()
     setShowAddForm(false)
     setFName(''); setFCategory('mixed_doubles'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
