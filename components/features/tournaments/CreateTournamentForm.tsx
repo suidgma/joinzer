@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
+import TimeSelect from '@/components/features/events/TimeSelect'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
 import type { LocationOption } from '@/lib/types'
@@ -16,8 +17,8 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [description, setDescription] = useState('')
   const [locationId, setLocationId] = useState('')
   const [startDate, setStartDate] = useState('')
-  const [startTime, setStartTime] = useState('')
-  const [estimatedEndTime, setEstimatedEndTime] = useState('')
+  const [startTime, setStartTime] = useState('08:00')
+  const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
   const [visibility, setVisibility] = useState<'public' | 'private'>('public')
   const [registrationStatus, setRegistrationStatus] = useState<'open' | 'closed'>('open')
@@ -110,24 +111,14 @@ export default function CreateTournamentForm({ locations }: Props) {
           />
         </FormRow>
         <FormRow label="Times">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full input"
-              />
+              <TimeSelect value={startTime} onChange={setStartTime} />
             </div>
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
-              <input
-                type="time"
-                value={estimatedEndTime}
-                onChange={(e) => setEstimatedEndTime(e.target.value)}
-                className="w-full input"
-              />
+              <TimeSelect value={estimatedEndTime} onChange={setEstimatedEndTime} />
             </div>
           </div>
         </FormRow>
