@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" className="w-8 h-8 object-contain shrink-0" />
           <span className="font-heading font-bold text-lg text-brand-dark tracking-tight shrink-0">Joinzer</span>
-          <div className="hidden lg:flex flex-1">
+          <div className="hidden lg:flex flex-1 justify-center">
             <DesktopNav />
           </div>
         </div>
