@@ -7,6 +7,8 @@ import FormatSettingsFields, {
   FORMAT_DEFAULTS, FormatType, FormatSettings,
   validateFormatSettings, formatSummaryLines,
 } from './FormatSettingsFields'
+import QrCheckinModal from './QrCheckinModal'
+import PrepTournamentModal from './PrepTournamentModal'
 
 const CATEGORY_LABELS: Record<string, string> = {
   mens_doubles:   'Men',
@@ -120,6 +122,25 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [playerResults, setPlayerResults] = useState<{ id: string; name: string }[]>([])
   const [addPlayerLoading, setAddPlayerLoading] = useState(false)
   const [addPlayerError, setAddPlayerError] = useState<string | null>(null)
+
+  // QR check-in modal
+  const [qrDivision, setQrDivision] = useState<{ id: string; name: string } | null>(null)
+
+  // Prep tournament modal
+  const [showPrep, setShowPrep] = useState(false)
+  const [regClosed, setRegClosed] = useState(false)
+
+  // Merge state
+  const [mergingFromId, setMergingFromId] = useState<string | null>(null)
+  const [mergeTargetId, setMergeTargetId] = useState<string>('')
+  const [mergeLoading, setMergeLoading] = useState(false)
+  const [mergeError, setMergeError] = useState<string | null>(null)
+
+  // Move player state (per reg)
+  const [movingRegId, setMovingRegId] = useState<string | null>(null)
+  const [moveTargetId, setMoveTargetId] = useState<string>('')
+  const [moveLoading, setMoveLoading] = useState(false)
+  const [moveError, setMoveError] = useState<string | null>(null)
 
   // ── Add division ──────────────────────────────────────────────────
   async function handleAddDivision(e: React.FormEvent) {
@@ -376,6 +397,72 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     router.refresh()
   }
 
+  // ── Merge division into another ────────────────────────────────────
+  async function handleMerge(fromDivisionId: string) {
+    if (!mergeTargetId || mergeTargetId === fromDivisionId) return
+    if (!confirm('Move all registrations from this division into the selected one and close this division?')) return
+    setMergeLoading(true)
+    setMergeError(null)
+    const supabase = createClient()
+    // Move all active regs from source to target
+    const sourceRegs = divisions
+      .find(d => d.id === fromDivisionId)
+      ?.tournament_registrations.filter(r => r.status !== 'cancelled')
+      .map(r => r.id) ?? []
+    if (sourceRegs.length > 0) {
+      const { error: moveErr } = await supabase
+        .from('tournament_registrations')
+        .update({ division_id: mergeTargetId })
+        .in('id', sourceRegs)
+      if (moveErr) { setMergeError(moveErr.message); setMergeLoading(false); return }
+    }
+    // Close source division
+    const { error: closeErr } = await supabase
+      .from('tournament_divisions')
+      .update({ status: 'closed' })
+      .eq('id', fromDivisionId)
+    if (closeErr) { setMergeError(closeErr.message); setMergeLoading(false); return }
+
+    // Update local state: move regs + close source
+    setDivisions(prev => {
+      const movedRegs = prev.find(d => d.id === fromDivisionId)?.tournament_registrations.filter(r => r.status !== 'cancelled') ?? []
+      return prev.map(d => {
+        if (d.id === fromDivisionId) return { ...d, status: 'closed', tournament_registrations: [] }
+        if (d.id === mergeTargetId) return { ...d, tournament_registrations: [...d.tournament_registrations, ...movedRegs] }
+        return d
+      })
+    })
+    setMergingFromId(null)
+    setMergeTargetId('')
+    setMergeLoading(false)
+    router.refresh()
+  }
+
+  // ── Move single player to another division ─────────────────────────
+  async function handleMovePlayer(fromDivisionId: string, regId: string) {
+    if (!moveTargetId || moveTargetId === fromDivisionId) return
+    setMoveLoading(true)
+    setMoveError(null)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('tournament_registrations')
+      .update({ division_id: moveTargetId })
+      .eq('id', regId)
+    if (error) { setMoveError(error.message); setMoveLoading(false); return }
+
+    setDivisions(prev => {
+      const movedReg = prev.find(d => d.id === fromDivisionId)?.tournament_registrations.find(r => r.id === regId)
+      return prev.map(d => {
+        if (d.id === fromDivisionId) return { ...d, tournament_registrations: d.tournament_registrations.filter(r => r.id !== regId) }
+        if (d.id === moveTargetId && movedReg) return { ...d, tournament_registrations: [...d.tournament_registrations, { ...movedReg, division_id: moveTargetId }] }
+        return d
+      })
+    })
+    setMovingRegId(null)
+    setMoveTargetId('')
+    setMoveLoading(false)
+  }
+
   // ── Pay for registration via Stripe Checkout ─────────────────────
   async function handlePay(regId: string, payForPartner = false) {
     try {
@@ -422,14 +509,24 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       )}
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-base font-bold text-brand-dark">Divisions</h2>
-        {isOrganizer && !showAddForm && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="text-sm font-medium text-brand-active hover:underline"
-          >
-            + Add Division
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isOrganizer && divisions.some(d => d.tournament_registrations.filter(r => r.status === 'registered').length > 0) && !regClosed && (
+            <button
+              onClick={() => setShowPrep(true)}
+              className="text-xs font-semibold text-amber-700 hover:text-amber-800"
+            >
+              Prep →
+            </button>
+          )}
+          {isOrganizer && !showAddForm && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="text-sm font-medium text-brand-active hover:underline"
+            >
+              + Add Division
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Add Division Form ── */}
@@ -741,13 +838,69 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                 {isManaging && (
                   <div className="border-t border-brand-border pt-3 space-y-2">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Registrants</p>
-                      {!isClosed && (
-                        <button onClick={() => handleClose(div.id)} className="text-xs text-red-500 hover:underline">
-                          Close Division
+                      <div className="flex items-center gap-3">
+                        <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Registrants</p>
+                        <button
+                          onClick={() => setQrDivision({ id: div.id, name: div.name })}
+                          className="text-xs text-brand-active hover:underline"
+                        >
+                          QR Check-in
                         </button>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!isClosed && divisions.filter(d => d.id !== div.id && d.status !== 'closed').length > 0 && (
+                          <button
+                            onClick={() => { setMergingFromId(mergingFromId === div.id ? null : div.id); setMergeTargetId(''); setMergeError(null) }}
+                            className="text-xs text-amber-600 hover:underline"
+                          >
+                            Merge
+                          </button>
+                        )}
+                        {!isClosed && (
+                          <button onClick={() => handleClose(div.id)} className="text-xs text-red-500 hover:underline">
+                            Close
+                          </button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Merge panel */}
+                    {mergingFromId === div.id && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-2">
+                        <p className="text-xs font-medium text-amber-800">Merge this division into:</p>
+                        <select
+                          value={mergeTargetId}
+                          onChange={e => setMergeTargetId(e.target.value)}
+                          className="w-full input text-xs"
+                        >
+                          <option value="">Select target division…</option>
+                          {divisions.filter(d => d.id !== div.id && d.status !== 'closed').map(d => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                        {mergeError && <p className="text-xs text-red-600">{mergeError}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleMerge(div.id)}
+                            disabled={!mergeTargetId || mergeLoading}
+                            className="flex-1 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                          >
+                            {mergeLoading ? 'Merging…' : 'Confirm Merge'}
+                          </button>
+                          <button
+                            onClick={() => { setMergingFromId(null); setMergeTargetId('') }}
+                            className="px-3 py-1.5 rounded-lg border border-brand-border text-xs text-brand-muted hover:bg-brand-soft"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {isManaging && (
+                  <div className="space-y-2">
 
                     {div.tournament_registrations.filter(r => r.status !== 'cancelled').length === 0 ? (
                       <p className="text-xs text-brand-muted">No registrants yet.</p>
@@ -792,7 +945,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                                     <span className="text-amber-600">No partner</span>
                                   ) : null}
                                 </div>
-                                <div className="flex shrink-0 gap-2">
+                                <div className="flex shrink-0 gap-2 flex-wrap justify-end">
                                   {reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && (
                                     <button onClick={() => handleMarkPaid(div.id, reg.id)} className="text-green-600 hover:underline">
                                       Mark Paid
@@ -808,11 +961,42 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                                       Promote
                                     </button>
                                   )}
+                                  {divisions.filter(d => d.id !== div.id && d.status !== 'closed').length > 0 && (
+                                    <button
+                                      onClick={() => { setMovingRegId(movingRegId === reg.id ? null : reg.id); setMoveTargetId(''); setMoveError(null) }}
+                                      className="text-brand-muted hover:underline"
+                                    >
+                                      Move
+                                    </button>
+                                  )}
                                   <button onClick={() => handleRemove(div.id, reg.id)} className="text-red-500 hover:underline">
                                     Remove
                                   </button>
                                 </div>
                               </div>
+                              {/* Move-to-division inline picker */}
+                              {movingRegId === reg.id && (
+                                <div className="flex gap-2 pt-1">
+                                  <select
+                                    value={moveTargetId}
+                                    onChange={e => setMoveTargetId(e.target.value)}
+                                    className="flex-1 input text-xs"
+                                  >
+                                    <option value="">Move to…</option>
+                                    {divisions.filter(d => d.id !== div.id && d.status !== 'closed').map(d => (
+                                      <option key={d.id} value={d.id}>{d.name}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => handleMovePlayer(div.id, reg.id)}
+                                    disabled={!moveTargetId || moveLoading}
+                                    className="px-2 py-1 rounded-lg bg-brand-dark text-white text-xs font-semibold disabled:opacity-50"
+                                  >
+                                    {moveLoading ? '…' : 'Move'}
+                                  </button>
+                                </div>
+                              )}
+                              {movingRegId === reg.id && moveError && <p className="text-xs text-red-600">{moveError}</p>}
                             </li>
                           ))}
                       </ul>
@@ -1026,6 +1210,28 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             )}
           </div>
         </div>
+      )}
+
+      {/* QR check-in modal */}
+      {qrDivision && (
+        <QrCheckinModal
+          tournamentId={tournamentId}
+          divisionId={qrDivision.id}
+          divisionName={qrDivision.name}
+          onClose={() => setQrDivision(null)}
+        />
+      )}
+
+      {/* Prep tournament modal */}
+      {showPrep && (
+        <PrepTournamentModal
+          tournamentId={tournamentId}
+          tournamentCostCents={tournamentCostCents}
+          divisions={divisions}
+          hasMatches={false}
+          onClose={() => setShowPrep(false)}
+          onRegistrationClosed={() => { setRegClosed(true); router.refresh() }}
+        />
       )}
     </div>
   )
