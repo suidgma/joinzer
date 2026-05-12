@@ -43,13 +43,25 @@ export async function GET(request: NextRequest) {
 
   // OAuth and magic link use code
   if (code) {
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
     if (exchangeError) {
       return NextResponse.redirect(`${origin}/login?error=auth_failed`)
     }
+    // Reuse the user from the exchange response — avoids a second network round-trip
+    const user = sessionData?.user
+    if (!user) return NextResponse.redirect(`${origin}/login`)
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    if (next) return NextResponse.redirect(`${origin}${next}`)
+    return NextResponse.redirect(profile ? `${origin}/home` : `${origin}/profile/setup`)
   }
 
-  if (!code && !tokenHash) {
+  if (!tokenHash) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
   }
 
