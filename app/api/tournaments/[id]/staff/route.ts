@@ -53,10 +53,23 @@ export async function POST(
 
   const db = service()
 
-  // Look up the user by email
-  const { data: userList } = await db.auth.admin.listUsers({ perPage: 1000 })
-  const target = userList?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())
-  if (!target) return NextResponse.json({ error: 'No Joinzer account with that email' }, { status: 404 })
+  // Look up via profiles table (has email column, single indexed query)
+  const { data: profileRow } = await db
+    .from('profiles')
+    .select('id')
+    .ilike('email', email.trim())
+    .single()
+
+  // Fall back to auth.users in case profile row isn't created yet
+  let targetId = profileRow?.id
+  if (!targetId) {
+    const { data: { users } } = await db.auth.admin.listUsers({ perPage: 1000 })
+    const match = users?.find(u => u.email?.toLowerCase() === email.trim().toLowerCase())
+    targetId = match?.id
+  }
+
+  if (!targetId) return NextResponse.json({ error: 'No Joinzer account with that email' }, { status: 404 })
+  const target = { id: targetId }
 
   // Prevent adding the organizer themselves
   const { data: tournament } = await db.from('tournaments').select('organizer_id').eq('id', params.id).single()
