@@ -113,7 +113,7 @@ export default function PayoutsPage() {
 
             {status.connected && status.chargesEnabled && (
               <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                <p className="text-sm font-semibold text-green-700">✓ You're all set</p>
+                <p className="text-sm font-semibold text-green-700">✓ You&apos;re all set</p>
                 <p className="text-xs text-green-600 mt-1">
                   Registration fees from your tournaments will be sent directly to your Stripe account.
                 </p>
