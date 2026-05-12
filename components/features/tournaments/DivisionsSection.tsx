@@ -9,6 +9,7 @@ import FormatSettingsFields, {
 } from './FormatSettingsFields'
 import QrCheckinModal from './QrCheckinModal'
 import PrepTournamentModal from './PrepTournamentModal'
+import TimeSelect from '@/components/features/events/TimeSelect'
 
 const CATEGORY_LABELS: Record<string, string> = {
   mens_doubles:   'Men',
@@ -97,7 +98,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [fCostDollars, setFCostDollars] = useState('')
   const [fMinAge, setFMinAge] = useState('')
   const [fMaxAge, setFMaxAge] = useState('')
-  const [fStartTime, setFStartTime] = useState('')
+  const [fStartTime, setFStartTime] = useState('08:00')
+  const [fStartTimeEnabled, setFStartTimeEnabled] = useState(false)
   const [fLoading, setFLoading] = useState(false)
   const [fError, setFError] = useState<string | null>(null)
 
@@ -177,7 +179,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         cost_cents: fCostDollars ? Math.round(parseFloat(fCostDollars) * 100) : null,
         min_age: fMinAge ? parseInt(fMinAge) : null,
         max_age: fMaxAge ? parseInt(fMaxAge) : null,
-        start_time: fStartTime || null,
+        start_time: fStartTimeEnabled ? fStartTime : null,
       })
       .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json, cost_cents')
       .single()
@@ -628,12 +630,16 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Start Time <span className="font-normal">(optional)</span></label>
-              <input
-                type="time"
-                value={fStartTime}
-                onChange={e => setFStartTime(e.target.value)}
-                className="w-full input"
-              />
+              <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={fStartTimeEnabled}
+                  onChange={e => setFStartTimeEnabled(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-xs text-brand-muted">Set a start time</span>
+              </label>
+              {fStartTimeEnabled && <TimeSelect value={fStartTime} onChange={setFStartTime} />}
             </div>
             <div />
           </div>
