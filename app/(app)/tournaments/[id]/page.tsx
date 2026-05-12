@@ -10,6 +10,7 @@ import DivisionsSection from '@/components/features/tournaments/DivisionsSection
 import MatchesSection from '@/components/features/tournaments/MatchesSection'
 import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
+import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
 import ShareButton from '@/components/features/ShareButton'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
 import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
@@ -228,6 +229,14 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         <div className="space-y-4 pb-8">
           {pageHeader}
 
+          {/* Setup checklist — shown until all steps are done */}
+          <SetupChecklist
+            hasDivisions={divisionsForOrg.length > 0}
+            regOpen={tournament.registration_status === 'open'}
+            published={tournament.status === 'published'}
+            hasMatches={orgMatches.length > 0}
+          />
+
           {/* Edit / Delete actions */}
           <div className="space-y-2">
             <Link
@@ -267,6 +276,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           {orgMatches.length > 0 && (
             <TournamentOrganizerView
               tournamentId={tournament.id}
+              tournamentName={tournament.name}
               initialMatches={orgMatches}
               registrations={orgRegs}
               divisions={orgDivisions}

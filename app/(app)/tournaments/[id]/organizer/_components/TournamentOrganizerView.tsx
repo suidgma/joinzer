@@ -12,13 +12,14 @@ type Tab = (typeof TABS)[number]
 
 type Props = {
   tournamentId: string
+  tournamentName: string
   initialMatches: OrgMatch[]
   registrations: OrgRegistration[]
   divisions: OrgDivision[]
 }
 
 export default function TournamentOrganizerView({
-  tournamentId, initialMatches, registrations, divisions,
+  tournamentId, tournamentName, initialMatches, registrations, divisions,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('Live')
   const [matches, setMatches] = useState<OrgMatch[]>(initialMatches)
@@ -112,6 +113,8 @@ export default function TournamentOrganizerView({
           <PlayersTab
             matches={matches}
             registrations={registrations}
+            divisions={divisions}
+            tournamentName={tournamentName}
           />
         )}
       </div>
