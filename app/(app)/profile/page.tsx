@@ -125,6 +125,14 @@ export default async function ProfilePage() {
         <span className="text-brand-muted text-sm">→</span>
       </Link>
 
+      <Link
+        href="/settings/payouts"
+        className="flex items-center justify-between w-full bg-brand-surface border border-brand-border rounded-2xl px-4 py-3 hover:border-brand-active transition-colors"
+      >
+        <span className="text-sm font-medium text-brand-dark">Payouts (Stripe Connect)</span>
+        <span className="text-brand-muted text-sm">→</span>
+      </Link>
+
       <SignOutButton />
       <DeleteAccountButton />
     </main>

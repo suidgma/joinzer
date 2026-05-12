@@ -97,9 +97,11 @@ export default function TournamentOrganizerView({
         )}
         {activeTab === 'Schedule' && (
           <ScheduleTab
+            tournamentId={tournamentId}
             matches={matches}
             registrations={registrations}
             divisions={divisions}
+            onMatchUpdate={handleMatchUpdate}
           />
         )}
         {activeTab === 'Standings' && (

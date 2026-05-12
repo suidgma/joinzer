@@ -266,14 +266,28 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
             hasMatches={orgMatches.length > 0}
           />
 
-          {/* Edit / Delete actions */}
+          {/* Edit / Delete / Staff / Import actions */}
           <div className="space-y-2">
-            <Link
-              href={`/tournaments/${tournament.id}/edit`}
-              className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
-            >
-              Edit Tournament
-            </Link>
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href={`/tournaments/${tournament.id}/edit`}
+                className="block text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+              >
+                Edit
+              </Link>
+              <Link
+                href={`/tournaments/${tournament.id}/staff`}
+                className="block text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+              >
+                Staff & Roles
+              </Link>
+              <Link
+                href={`/tournaments/${tournament.id}/import`}
+                className="block text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+              >
+                Import Players
+              </Link>
+            </div>
             <div className="flex justify-center">
               <DeleteTournamentButton tournamentId={tournament.id} />
             </div>

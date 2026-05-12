@@ -36,14 +36,24 @@ export async function POST(
       return NextResponse.json({ error: 'Already paid' }, { status: 409 })
     }
 
-    // Fetch tournament for price + name
+    // Fetch tournament for price + name + organizer
     const { data: tournament } = await service
       .from('tournaments')
-      .select('name, cost_cents')
+      .select('name, cost_cents, organizer_id')
       .eq('id', params.id)
       .single()
 
     if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+
+    // Check if organizer has Stripe Connect enabled
+    const { data: organizerProfile } = await service
+      .from('profiles')
+      .select('stripe_connect_account_id, stripe_charges_enabled')
+      .eq('id', (tournament as any).organizer_id)
+      .single()
+    const connectAccountId = (organizerProfile as any)?.stripe_charges_enabled
+      ? (organizerProfile as any)?.stripe_connect_account_id
+      : null
 
     // Division-level cost takes precedence over tournament-level cost
     const { data: divisionForCost } = await service
@@ -139,6 +149,11 @@ export async function POST(
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
 
+    // 5% platform fee when routing through Connect
+    const applicationFeeAmount = connectAccountId
+      ? Math.round(discountedAmount * quantity * 0.05)
+      : undefined
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -155,6 +170,12 @@ export async function POST(
           quantity,
         },
       ],
+      ...(connectAccountId ? {
+        payment_intent_data: {
+          application_fee_amount: applicationFeeAmount,
+          transfer_data: { destination: connectAccountId },
+        },
+      } : {}),
       metadata: {
         registration_id,
         tournament_id: params.id,

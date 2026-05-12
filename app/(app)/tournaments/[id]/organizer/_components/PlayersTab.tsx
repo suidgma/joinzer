@@ -45,6 +45,7 @@ export default function PlayersTab({ matches, registrations, divisions, tourname
   const divisionMap = Object.fromEntries(divisions.map(d => [d.id, d.name]))
 
   const registered = registrations.filter(r => r.status === 'registered')
+  const waitlisted = registrations.filter(r => r.status === 'waitlisted')
   const seen = new Set<string>()
   const players = registered.filter(r => {
     if (seen.has(r.user_id)) return false
@@ -176,6 +177,28 @@ export default function PlayersTab({ matches, registrations, divisions, tourname
       </div>
 
       <p className="text-xs text-brand-muted text-center">Tap the circle to check a player in or out.</p>
+
+      {/* Waitlist section */}
+      {waitlisted.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">
+            Waitlist ({waitlisted.length})
+          </h3>
+          <div className="bg-white rounded-xl border border-brand-border divide-y divide-brand-border">
+            {waitlisted.map((reg, i) => (
+              <div key={reg.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="shrink-0 w-5 text-[10px] font-bold text-brand-muted text-center">{i + 1}</span>
+                <span className="flex-1 text-sm text-brand-muted truncate">
+                  {reg.player_name ?? reg.team_name ?? '—'}
+                </span>
+                <span className="text-[10px] font-semibold bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full">
+                  {divisionMap[reg.division_id] ?? 'Waitlisted'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Toast message={toastMsg} />
     </div>
