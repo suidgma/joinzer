@@ -42,6 +42,7 @@ type Division = {
   status: string
   format_type: FormatType
   format_settings_json: FormatSettings
+  cost_cents: number | null
   tournament_registrations: Registration[]
 }
 
@@ -91,6 +92,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [fWaitlist, setFWaitlist] = useState(false)
   const [fFormatType, setFFormatType] = useState<FormatType>('round_robin')
   const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
+  const [fCostDollars, setFCostDollars] = useState('')
   const [fLoading, setFLoading] = useState(false)
   const [fError, setFError] = useState<string | null>(null)
 
@@ -145,8 +147,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         status: 'active',
         format_type: fFormatType,
         format_settings_json: fFormatSettings,
+        cost_cents: fCostDollars ? Math.round(parseFloat(fCostDollars) * 100) : null,
       })
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json')
+      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json, cost_cents')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -156,6 +159,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setFName(''); setFCategory('mixed_doubles'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFFormatType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
+    setFCostDollars('')
     setFLoading(false)
   }
 
@@ -495,6 +499,22 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             <span className="text-sm text-brand-dark">Enable waitlist when full</span>
           </label>
 
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Entry Fee <span className="font-normal">(leave blank to use tournament fee)</span></label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
+              <input
+                type="number"
+                min="0"
+                step="5"
+                value={fCostDollars}
+                onChange={e => setFCostDollars(e.target.value)}
+                placeholder="0.00"
+                className="w-full input pl-7"
+              />
+            </div>
+          </div>
+
           <div className="border-t border-brand-border pt-3">
             <FormatSettingsFields
               formatType={fFormatType}
@@ -573,6 +593,11 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       {div.skill_level && ` · ${div.skill_level}`}
                     </p>
                     <p className="text-xs text-brand-muted mt-0.5">{summaryLines.join(' · ')}</p>
+                    {div.cost_cents != null && div.cost_cents > 0 && (
+                      <p className="text-xs text-brand-muted mt-0.5">
+                        Entry fee: ${(div.cost_cents / 100).toFixed(2)}
+                      </p>
+                    )}
                     {isOrganizer && !isEditingFormat && (
                       <button
                         onClick={() => openFormatEdit(div)}
@@ -654,24 +679,28 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           : ' · Solo — awaiting partner match'
                       )}
                     </div>
-                    {(!myReg.payment_status || myReg.payment_status === 'unpaid') && tournamentCostCents > 0 && (
-                      <div className="space-y-1.5">
-                        <button
-                          onClick={() => handlePay(myReg.id)}
-                          className="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
-                        >
-                          Pay My Fee · ${(tournamentCostCents / 100).toFixed(2)}
-                        </button>
-                        {myReg.partner_user_id && (
+                    {(!myReg.payment_status || myReg.payment_status === 'unpaid') && (() => {
+                      const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
+                      if (effectiveCost <= 0) return null
+                      return (
+                        <div className="space-y-1.5">
                           <button
-                            onClick={() => handlePay(myReg.id, true)}
-                            className="w-full py-2 rounded-xl bg-indigo-100 text-indigo-700 text-xs font-semibold hover:bg-indigo-200 transition-colors"
+                            onClick={() => handlePay(myReg.id)}
+                            className="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
                           >
-                            Pay for Both · ${((tournamentCostCents * 2) / 100).toFixed(2)}
+                            Pay My Fee · ${(effectiveCost / 100).toFixed(2)}
                           </button>
-                        )}
-                      </div>
-                    )}
+                          {myReg.partner_user_id && (
+                            <button
+                              onClick={() => handlePay(myReg.id, true)}
+                              className="w-full py-2 rounded-xl bg-indigo-100 text-indigo-700 text-xs font-semibold hover:bg-indigo-200 transition-colors"
+                            >
+                              Pay for Both · ${((effectiveCost * 2) / 100).toFixed(2)}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })()}
                     {myReg.payment_status === 'paid' && (
                       <p className="text-xs text-green-600 font-medium">$ Payment received</p>
                     )}

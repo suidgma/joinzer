@@ -11,6 +11,7 @@ import MatchesSection from '@/components/features/tournaments/MatchesSection'
 import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
+import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection'
 import ShareButton from '@/components/features/ShareButton'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
 import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
@@ -64,12 +65,12 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .single(),
     db
       .from('tournament_divisions')
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json')
+      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json, cost_cents')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
       .from('tournament_registrations')
-      .select('id, division_id, user_id, partner_user_id, team_name, status, payment_status, stripe_payment_intent_id')
+      .select('id, division_id, user_id, partner_user_id, team_name, status, payment_status, stripe_payment_intent_id, checked_in')
       .eq('tournament_id', params.id),
     db
       .from('tournament_matches')
@@ -213,6 +214,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       status: r.status,
       player_name: profileNames[r.user_id] ?? null,
       partner_user_id: r.partner_user_id ?? null,
+      checked_in: r.checked_in ?? false,
     }))
 
     const orgDivisions: OrgDivision[] = (divisionsRaw ?? []).map((d: any) => ({
@@ -323,6 +325,14 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
             isOrganizer={false}
             currentUserId={user?.id ?? null}
             tournamentCostCents={costCents}
+          />
+        )}
+
+        {user && matches.length > 0 && (
+          <MyMatchesSection
+            currentUserId={user.id}
+            matches={matches}
+            divisions={divisions}
           />
         )}
 

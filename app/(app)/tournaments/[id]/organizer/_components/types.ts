@@ -23,6 +23,7 @@ export type OrgRegistration = {
   status: string
   player_name: string | null
   partner_user_id: string | null
+  checked_in: boolean
 }
 
 export type OrgDivision = {

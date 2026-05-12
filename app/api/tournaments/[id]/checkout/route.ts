@@ -45,7 +45,16 @@ export async function POST(
 
     if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
-    const unitAmount = (tournament as any).cost_cents ?? 0
+    // Division-level cost takes precedence over tournament-level cost
+    const { data: divisionForCost } = await service
+      .from('tournament_divisions')
+      .select('cost_cents')
+      .eq('id', reg.division_id)
+      .single()
+
+    const unitAmount = (divisionForCost as any)?.cost_cents != null
+      ? (divisionForCost as any).cost_cents
+      : ((tournament as any).cost_cents ?? 0)
     if (unitAmount <= 0) {
       // Free — mark both as waived
       await service.from('tournament_registrations').update({ payment_status: 'waived' }).eq('id', registration_id)
