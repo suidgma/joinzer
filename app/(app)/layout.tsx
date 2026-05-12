@@ -23,16 +23,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-brand-page pb-16">
+    <div className="min-h-screen bg-brand-page pb-16 lg:pb-0">
       <header className="sticky top-0 z-20 bg-brand-surface border-b border-brand-border">
-        <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-2">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" className="w-8 h-8 object-contain" />
           <span className="font-heading font-bold text-lg text-brand-dark tracking-tight">Joinzer</span>
         </div>
       </header>
       {children}
-      <BottomNav />
+      <div className="lg:hidden">
+        <BottomNav />
+      </div>
     </div>
   )
 }

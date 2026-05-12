@@ -654,7 +654,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           : ' · Solo — awaiting partner match'
                       )}
                     </div>
-                    {myReg.payment_status === 'unpaid' && tournamentCostCents > 0 && (
+                    {(!myReg.payment_status || myReg.payment_status === 'unpaid') && tournamentCostCents > 0 && (
                       <div className="space-y-1.5">
                         <button
                           onClick={() => handlePay(myReg.id)}

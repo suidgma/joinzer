@@ -13,12 +13,16 @@ import DeleteTournamentButton from '@/components/features/tournaments/DeleteTour
 import ShareButton from '@/components/features/ShareButton'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
 import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
+import DesktopShell from '@/components/ui/desktop-shell'
+import ManageNav from '@/components/ui/manage-nav'
+import type { ManageNavItem } from '@/components/ui/manage-nav'
 
 function formatDate(dateStr: string) {
   return formatSessionDate(dateStr, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-function formatTime(timeStr: string) {
+function formatTime(timeStr: string | null | undefined) {
+  if (!timeStr) return null
   const [h, m] = timeStr.split(':').map(Number)
   const period = h >= 12 ? 'PM' : 'AM'
   const hour = h % 12 || 12
@@ -50,7 +54,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        location_id,
+        cost_cents, location_id,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -85,22 +89,25 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
 
   if (!data) notFound()
 
-  const { data: costRow } = await db
-    .from('tournaments')
-    .select('cost_cents')
-    .eq('id', params.id)
-    .single()
-  const costCents: number = (costRow as any)?.cost_cents ?? 0
+  const costCents: number = (data as any).cost_cents ?? 0
 
   const tournament = data as unknown as TournamentDetail
   const isOrganizer = user?.id === tournament.organizer_id
+
+  // Slice 3 will add schedule/standings/players/comms sub-routes; add them here then.
+  const navItems: ManageNavItem[] = [
+    { label: 'Overview', href: `/tournaments/${params.id}` },
+    { label: 'Edit',     href: `/tournaments/${params.id}/edit` },
+  ]
   const todayVegas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
   const deadlinePassed = tournament.registration_closes_at != null && tournament.registration_closes_at < todayVegas
   const regOpen = tournament.registration_status === 'open' && !deadlinePassed
 
-  const timeRange = tournament.estimated_end_time
-    ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
-    : formatTime(tournament.start_time)
+  const startFormatted = formatTime(tournament.start_time)
+  const endFormatted = formatTime(tournament.estimated_end_time)
+  const timeRange = startFormatted
+    ? endFormatted ? `${startFormatted} – ${endFormatted}` : startFormatted
+    : null
 
   const allUserIds = Array.from(new Set((regsRaw ?? []).map((r: any) => r.user_id).filter(Boolean)))
   const { data: profilesRaw } = allUserIds.length > 0
@@ -153,7 +160,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           <span className="text-brand-muted text-xs pt-0.5">📅</span>
           <div>
             <p className="text-sm font-medium text-brand-dark">{formatDate(tournament.start_date)}</p>
-            <p className="text-xs text-brand-muted">{timeRange}</p>
+            {timeRange && <p className="text-xs text-brand-muted">{timeRange}</p>}
           </div>
         </div>
         {tournament.registration_closes_at && (
@@ -216,54 +223,57 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     const orgMatches: OrgMatch[] = (matchesData ?? []) as OrgMatch[]
 
     return (
-      <main className="max-w-lg mx-auto px-4 pb-8 space-y-4">
-        {pageHeader}
+      <DesktopShell sidebar={<ManageNav items={navItems} />}>
+        <ManageNav items={navItems} mobileOnly />
+        <div className="space-y-4 pb-8">
+          {pageHeader}
 
-        {/* Edit / Delete actions */}
-        <div className="space-y-2">
-          <Link
-            href={`/tournaments/${tournament.id}/edit`}
-            className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
-          >
-            Edit Tournament
-          </Link>
-          <div className="flex justify-center">
-            <DeleteTournamentButton tournamentId={tournament.id} />
+          {/* Edit / Delete actions */}
+          <div className="space-y-2">
+            <Link
+              href={`/tournaments/${tournament.id}/edit`}
+              className="block w-full text-center py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+            >
+              Edit Tournament
+            </Link>
+            <div className="flex justify-center">
+              <DeleteTournamentButton tournamentId={tournament.id} />
+            </div>
           </div>
-        </div>
 
-        {/* Divisions + player registration — setup tools always visible to organizer */}
-        <DivisionsSection
-          tournamentId={tournament.id}
-          initialDivisions={divisionsForOrg}
-          isOrganizer={true}
-          currentUserId={user!.id}
-          tournamentCostCents={costCents}
-        />
-
-        {/* Match generation + schedule manager */}
-        {divisionsForOrg.length > 0 && (
-          <MatchesSection
+          {/* Divisions + player registration — setup tools always visible to organizer */}
+          <DivisionsSection
             tournamentId={tournament.id}
-            divisions={divisionsForOrg}
-            initialMatches={matchesForOrg}
+            initialDivisions={divisionsForOrg}
             isOrganizer={true}
-            tournamentDate={tournament.start_date}
-            defaultStartTime={tournament.start_time ?? '08:00'}
-            defaultEndTime={tournament.estimated_end_time ?? null}
+            currentUserId={user!.id}
+            tournamentCostCents={costCents}
           />
-        )}
 
-        {/* Operational day-of tabs — useful once matches exist */}
-        {orgMatches.length > 0 && (
-          <TournamentOrganizerView
-            tournamentId={tournament.id}
-            initialMatches={orgMatches}
-            registrations={orgRegs}
-            divisions={orgDivisions}
-          />
-        )}
-      </main>
+          {/* Match generation + schedule manager */}
+          {divisionsForOrg.length > 0 && (
+            <MatchesSection
+              tournamentId={tournament.id}
+              divisions={divisionsForOrg}
+              initialMatches={matchesForOrg}
+              isOrganizer={true}
+              tournamentDate={tournament.start_date}
+              defaultStartTime={tournament.start_time ?? '08:00'}
+              defaultEndTime={tournament.estimated_end_time ?? null}
+            />
+          )}
+
+          {/* Operational day-of tabs — useful once matches exist */}
+          {orgMatches.length > 0 && (
+            <TournamentOrganizerView
+              tournamentId={tournament.id}
+              initialMatches={orgMatches}
+              registrations={orgRegs}
+              divisions={orgDivisions}
+            />
+          )}
+        </div>
+      </DesktopShell>
     )
   }
 
@@ -291,44 +301,47 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     : false
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
-      {pageHeader}
+    <DesktopShell sidebar={<ManageNav items={navItems} />}>
+      <ManageNav items={navItems} mobileOnly />
+      <div className="space-y-4">
+        {pageHeader}
 
-      {divisions.length > 0 && (
-        <DivisionsSection
-          tournamentId={tournament.id}
-          initialDivisions={divisions}
-          isOrganizer={false}
-          currentUserId={user?.id ?? null}
-          tournamentCostCents={costCents}
-        />
-      )}
-
-      {divisions.length > 0 && (
-        <MatchesSection
-          tournamentId={tournament.id}
-          divisions={divisions}
-          initialMatches={matches}
-          isOrganizer={false}
-          tournamentDate={tournament.start_date}
-          defaultStartTime={tournament.start_time ?? '08:00'}
-          defaultEndTime={tournament.estimated_end_time ?? null}
-        />
-      )}
-
-      {user && (
-        <section className="space-y-2">
-          <h2 className="font-heading text-base font-bold text-brand-dark">Tournament Chat</h2>
-          <GroupChat
-            table="tournament_messages"
-            entityId={tournament.id}
-            entityField="tournament_id"
-            initialMessages={(tournamentMessages ?? []) as any[]}
-            currentUserId={user.id}
-            canChat={isRegistered}
+        {divisions.length > 0 && (
+          <DivisionsSection
+            tournamentId={tournament.id}
+            initialDivisions={divisions}
+            isOrganizer={false}
+            currentUserId={user?.id ?? null}
+            tournamentCostCents={costCents}
           />
-        </section>
-      )}
-    </main>
+        )}
+
+        {divisions.length > 0 && (
+          <MatchesSection
+            tournamentId={tournament.id}
+            divisions={divisions}
+            initialMatches={matches}
+            isOrganizer={false}
+            tournamentDate={tournament.start_date}
+            defaultStartTime={tournament.start_time ?? '08:00'}
+            defaultEndTime={tournament.estimated_end_time ?? null}
+          />
+        )}
+
+        {user && (
+          <section className="space-y-2">
+            <h2 className="font-heading text-base font-bold text-brand-dark">Tournament Chat</h2>
+            <GroupChat
+              table="tournament_messages"
+              entityId={tournament.id}
+              entityField="tournament_id"
+              initialMessages={(tournamentMessages ?? []) as any[]}
+              currentUserId={user.id}
+              canChat={isRegistered}
+            />
+          </section>
+        )}
+      </div>
+    </DesktopShell>
   )
 }

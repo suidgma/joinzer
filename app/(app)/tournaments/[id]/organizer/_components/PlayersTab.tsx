@@ -54,10 +54,7 @@ export default function PlayersTab({ matches, registrations }: Props) {
   }
 
   function handleSendMessage() {
-    // TODO: implement broadcast to selected players via notifications table / push
-    console.log('[PlayersTab] Would message', selected.size, 'players:', Array.from(selected))
-    showToast(`Message sent to ${selected.size} player${selected.size !== 1 ? 's' : ''}`)
-    setSelected(new Set())
+    showToast('Player messaging not yet available')
   }
 
   return (
@@ -70,9 +67,10 @@ export default function PlayersTab({ matches, registrations }: Props) {
       {selected.size > 0 && (
         <button
           onClick={handleSendMessage}
-          className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+          className="w-full py-2.5 rounded-xl border border-brand-border text-brand-muted text-sm font-semibold cursor-not-allowed opacity-60"
+          disabled
         >
-          Send message to {selected.size} selected
+          Message {selected.size} selected — coming soon
         </button>
       )}
 

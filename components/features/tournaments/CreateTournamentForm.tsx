@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
+import FormSection from '@/components/ui/form-section'
+import FormRow from '@/components/ui/form-row'
 import type { LocationOption } from '@/lib/types'
 
 type Props = { locations: LocationOption[] }
@@ -64,145 +66,109 @@ export default function CreateTournamentForm({ locations }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
 
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          Tournament Name <span className="text-red-500">*</span>
-        </label>
-        <input
-          required
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Saturday Beginner Doubles Tournament"
-          className="w-full input"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Description</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Friendly local tournament for beginner and beginner plus players."
-          rows={3}
-          className="w-full input resize-none"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Registration Fee (per player/team)</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
+      {/* ── Basics ─────────────────────────────────────────────────────────── */}
+      <FormSection title="Basics" description="Public-facing tournament details." defaultOpen>
+        <FormRow label="Tournament name" htmlFor="name" required>
           <input
-            type="number"
-            min="0"
-            step="5"
-            value={costDollars}
-            onChange={(e) => setCostDollars(e.target.value)}
-            placeholder="0.00"
-            className="w-full input pl-7"
-          />
-        </div>
-        <p className="text-xs text-brand-muted mt-1">Leave at 0 for a free tournament</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Location</label>
-        <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          Date <span className="text-red-500">*</span>
-        </label>
-        <input
-          required
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          min={todayStr}
-          className="w-full input"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Registration Deadline</label>
-        <input
-          type="date"
-          value={registrationClosesAt}
-          onChange={(e) => setRegistrationClosesAt(e.target.value)}
-          min={todayStr}
-          className="w-full input"
-        />
-        <p className="text-xs text-brand-muted mt-1">Registration closes automatically at end of this date. Leave blank to manage manually.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Start Time</label>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
+            id="name"
+            required
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Saturday Beginner Doubles Tournament"
             className="w-full input"
           />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Est. End Time</label>
+        </FormRow>
+        <FormRow label="Description" htmlFor="description">
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Friendly local tournament for beginner and beginner plus players."
+            rows={3}
+            className="w-full input resize-none"
+          />
+        </FormRow>
+      </FormSection>
+
+      {/* ── Schedule ───────────────────────────────────────────────────────── */}
+      <FormSection title="Schedule" description="Where and when the tournament takes place." defaultOpen>
+        <FormRow label="Location" htmlFor="location">
+          <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
+        </FormRow>
+        <FormRow label="Date" htmlFor="start-date" required>
           <input
-            type="time"
-            value={estimatedEndTime}
-            onChange={(e) => setEstimatedEndTime(e.target.value)}
+            id="start-date"
+            required
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            min={todayStr}
             className="w-full input"
           />
-        </div>
-      </div>
-
-      {/* Status — full width, matches edit form */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Status</label>
-        <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
-          {([
-            { value: 'draft', label: 'Draft' },
-            { value: 'published', label: 'Published' },
-          ] as const).map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              onClick={() => setStatus(s.value)}
-              className={`flex-1 py-2 text-xs font-semibold transition-colors ${
-                status === s.value ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Visibility</label>
-          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
-            {(['public', 'private'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setVisibility(v)}
-                className={`flex-1 py-2 text-xs font-semibold transition-colors ${
-                  visibility === v ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
-                }`}
-              >
-                {v === 'public' ? 'Public' : 'Private'}
-              </button>
-            ))}
+        </FormRow>
+        <FormRow label="Times">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full input"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
+              <input
+                type="time"
+                value={estimatedEndTime}
+                onChange={(e) => setEstimatedEndTime(e.target.value)}
+                className="w-full input"
+              />
+            </div>
           </div>
-        </div>
+        </FormRow>
+      </FormSection>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Registration</label>
+      {/* ── Registration ───────────────────────────────────────────────────── */}
+      <FormSection title="Registration" defaultOpen>
+        <FormRow
+          label="Entry fee"
+          htmlFor="cost"
+          helpText="Leave at 0 for a free tournament."
+        >
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
+            <input
+              id="cost"
+              type="number"
+              min="0"
+              step="5"
+              value={costDollars}
+              onChange={(e) => setCostDollars(e.target.value)}
+              placeholder="0.00"
+              className="w-full input pl-7"
+            />
+          </div>
+        </FormRow>
+        <FormRow
+          label="Registration deadline"
+          htmlFor="reg-closes"
+          helpText="Closes automatically at end of this date. Leave blank to manage manually."
+        >
+          <input
+            id="reg-closes"
+            type="date"
+            value={registrationClosesAt}
+            onChange={(e) => setRegistrationClosesAt(e.target.value)}
+            min={todayStr}
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow label="Registration">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {(['open', 'closed'] as const).map((r) => (
               <button
@@ -217,14 +183,52 @@ export default function CreateTournamentForm({ locations }: Props) {
               </button>
             ))}
           </div>
-        </div>
-      </div>
+        </FormRow>
+      </FormSection>
 
-      {status === 'draft' && (
-        <p className="text-xs text-brand-muted">
-          Draft tournaments are only visible to you. Set to Published to make it public.
-        </p>
-      )}
+      {/* ── Visibility & Publishing ────────────────────────────────────────── */}
+      <FormSection title="Visibility & Publishing" defaultOpen>
+        <FormRow label="Status">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {([
+              { value: 'draft', label: 'Draft' },
+              { value: 'published', label: 'Published' },
+            ] as const).map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => setStatus(s.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                  status === s.value ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Visibility">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {(['public', 'private'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVisibility(v)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                  visibility === v ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'
+                }`}
+              >
+                {v === 'public' ? 'Public' : 'Private'}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        {status === 'draft' && (
+          <p className="text-xs text-brand-muted px-1 pb-2">
+            Draft tournaments are only visible to you. Set to Published to make it public.
+          </p>
+        )}
+      </FormSection>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

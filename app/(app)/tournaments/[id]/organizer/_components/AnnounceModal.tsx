@@ -13,15 +13,7 @@ export default function AnnounceModal({ playerCount, onClose, onSent }: Props) {
   const [sending, setSending] = useState(false)
 
   async function handleSend() {
-    if (!body.trim()) return
-    setSending(true)
-    // TODO: insert into tournament_announcements / notifications table and
-    // trigger web push to all registered players via Edge Function
-    console.log('[Announce] Would send to', playerCount, 'players:', body.trim())
-    await new Promise(r => setTimeout(r, 300))
-    setSending(false)
-    onSent()
-    onClose()
+    // Player notifications not yet implemented — button is disabled in UI
   }
 
   return (
@@ -48,12 +40,14 @@ export default function AnnounceModal({ playerCount, onClose, onSent }: Props) {
           className="input resize-none"
           autoFocus
         />
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Player notifications are not yet available. This feature is coming soon.
+        </p>
         <button
-          onClick={handleSend}
-          disabled={sending || !body.trim()}
-          className="w-full py-3 rounded-xl bg-brand text-brand-dark font-semibold text-sm hover:bg-brand-hover disabled:opacity-50 transition-colors"
+          disabled
+          className="w-full py-3 rounded-xl border border-brand-border text-brand-muted font-semibold text-sm opacity-60 cursor-not-allowed"
         >
-          {sending ? 'Sending…' : `Send to ${playerCount} player${playerCount !== 1 ? 's' : ''}`}
+          Send to {playerCount} player{playerCount !== 1 ? 's' : ''} — coming soon
         </button>
       </div>
     </div>

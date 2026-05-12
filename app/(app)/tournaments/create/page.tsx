@@ -2,7 +2,17 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import CreateTournamentForm from '@/components/features/tournaments/CreateTournamentForm'
+import DesktopShell from '@/components/ui/desktop-shell'
+import WizardOutline from '@/components/ui/wizard-outline'
 import type { LocationOption } from '@/lib/types'
+import type { WizardStep } from '@/components/ui/wizard-outline'
+
+const STEPS: WizardStep[] = [
+  { id: 'basics',       label: 'Basics',                  status: 'current'  },
+  { id: 'schedule',     label: 'Schedule',                status: 'upcoming' },
+  { id: 'registration', label: 'Registration',            status: 'upcoming' },
+  { id: 'visibility',   label: 'Visibility & Publishing', status: 'upcoming' },
+]
 
 export default async function CreateTournamentPage() {
   const supabase = createClient()
@@ -18,10 +28,17 @@ export default async function CreateTournamentPage() {
   const locations = (locationData ?? []) as LocationOption[]
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
-      <Link href="/tournaments" className="text-brand-muted text-sm">← Back</Link>
-      <h1 className="font-heading text-xl font-bold text-brand-dark">Create Tournament</h1>
+    <DesktopShell
+      header={
+        <div className="flex items-center gap-3">
+          <Link href="/tournaments" className="text-brand-muted text-sm">← Tournaments</Link>
+          <span className="text-brand-muted text-sm">/</span>
+          <span className="text-sm font-medium text-brand-dark">Create Tournament</span>
+        </div>
+      }
+      rail={<WizardOutline steps={STEPS} title="Create Tournament" />}
+    >
       <CreateTournamentForm locations={locations} />
-    </main>
+    </DesktopShell>
   )
 }

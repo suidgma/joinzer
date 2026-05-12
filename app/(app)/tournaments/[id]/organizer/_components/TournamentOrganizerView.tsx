@@ -38,7 +38,10 @@ export default function TournamentOrganizerView({
           filter: `tournament_id=eq.${tournamentId}`,
         },
         payload => {
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as { id: string }).id
+            setMatches(prev => prev.filter(m => m.id !== deletedId))
+          } else if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const updated = payload.new as OrgMatch
             setMatches(prev =>
               prev.some(m => m.id === updated.id)

@@ -1,237 +1,163 @@
-# CLAUDE.md — Joinzer Build Brief
+# CLAUDE.md — Joinzer Quick Reference
 
-> Persistent memory for Claude Code. Read this first, every session, before writing or changing any code.
+> Daily reference for Claude Code. Read this at session start.
+> For detailed schemas, RLS policies, and technical specs, see **CLAUDE_DETAILED.md**.
 
 ---
 
 ## 1. What We're Building
 
-**Joinzer** — a mobile-first coordination platform for pickleball players to create, discover, and join local play sessions. Pilot market: Las Vegas metro area.
+**Joinzer** is a mobile-first pickleball platform with **four product surfaces** sharing one app, one auth, one database:
 
-**Full product spec:** see `docs/joinzer_developer_handoff_v2.docx` (treat as source of truth for product behavior).
+1. **Coordination** — players create, discover, and join local play sessions ("find a game tonight"). Original MVP.
+2. **Leagues** — recurring competitive play with persistent rosters, weekly sessions, season standings.
+3. **Tournaments** — discrete events with divisions and registrations.
+4. **Players** — searchable directory of players with profiles, ratings, history, and connections.
 
-**This file:** the technical decisions and build rules the spec does NOT cover. If the spec and this file conflict on implementation details, this file wins.
+**Pilot market:** Las Vegas metro (Henderson, Summerlin, Green Valley, North Las Vegas).
+
+All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Leagues / Tournaments / Players / Profile.
 
 ---
 
-## 2. Build Philosophy (Jet15 MVP Rules)
+## 2. Product North Star
 
-- Ship fast. This is an MVP, not a finished product.
-- Simple > clever. Working > perfect.
-- Core functionality first, polish later.
-- No premature optimization, no overengineering, no speculative scaling.
+- **Coordination**: Player-first. Speed of "find a game and show up" is the metric.
+- **Leagues**: Organizer-and-captain-first. Season reliability and roster fairness are the metrics.
+- **Tournaments**: Organizer-first. Tournament-day reliability and the player↔organizer loop are the metrics.
+- **Players**: Discovery-first. Finding the right partner, opponent, or community is the metric.
+- Setup surfaces are desktop-first. Day-of and player-facing surfaces are mobile-first. See `/docs/phases/two-form-factor.md`.
+
+---
+
+## 3. Build Philosophy
+
 - Small, focused changes. Preserve working code.
-- If a task can be deferred to post-MVP, defer it.
+- Read existing code before changing it.
+- ES modules, async/await, TypeScript strict.
+- One concern per slice. Data model changes and layout changes do not share a PR.
+- Update CLAUDE.md as the last step of any session that changes structure, schema, or status. Drift is the enemy.
 
 ---
 
-## 3. Stack (Locked)
+## 4. Stack (Actual)
 
 | Layer | Choice |
 |---|---|
-| Frontend | Next.js 14+ (App Router), TypeScript |
-| Styling | Tailwind CSS + shadcn/ui |
-| Backend | Supabase (Postgres + Auth + Realtime + RLS) |
-| Auth | Supabase Auth — **magic link only** for MVP (no passwords) |
+| Frontend | Next.js 14+ (App Router), TypeScript strict |
+| Styling | Tailwind CSS only (no shadcn/ui, no Radix) |
+| Icons | lucide-react |
+| Backend | Supabase (Postgres + Auth + RLS) |
+| Auth | Production: email/password + Google OAuth. Original spec was magic-link; production is canonical. |
 | Hosting | Vercel (frontend) + Supabase (backend) |
-| Package manager | npm |
-| Module system | ES modules (`import`/`export`) |
+| Notifications | Not yet implemented |
+| Payments | Not yet implemented |
 
-**Do not introduce:** Redux, tRPC, Prisma, custom ORMs, microservices, Docker, CI pipelines beyond Vercel's default. Supabase's built-in client is enough.
-
----
-
-## 4. Security Rules — Non-Negotiable
-
-- Never put API keys, passwords, tokens, or secrets in code files.
-- Use environment variables for all sensitive data.
-- `.env` and `.env.local` must be in `.gitignore` before the first commit.
-- Supabase `service_role` key is server-side only. Never expose it to the browser or commit it.
-- Use `anon` key on the frontend; rely on RLS for access control.
-- If you encounter exposed secrets, stop and flag immediately.
+**Do not introduce:** shadcn/ui, Radix, Redux, tRPC, Prisma, custom ORMs, Docker, CI pipelines beyond Vercel default.
 
 ---
 
-## 5. Data Model Notes (adjustments to the spec)
+## 5. Current State — Verified May 11, 2026
 
-The spec's `users` table includes `password_hash`. **Remove it.** Supabase Auth manages users in `auth.users`. Create a `profiles` table keyed by `auth.users.id`:
+This section describes **what is actually in the database and codebase right now**, verified against Supabase Table Editor and live routes. The previous CLAUDE.md claimed Phase 1 was complete with a unified `competitions` schema. **That was not true.** This section corrects that.
 
-```sql
-profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  name text not null,
-  email text,
-  profile_photo_url text,
-  phone text,
-  dupr_rating decimal(4,2),
-  estimated_rating decimal(4,2),
-  rating_source text check (rating_source in ('dupr_known','estimated','skipped')),
-  created_at timestamptz default now()
-)
-```
+### Database tables that exist
 
-All other tables per spec Section 11, with these amendments:
+**Coordination (shipped, working):**
+- `events`, `event_participants`, `profiles`, `locations`, `organizations`
 
-- `event_date` + `start_time` → replace with a single `starts_at timestamptz`. Display in `America/Los_Angeles` (Vegas pilot). Simpler, no timezone bugs.
-- `participant_status` stays as enum: `joined | waitlist | left`.
-- `events.status` enum: `open | full | cancelled | completed`.
-- All FK columns must have `on delete` behavior explicitly set (cascade for participants/messages, restrict for captain/location).
+**Tournaments (separate domain, shipped, working):**
+- `tournaments`, `tournament_divisions`, `tournament_events`, `tournament_matches`, `tournament_messages`, `tournament_registrations`, `tournament_team_invit...` (truncated in screenshot)
 
----
+**Leagues (separate domain, shipped, working):**
+- `leagues`, `league_registrations`, `league_rounds`, `league_round_matches`, `league_sessions`, `league_session_attendance`, `league_session_players`, `league_session_subs`, `league_sub_interest`, `league_sub_requests`
 
-## 6. Row Level Security (RLS) — Required Before First Deploy
+**Other:**
+- `player_availability`, `session_ratings`
 
-Enable RLS on every table. Baseline policies:
+### Tables that do NOT exist (despite previous doc claims)
 
-**profiles**
-- Select: any authenticated user can read any profile (needed to show participant names).
-- Insert: user can insert row where `id = auth.uid()`.
-- Update: user can update own row only.
+- `competitions` (unified parent table) — not built
+- `competition_divisions`, `competition_courts`, `competition_teams`, `competition_team_members`, `competition_matches`, `competition_announcements` — not built
+- `league_attendance`, `league_sub_credits`, `league_sub_pool` (as named in detailed doc) — different names used in live DB
+- `notifications`, `audit_log`, `platform_stats_mv` — not built
+- `player_stats_mv`, `player_connections` — not built
 
-**locations**
-- Select: public (anon + authenticated).
-- Insert/Update/Delete: service role only (admin-seeded).
+### Routes that exist
 
-**events**
-- Select: any authenticated user.
-- Insert: any authenticated user; `creator_user_id` and `captain_user_id` must equal `auth.uid()`.
-- Update: only the current captain can update.
-- Delete: only the current captain can delete (or just set `status = cancelled`).
+- `/(app)/tournaments/create` — single-page form, refactored in Slice 1, writes to `tournaments` table via direct `.insert()`
+- `/(app)/compete/tournaments/create` — second create route (different form), also writes to `tournaments` table; not yet reconciled with the primary create route
+- `/(app)/tournaments/[id]` — manage view (organizer + player branches in one page); refactored in Slice 2 with `DesktopShell` + `ManageNav`
+- `/(app)/tournaments/[id]/edit` — edit form; exists, not yet refactored
+- `/(app)/tournaments/[id]/organizer/_components/` — organizer Live/Schedule/Standings/Players tabs implemented as client-side tab state inside `TournamentOrganizerView`, NOT as separate sub-routes; Slice 3 will create the actual sub-routes
 
-**event_participants**
-- Select: any authenticated user.
-- Insert: user can insert row where `user_id = auth.uid()`.
-- Update: user can update own row; captain can update any row in their event.
-- Delete: user can delete own row.
+### Phase status (corrected)
 
-**event_messages**
-- Select: any authenticated user (MVP — tighten to participants only in v2).
-- Insert: authenticated user, `user_id = auth.uid()`, and user must be a participant of that event.
-- Update/Delete: author only.
+- **Phase 0 (Coordination MVP):** Shipped.
+- **Tournaments product:** Shipped at basic functionality level, parallel domain to coordination.
+- **Leagues product:** Shipped at basic functionality level, parallel domain to coordination.
+- **Phase 1 (unified competitions schema as described in CLAUDE_DETAILED.md):** *Not built.* This is aspiration, not reality. The detailed doc describes a target state we have not migrated to.
+- **Two-form-factor refactor:** In progress. See `/docs/phases/two-form-factor.md`. Slices 0–2 shipped (primitives, `/tournaments/create`, `/tournaments/[id]`). Slice 3 (tournament sub-routes) is next.
 
 ---
 
-## 7. Concurrency Rule for Join (Important)
+## 6. Open Decisions (Real)
 
-Two users tapping Join on the last slot at the same time must not both end up `joined`. Implementation:
+These are the actual unresolved decisions, not the ones the previous doc claimed:
 
-- Handle join server-side via a Supabase RPC (Postgres function) or a Next.js route handler using the service role.
-- Inside the function: begin transaction, `SELECT ... FOR UPDATE` on the event row, count current `joined` participants, decide `joined` vs `waitlist`, insert.
-- Do NOT do this logic in the browser with the anon key. Race condition guaranteed.
-
-A single RPC `join_event(event_id uuid)` is the cleanest approach.
-
----
-
-## 8. Waitlist Auto-Promotion
-
-When a `joined` participant leaves:
-
-- Handle in the same `leave_event` RPC (app-layer, transactional).
-- Inside the function: delete/update the leaving row, then if any `waitlist` rows exist, promote the oldest one to `joined`.
-- Do not build this as a database trigger. Keep it in the RPC so it's readable and debuggable.
+- **Schema reconciliation:** Live DB has separate `tournaments` and `leagues` domains. CLAUDE_DETAILED.md describes a unified `competitions` schema that doesn't exist. **Do we migrate (Path B) or accept the duplication (Path A)?** Deferred until an organizer has been spoken to.
+- **Second tournament create route:** `/compete/tournaments/create` exists alongside `/tournaments/create`. Is it dead code, a feature branch, or intentional? Audit before Slice 2.
+- **Auth model:** Production uses email/password + Google OAuth. Original spec was magic-link. Production is canonical; spec is stale. Reconcile docs.
+- **First committed event date:** None. No organizer has seen the product yet.
+- **Organizer conversation:** Not yet booked. This is blocking informed product decisions.
 
 ---
 
-## 9. Captain Rules
+## 7. Coding Style
 
-- Creator becomes captain on event insert. Enforce at insert time (not via trigger).
-- Captain attempting to leave while others are joined: block with a clear error, prompt to reassign or cancel.
-- Captain leaving when they are the only participant: allow, and cascade to `status = cancelled`.
-- Reassignment endpoint: `POST /events/:id/assign-captain` — current captain only, target must already be a `joined` participant.
-
----
-
-## 10. Chat (Realtime)
-
-Use Supabase Realtime on `event_messages` — subscribe to inserts filtered by `event_id`. No polling, no custom websocket layer. One line of client setup.
-
----
-
-## 11. Location Seed Data
-
-- Appendix A of the spec has ~65 rows.
-- Generate a single `supabase/seed.sql` file with every row. Do not hand-type a subset.
-- Sort at query time by `court_count DESC, name ASC`. Do not pre-sort in the seed.
-- Preserve `access_type` metadata (`public | private | resort | fee_based | business | directory | hoa | indoor_public | semi_private`) — use a text column with a check constraint rather than a Postgres enum, so adding new values later doesn't require a migration.
+- TypeScript strict mode
+- ES modules, `import`/`export`
+- `async`/`await`, not `.then()` chains
+- 2-space indent
+- Descriptive variable names; no single letters except loop counters
+- Comment *why*, not *what*
+- Server Components by default; `"use client"` only when needed
+- Tailwind only; lucide-react for icons; no shadcn/ui
+- One file = one concern; split early (target under 250 lines per file)
 
 ---
 
-## 12. Project Structure
+## 8. How to Work With Marty
 
-```
-/app                    # Next.js App Router routes
-  /api                  # Route handlers (thin — mostly proxying to Supabase RPCs)
-  /(auth)               # Login, magic link callback
-  /(app)                # Authenticated app shell
-    /events             # List, detail, create
-    /profile            # View/edit own profile
-/components
-  /ui                   # shadcn/ui primitives
-  /features             # Feature-scoped components (events, chat, profile)
-/lib
-  /supabase             # Client + server helpers
-  /utils                # Date formatting (Vegas TZ), capacity math, etc.
-/supabase
-  /migrations           # SQL migrations
-  seed.sql              # Seed locations
-/docs
-  joinzer_developer_handoff_v2.docx  # Source spec
-```
-
-Keep files modular. If a component crosses ~200 lines, split it.
+- Read existing code before changing it
+- Explain the approach in 1–2 sentences before implementing
+- Make small, focused changes; preserve working code
+- If a request seems off, ask before proceeding
+- Flag faster/smarter paths without derailing the current task
+- Default to practical, working solutions
+- If a doc claim contradicts the codebase, the codebase wins. Flag the contradiction immediately and stop.
+- The last step of any code-changing session: update CLAUDE.md and the relevant phase doc to reflect what shipped.
 
 ---
 
-## 13. Coding Style
+## 9. Security Rules — Non-Negotiable
 
-- TypeScript strict mode on.
-- ES modules, `import`/`export`.
-- `async`/`await`, not `.then()` chains.
-- 2-space indent.
-- Descriptive variable names. No single letters except loop counters.
-- Comment *why*, not *what*. Skip obvious comments.
-- Server Components by default; use `"use client"` only when needed (forms, realtime, interactivity).
-
----
-
-## 14. How to Work With Marty
-
-- Read existing code before changing it.
-- Explain the approach in 1–2 sentences before implementing.
-- Make small, focused changes. Don't rewrite.
-- Preserve working functionality unless told otherwise.
-- If a request seems off, ask before proceeding.
-- If there's a faster/smarter path, flag it — don't derail, but flag it.
-- Default to practical, working solutions.
+- Never put API keys, passwords, tokens, or secrets in code files
+- Use environment variables for all sensitive data
+- `.env` and `.env.local` must be in `.gitignore`
+- Supabase `service_role` key is server-side only
+- Use Supabase `anon` key on the frontend; rely on RLS for access control
+- Player PII never returned by public/anon APIs
+- If you encounter exposed secrets, stop and flag immediately
 
 ---
 
-## 15. Out of Scope for v1 (Do Not Build)
+## Quick Links
 
-- Payments
-- Court booking / reservation integration
-- Ratings / reviews
-- League management
-- Push notifications (email magic link is enough for auth; no transactional push)
-- Admin dashboard (seed via SQL, edit via Supabase Studio)
-- Multi-region support (hardcode Vegas pilot in seed; keep schema region-agnostic)
-- Native mobile apps (web is mobile-first and sufficient)
+- **Two-form-factor refactor plan:** `/docs/phases/two-form-factor.md`
+- **Target architecture (aspirational, not current):** `CLAUDE_DETAILED.md` — treat as design ideas, not current state
 
 ---
 
-## 16. Definition of Done for MVP
-
-The MVP is shippable when:
-
-1. A new user can sign up via magic link, complete profile with optional DUPR, and land on the event feed.
-2. Any user can create an event; creator is captain and first participant automatically.
-3. Any user can join an event; if full, they go to waitlist. If someone leaves, the top waitlisted user is promoted.
-4. Events show participant count, capacity, captain, and location (with court count).
-5. Location dropdown on create-event is searchable and sorted by `court_count DESC, name ASC`.
-6. Each event has a working realtime chat.
-7. Captain rules (leave/reassign/cancel) behave per Section 9.
-8. RLS is enabled on all tables with policies per Section 6.
-9. Deployed to Vercel with Supabase connected via env vars.
-
-Nothing beyond this list is required for v1.
+*Last verified against repo: May 11, 2026*
+*Previous version overclaimed Phase 1 completion. Corrected.*
