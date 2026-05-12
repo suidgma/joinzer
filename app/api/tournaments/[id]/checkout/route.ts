@@ -12,7 +12,7 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { registration_id, pay_for_partner } = await req.json().catch(() => ({}))
+    const { registration_id, pay_for_partner, discount_code } = await req.json().catch(() => ({}))
     if (!registration_id) return NextResponse.json({ error: 'registration_id required' }, { status: 400 })
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
@@ -94,6 +94,44 @@ export async function POST(
       }
     }
 
+    // Validate discount code if provided
+    let discountedAmount = unitAmount
+    let discountCodeId: string | null = null
+    if (discount_code?.trim()) {
+      const { data: codeRow } = await service
+        .from('tournament_discount_codes')
+        .select('id, discount_type, discount_value, max_uses, uses_count, expires_at, is_active')
+        .eq('tournament_id', params.id)
+        .eq('code', discount_code.trim().toUpperCase())
+        .eq('is_active', true)
+        .maybeSingle()
+      if (codeRow) {
+        const now = new Date().toISOString()
+        const expired = codeRow.expires_at && codeRow.expires_at < now
+        const exhausted = codeRow.max_uses != null && codeRow.uses_count >= codeRow.max_uses
+        if (!expired && !exhausted) {
+          discountCodeId = codeRow.id
+          if (codeRow.discount_type === 'percent') {
+            discountedAmount = Math.round(unitAmount * (1 - codeRow.discount_value / 100))
+          } else {
+            discountedAmount = Math.max(0, unitAmount - codeRow.discount_value)
+          }
+        }
+      }
+    }
+
+    // If discounted to free, mark waived
+    if (discountedAmount <= 0) {
+      await service.from('tournament_registrations').update({ payment_status: 'waived' }).eq('id', registration_id)
+      if (partnerRegId) {
+        await service.from('tournament_registrations').update({ payment_status: 'waived' }).eq('id', partnerRegId)
+      }
+      if (discountCodeId) {
+        await service.rpc('increment_discount_uses', { code_id: discountCodeId })
+      }
+      return NextResponse.json({ free: true })
+    }
+
     const quantity = partnerRegId ? 2 : 1
     const label = partnerRegId
       ? `${tournament.name} — ${division?.name ?? 'Entry Fee'} (2 players)`
@@ -107,8 +145,12 @@ export async function POST(
         {
           price_data: {
             currency: 'usd',
-            unit_amount: unitAmount,
-            product_data: { name: label },
+            unit_amount: discountedAmount,
+            product_data: {
+              name: discountCodeId
+                ? `${label} (discount applied)`
+                : label,
+            },
           },
           quantity,
         },
@@ -117,6 +159,7 @@ export async function POST(
         registration_id,
         tournament_id: params.id,
         partner_registration_id: partnerRegId ?? '',
+        discount_code_id: discountCodeId ?? '',
       },
       success_url: `${siteUrl}/tournaments/${params.id}?payment=success`,
       cancel_url: `${siteUrl}/tournaments/${params.id}?payment=cancelled`,

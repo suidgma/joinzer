@@ -95,6 +95,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [fFormatType, setFFormatType] = useState<FormatType>('round_robin')
   const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
   const [fCostDollars, setFCostDollars] = useState('')
+  const [fMinAge, setFMinAge] = useState('')
+  const [fMaxAge, setFMaxAge] = useState('')
+  const [fStartTime, setFStartTime] = useState('')
   const [fLoading, setFLoading] = useState(false)
   const [fError, setFError] = useState<string | null>(null)
 
@@ -136,6 +139,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [mergeLoading, setMergeLoading] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
 
+  // Discount code state (per division)
+  const [discountInputs, setDiscountInputs] = useState<Record<string, string>>({})
+
   // Move player state (per reg)
   const [movingRegId, setMovingRegId] = useState<string | null>(null)
   const [moveTargetId, setMoveTargetId] = useState<string>('')
@@ -169,6 +175,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         format_type: fFormatType,
         format_settings_json: fFormatSettings,
         cost_cents: fCostDollars ? Math.round(parseFloat(fCostDollars) * 100) : null,
+        min_age: fMinAge ? parseInt(fMinAge) : null,
+        max_age: fMaxAge ? parseInt(fMaxAge) : null,
+        start_time: fStartTime || null,
       })
       .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json, cost_cents')
       .single()
@@ -180,7 +189,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setFName(''); setFCategory('mixed_doubles'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFFormatType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
-    setFCostDollars('')
+    setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('')
     setFLoading(false)
   }
 
@@ -464,12 +473,16 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   }
 
   // ── Pay for registration via Stripe Checkout ─────────────────────
-  async function handlePay(regId: string, payForPartner = false) {
+  async function handlePay(regId: string, divisionId: string, payForPartner = false) {
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registration_id: regId, pay_for_partner: payForPartner }),
+        body: JSON.stringify({
+          registration_id: regId,
+          pay_for_partner: payForPartner,
+          discount_code: discountInputs[divisionId]?.trim() || undefined,
+        }),
       })
       const json = await res.json()
       if (!res.ok) { alert(`Payment error: ${json.error ?? 'Unknown error'}`); return }
@@ -608,6 +621,46 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                 onChange={e => setFCostDollars(e.target.value)}
                 placeholder="0.00"
                 className="w-full input pl-7"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Start Time <span className="font-normal">(optional)</span></label>
+              <input
+                type="time"
+                value={fStartTime}
+                onChange={e => setFStartTime(e.target.value)}
+                className="w-full input"
+              />
+            </div>
+            <div />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Min Age</label>
+              <input
+                type="number"
+                min="0"
+                max="99"
+                value={fMinAge}
+                onChange={e => setFMinAge(e.target.value)}
+                placeholder="Any"
+                className="w-full input"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Max Age</label>
+              <input
+                type="number"
+                min="0"
+                max="99"
+                value={fMaxAge}
+                onChange={e => setFMaxAge(e.target.value)}
+                placeholder="Any"
+                className="w-full input"
               />
             </div>
           </div>
@@ -781,15 +834,22 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       if (effectiveCost <= 0) return null
                       return (
                         <div className="space-y-1.5">
+                          <input
+                            type="text"
+                            value={discountInputs[div.id] ?? ''}
+                            onChange={e => setDiscountInputs(prev => ({ ...prev, [div.id]: e.target.value }))}
+                            placeholder="Discount code (optional)"
+                            className="w-full input text-xs font-mono uppercase"
+                          />
                           <button
-                            onClick={() => handlePay(myReg.id)}
+                            onClick={() => handlePay(myReg.id, div.id)}
                             className="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
                           >
                             Pay My Fee · ${(effectiveCost / 100).toFixed(2)}
                           </button>
                           {myReg.partner_user_id && (
                             <button
-                              onClick={() => handlePay(myReg.id, true)}
+                              onClick={() => handlePay(myReg.id, div.id, true)}
                               className="w-full py-2 rounded-xl bg-indigo-100 text-indigo-700 text-xs font-semibold hover:bg-indigo-200 transition-colors"
                             >
                               Pay for Both · ${((effectiveCost * 2) / 100).toFixed(2)}

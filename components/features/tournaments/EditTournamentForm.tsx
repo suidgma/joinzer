@@ -26,6 +26,8 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [costDollars, setCostDollars] = useState(
     tournament.cost_cents ? String((tournament.cost_cents as any) / 100) : ''
   )
+  const [contactEmail, setContactEmail] = useState((tournament as any).contact_email ?? '')
+  const [allowPlayerScores, setAllowPlayerScores] = useState((tournament as any).allow_player_scores ?? false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +51,8 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        contact_email: contactEmail.trim() || null,
+        allow_player_scores: allowPlayerScores,
       })
       .eq('id', tournament.id)
 
@@ -216,6 +220,31 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
           </div>
         </div>
       </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Organizer Contact Email</label>
+        <input
+          type="email"
+          value={contactEmail}
+          onChange={e => setContactEmail(e.target.value)}
+          placeholder="yourname@email.com"
+          className="w-full input"
+        />
+        <p className="text-xs text-brand-muted mt-1">Shown publicly so players can contact the organizer.</p>
+      </div>
+
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={allowPlayerScores}
+          onChange={e => setAllowPlayerScores(e.target.checked)}
+          className="w-4 h-4 accent-brand"
+        />
+        <div>
+          <p className="text-sm font-medium text-brand-dark">Allow players to submit scores</p>
+          <p className="text-xs text-brand-muted">Players can enter scores for their own matches (you still approve them).</p>
+        </div>
+      </label>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

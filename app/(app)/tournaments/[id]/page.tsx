@@ -12,6 +12,7 @@ import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
 import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection'
+import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
 import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
@@ -50,7 +51,7 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data }, { data: divisionsRaw }, { data: regsRaw }, { data: matchesData }, { data: tournamentMessages }] = await Promise.all([
+  const [{ data }, { data: divisionsRaw }, { data: regsRaw }, { data: matchesData }, { data: tournamentMessages }, { data: discountCodes }] = await Promise.all([
     db
       .from('tournaments')
       .select(`
@@ -87,6 +88,11 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true })
       .limit(100),
+    db
+      .from('tournament_discount_codes')
+      .select('id, code, description, discount_type, discount_value, max_uses, uses_count, expires_at, is_active')
+      .eq('tournament_id', params.id)
+      .order('created_at', { ascending: true }),
   ])
 
   if (!data) notFound()
@@ -177,7 +183,28 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         {tournament.organizer && (
           <div className="flex items-start gap-2">
             <span className="text-brand-muted text-xs pt-0.5">👤</span>
-            <p className="text-sm text-brand-dark">Organizer: {tournament.organizer.name}</p>
+            <div>
+              <p className="text-sm text-brand-dark">Organizer: {tournament.organizer.name}</p>
+              {(tournament as any).contact_email && (
+                <a
+                  href={`mailto:${(tournament as any).contact_email}`}
+                  className="text-xs text-brand-active hover:underline"
+                >
+                  {(tournament as any).contact_email}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+        {(matchesData ?? []).length > 0 && (
+          <div className="flex items-start gap-2">
+            <span className="text-brand-muted text-xs pt-0.5">🏆</span>
+            <Link
+              href={`/tournaments/${params.id}/live`}
+              className="text-sm text-brand-active font-medium hover:underline"
+            >
+              View Live Scoreboard →
+            </Link>
           </div>
         )}
         {tournament.description && (
@@ -260,6 +287,14 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
             currentUserId={user!.id}
             tournamentCostCents={costCents}
           />
+
+          {/* Discount codes */}
+          <div className="bg-white border border-brand-border rounded-2xl p-4">
+            <DiscountCodesSection
+              tournamentId={tournament.id}
+              initialCodes={(discountCodes ?? []) as any[]}
+            />
+          </div>
 
           {/* Match generation + schedule manager */}
           {divisionsForOrg.length > 0 && (

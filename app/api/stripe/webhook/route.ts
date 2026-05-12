@@ -44,6 +44,10 @@ export async function POST(req: NextRequest) {
           .eq('id', meta.partner_registration_id)
       }
 
+      if (meta.discount_code_id) {
+        await service.rpc('increment_discount_uses', { code_id: meta.discount_code_id })
+      }
+
       // Confirmation email
       const [{ data: reg }, { data: tournament }] = await Promise.all([
         service.from('tournament_registrations')

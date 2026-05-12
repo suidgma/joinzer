@@ -91,6 +91,7 @@ export default function TournamentOrganizerView({
             tournamentId={tournamentId}
             matches={matches}
             registrations={registrations}
+            divisions={divisions}
             onMatchUpdate={handleMatchUpdate}
           />
         )}

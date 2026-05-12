@@ -13,10 +13,11 @@ type Props = {
   tournamentId: string
   matches: OrgMatch[]
   registrations: OrgRegistration[]
+  divisions: { id: string; name: string }[]
   onMatchUpdate: (updated: OrgMatch) => void
 }
 
-export default function LiveTab({ tournamentId, matches, registrations, onMatchUpdate }: Props) {
+export default function LiveTab({ tournamentId, matches, registrations, divisions, onMatchUpdate }: Props) {
   const [scoringMatch, setScoringMatch] = useState<OrgMatch | null>(null)
   const [showAnnounce, setShowAnnounce] = useState(false)
   const { message: toastMsg, show: showToast } = useToast()
@@ -123,7 +124,9 @@ export default function LiveTab({ tournamentId, matches, registrations, onMatchU
 
       {showAnnounce && (
         <AnnounceModal
+          tournamentId={tournamentId}
           playerCount={playerCount}
+          divisions={divisions}
           onClose={() => setShowAnnounce(false)}
           onSent={() => showToast('Announcement sent')}
         />

@@ -10,10 +10,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  // Verify caller is the organizer
   const { data: tournament } = await db
     .from('tournaments')
-    .select('id, name, organizer_id')
+    .select('id, name, organizer_id, cost_cents')
     .eq('id', params.id)
     .single()
 
@@ -21,25 +20,55 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { subject, body } = await request.json()
+  const { subject, body, filter } = await request.json()
   if (!subject?.trim() || !body?.trim()) {
     return NextResponse.json({ error: 'Subject and body are required' }, { status: 400 })
   }
 
-  // Get all registered player user_ids
-  const { data: regs } = await db
+  // Build query based on filter
+  let query = db
     .from('tournament_registrations')
-    .select('user_id')
+    .select('user_id, status, payment_status, division_id')
     .eq('tournament_id', params.id)
-    .eq('status', 'registered')
 
-  if (!regs || regs.length === 0) {
-    return NextResponse.json({ error: 'No registered players to email' }, { status: 400 })
+  if (filter?.type === 'division' && filter.division_id) {
+    query = query.eq('division_id', filter.division_id).eq('status', 'registered')
+  } else if (filter?.type === 'waitlisted') {
+    query = query.eq('status', 'waitlisted')
+  } else if (filter?.type === 'unpaid') {
+    query = query.eq('status', 'registered')
+  } else {
+    // default: all registered
+    query = query.eq('status', 'registered')
   }
 
-  const userIds = Array.from(new Set(regs.map(r => r.user_id).filter(Boolean)))
+  const { data: regs } = await query
 
-  // Fetch emails from auth.users via admin API
+  if (!regs || regs.length === 0) {
+    return NextResponse.json({ error: 'No players match this filter' }, { status: 400 })
+  }
+
+  let filteredRegs = regs
+  if (filter?.type === 'unpaid') {
+    // Get division cost_cents for each registration
+    const { data: divisions } = await db
+      .from('tournament_divisions')
+      .select('id, cost_cents')
+      .eq('tournament_id', params.id)
+
+    const divMap = new Map((divisions ?? []).map((d: any) => [d.id, d.cost_cents]))
+    filteredRegs = regs.filter(r => {
+      const divCost = divMap.get(r.division_id)
+      const effectiveCost = divCost != null ? divCost : (tournament.cost_cents ?? 0)
+      return effectiveCost > 0 && (!r.payment_status || r.payment_status === 'unpaid')
+    })
+    if (filteredRegs.length === 0) {
+      return NextResponse.json({ error: 'No unpaid registrations found' }, { status: 400 })
+    }
+  }
+
+  const userIds = Array.from(new Set(filteredRegs.map(r => r.user_id).filter(Boolean)))
+
   const emailMap: Record<string, string> = {}
   for (const uid of userIds) {
     const { data } = await db.auth.admin.getUserById(uid)
