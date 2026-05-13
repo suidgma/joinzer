@@ -19,11 +19,13 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('08:00')
   const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
-  const [status, setStatus] = useState<'draft' | 'published'>('draft')
+  const [status, setStatus] = useState<string>('draft')
   const [visibility, setVisibility] = useState<'public' | 'private'>('public')
   const [registrationStatus, setRegistrationStatus] = useState<'open' | 'closed'>('open')
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [costDollars, setCostDollars] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [allowPlayerScores, setAllowPlayerScores] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,6 +55,8 @@ export default function CreateTournamentForm({ locations }: Props) {
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        contact_email: contactEmail.trim() || null,
+        allow_player_scores: allowPlayerScores,
       })
       .select('id')
       .single()
@@ -69,7 +73,6 @@ export default function CreateTournamentForm({ locations }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
 
-      {/* ── Basics ─────────────────────────────────────────────────────────── */}
       <FormSection title="Basics" description="Public-facing tournament details." defaultOpen>
         <FormRow label="Tournament name" htmlFor="name" required>
           <input
@@ -94,7 +97,6 @@ export default function CreateTournamentForm({ locations }: Props) {
         </FormRow>
       </FormSection>
 
-      {/* ── Schedule ───────────────────────────────────────────────────────── */}
       <FormSection title="Schedule" description="Where and when the tournament takes place." defaultOpen>
         <FormRow label="Location" htmlFor="location">
           <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
@@ -124,7 +126,6 @@ export default function CreateTournamentForm({ locations }: Props) {
         </FormRow>
       </FormSection>
 
-      {/* ── Registration ───────────────────────────────────────────────────── */}
       <FormSection title="Registration" defaultOpen>
         <FormRow
           label="Entry fee"
@@ -177,13 +178,14 @@ export default function CreateTournamentForm({ locations }: Props) {
         </FormRow>
       </FormSection>
 
-      {/* ── Visibility & Publishing ────────────────────────────────────────── */}
       <FormSection title="Visibility & Publishing" defaultOpen>
         <FormRow label="Status">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {([
-              { value: 'draft', label: 'Draft' },
+              { value: 'draft',     label: 'Draft' },
               { value: 'published', label: 'Published' },
+              { value: 'cancelled', label: 'Cancelled' },
+              { value: 'completed', label: 'Completed' },
             ] as const).map((s) => (
               <button
                 key={s.value}
@@ -219,6 +221,34 @@ export default function CreateTournamentForm({ locations }: Props) {
             Draft tournaments are only visible to you. Set to Published to make it public.
           </p>
         )}
+        <FormRow
+          label="Contact email"
+          htmlFor="contact-email"
+          helpText="Shown publicly so players can contact the organizer."
+        >
+          <input
+            id="contact-email"
+            type="email"
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
+            placeholder="yourname@email.com"
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow label="Player score entry">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allowPlayerScores}
+              onChange={(e) => setAllowPlayerScores(e.target.checked)}
+              className="w-4 h-4 accent-brand"
+            />
+            <div>
+              <p className="text-sm font-medium text-brand-dark">Allow players to submit scores</p>
+              <p className="text-xs text-brand-muted">Players can enter scores for their own matches (you still approve them).</p>
+            </div>
+          </label>
+        </FormRow>
       </FormSection>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
