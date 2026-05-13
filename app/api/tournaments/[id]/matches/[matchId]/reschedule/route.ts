@@ -5,13 +5,14 @@ import { canOperate } from '@/lib/tournament/access'
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; matchId: string } }
+  props: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!await canOperate(params.id, user.id)) {
+  if (!(await canOperate(params.id, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

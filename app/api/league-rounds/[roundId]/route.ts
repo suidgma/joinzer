@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
-type Params = { params: { roundId: string } }
+type Params = { params: Promise<{ roundId: string }> }
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -20,7 +20,8 @@ async function assertManager(userId: string, roundId: string) {
 
 // PATCH /api/league-rounds/[roundId]
 // body: { action: 'lock' | 'complete' | 'unlock' }
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function PATCH(req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
   const user = session?.user ?? null

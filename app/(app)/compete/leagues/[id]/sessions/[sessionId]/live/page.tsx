@@ -5,11 +5,12 @@ import Link from 'next/link'
 import LiveSessionManager from './LiveSessionManager'
 import { formatSessionDate } from '@/lib/utils/date'
 
-export default async function LiveSessionPage({
-  params,
-}: {
-  params: { id: string; sessionId: string }
-}) {
+export default async function LiveSessionPage(
+  props: {
+    params: Promise<{ id: string; sessionId: string }>
+  }
+) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

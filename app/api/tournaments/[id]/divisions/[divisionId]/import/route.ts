@@ -5,12 +5,13 @@ import { canManage } from '@/lib/tournament/access'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; divisionId: string } }
+  props: { params: Promise<{ id: string; divisionId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!await canManage(params.id, user.id)) {
+  if (!(await canManage(params.id, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -48,7 +48,8 @@ function generateDates(start: string, count: number): string[] {
   return dates
 }
 
-export default function EditLeaguePage({ params }: { params: { id: string } }) {
+export default function EditLeaguePage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const router = useRouter()
   const [name, setName] = useState('')
   const [format, setFormat] = useState('mixed_doubles')

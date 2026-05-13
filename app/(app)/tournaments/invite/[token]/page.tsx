@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -14,7 +14,8 @@ type InviteDetails = {
   division: { id: string; name: string; category: string }
 }
 
-export default function InviteAcceptPage({ params }: { params: { token: string } }) {
+export default function InviteAcceptPage(props: { params: Promise<{ token: string }> }) {
+  const params = use(props.params);
   const router = useRouter()
   const [invite, setInvite] = useState<InviteDetails | null>(null)
   const [loading, setLoading] = useState(true)

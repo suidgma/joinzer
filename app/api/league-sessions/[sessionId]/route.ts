@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
-type Params = { params: { sessionId: string } }
+type Params = { params: Promise<{ sessionId: string }> }
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
 // PATCH /api/league-sessions/[sessionId] — update date or notes (league organizer only)
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function PATCH(req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { session: authSession } } = await supabase.auth.getSession()
   const user = authSession?.user ?? null
@@ -53,7 +54,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 // DELETE /api/league-sessions/[sessionId] — organizer deletes a session
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(_req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { session: authSession } } = await supabase.auth.getSession()
   const user = authSession?.user ?? null

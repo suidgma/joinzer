@@ -6,8 +6,9 @@ const VALID_STATUSES = ['unpaid', 'paid', 'waived'] as const
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; userId: string } }
+  props: { params: Promise<{ id: string; userId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

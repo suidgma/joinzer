@@ -6,7 +6,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const cookieStore = cookies()
+  const cookieStorePromise = await cookies()
 
   // Verify the caller is an authenticated user
   const authClient = createServerClient(
@@ -14,8 +14,9 @@ export async function POST(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+        async getAll() { return (await cookieStorePromise).getAll() },
+        async setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          const cookieStore = await cookieStorePromise
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
         },
       },

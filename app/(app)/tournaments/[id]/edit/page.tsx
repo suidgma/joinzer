@@ -4,7 +4,8 @@ import Link from 'next/link'
 import EditTournamentForm from '@/components/features/tournaments/EditTournamentForm'
 import type { TournamentDetail, LocationOption } from '@/lib/types'
 
-export default async function EditTournamentPage({ params }: { params: { id: string } }) {
+export default async function EditTournamentPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

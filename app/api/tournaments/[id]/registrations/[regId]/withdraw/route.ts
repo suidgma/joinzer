@@ -6,8 +6,9 @@ import { canManage } from '@/lib/tournament/access'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; regId: string } }
+  props: { params: Promise<{ id: string; regId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

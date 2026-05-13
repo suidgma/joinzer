@@ -4,13 +4,14 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import CheckinButton from './CheckinButton'
 
-export default async function CheckinPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string }
-  searchParams: { div?: string; done?: string }
-}) {
+export default async function CheckinPage(
+  props: {
+    params: Promise<{ id: string }>
+    searchParams: Promise<{ div?: string; done?: string }>
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

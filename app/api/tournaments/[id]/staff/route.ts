@@ -15,13 +15,11 @@ async function getUser() {
 }
 
 // GET — list staff for this tournament
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!await canManage(params.id, user.id)) {
+  if (!(await canManage(params.id, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -37,13 +35,11 @@ export async function GET(
 }
 
 // POST — invite a user by email as staff
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!await canManage(params.id, user.id)) {
+  if (!(await canManage(params.id, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -91,13 +87,11 @@ export async function POST(
 }
 
 // DELETE — remove a staff member by user_id (query param)
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!await canManage(params.id, user.id)) {
+  if (!(await canManage(params.id, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

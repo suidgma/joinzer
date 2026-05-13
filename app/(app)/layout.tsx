@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  const pathname = headers().get('x-pathname') ?? ''
+  const pathname = (await headers()).get('x-pathname') ?? ''
 
   // Skip profile check on setup page to avoid infinite redirect loop
   if (!pathname.includes('/profile/setup')) {

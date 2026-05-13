@@ -46,7 +46,8 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export default async function TournamentDetailPage({ params }: { params: { id: string } }) {
+export default async function TournamentDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: { user } } = await supabase.auth.getUser()

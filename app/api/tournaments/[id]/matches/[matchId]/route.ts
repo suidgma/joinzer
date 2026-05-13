@@ -5,8 +5,9 @@ import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuild
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; matchId: string } }
+  props: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -4,11 +4,12 @@ import LiveScoreboard from './LiveScoreboard'
 
 export const revalidate = 0
 
-export default async function PublicLiveScoreboardPage({
-  params,
-}: {
-  params: { id: string }
-}) {
+export default async function PublicLiveScoreboardPage(
+  props: {
+    params: Promise<{ id: string }>
+  }
+) {
+  const params = await props.params;
   const db = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

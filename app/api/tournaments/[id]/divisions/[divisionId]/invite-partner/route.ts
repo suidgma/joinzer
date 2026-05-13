@@ -5,8 +5,9 @@ import { Resend } from 'resend'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; divisionId: string } }
+  props: { params: Promise<{ id: string; divisionId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

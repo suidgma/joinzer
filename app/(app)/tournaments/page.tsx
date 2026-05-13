@@ -9,7 +9,7 @@ export default async function TournamentsPage() {
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from('tournaments')
     .select(`
       id, name, description, start_date, start_time, estimated_end_time,
@@ -19,6 +19,10 @@ export default async function TournamentsPage() {
     `)
     .gte('start_date', today)
     .order('start_date', { ascending: true })
+
+  if (queryError) {
+    console.error('[TournamentsPage] query error:', queryError)
+  }
 
   const tournaments = (data ?? []) as unknown as TournamentListItem[]
 
