@@ -1,8 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, XCircle, AlertCircle, Upload } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle, Upload, FileUp } from 'lucide-react'
 
 type CsvRow = {
   row: number
@@ -40,10 +40,22 @@ export default function ImportPage() {
   const [divisions, setDivisions] = useState<Division[]>([])
   const [divisionId, setDivisionId] = useState('')
   const [csv, setCsv] = useState('')
+  const [fileName, setFileName] = useState<string | null>(null)
   const [rows, setRows] = useState<CsvRow[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [applied, setApplied] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileName(file.name)
+    setRows(null)
+    const reader = new FileReader()
+    reader.onload = (ev) => setCsv((ev.target?.result as string) ?? '')
+    reader.readAsText(file)
+  }
 
   useEffect(() => {
     fetch(`/api/tournaments/${tournamentId}/divisions`)
@@ -121,16 +133,47 @@ export default function ImportPage() {
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-medium text-brand-muted">CSV Data</label>
-            <button
-              onClick={() => setCsv(SAMPLE_CSV)}
-              className="text-[10px] text-brand-active hover:underline"
-            >
-              Insert sample
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1 text-[10px] text-brand-active hover:underline"
+              >
+                <FileUp size={11} />
+                Upload file
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCsv(SAMPLE_CSV); setFileName(null) }}
+                className="text-[10px] text-brand-active hover:underline"
+              >
+                Insert sample
+              </button>
+            </div>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          {fileName && (
+            <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-brand-soft rounded-xl">
+              <FileUp size={13} className="text-brand-active shrink-0" />
+              <span className="text-xs text-brand-dark truncate flex-1">{fileName}</span>
+              <button
+                type="button"
+                onClick={() => { setCsv(''); setFileName(null); setRows(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                className="text-[10px] text-brand-muted hover:text-brand-dark shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <textarea
             value={csv}
-            onChange={e => { setCsv(e.target.value); setRows(null) }}
+            onChange={e => { setCsv(e.target.value); setRows(null); setFileName(null) }}
             placeholder={'email,team_name\nplayer@example.com,Team A'}
             rows={6}
             className="w-full input resize-none font-mono text-xs"
