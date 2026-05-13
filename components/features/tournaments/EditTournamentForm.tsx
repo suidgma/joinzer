@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
+import TimeSelect from '@/components/features/events/TimeSelect'
 import type { LocationOption, TournamentDetail } from '@/lib/types'
 
 type Props = {
@@ -17,7 +18,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [description, setDescription] = useState(tournament.description ?? '')
   const [locationId, setLocationId] = useState(tournament.location_id ?? '')
   const [startDate, setStartDate] = useState(tournament.start_date)
-  const [startTime, setStartTime] = useState(tournament.start_time.slice(0, 5))
+  const [startTime, setStartTime] = useState(tournament.start_time?.slice(0, 5) ?? '')
   const [estimatedEndTime, setEstimatedEndTime] = useState(tournament.estimated_end_time?.slice(0, 5) ?? '')
   const [status, setStatus] = useState(tournament.status)
   const [visibility, setVisibility] = useState(tournament.visibility)
@@ -62,7 +63,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
       return
     }
 
-    window.location.href = `/tournaments/${tournament.id}`
+    router.push(`/tournaments/${tournament.id}`)
   }
 
   return (
@@ -140,21 +141,11 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium mb-1">Start Time</label>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="w-full input"
-          />
+          <TimeSelect value={startTime} onChange={setStartTime} />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Est. End Time</label>
-          <input
-            type="time"
-            value={estimatedEndTime}
-            onChange={(e) => setEstimatedEndTime(e.target.value)}
-            className="w-full input"
-          />
+          <TimeSelect value={estimatedEndTime} onChange={setEstimatedEndTime} />
         </div>
       </div>
 

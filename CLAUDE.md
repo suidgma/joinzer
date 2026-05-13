@@ -1,7 +1,8 @@
-# CLAUDE.md — Joinzer Quick Reference
+# CLAUDE.md — Joinzer
 
-> Daily reference for Claude Code. Read this at session start.
-> For detailed schemas, RLS policies, and technical specs, see **CLAUDE_DETAILED.md**.
+> Read at session start. Reality file: describes what is actually built and how we work.
+> For target architecture (aspirational), see @docs/architecture-target.md.
+> For security rules, see @docs/security.md.
 
 ---
 
@@ -9,10 +10,10 @@
 
 **Joinzer** is a mobile-first pickleball platform with **four product surfaces** sharing one app, one auth, one database:
 
-1. **Coordination** — players create, discover, and join local play sessions ("find a game tonight"). Original MVP.
+1. **Coordination** — players create, discover, and join local play sessions. Original MVP.
 2. **Leagues** — recurring competitive play with persistent rosters, weekly sessions, season standings.
 3. **Tournaments** — discrete events with divisions and registrations.
-4. **Players** — searchable directory of players with profiles, ratings, history, and connections.
+4. **Players** — searchable directory with profiles, ratings, history, connections.
 
 **Pilot market:** Las Vegas metro (Henderson, Summerlin, Green Valley, North Las Vegas).
 
@@ -22,11 +23,12 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 
 ## 2. Product North Star
 
-- **Coordination**: Player-first. Speed of "find a game and show up" is the metric.
-- **Leagues**: Organizer-and-captain-first. Season reliability and roster fairness are the metrics.
-- **Tournaments**: Organizer-first. Tournament-day reliability and the player↔organizer loop are the metrics.
-- **Players**: Discovery-first. Finding the right partner, opponent, or community is the metric.
-- Setup surfaces are desktop-first. Day-of and player-facing surfaces are mobile-first. See `/docs/phases/two-form-factor.md`.
+- **Coordination:** Player-first. Speed of "find a game and show up" is the metric.
+- **Leagues:** Organizer-and-captain-first. Season reliability and roster fairness.
+- **Tournaments:** Organizer-first. Tournament-day reliability and the player↔organizer loop.
+- **Players:** Discovery-first. Finding the right partner, opponent, or community.
+- Setup surfaces are desktop-first. Day-of and player-facing surfaces are mobile-first.
+  See `/docs/phases/two-form-factor.md`.
 
 ---
 
@@ -34,9 +36,8 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 
 - Small, focused changes. Preserve working code.
 - Read existing code before changing it.
-- ES modules, async/await, TypeScript strict.
 - One concern per slice. Data model changes and layout changes do not share a PR.
-- Update CLAUDE.md as the last step of any session that changes structure, schema, or status. Drift is the enemy.
+- If a doc claim contradicts the codebase, **the codebase wins.** Flag it immediately and stop.
 
 ---
 
@@ -48,7 +49,7 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 | Styling | Tailwind CSS only (no shadcn/ui, no Radix) |
 | Icons | lucide-react |
 | Backend | Supabase (Postgres + Auth + RLS) |
-| Auth | Production: email/password + Google OAuth. Original spec was magic-link; production is canonical. |
+| Auth | Production: email/password + Google OAuth |
 | Hosting | Vercel (frontend) + Supabase (backend) |
 | Notifications | Not yet implemented |
 | Payments | Not yet implemented |
@@ -59,57 +60,39 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 
 ## 5. Current State — Verified May 11, 2026
 
-This section describes **what is actually in the database and codebase right now**, verified against Supabase Table Editor and live routes. The previous CLAUDE.md claimed Phase 1 was complete with a unified `competitions` schema. **That was not true.** This section corrects that.
+For specific schema details, check Supabase Table Editor. For specific route details, check the codebase. This section captures **what's shipped vs. not** at the phase level — not column-level detail.
 
-### Database tables that exist
+### Shipped
 
-**Coordination (shipped, working):**
-- `events`, `event_participants`, `profiles`, `locations`, `organizations`
+- **Coordination MVP** — working in production
+- **Tournaments product** — basic functionality, parallel domain to coordination
+- **Leagues product** — basic functionality, parallel domain to coordination
+- **Two-form-factor refactor Slices 0–2** — primitives, `/tournaments/create`, `/tournaments/[id]`
 
-**Tournaments (separate domain, shipped, working):**
-- `tournaments`, `tournament_divisions`, `tournament_events`, `tournament_matches`, `tournament_messages`, `tournament_registrations`, `tournament_team_invit...` (truncated in screenshot)
+### Not yet built
 
-**Leagues (separate domain, shipped, working):**
-- `leagues`, `league_registrations`, `league_rounds`, `league_round_matches`, `league_sessions`, `league_session_attendance`, `league_session_players`, `league_session_subs`, `league_sub_interest`, `league_sub_requests`
+- **Unified `competitions` schema** — designed in @docs/architecture-target.md, not migrated
+- **Notifications system** (`notifications` table, push, deep links)
+- **Audit log** (`audit_log` table)
+- **Platform stats** (`platform_stats_mv` materialized view)
+- **Players directory** beyond basic profiles
+- **Public marketing site overhaul** (per-court SEO pages, public browse, etc.)
 
-**Other:**
-- `player_availability`, `session_ratings`
+### In progress
 
-### Tables that do NOT exist (despite previous doc claims)
-
-- `competitions` (unified parent table) — not built
-- `competition_divisions`, `competition_courts`, `competition_teams`, `competition_team_members`, `competition_matches`, `competition_announcements` — not built
-- `league_attendance`, `league_sub_credits`, `league_sub_pool` (as named in detailed doc) — different names used in live DB
-- `notifications`, `audit_log`, `platform_stats_mv` — not built
-- `player_stats_mv`, `player_connections` — not built
-
-### Routes that exist
-
-- `/(app)/tournaments/create` — single-page form, refactored in Slice 1, writes to `tournaments` table via direct `.insert()`
-- `/(app)/compete/tournaments/create` — second create route (different form), also writes to `tournaments` table; not yet reconciled with the primary create route
-- `/(app)/tournaments/[id]` — manage view (organizer + player branches in one page); refactored in Slice 2 with `DesktopShell` + `ManageNav`
-- `/(app)/tournaments/[id]/edit` — edit form; exists, not yet refactored
-- `/(app)/tournaments/[id]/organizer/_components/` — organizer Live/Schedule/Standings/Players tabs implemented as client-side tab state inside `TournamentOrganizerView`, NOT as separate sub-routes; Slice 3 will create the actual sub-routes
-
-### Phase status (corrected)
-
-- **Phase 0 (Coordination MVP):** Shipped.
-- **Tournaments product:** Shipped at basic functionality level, parallel domain to coordination.
-- **Leagues product:** Shipped at basic functionality level, parallel domain to coordination.
-- **Phase 1 (unified competitions schema as described in CLAUDE_DETAILED.md):** *Not built.* This is aspiration, not reality. The detailed doc describes a target state we have not migrated to.
-- **Two-form-factor refactor:** In progress. See `/docs/phases/two-form-factor.md`. Slices 0–2 shipped (primitives, `/tournaments/create`, `/tournaments/[id]`). Slice 3 (tournament sub-routes) is next.
+- **Two-form-factor refactor Slice 3** — tournament sub-routes (next)
 
 ---
 
-## 6. Open Decisions (Real)
+## 6. Open Decisions
 
-These are the actual unresolved decisions, not the ones the previous doc claimed:
+These are the actual unresolved decisions blocking informed choices:
 
-- **Schema reconciliation:** Live DB has separate `tournaments` and `leagues` domains. CLAUDE_DETAILED.md describes a unified `competitions` schema that doesn't exist. **Do we migrate (Path B) or accept the duplication (Path A)?** Deferred until an organizer has been spoken to.
-- **Second tournament create route:** `/compete/tournaments/create` exists alongside `/tournaments/create`. Is it dead code, a feature branch, or intentional? Audit before Slice 2.
-- **Auth model:** Production uses email/password + Google OAuth. Original spec was magic-link. Production is canonical; spec is stale. Reconcile docs.
-- **First committed event date:** None. No organizer has seen the product yet.
-- **Organizer conversation:** Not yet booked. This is blocking informed product decisions.
+- **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in @docs/architecture-target.md.
+- **Second tournament create route.** `/compete/tournaments/create` exists alongside `/tournaments/create`. Dead code, feature branch, or intentional? Audit before next slice.
+- **Auth model docs.** Production = email/password + Google OAuth. Original spec said magic-link. Production is canonical; spec is stale. Reconcile any leftover doc references.
+- **First committed event.** None. No organizer has seen the product yet.
+- **Organizer conversation.** Not yet booked. Blocking informed product decisions on Path A vs. B.
 
 ---
 
@@ -119,45 +102,31 @@ These are the actual unresolved decisions, not the ones the previous doc claimed
 - ES modules, `import`/`export`
 - `async`/`await`, not `.then()` chains
 - 2-space indent
-- Descriptive variable names; no single letters except loop counters
+- Descriptive variable names; single letters only for loop counters
 - Comment *why*, not *what*
 - Server Components by default; `"use client"` only when needed
 - Tailwind only; lucide-react for icons; no shadcn/ui
-- One file = one concern; split early (target under 250 lines per file)
+- One file = one concern; split when a file passes ~200 lines
 
 ---
 
-## 8. How to Work With Marty
+## 8. Working Agreement (Joinzer-Specific)
 
-- Read existing code before changing it
-- Explain the approach in 1–2 sentences before implementing
-- Make small, focused changes; preserve working code
-- If a request seems off, ask before proceeding
-- Flag faster/smarter paths without derailing the current task
-- Default to practical, working solutions
-- If a doc claim contradicts the codebase, the codebase wins. Flag the contradiction immediately and stop.
-- The last step of any code-changing session: update CLAUDE.md and the relevant phase doc to reflect what shipped.
+Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 
----
-
-## 9. Security Rules — Non-Negotiable
-
-- Never put API keys, passwords, tokens, or secrets in code files
-- Use environment variables for all sensitive data
-- `.env` and `.env.local` must be in `.gitignore`
-- Supabase `service_role` key is server-side only
-- Use Supabase `anon` key on the frontend; rely on RLS for access control
-- Player PII never returned by public/anon APIs
-- If you encounter exposed secrets, stop and flag immediately
+- If a doc claim contradicts the codebase, the codebase wins — flag and stop.
+- The last step of any session that changes structure, schema, or status: update CLAUDE.md's "Current State" and verification date. **Drift is the enemy.**
+- When finishing a phase or major slice: 10-minute pass through CLAUDE.md to re-verify "Current State" claims, move completed items out of "Open Decisions," update the verification date.
+- Do not document fast-changing things (specific routes, specific tables, schema columns) in markdown. Point at the codebase or Supabase Table Editor instead.
 
 ---
 
 ## Quick Links
 
-- **Two-form-factor refactor plan:** `/docs/phases/two-form-factor.md`
-- **Target architecture (aspirational, not current):** `CLAUDE_DETAILED.md` — treat as design ideas, not current state
+- Two-form-factor refactor plan: `/docs/phases/two-form-factor.md`
+- Target architecture (aspirational): @docs/architecture-target.md
+- Security rules: @docs/security.md
 
 ---
 
 *Last verified against repo: May 11, 2026*
-*Previous version overclaimed Phase 1 completion. Corrected.*

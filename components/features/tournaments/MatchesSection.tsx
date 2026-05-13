@@ -296,7 +296,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
 
     setMatchesByDiv(prev => ({
       ...prev,
-      [divId]: prev[divId].map(m => m.id === matchId ? json.match : m),
+      [divId]: (prev[divId] ?? []).map(m => m.id === matchId ? json.match : m),
     }))
     setScoringId(null)
     setScore1(''); setScore2('')

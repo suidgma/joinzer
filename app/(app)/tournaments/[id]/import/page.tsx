@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle, XCircle, AlertCircle, Upload } from 'lucide-react'
@@ -12,6 +12,8 @@ type CsvRow = {
   player_name?: string
   reason?: string
 }
+
+type Division = { id: string; name: string }
 
 const SAMPLE_CSV = `email,team_name
 player@example.com,Team Awesome
@@ -35,6 +37,7 @@ export default function ImportPage() {
   const params = useParams<{ id: string }>()
   const tournamentId = params.id
 
+  const [divisions, setDivisions] = useState<Division[]>([])
   const [divisionId, setDivisionId] = useState('')
   const [csv, setCsv] = useState('')
   const [rows, setRows] = useState<CsvRow[] | null>(null)
@@ -42,8 +45,19 @@ export default function ImportPage() {
   const [applied, setApplied] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    fetch(`/api/tournaments/${tournamentId}/divisions`)
+      .then(r => r.json())
+      .then(json => {
+        const divs: Division[] = (json.divisions ?? []).map((d: any) => ({ id: d.id, name: d.name }))
+        setDivisions(divs)
+        if (divs.length === 1) setDivisionId(divs[0].id)
+      })
+      .catch(() => {})
+  }, [tournamentId])
+
   async function handlePreview() {
-    if (!divisionId.trim()) { setError('Enter a Division ID'); return }
+    if (!divisionId) { setError('Select a division first'); return }
     if (!csv.trim()) { setError('Paste CSV data first'); return }
     setLoading(true)
     setError(null)
@@ -87,15 +101,21 @@ export default function ImportPage() {
 
       <div className="bg-white border border-brand-border rounded-2xl p-5 space-y-4">
         <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1">Division ID</label>
-          <input
-            type="text"
-            value={divisionId}
-            onChange={e => setDivisionId(e.target.value)}
-            placeholder="Paste division UUID"
-            className="w-full input font-mono text-xs"
-          />
-          <p className="text-[10px] text-brand-muted mt-1">Find the division ID in the tournament URL or browser dev tools.</p>
+          <label className="block text-xs font-medium text-brand-muted mb-1">Division</label>
+          {divisions.length === 0 ? (
+            <p className="text-xs text-brand-muted italic">No divisions found — add a division first.</p>
+          ) : (
+            <select
+              value={divisionId}
+              onChange={e => setDivisionId(e.target.value)}
+              className="w-full input"
+            >
+              {divisions.length > 1 && <option value="">Select a division…</option>}
+              {divisions.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div>
@@ -131,7 +151,7 @@ export default function ImportPage() {
         <div className="flex gap-2">
           <button
             onClick={handlePreview}
-            disabled={loading}
+            disabled={loading || !divisionId}
             className="flex-1 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
           >
             {loading ? 'Checking…' : 'Preview'}
@@ -149,7 +169,6 @@ export default function ImportPage() {
         </div>
       </div>
 
-      {/* Preview results */}
       {rows && (
         <div className="space-y-2">
           <h2 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">

@@ -299,7 +299,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       .from('tournament_registrations')
       .update({ status: 'cancelled' })
       .eq('id', regId)
-    if (error) return
+    if (error) { alert(error.message); return }
     updateReg(divisionId, regId, 'cancelled')
     router.refresh()
   }
@@ -316,7 +316,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       .from('tournament_registrations')
       .update({ payment_status: 'paid' })
       .eq('id', regId)
-    if (error) return
+    if (error) { alert(error.message); return }
     setDivisions(prev => prev.map(d =>
       d.id !== divisionId ? d : {
         ...d,
@@ -353,7 +353,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       .from('tournament_registrations')
       .update({ status: 'registered' })
       .eq('id', regId)
-    if (error) return
+    if (error) { alert(error.message); return }
     updateReg(divisionId, regId, 'registered')
   }
 
@@ -364,7 +364,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       .from('tournament_divisions')
       .update({ status: 'closed' })
       .eq('id', divisionId)
-    if (error) return
+    if (error) { alert(error.message); return }
     setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'closed' } : d))
   }
 
