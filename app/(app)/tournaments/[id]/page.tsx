@@ -118,7 +118,10 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     ? endFormatted ? `${startFormatted} – ${endFormatted}` : startFormatted
     : null
 
-  const allUserIds = Array.from(new Set((regsRaw ?? []).map((r: any) => r.user_id).filter(Boolean)))
+  const allUserIds = Array.from(new Set([
+    ...(regsRaw ?? []).map((r: any) => r.user_id),
+    ...(regsRaw ?? []).map((r: any) => r.partner_user_id),
+  ].filter(Boolean)))
   const { data: profilesRaw } = allUserIds.length > 0
     ? await db.from('profiles').select('id, name').in('id', allUserIds)
     : { data: [] }
@@ -226,6 +229,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       regsByDivisionOrg[reg.division_id].push({
         ...reg,
         user_profile: { name: profileNames[reg.user_id] ?? null },
+        partner_profile: reg.partner_user_id ? { name: profileNames[reg.partner_user_id] ?? null } : null,
       })
     }
     const divisionsForOrg = (divisionsRaw ?? []).map((div: any) => ({
@@ -346,6 +350,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     regsByDivision[reg.division_id].push({
       ...reg,
       user_profile: { name: profileNames[reg.user_id] ?? null },
+      partner_profile: reg.partner_user_id ? { name: profileNames[reg.partner_user_id] ?? null } : null,
     })
   }
   const divisions = (divisionsRaw ?? []).map((div: any) => ({

@@ -22,11 +22,14 @@ type Registration = {
   user_id: string
   team_name: string | null
   user_profile: { name: string } | null
+  partner_user_id?: string | null
+  partner_profile?: { name: string } | null
 }
 
 type Division = {
   id: string
   name: string
+  team_type: string
   tournament_registrations: Registration[]
 }
 
@@ -39,11 +42,26 @@ type Props = {
   defaultEndTime: string | null // HH:MM or null
 }
 
-function teamLabel(regId: string | null, regs: Registration[]): string {
-  if (!regId) return 'BYE'
+function lastName(name: string | null | undefined): string {
+  if (!name) return ''
+  const parts = name.trim().split(/\s+/)
+  return parts[parts.length - 1]
+}
+
+function TeamNameDisplay({ regId, regs, isDoubles }: {
+  regId: string | null
+  regs: Registration[]
+  isDoubles: boolean
+}) {
+  if (!regId) return <span>BYE</span>
   const r = regs.find(x => x.id === regId)
-  if (!r) return '—'
-  return r.team_name || r.user_profile?.name || regId.slice(0, 8)
+  if (!r) return <span>—</span>
+  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || regId.slice(0, 8)}</span>
+  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  if (r.partner_profile?.name) {
+    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+  }
+  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
 }
 
 function toMinutes(hhmm: string): number {
@@ -512,8 +530,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                   const e = edits[m.id]
                   const isPending = !!edits[m.id] && !isEditing
                   const divName = divisionName(m.division_id)
-                  const t1 = teamLabel(m.team_1_registration_id, allRegs)
-                  const t2 = teamLabel(m.team_2_registration_id, allRegs)
+                  const isDoubles = divisions.find(d => d.id === m.division_id)?.team_type === 'doubles'
 
                   return (
                     <div
@@ -574,8 +591,10 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                               )}
                               <span className="text-[10px] text-brand-muted capitalize">{m.match_stage?.replace(/_/g, ' ')}</span>
                             </div>
-                            <p className="text-sm font-medium text-brand-dark truncate">
-                              {t1} <span className="text-brand-muted font-normal">vs</span> {t2}
+                            <p className="text-sm font-medium text-brand-dark">
+                              <TeamNameDisplay regId={m.team_1_registration_id} regs={allRegs} isDoubles={isDoubles} />
+                              {' '}<span className="text-brand-muted font-normal">vs</span>{' '}
+                              <TeamNameDisplay regId={m.team_2_registration_id} regs={allRegs} isDoubles={isDoubles} />
                             </p>
                           </div>
                           <button
@@ -603,8 +622,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
             const isEditing = editingId === m.id
             const e = edits[m.id]
             const divName = divisionName(m.division_id)
-            const t1 = teamLabel(m.team_1_registration_id, allRegs)
-            const t2 = teamLabel(m.team_2_registration_id, allRegs)
+            const isDoubles = divisions.find(d => d.id === m.division_id)?.team_type === 'doubles'
 
             return (
               <div key={m.id} className={`bg-brand-surface border rounded-xl p-3 ${edits[m.id] ? 'border-amber-300' : 'border-brand-border'}`}>
@@ -637,8 +655,10 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                         {m.round_number != null && <span className="text-[10px] text-brand-muted">Rd {m.round_number}</span>}
                         <span className="text-[10px] text-brand-muted capitalize">{m.match_stage?.replace(/_/g, ' ')}</span>
                       </div>
-                      <p className="text-sm font-medium text-brand-dark truncate">
-                        {t1} <span className="text-brand-muted font-normal">vs</span> {t2}
+                      <p className="text-sm font-medium text-brand-dark">
+                        <TeamNameDisplay regId={m.team_1_registration_id} regs={allRegs} isDoubles={isDoubles} />
+                        {' '}<span className="text-brand-muted font-normal">vs</span>{' '}
+                        <TeamNameDisplay regId={m.team_2_registration_id} regs={allRegs} isDoubles={isDoubles} />
                       </p>
                     </div>
                     <button onClick={() => startEdit(m)} className="shrink-0 text-xs text-brand-active hover:underline">

@@ -27,12 +27,15 @@ type Registration = {
   team_name: string | null
   status: string
   user_profile: { name: string } | null
+  partner_user_id?: string | null
+  partner_profile?: { name: string } | null
 }
 
 type Division = {
   id: string
   name: string
   format_type: string
+  team_type: string
   tournament_registrations: Registration[]
 }
 
@@ -48,17 +51,42 @@ type Props = {
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
 
-function teamLabel(regId: string | null, regs: Registration[]): string {
+function lastName(name: string | null | undefined): string {
+  if (!name) return ''
+  const parts = name.trim().split(/\s+/)
+  return parts[parts.length - 1]
+}
+
+function teamLabel(regId: string | null, regs: Registration[], isDoubles = false): string {
   if (!regId) return 'BYE'
   const r = regs.find(x => x.id === regId)
   if (!r) return '—'
-  return r.team_name || r.user_profile?.name || regId.slice(0, 8)
+  if (!isDoubles) return r.team_name || r.user_profile?.name || regId.slice(0, 8)
+  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  const p2 = r.partner_profile?.name ? lastName(r.partner_profile.name) : '?'
+  return `${p1} / ${p2}`
 }
 
-function computeStandings(matches: Match[], regs: Registration[], poolNum?: number): StandingRow[] {
+function TeamNameDisplay({ regId, regs, isDoubles }: {
+  regId: string | null
+  regs: Registration[]
+  isDoubles: boolean
+}) {
+  if (!regId) return <span>BYE</span>
+  const r = regs.find(x => x.id === regId)
+  if (!r) return <span>—</span>
+  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || regId.slice(0, 8)}</span>
+  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  if (r.partner_profile?.name) {
+    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+  }
+  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
+}
+
+function computeStandings(matches: Match[], regs: Registration[], isDoubles: boolean, poolNum?: number): StandingRow[] {
   const map = new Map<string, StandingRow>()
   regs.filter(r => r.status === 'registered').forEach(r => {
-    map.set(r.id, { regId: r.id, name: teamLabel(r.id, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
+    map.set(r.id, { regId: r.id, name: teamLabel(r.id, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
   })
 
   const relevant = matches.filter(m =>
@@ -73,8 +101,8 @@ function computeStandings(matches: Match[], regs: Registration[], poolNum?: numb
     const t2 = m.team_2_registration_id!
     const s1 = m.team_1_score ?? 0
     const s2 = m.team_2_score ?? 0
-    if (!map.has(t1)) map.set(t1, { regId: t1, name: teamLabel(t1, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
-    if (!map.has(t2)) map.set(t2, { regId: t2, name: teamLabel(t2, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
+    if (!map.has(t1)) map.set(t1, { regId: t1, name: teamLabel(t1, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
+    if (!map.has(t2)) map.set(t2, { regId: t2, name: teamLabel(t2, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
     const r1 = map.get(t1)!
     const r2 = map.get(t2)!
     if (m.winner_registration_id === t1) { r1.wins++; r2.losses++ }
@@ -120,12 +148,13 @@ function StandingsTable({ rows }: { rows: StandingRow[] }) {
 }
 
 function MatchCard({
-  match, regs, isOrganizer, scoringId, score1, score2, scoreLoading, scoreError,
+  match, regs, isOrganizer, isDoubles, scoringId, score1, score2, scoreLoading, scoreError,
   onStartScoring, onCancelScoring, onSaveScore, onScore1Change, onScore2Change,
 }: {
   match: Match
   regs: Registration[]
   isOrganizer: boolean
+  isDoubles: boolean
   scoringId: string | null
   score1: string
   score2: string
@@ -137,8 +166,6 @@ function MatchCard({
   onScore1Change: (v: string) => void
   onScore2Change: (v: string) => void
 }) {
-  const t1 = teamLabel(match.team_1_registration_id, regs)
-  const t2 = teamLabel(match.team_2_registration_id, regs)
   const isDone = match.status === 'completed'
   const isBye = !match.team_2_registration_id
   const isScoring = scoringId === match.id
@@ -155,7 +182,7 @@ function MatchCard({
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-center gap-2">
             <span className={`text-sm font-semibold truncate ${isDone && w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>
-              {t1}
+              <TeamNameDisplay regId={match.team_1_registration_id} regs={regs} isDoubles={isDoubles} />
             </span>
             {isDone && match.team_1_score != null && (
               <span className={`text-sm font-bold shrink-0 ${w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>
@@ -165,7 +192,7 @@ function MatchCard({
           </div>
           <div className="flex items-center gap-2">
             <span className={`text-sm font-semibold truncate ${isDone && w === match.team_2_registration_id ? 'text-brand-active' : isBye ? 'text-brand-muted italic' : 'text-brand-dark'}`}>
-              {t2}
+              <TeamNameDisplay regId={match.team_2_registration_id} regs={regs} isDoubles={isDoubles} />
             </span>
             {isDone && match.team_2_score != null && !isBye && (
               <span className={`text-sm font-bold shrink-0 ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>
@@ -206,12 +233,12 @@ function MatchCard({
         <div className="space-y-2 pt-1">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[10px] text-brand-muted mb-1 truncate">{t1}</label>
+              <label className="block text-[10px] text-brand-muted mb-1 truncate">Team 1</label>
               <input type="number" value={score1} onChange={e => onScore1Change(e.target.value)}
                 placeholder="0" min={0} className="w-full input text-sm" />
             </div>
             <div>
-              <label className="block text-[10px] text-brand-muted mb-1 truncate">{t2}</label>
+              <label className="block text-[10px] text-brand-muted mb-1 truncate">Team 2</label>
               <input type="number" value={score2} onChange={e => onScore2Change(e.target.value)}
                 placeholder="0" min={0} className="w-full input text-sm" />
             </div>
@@ -329,9 +356,12 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
         const pools = Array.from(new Set(divMatches.filter(m => m.pool_number != null).map(m => m.pool_number!))).sort((a, b) => a - b)
         const hasCompletedMatches = divMatches.some(m => m.status === 'completed' && m.team_2_registration_id)
 
+        const isDoubles = div.team_type === 'doubles'
+
         const matchCardProps = {
           regs: div.tournament_registrations,
           isOrganizer,
+          isDoubles,
           scoringId,
           score1, score2, scoreLoading, scoreError,
           onStartScoring: (id: string) => { setScoringId(id); setScore1(''); setScore2(''); setScoreError(null) },
@@ -387,6 +417,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
                     matches={divMatches.filter(m => m.pool_number == null)}
                     regs={div.tournament_registrations}
                     isOrganizer={isOrganizer}
+                    isDoubles={isDoubles}
                     tournamentId={tournamentId}
                     divisionId={div.id}
                     onScoreUpdate={(updated) => {
@@ -412,11 +443,11 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
                       pools.map(poolNum => (
                         <div key={poolNum} className="space-y-1">
                           <p className="text-[10px] font-semibold text-brand-muted uppercase">Pool {poolNum}</p>
-                          <StandingsTable rows={computeStandings(divMatches, div.tournament_registrations, poolNum)} />
+                          <StandingsTable rows={computeStandings(divMatches, div.tournament_registrations, isDoubles, poolNum)} />
                         </div>
                       ))
                     ) : (
-                      <StandingsTable rows={computeStandings(divMatches, div.tournament_registrations)} />
+                      <StandingsTable rows={computeStandings(divMatches, div.tournament_registrations, isDoubles)} />
                     )}
                   </div>
                 )}

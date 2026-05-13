@@ -39,7 +39,7 @@ Independently shippable. Nothing here depends on anything else. Start here Monda
 - **Verify:** `/compete` should show only "10 league" + any real ones. Test account can still see their own test rows on a dedicated `/dev` route or with a query param if you want.
 - **Decision needed:** Do you want a hidden `?showTest=1` query for your own access, or just delete the test rows entirely?
 
-### [ ] 0.3 Replace Division ID textbox with a dropdown on Import
+### [x] 0.3 Replace Division ID textbox with a dropdown on Import
 - **Where:** `/tournaments/[id]/import` form.
 - **What:** Today the org has to paste a UUID found in dev tools. Replace with a `<select>` populated from the parent tournament's divisions.
 - **Prompt:** *"On the tournament import page, replace the Division ID textbox with a dropdown populated from the parent tournament's divisions. Remove the 'Find the division ID in the tournament URL or browser dev tools' helper text."*
@@ -90,6 +90,7 @@ Taxonomy migration is the foundation; everything else in this batch depends on i
 - **Prompt:** *"Update the CSV import flow on /tournaments/[id]/import to be format-aware. When the selected division's format requires a partner, the expected CSV columns are player1_email, player2_email, team_name. When singles, just email. Update the placeholder, sample, helper copy, and the Preview rendering — paired rows should show as a single team card with both players inside."*
 - **Verify:** Try the importer with a doubles division and a singles division. Sample data and preview should differ.
 - **Decision needed:** Add file upload (drag-and-drop) too, or just paste-in for now? Recommend doing both in this session — it's small.
+- **Done (bonus):** File upload added to import page (Upload file button + filename chip). ✅
 
 ### [ ] 1.4 Block match generation on incomplete teams
 - **Where:** Tournament division Manage panel "Generate Matches" CTA.
