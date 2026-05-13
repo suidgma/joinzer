@@ -30,11 +30,14 @@ type Registration = {
   team_name: string | null
   status: string
   user_profile: { name: string } | null
+  partner_user_id?: string | null
+  partner_profile?: { name: string } | null
 }
 
 type Division = {
   id: string
   name: string
+  team_type: string
   tournament_registrations: Registration[]
 }
 
@@ -44,11 +47,26 @@ type Props = {
   divisions: Division[]
 }
 
-function getRegName(regId: string | null, regs: Registration[]): string {
-  if (!regId) return 'TBD'
-  const reg = regs.find(r => r.id === regId)
-  if (!reg) return 'TBD'
-  return reg.team_name ?? reg.user_profile?.name ?? 'Unknown'
+function lastName(name: string | null | undefined): string {
+  if (!name) return ''
+  const parts = name.trim().split(/\s+/)
+  return parts[parts.length - 1]
+}
+
+function TeamNameDisplay({ regId, regs, isDoubles }: {
+  regId: string | null
+  regs: Registration[]
+  isDoubles: boolean
+}) {
+  if (!regId) return <span>TBD</span>
+  const r = regs.find(x => x.id === regId)
+  if (!r) return <span>TBD</span>
+  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || 'Unknown'}</span>
+  const p1 = lastName(r.user_profile?.name) || r.team_name || 'Unknown'
+  if (r.partner_profile?.name) {
+    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+  }
+  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -89,11 +107,11 @@ export default function MyMatchesSection({ currentUserId, matches, divisions }: 
       <div className="space-y-2">
         {myMatches.map(m => {
           const iAmTeam1 = myRegIds.has(m.team_1_registration_id ?? '')
-          const myName = getRegName(iAmTeam1 ? m.team_1_registration_id : m.team_2_registration_id, allRegs)
-          const oppName = getRegName(iAmTeam1 ? m.team_2_registration_id : m.team_1_registration_id, allRegs)
+          const isDoubles = divisions.find(d => d.id === m.division_id)?.team_type === 'doubles'
+          const myRegId = iAmTeam1 ? m.team_1_registration_id : m.team_2_registration_id
+          const oppRegId = iAmTeam1 ? m.team_2_registration_id : m.team_1_registration_id
           const myScore = iAmTeam1 ? m.team_1_score : m.team_2_score
           const oppScore = iAmTeam1 ? m.team_2_score : m.team_1_score
-          const myRegId = iAmTeam1 ? m.team_1_registration_id : m.team_2_registration_id
           const won = m.status === 'completed' && m.winner_registration_id === myRegId
           const lost = m.status === 'completed' && m.winner_registration_id != null && m.winner_registration_id !== myRegId
 
@@ -117,7 +135,7 @@ export default function MyMatchesSection({ currentUserId, matches, divisions }: 
               <div className="flex items-center gap-3">
                 {/* Me */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-brand-dark truncate">{myName}</p>
+                  <p className="text-sm font-semibold text-brand-dark truncate"><TeamNameDisplay regId={myRegId} regs={allRegs} isDoubles={isDoubles} /></p>
                   {m.status === 'completed' && (
                     <p className={`text-xs font-bold mt-0.5 ${won ? 'text-green-600' : lost ? 'text-red-500' : 'text-brand-muted'}`}>
                       {won ? 'Won' : lost ? 'Lost' : 'Tie'}
@@ -138,7 +156,7 @@ export default function MyMatchesSection({ currentUserId, matches, divisions }: 
 
                 {/* Opponent */}
                 <div className="flex-1 min-w-0 text-right">
-                  <p className="text-sm font-medium text-brand-body truncate">{oppName}</p>
+                  <p className="text-sm font-medium text-brand-body truncate"><TeamNameDisplay regId={oppRegId} regs={allRegs} isDoubles={isDoubles} /></p>
                 </div>
               </div>
             </div>
