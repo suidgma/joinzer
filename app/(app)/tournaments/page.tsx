@@ -14,7 +14,15 @@ export default async function TournamentsPage(props: { searchParams: Promise<Sea
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
-  const isAdmin = !!user && user.email === process.env.ADMIN_EMAIL
+  let isAdmin = false
+  if (user && searchParams.showTest === '1') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single()
+    isAdmin = profile?.is_admin ?? false
+  }
   const showTest = isAdmin && searchParams.showTest === '1'
 
   let query = supabase

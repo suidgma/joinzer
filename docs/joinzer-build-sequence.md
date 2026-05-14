@@ -34,7 +34,7 @@ Independently shippable. Nothing here depends on anything else. Start here Monda
 
 ### [x] 0.2 Clean seed/test data on the public Leagues index
 - **Where:** `/compete` query / list endpoint.
-- **What:** Added `is_test boolean NOT NULL DEFAULT false` to `leagues` and `tournaments`. Backfilled 4 leagues and 16 tournaments as `is_test=true`. Both list pages filter `is_test=false` by default. `?showTest=1` bypasses filter for authenticated admin only (`ADMIN_EMAIL` env var).
+- **What:** Added `dummy boolean NOT NULL DEFAULT false` to `leagues` and `tournaments` (matches `profiles.dummy`). Added `is_admin boolean NOT NULL DEFAULT false` to `profiles`. Backfilled 4 leagues and 16 tournaments as `dummy=true`. Both list pages filter `dummy=false` by default. `?showTest=1` bypasses filter for users with `profiles.is_admin = true` only.
 - **Decision:** Option A (tag-and-filter). See `docs/decisions.md`.
 
 ### [x] 0.3 Replace Division ID textbox with a dropdown on Import
