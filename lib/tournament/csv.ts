@@ -1,4 +1,4 @@
-import { createClient as createAdmin } from '@supabase/supabase-js'
+import { createClient as createAdmin, type User } from '@supabase/supabase-js'
 
 const db = () => createAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +13,21 @@ export type CsvRow = {
   user_id?: string
   player_name?: string
   reason?: string
+}
+
+// Fetch every auth user — loops pages so we never silently miss users beyond the first page.
+async function listAllAuthUsers(service: ReturnType<typeof db>): Promise<User[]> {
+  const all: User[] = []
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage })
+    if (error) throw error
+    all.push(...data.users)
+    if (data.users.length < perPage) break
+    page++
+  }
+  return all
 }
 
 // Strip +suffix aliases (e.g. foo+test@gmail.com → foo@gmail.com) and normalize case.
@@ -43,9 +58,9 @@ export async function parseCsvRows(
   const hasHeader = firstLine.includes('email')
   const dataLines = hasHeader ? lines.slice(1) : lines
 
-  // Fetch auth users and existing registrations once — not inside the row loop
-  const [{ data: userList }, { data: existingRegs }] = await Promise.all([
-    service.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+  // Fetch all auth users (paginated) and existing registrations in parallel
+  const [allUsers, { data: existingRegs }] = await Promise.all([
+    listAllAuthUsers(service),
     service
       .from('tournament_registrations')
       .select('user_id')
@@ -56,7 +71,7 @@ export async function parseCsvRows(
 
   // Build a normalized-email → auth user map for O(1) lookups per row
   const userByNormalizedEmail = new Map(
-    (userList?.users ?? []).map(u => [normalizeEmail(u.email ?? ''), u])
+    allUsers.map(u => [normalizeEmail(u.email ?? ''), u])
   )
   const existingUserIds = new Set((existingRegs ?? []).map(r => r.user_id))
   const seenNormalized = new Set<string>()
