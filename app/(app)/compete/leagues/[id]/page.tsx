@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
 import LeagueActions from './LeagueActions'
-import SessionSubList from './SessionSubList'
 import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
@@ -238,6 +237,8 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             costCents={(league as any).cost_cents ?? 0}
             format={league.format}
             partnerUserName={partnerUserName}
+            sessions={sessions ?? []}
+            mySubSessionIds={Array.from(mySubSessionIds)}
           />
         </>
       )}
@@ -371,18 +372,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           initialRequests={(openSubRequests ?? []) as any[]}
           currentUserId={user.id}
         />
-      )}
-
-      {/* Session sub availability for non-registered users */}
-      {user && sessions && sessions.length > 0 && (myReg?.status === null || myReg?.status === 'cancelled' || !myReg) && (
-        <section className="space-y-2">
-          <h2 className="font-heading text-base font-bold text-brand-dark">Sub Availability</h2>
-          <p className="text-xs text-brand-muted">Mark the specific sessions you&apos;re available to sub.</p>
-          <SessionSubList
-            sessions={sessions}
-            mySubSessionIds={mySubSessionIds}
-          />
-        </section>
       )}
 
       {/* Admin view */}
