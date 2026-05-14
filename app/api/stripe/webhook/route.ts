@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
+import { registrationEmail } from '@/lib/email/templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,9 +75,10 @@ export async function POST(req: NextRequest) {
             to: profile.email,
             replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${tournament.name}`,
-            html: confirmationEmail({
+            html: registrationEmail({
               firstName: profile.name?.split(' ')[0] ?? 'there',
               heading: 'Payment Confirmed ✓',
+              intro: 'your payment has been received.',
               rows: [
                 ['Tournament', tournament.name],
                 ...(division?.name ? [['Division', division.name] as [string, string]] : []),
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest) {
               ],
               ctaLabel: 'View Tournament',
               ctaUrl: `${siteUrl}/tournaments/${tournament.id}`,
+              footerNote: 'Keep this email as your payment receipt.',
             }),
           })
         }
@@ -149,9 +152,10 @@ export async function POST(req: NextRequest) {
             to: profile.email,
             replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${ev.title}`,
-            html: confirmationEmail({
+            html: registrationEmail({
               firstName: profile.name?.split(' ')[0] ?? 'there',
-              heading: joinAs === 'joined' ? 'You\'re in! Payment Confirmed ✓' : 'Payment Confirmed — Waitlisted',
+              heading: joinAs === 'joined' ? "You're in! Payment Confirmed ✓" : 'Payment Confirmed — Waitlisted',
+              intro: 'your payment has been received.',
               rows: [
                 ['Session', ev.title],
                 ['Date', sessionDate],
@@ -161,6 +165,7 @@ export async function POST(req: NextRequest) {
               ],
               ctaLabel: 'View Session',
               ctaUrl: `${siteUrl}/events/${meta.event_id}`,
+              footerNote: 'Keep this email as your payment receipt.',
             }),
           })
         }
@@ -197,9 +202,10 @@ export async function POST(req: NextRequest) {
           to: profile.email,
           replyTo: 'martyfit50@gmail.com',
           subject: `Payment confirmed — ${league.name}`,
-          html: confirmationEmail({
+          html: registrationEmail({
             firstName: profile.name?.split(' ')[0] ?? 'there',
-            heading: joinAs === 'registered' ? 'You\'re registered! Payment Confirmed ✓' : 'Payment Confirmed — Waitlisted',
+            heading: joinAs === 'registered' ? "You're registered! Payment Confirmed ✓" : 'Payment Confirmed — Waitlisted',
+            intro: 'your payment has been received.',
             rows: [
               ['League', league.name],
               ...(amountPaid ? [['Amount paid', amountPaid] as [string, string]] : []),
@@ -207,6 +213,7 @@ export async function POST(req: NextRequest) {
             ],
             ctaLabel: 'View League',
             ctaUrl: `${siteUrl}/compete/leagues/${meta.league_id}`,
+            footerNote: 'Keep this email as your payment receipt.',
           }),
         })
       }
@@ -216,37 +223,3 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ received: true })
 }
 
-function confirmationEmail({
-  firstName,
-  heading,
-  rows,
-  ctaLabel,
-  ctaUrl,
-}: {
-  firstName: string
-  heading: string
-  rows: [string, string][]
-  ctaLabel: string
-  ctaUrl: string
-}) {
-  return `
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
-      <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
-        <h1 style="margin:0;font-size:20px;color:#012D0B">${heading}</h1>
-      </div>
-      <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
-        <p style="margin:0 0 20px;font-size:15px">Hi ${firstName}, your payment has been received.</p>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
-          ${rows.map(([label, value]) => `
-            <tr>
-              <td style="padding:6px 0;color:#6b7280;font-size:14px;width:40%">${label}</td>
-              <td style="padding:6px 0;font-size:14px;font-weight:500">${value}</td>
-            </tr>
-          `).join('')}
-        </table>
-        <a href="${ctaUrl}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">${ctaLabel}</a>
-        <p style="margin-top:24px;font-size:12px;color:#9ca3af">Keep this email as your payment receipt.</p>
-      </div>
-    </div>
-  `
-}
