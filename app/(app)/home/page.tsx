@@ -71,9 +71,10 @@ export default async function HomePage() {
   const now = new Date().toISOString()
 
   // Leagues user is registered in or organizes
-  const [{ data: registrations }, { data: organizedLeagues }] = await Promise.all([
+  const [{ data: registrations }, { data: organizedLeagues }, { data: organizedTournaments }] = await Promise.all([
     db.from('league_registrations').select('league_id').eq('user_id', user.id).eq('status', 'registered'),
     db.from('leagues').select('id, name, format, skill_level, location_name, created_by').eq('created_by', user.id),
+    db.from('tournaments').select('id').eq('organizer_id', user.id).limit(1),
   ])
 
   const registeredLeagueIds = (registrations ?? []).map((r) => r.league_id as string)
@@ -263,6 +264,7 @@ export default async function HomePage() {
   const hasDiscover = sortedDiscoverLeagues.length > 0 || sortedTournaments.length > 0
   const ratingSource = (profile as any)?.rating_source as string | null
   const ratingMissing = !ratingSource || ratingSource === 'skipped'
+  const isOrganizer = (organizedLeagues?.length ?? 0) > 0 || (organizedTournaments?.length ?? 0) > 0
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
@@ -380,6 +382,43 @@ export default async function HomePage() {
               </Link>
             )
           })}
+        </section>
+      )}
+
+      {/* ── Role-aware CTA — shown when schedule is sparse or empty ── */}
+      {(scheduleIsSparse || !hasSchedule) && (
+        <section className="flex gap-3">
+          {isOrganizer ? (
+            <>
+              <Link
+                href="/tournaments/create"
+                className="flex-1 text-center py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+              >
+                Create Tournament
+              </Link>
+              <Link
+                href="/compete"
+                className="flex-1 text-center py-2.5 rounded-xl border border-brand-border text-brand-dark text-sm font-semibold hover:border-brand-active transition-colors"
+              >
+                Browse Leagues
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/compete"
+                className="flex-1 text-center py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+              >
+                Browse Leagues
+              </Link>
+              <Link
+                href="/tournaments/create"
+                className="flex-1 text-center py-2.5 rounded-xl border border-brand-border text-brand-dark text-sm font-semibold hover:border-brand-active transition-colors"
+              >
+                Start Organizing
+              </Link>
+            </>
+          )}
         </section>
       )}
 
