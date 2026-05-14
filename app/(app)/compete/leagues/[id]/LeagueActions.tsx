@@ -4,8 +4,16 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import SessionSubList from './SessionSubList'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
+
+type Session = {
+  id: string
+  session_number: number
+  session_date: string
+  status: string
+}
 
 type Props = {
   leagueId: string
@@ -17,9 +25,11 @@ type Props = {
   costCents: number
   format: string
   partnerUserName?: string | null
+  sessions: Session[]
+  mySubSessionIds: string[]
 }
 
-export default function LeagueActions({ leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName }: Props) {
+export default function LeagueActions({ leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName, sessions, mySubSessionIds }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [subLoading, setSubLoading] = useState(false)
@@ -195,19 +205,33 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
         <p className="text-sm text-center text-brand-muted py-2">Registration not yet open.</p>
       )}
 
-      {/* Sub interest toggle */}
+      {/* Sub interest + per-session availability */}
       {(localReg === null || localReg === 'cancelled') && (
-        <button
-          onClick={handleSubToggle}
-          disabled={subLoading}
-          className={`w-full py-2 rounded-xl border text-sm font-medium transition-colors ${
-            localSub
-              ? 'bg-brand-soft border-brand text-brand-dark'
-              : 'bg-brand-surface border-brand-border text-brand-muted hover:border-brand-active'
-          }`}
-        >
-          {subLoading ? 'Saving…' : localSub ? '✓ Interested in subbing (tap to remove)' : "I'm interested in subbing"}
-        </button>
+        localSub ? (
+          <div className="space-y-2">
+            <div className="bg-brand-soft border border-brand rounded-2xl px-4 py-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-brand-dark">On the sub list ✓</p>
+              <button
+                onClick={handleSubToggle}
+                disabled={subLoading}
+                className="text-xs text-brand-muted font-medium underline"
+              >
+                {subLoading ? '…' : 'Manage'}
+              </button>
+            </div>
+            {sessions.length > 0 && (
+              <SessionSubList sessions={sessions} mySubSessionIds={new Set(mySubSessionIds)} />
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={handleSubToggle}
+            disabled={subLoading}
+            className="w-full py-2 rounded-xl border border-brand-border bg-brand-surface text-sm font-medium text-brand-muted hover:border-brand-active transition-colors"
+          >
+            {subLoading ? 'Saving…' : "I'm interested in subbing"}
+          </button>
+        )
       )}
       <ConfirmModal
         open={showCancelConfirm}
