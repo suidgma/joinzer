@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
 type Props = {
   leagueId: string
+  leagueName: string
   registrationStatus: string
   myReg: 'registered' | 'waitlist' | 'cancelled' | null
   mySubInterest: boolean
@@ -17,7 +19,7 @@ type Props = {
   partnerUserName?: string | null
 }
 
-export default function LeagueActions({ leagueId, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName }: Props) {
+export default function LeagueActions({ leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [subLoading, setSubLoading] = useState(false)
@@ -26,6 +28,8 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
   const [localPartner, setLocalPartner] = useState(partnerUserName ?? null)
   const [error, setError] = useState<string | null>(null)
   const [regType, setRegType] = useState<'team' | 'solo'>('team')
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
 
   const isDoubles = DOUBLES_FORMATS.includes(format)
 
@@ -69,15 +73,20 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
 
   async function handleCancel() {
     setLoading(true)
-    setError(null)
+    setCancelError(null)
     const res = await fetch('/api/league-cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId }),
     })
     if (res.ok) {
+      setShowCancelConfirm(false)
       setLocalReg('cancelled')
       router.refresh()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setCancelError(data.error === 'Already cancelled' ? 'Already cancelled — refreshing…' : (data.error ?? "Couldn't cancel — please try again"))
+      if (data.error === 'Already cancelled') router.refresh()
     }
     setLoading(false)
   }
@@ -113,7 +122,7 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
                   : "You're in for this league"}
             </p>
           </div>
-          <button onClick={handleCancel} disabled={loading} className="text-xs text-red-500 font-medium underline">
+          <button onClick={() => setShowCancelConfirm(true)} disabled={loading} className="text-xs text-red-500 font-medium underline">
             Cancel
           </button>
         </div>
@@ -125,7 +134,7 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
             <p className="text-sm font-semibold text-brand-dark">On waitlist</p>
             <p className="text-xs text-brand-muted">You&apos;ll be notified if a spot opens</p>
           </div>
-          <button onClick={handleCancel} disabled={loading} className="text-xs text-red-500 font-medium underline">
+          <button onClick={() => setShowCancelConfirm(true)} disabled={loading} className="text-xs text-red-500 font-medium underline">
             Remove
           </button>
         </div>
@@ -200,6 +209,16 @@ export default function LeagueActions({ leagueId, registrationStatus, myReg, myS
           {subLoading ? 'Saving…' : localSub ? '✓ Interested in subbing (tap to remove)' : "I'm interested in subbing"}
         </button>
       )}
+      <ConfirmModal
+        open={showCancelConfirm}
+        title="Cancel registration?"
+        body={`Cancel your registration for ${leagueName}? This can't be undone, and your spot may be given to someone on the waitlist.`}
+        confirmLabel="Cancel registration"
+        loading={loading}
+        error={cancelError}
+        onConfirm={handleCancel}
+        onClose={() => { setShowCancelConfirm(false); setCancelError(null) }}
+      />
     </div>
   )
 }

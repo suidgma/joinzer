@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { formatSessionDate } from '@/lib/utils/date'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 type EventItem = {
   id: string
@@ -45,6 +46,8 @@ export default function TournamentEventList({ tournamentStatus, events, isLogged
   const [localStatuses, setLocalStatuses] = useState<Record<string, string | null>>(
     Object.fromEntries(events.map((e) => [e.id, e.myStatus]))
   )
+  const [confirmWithdrawId, setConfirmWithdrawId] = useState<string | null>(null)
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
 
   const canRegister = tournamentStatus === 'registration_open'
   const isDoubles = (cat: string) => cat.includes('doubles')
@@ -72,15 +75,23 @@ export default function TournamentEventList({ tournamentStatus, events, isLogged
 
   async function handleWithdraw(eventId: string) {
     setLoadingId(eventId)
+    setWithdrawError(null)
 
-    await fetch('/api/tournament-cancel', {
+    const res = await fetch('/api/tournament-cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tournamentEventId: eventId }),
     })
 
-    setLocalStatuses((prev) => ({ ...prev, [eventId]: 'cancelled' }))
-    router.refresh()
+    if (res.ok) {
+      setConfirmWithdrawId(null)
+      setLocalStatuses((prev) => ({ ...prev, [eventId]: 'cancelled' }))
+      router.refresh()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setWithdrawError(data.error === 'Already cancelled' ? 'Already cancelled — refreshing…' : (data.error ?? "Couldn't cancel — please try again"))
+      if (data.error === 'Already cancelled') router.refresh()
+    }
     setLoadingId(null)
   }
 
@@ -153,16 +164,32 @@ export default function TournamentEventList({ tournamentStatus, events, isLogged
 
             {isLoggedIn && (myStatus === 'registered' || myStatus === 'waitlist') && (
               <button
-                onClick={() => handleWithdraw(evt.id)}
+                onClick={() => setConfirmWithdrawId(evt.id)}
                 disabled={loading}
                 className="text-xs text-red-500 font-medium underline"
               >
-                {loading ? 'Saving…' : 'Withdraw'}
+                Withdraw
               </button>
             )}
           </div>
         )
       })}
+
+      <ConfirmModal
+        open={confirmWithdrawId !== null}
+        title="Withdraw from event?"
+        body={(() => {
+          const evt = events.find(e => e.id === confirmWithdrawId)
+          return evt
+            ? `Withdraw from ${evt.name}? This can't be undone, and your spot may be given to someone on the waitlist.`
+            : "Withdraw from this event? This can't be undone."
+        })()}
+        confirmLabel="Withdraw"
+        loading={loadingId === confirmWithdrawId}
+        error={withdrawError}
+        onConfirm={() => confirmWithdrawId && handleWithdraw(confirmWithdrawId)}
+        onClose={() => { setConfirmWithdrawId(null); setWithdrawError(null) }}
+      />
     </div>
   )
 }

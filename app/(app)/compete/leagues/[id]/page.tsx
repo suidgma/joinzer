@@ -230,6 +230,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           )}
           <LeagueActions
             leagueId={league.id}
+            leagueName={league.name}
             registrationStatus={league.registration_status}
             myReg={myReg?.status ?? null}
             mySubInterest={!!mySubInterest}

@@ -10,6 +10,7 @@ import FormatSettingsFields, {
 import QrCheckinModal from './QrCheckinModal'
 import PrepTournamentModal from './PrepTournamentModal'
 import TimeSelect from '@/components/features/events/TimeSelect'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 const CATEGORY_LABELS: Record<string, string> = {
   mens_doubles:   'Men',
@@ -61,6 +62,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
+  const [cancelPending, setCancelPending] = useState<{ divId: string; regId: string; divName: string } | null>(null)
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -294,12 +298,21 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
 
   // ── Cancel own registration ───────────────────────────────────────
   async function handleCancel(divisionId: string, regId: string) {
+    setCancelLoading(true)
+    setCancelError(null)
     const supabase = createClient()
     const { error } = await supabase
       .from('tournament_registrations')
       .update({ status: 'cancelled' })
       .eq('id', regId)
-    if (error) { alert(error.message); return }
+    if (error) {
+      setCancelError(error.message === 'Already cancelled' ? 'Already cancelled — refreshing…' : "Couldn't cancel — please try again")
+      setCancelLoading(false)
+      router.refresh()
+      return
+    }
+    setCancelPending(null)
+    setCancelLoading(false)
     updateReg(divisionId, regId, 'cancelled')
     router.refresh()
   }
@@ -883,7 +896,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     )}
                     {myReg && (
                       <button
-                        onClick={() => handleCancel(div.id, myReg.id)}
+                        onClick={() => setCancelPending({ divId: div.id, regId: myReg.id, divName: div.name })}
                         className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors"
                       >
                         Cancel Registration
@@ -1299,6 +1312,20 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
           onRegistrationClosed={() => { setRegClosed(true); router.refresh() }}
         />
       )}
+
+      {/* Cancel registration confirmation */}
+      <ConfirmModal
+        open={cancelPending !== null}
+        title="Cancel registration?"
+        body={cancelPending
+          ? `Cancel your registration for ${cancelPending.divName}? This can't be undone, and your spot may be given to someone on the waitlist.`
+          : ''}
+        confirmLabel="Cancel registration"
+        loading={cancelLoading}
+        error={cancelError}
+        onConfirm={() => cancelPending && handleCancel(cancelPending.divId, cancelPending.regId)}
+        onClose={() => { setCancelPending(null); setCancelError(null) }}
+      />
     </div>
   )
 }
