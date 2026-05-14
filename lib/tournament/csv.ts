@@ -45,7 +45,7 @@ export async function parseCsvRows(
 
   // Fetch auth users and existing registrations once — not inside the row loop
   const [{ data: userList }, { data: existingRegs }] = await Promise.all([
-    service.auth.admin.listUsers({ perPage: 1000 }),
+    service.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     service
       .from('tournament_registrations')
       .select('user_id')
