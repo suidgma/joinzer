@@ -15,6 +15,15 @@ export type CsvRow = {
   reason?: string
 }
 
+// Strip +suffix aliases (e.g. foo+test@gmail.com → foo@gmail.com) and normalize case.
+// Gmail and many providers ignore +suffixes; normalizing prevents false "No account" hits.
+function normalizeEmail(raw: string): string {
+  const lower = raw.trim().toLowerCase()
+  const at = lower.indexOf('@')
+  if (at === -1) return lower
+  return lower.slice(0, at).replace(/\+.*$/, '') + lower.slice(at)
+}
+
 /**
  * Parse CSV text and classify each row.
  * Expected columns (header optional): email, team_name
@@ -34,16 +43,23 @@ export async function parseCsvRows(
   const hasHeader = firstLine.includes('email')
   const dataLines = hasHeader ? lines.slice(1) : lines
 
-  // Fetch existing registrations for duplicate detection
-  const { data: existingRegs } = await service
-    .from('tournament_registrations')
-    .select('user_id')
-    .eq('tournament_id', tournamentId)
-    .eq('division_id', divisionId)
-    .neq('status', 'cancelled')
+  // Fetch auth users and existing registrations once — not inside the row loop
+  const [{ data: userList }, { data: existingRegs }] = await Promise.all([
+    service.auth.admin.listUsers({ perPage: 1000 }),
+    service
+      .from('tournament_registrations')
+      .select('user_id')
+      .eq('tournament_id', tournamentId)
+      .eq('division_id', divisionId)
+      .neq('status', 'cancelled'),
+  ])
 
+  // Build a normalized-email → auth user map for O(1) lookups per row
+  const userByNormalizedEmail = new Map(
+    (userList?.users ?? []).map(u => [normalizeEmail(u.email ?? ''), u])
+  )
   const existingUserIds = new Set((existingRegs ?? []).map(r => r.user_id))
-  const seenEmails = new Set<string>()
+  const seenNormalized = new Set<string>()
 
   const results: CsvRow[] = []
 
@@ -52,31 +68,31 @@ export async function parseCsvRows(
     if (!line) continue
 
     const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''))
-    const email = parts[0]?.toLowerCase() ?? ''
+    const rawEmail = parts[0] ?? ''
     const team_name = parts[1] ?? null
 
-    if (!email || !email.includes('@')) {
-      results.push({ row: i + 1, email: parts[0] ?? '', team_name, status: 'invalid', reason: 'Invalid email' })
+    if (!rawEmail || !rawEmail.includes('@')) {
+      results.push({ row: i + 1, email: rawEmail, team_name, status: 'invalid', reason: 'Invalid email' })
       continue
     }
 
-    if (seenEmails.has(email)) {
-      results.push({ row: i + 1, email, team_name, status: 'duplicate', reason: 'Same email appears twice in CSV' })
+    const normalized = normalizeEmail(rawEmail)
+
+    if (seenNormalized.has(normalized)) {
+      results.push({ row: i + 1, email: rawEmail, team_name, status: 'duplicate', reason: 'Same email appears twice in CSV' })
       continue
     }
-    seenEmails.add(email)
+    seenNormalized.add(normalized)
 
-    // Look up user by email via auth admin
-    const { data: userList } = await service.auth.admin.listUsers({ perPage: 1000 })
-    const authUser = userList?.users?.find(u => u.email?.toLowerCase() === email)
+    const authUser = userByNormalizedEmail.get(normalized)
 
     if (!authUser) {
-      results.push({ row: i + 1, email, team_name, status: 'unknown_email', reason: 'No Joinzer account with this email' })
+      results.push({ row: i + 1, email: rawEmail, team_name, status: 'unknown_email', reason: 'No Joinzer account with this email' })
       continue
     }
 
     if (existingUserIds.has(authUser.id)) {
-      results.push({ row: i + 1, email, team_name, status: 'duplicate', reason: 'Already registered in this division', user_id: authUser.id })
+      results.push({ row: i + 1, email: rawEmail, team_name, status: 'duplicate', reason: 'Already registered in this division', user_id: authUser.id })
       continue
     }
 
@@ -84,7 +100,7 @@ export async function parseCsvRows(
 
     results.push({
       row: i + 1,
-      email,
+      email: rawEmail,
       team_name: team_name || null,
       status: 'ok',
       user_id: authUser.id,
