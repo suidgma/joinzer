@@ -43,20 +43,20 @@ Independently shippable. Nothing here depends on anything else. Start here Monda
 - **Prompt:** *"On the tournament import page, replace the Division ID textbox with a dropdown populated from the parent tournament's divisions. Remove the 'Find the division ID in the tournament URL or browser dev tools' helper text."*
 - **Verify:** Open the import page on Pro Men, see "Pro" as a dropdown option.
 
-### [ ] 0.4 Fix email lookup normalization in Import Preview
+### [x] 0.4 Fix email lookup normalization in Import Preview
 - **Where:** Import Players preview endpoint / RPC.
 - **What:** Marty's real account returns "No account." Normalize email server-side before lookup: lowercase, strip `+suffix`, trim.
 - **Prompt:** *"In the import-players preview RPC, normalize the lookup email before querying: lowercase, trim, strip everything from '+' up to '@'. Verify that `martyfit50+playwrighttest@gmail.com` resolves to the same user as `martyfit50@gmail.com`."*
 - **Verify:** Paste Marty's `+playwrighttest` email into the import CSV, preview, should show a green "Account found" badge or similar.
 - **Decision needed:** What happens to "No account" rows on commit — create stub accounts and send invites, or skip? (See §Decisions.)
 
-### [ ] 0.5 Differentiate org vs participant on Home cards
+### [x] 0.5 Differentiate org vs participant on Home cards
 - **Where:** `/home` league session cards.
 - **What:** Today every card shows "Open Session Manager →" — intimidating to a plain player. Show "View →" as primary for participants; reserve manager CTA for users with `league_role = 'organizer' | 'captain'`.
 - **Prompt:** *"On the /home page, the league session cards currently always show 'Open Session Manager →'. Make it state-aware: only show the manager CTA when the current user has an organizer or captain role on that league. Otherwise show a regular 'View →' link to the league overview."*
 - **Verify:** Log in as a non-org user (or simulate one) and check that Home doesn't show manager CTAs.
 
-### [ ] 0.6 Confirmation modal on Cancel Registration
+### [x] 0.6 Confirmation modal on Cancel Registration
 - **Where:** Tournament division card, when user is registered/waitlisted.
 - **What:** Today: one click → registration gone. Add a confirm modal.
 - **Prompt:** *"Add a confirmation modal to the Cancel Registration button on tournament divisions. Modal copy: 'Cancel your registration? Your spot will be released to the next person on the waitlist.' Two buttons: 'Cancel registration' (destructive style) and 'Keep my spot' (default)."*
@@ -122,13 +122,13 @@ Without these, the league flow can't actually run a paid season. P2.1 is the big
 - **Prompt:** *"On the league overview page, add a Roster panel visible only to org/captain roles. Mirror the tournament Manage panel: list of registrants with team name, status (Registered / Pending payment / Pending partner), Mark Paid / Remove actions, plus '+ Add Player' (using the team-aware modal from ticket 1.2) and 'Import CSV' (linking to /compete/leagues/[id]/import — create that page too, mirror the tournament importer)."*
 - **Verify:** As league owner, see the roster panel. As a non-org member, don't see it.
 
-### [ ] 2.2 League Edit form parity with Create
+### [x] 2.2 League Edit form parity with Create
 - **Where:** `/compete/leagues/[id]/edit`.
 - **What:** Create has Win By, Sub Credit Cap, Points to Win, Max Players, Games/Play — Edit doesn't. Add them. Lock Format and skill range when `registrant_count > 0`.
 - **Prompt:** *"On /compete/leagues/[id]/edit, add the missing fields that exist in the Create form: Win By toggle, Sub Credit Cap dropdown, Points to Win, Max Players, Games/Play. Match the Create form layout. Also: when the league has 1 or more registrants, disable the Format dropdown and the skill range pickers with a tooltip 'Locked after first registration to protect existing registrants.'"*
 - **Verify:** Edit an existing league. See all fields. Try editing the cbcvxbvcx league (which has zero registrants) — fields should be editable. Try editing one with registrants — Format should be locked.
 
-### [ ] 2.3 Link League Play Manager from league overview
+### [x] 2.3 Link League Play Manager from league overview
 - **Where:** `/compete/leagues/[id]`.
 - **What:** Today the Play Manager is buried at `/sessions/[id]/live`, only reachable from Home → session card. Add a "Manage Session N →" link per session row on the league overview (org-only).
 - **Prompt:** *"On the league overview Schedule section, add a 'Manage →' link per session row, visible only to org/captain roles. Link goes to /compete/leagues/[id]/sessions/[sessionId]/live."*
@@ -141,7 +141,7 @@ Without these, the league flow can't actually run a paid season. P2.1 is the big
 - **Verify:** Register for a paid league as a team. Should: select Team → Stripe Checkout → return → see partner invite step.
 - **Decision needed:** Does the partner pay separately or does the captain pay for both? (See §Decisions.)
 
-### [ ] 2.5 Sub system state and unified UI
+### [x] 2.5 Sub system state and unified UI
 - **Where:** League detail, "I'm interested in subbing" button.
 - **What:** Today: same button for everyone, no state feedback after click. Member view has per-session toggles; non-member doesn't. Unify.
 - **Prompt:** *"On the league detail page, unify the sub-availability UI for members and non-members. After tapping 'I'm interested in subbing', the button becomes 'On the sub list · Manage' and reveals the per-session 'I can sub' toggles inline. State persists; tapping Manage lets the user remove their interest."*
