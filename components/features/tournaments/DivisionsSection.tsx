@@ -880,6 +880,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     {myReg.payment_status === 'paid' && (
                       <p className="text-xs text-green-600 font-medium">$ Payment received</p>
                     )}
+                    {myReg.status === 'registered' && (
+                      <a
+                        href={`/api/tournaments/${tournamentId}/ics`}
+                        className="text-xs text-brand-active underline inline-block"
+                      >
+                        Add to calendar
+                      </a>
+                    )}
                   </div>
                 )}
 

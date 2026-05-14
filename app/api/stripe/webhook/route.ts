@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
-import { registrationEmail } from '@/lib/email/templates'
+import { registrationEmail, type EmailRow } from '@/lib/email/templates'
+import { generateIcs, type IcsEvent } from '@/lib/email/ics'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,44 +53,77 @@ export async function POST(req: NextRequest) {
       // Confirmation email
       const [{ data: reg }, { data: tournament }] = await Promise.all([
         service.from('tournament_registrations')
-          .select('user_id, division_id, team_name')
+          .select('user_id, division_id, team_name, partner_user_id, registration_type')
           .eq('id', meta.registration_id)
           .single(),
         service.from('tournaments')
-          .select('id, name, start_date')
+          .select('id, name, start_date, start_time, location:locations!location_id(name)')
           .eq('id', meta.tournament_id)
           .single(),
       ])
 
       if (reg && tournament) {
-        const [{ data: profile }, { data: division }] = await Promise.all([
+        const [{ data: profile }, { data: division }, partnerResult] = await Promise.all([
           service.from('profiles').select('name, email').eq('id', reg.user_id).single(),
           service.from('tournament_divisions').select('name').eq('id', reg.division_id).single(),
+          reg.partner_user_id
+            ? service.from('profiles').select('name').eq('id', reg.partner_user_id).single()
+            : Promise.resolve({ data: null }),
         ])
         if (profile?.email) {
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+          const tournamentUrl = `${siteUrl}/tournaments/${tournament.id}`
           const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
+          const locationName = (tournament.location as any)?.name ?? null
+          const fmtDate = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' }) : null
+          const partnerName = (partnerResult.data as any)?.name ?? null
+
+          const rows: EmailRow[] = [
+            ['Tournament', tournament.name],
+            ...(division?.name ? [['Division', division.name] as EmailRow] : []),
+            ...(reg.team_name ? [['Team', reg.team_name] as EmailRow] : []),
+            ...(reg.registration_type === 'solo'
+              ? [[
+                  'Partner',
+                  partnerName ?? 'Solo — awaiting a partner match',
+                ] as EmailRow]
+              : []),
+            ...(locationName ? [['Location', locationName] as EmailRow] : []),
+            ...(fmtDate(tournament.start_date) ? [['Date', fmtDate(tournament.start_date)!] as EmailRow] : []),
+            ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+          ]
+
+          const startDatetime = tournament.start_date && tournament.start_time
+            ? `${tournament.start_date}T${tournament.start_time}:00`
+            : tournament.start_date ?? null
+
+          const icsEvents: IcsEvent[] = startDatetime
+            ? [{ uid: `tournament-${tournament.id}`, title: tournament.name, startDate: startDatetime, location: locationName ?? undefined, url: tournamentUrl }]
+            : []
+
           const resend = new Resend(process.env.RESEND_API_KEY)
-          await resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
-            to: profile.email,
-            replyTo: 'martyfit50@gmail.com',
-            subject: `Payment confirmed — ${tournament.name}`,
-            html: registrationEmail({
-              firstName: profile.name?.split(' ')[0] ?? 'there',
-              heading: 'Payment Confirmed ✓',
-              intro: 'your payment has been received.',
-              rows: [
-                ['Tournament', tournament.name],
-                ...(division?.name ? [['Division', division.name] as [string, string]] : []),
-                ...(reg.team_name ? [['Team', reg.team_name] as [string, string]] : []),
-                ...(amountPaid ? [['Amount paid', amountPaid] as [string, string]] : []),
-              ],
-              ctaLabel: 'View Tournament',
-              ctaUrl: `${siteUrl}/tournaments/${tournament.id}`,
-              footerNote: 'Keep this email as your payment receipt.',
-            }),
-          })
+          try {
+            await resend.emails.send({
+              from: 'Joinzer <support@joinzer.com>',
+              to: profile.email,
+              replyTo: 'martyfit50@gmail.com',
+              subject: `Payment confirmed — ${tournament.name}`,
+              html: registrationEmail({
+                firstName: profile.name?.split(' ')[0] ?? 'there',
+                heading: 'Payment Confirmed ✓',
+                intro: 'your payment has been received.',
+                rows,
+                ctaLabel: 'View Tournament',
+                ctaUrl: tournamentUrl,
+                footerNote: 'Keep this email as your payment receipt.',
+              }),
+              ...(icsEvents.length > 0
+                ? { attachments: [{ filename: 'tournament.ics', content: generateIcs(icsEvents), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }
+                : {}),
+            })
+          } catch (err) {
+            console.error('Paid tournament confirmation email error:', err)
+          }
         }
       }
     }
@@ -188,34 +222,77 @@ export async function POST(req: NextRequest) {
         }, { onConflict: 'league_id,user_id' })
 
       // Confirmation email
-      const [{ data: league }, { data: profile }] = await Promise.all([
-        service.from('leagues').select('name').eq('id', meta.league_id).single(),
+      const [{ data: league }, { data: profile }, { data: leagueSessions }] = await Promise.all([
+        service.from('leagues').select('name, location_name, start_date, end_date, play_time, format, skill_level').eq('id', meta.league_id).single(),
         service.from('profiles').select('name, email').eq('id', meta.user_id).single(),
+        joinAs === 'registered'
+          ? service.from('league_sessions').select('id, session_number, session_date').eq('league_id', meta.league_id).not('status', 'eq', 'cancelled').order('session_number')
+          : Promise.resolve({ data: [] }),
       ])
 
       if (profile?.email && league) {
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const leagueUrl = `${siteUrl}/compete/leagues/${meta.league_id}`
         const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
+        const fmtDate = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' }) : null
+        const FORMAT_LABELS: Record<string, string> = {
+          individual_round_robin: 'Individual Round Robin',
+          mens_doubles: "Men's Doubles", womens_doubles: "Women's Doubles",
+          mixed_doubles: 'Mixed Doubles', coed_doubles: 'Coed Doubles', custom: 'Custom',
+        }
+        const SKILL_LABELS: Record<string, string> = {
+          beginner: 'Beginner', beginner_plus: 'Beginner Plus', intermediate: 'Intermediate',
+          intermediate_plus: 'Intermediate Plus', advanced: 'Advanced',
+        }
+
+        const rows: EmailRow[] = [
+          ['League', league.name],
+          ...(league.format ? [['Format', FORMAT_LABELS[league.format] ?? league.format] as EmailRow] : []),
+          ...(league.skill_level ? [['Skill Level', SKILL_LABELS[league.skill_level] ?? league.skill_level] as EmailRow] : []),
+          ...(league.location_name ? [['Location', league.location_name] as EmailRow] : []),
+          ...(fmtDate(league.start_date) ? [['Starts', fmtDate(league.start_date)!] as EmailRow] : []),
+          ...(fmtDate(league.end_date) ? [['Ends', fmtDate(league.end_date)!] as EmailRow] : []),
+          ['Status', joinAs === 'registered' ? 'Registered' : "Waitlisted — you'll be notified if a spot opens"],
+          ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+        ]
+
+        const sessions = (leagueSessions ?? []) as { id: string; session_number: number; session_date: string }[]
+        const icsEvents: IcsEvent[] = sessions.length > 0
+          ? sessions.map((s) => ({
+              uid: `league-${meta.league_id}-session-${s.id}`,
+              title: `${league.name} — Session ${s.session_number}`,
+              startDate: s.session_date,
+              location: league.location_name ?? undefined,
+              description: (league as any).play_time ? `Time: ${(league as any).play_time}` : undefined,
+              url: leagueUrl,
+            }))
+          : league.start_date
+          ? [{ uid: `league-${meta.league_id}`, title: league.name, startDate: league.start_date, location: league.location_name ?? undefined, url: leagueUrl }]
+          : []
+
         const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
-          from: 'Joinzer <support@joinzer.com>',
-          to: profile.email,
-          replyTo: 'martyfit50@gmail.com',
-          subject: `Payment confirmed — ${league.name}`,
-          html: registrationEmail({
-            firstName: profile.name?.split(' ')[0] ?? 'there',
-            heading: joinAs === 'registered' ? "You're registered! Payment Confirmed ✓" : 'Payment Confirmed — Waitlisted',
-            intro: 'your payment has been received.',
-            rows: [
-              ['League', league.name],
-              ...(amountPaid ? [['Amount paid', amountPaid] as [string, string]] : []),
-              ['Status', joinAs === 'registered' ? 'Registered' : "Waitlisted — you'll be notified if a spot opens"],
-            ],
-            ctaLabel: 'View League',
-            ctaUrl: `${siteUrl}/compete/leagues/${meta.league_id}`,
-            footerNote: 'Keep this email as your payment receipt.',
-          }),
-        })
+        try {
+          await resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: profile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `Payment confirmed — ${league.name}`,
+            html: registrationEmail({
+              firstName: profile.name?.split(' ')[0] ?? 'there',
+              heading: joinAs === 'registered' ? "You're registered! Payment Confirmed ✓" : 'Payment Confirmed — Waitlisted',
+              intro: 'your payment has been received.',
+              rows,
+              ctaLabel: 'View League',
+              ctaUrl: leagueUrl,
+              footerNote: 'Keep this email as your payment receipt.',
+            }),
+            ...(icsEvents.length > 0 && joinAs === 'registered'
+              ? { attachments: [{ filename: 'league-schedule.ics', content: generateIcs(icsEvents), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }
+              : {}),
+          })
+        } catch (err) {
+          console.error('Paid league confirmation email error:', err)
+        }
       }
     }
   }
