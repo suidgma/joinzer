@@ -388,6 +388,37 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       {/* Admin view */}
       {isAdmin && (
         <section className="space-y-2">
+          {sessions && sessions.length > 0 && (
+            <>
+              <h2 className="font-heading text-base font-bold text-brand-dark">Schedule</h2>
+              <div className="space-y-2">
+                {sessions.map((s) => (
+                  <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-dark">
+                        Session {s.session_number} — {formatSessionDate(s.session_date)}
+                      </p>
+                      {s.notes && <p className="text-xs text-brand-muted truncate">{s.notes}</p>}
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        s.status === 'completed' ? 'bg-brand-soft text-brand-muted' :
+                        s.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                        s.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                        'bg-brand text-brand-dark'
+                      }`}>{s.status.replace('_', ' ')}</span>
+                      <Link
+                        href={`/compete/leagues/${league.id}/sessions/${s.id}/live`}
+                        className="text-sm text-brand-active underline underline-offset-2 whitespace-nowrap"
+                      >
+                        Manage →
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <h2 className="font-heading text-base font-bold text-brand-dark">Court Monitor</h2>
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
             <p className="text-sm text-brand-body">{registeredCount} registered · {waitlistCount} waitlisted</p>
