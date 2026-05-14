@@ -3,13 +3,21 @@ import TournamentSearch from '@/components/features/tournaments/TournamentSearch
 import Link from 'next/link'
 import type { TournamentListItem } from '@/lib/types'
 
-export default async function TournamentsPage() {
+type SearchParams = { showTest?: string }
+
+export default async function TournamentsPage(props: { searchParams: Promise<SearchParams> }) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [{ data: { user } }, searchParams] = await Promise.all([
+    supabase.auth.getUser(),
+    props.searchParams,
+  ])
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
-  const { data, error: queryError } = await supabase
+  const isAdmin = !!user && user.email === process.env.ADMIN_EMAIL
+  const showTest = isAdmin && searchParams.showTest === '1'
+
+  let query = supabase
     .from('tournaments')
     .select(`
       id, name, description, start_date, start_time, estimated_end_time,
@@ -19,6 +27,10 @@ export default async function TournamentsPage() {
     `)
     .gte('start_date', today)
     .order('start_date', { ascending: true })
+
+  if (!showTest) query = query.eq('dummy', false)
+
+  const { data, error: queryError } = await query
 
   if (queryError) {
     console.error('[TournamentsPage] query error:', queryError)
