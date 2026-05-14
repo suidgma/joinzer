@@ -65,6 +65,10 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
   const [description, setDescription] = useState('')
   const [costDollars, setCostDollars] = useState('')
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('win_loss')
+  const [pointsToWin, setPointsToWin] = useState('11')
+  const [winBy, setWinBy] = useState<1 | 2>(1)
+  const [subCreditCap, setSubCreditCap] = useState('7')
+  const [registrantCount, setRegistrantCount] = useState(0)
   const [existingSessionCount, setExistingSessionCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
@@ -75,7 +79,8 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
     Promise.all([
       supabase.from('leagues').select('*').eq('id', params.id).single(),
       supabase.from('league_sessions').select('id', { count: 'exact', head: true }).eq('league_id', params.id),
-    ]).then(([{ data }, { count }]) => {
+      supabase.from('league_registrations').select('id', { count: 'exact', head: true }).eq('league_id', params.id).neq('status', 'cancelled'),
+    ]).then(([{ data }, { count: sessionCount }, { count: regCount }]) => {
       if (!data) return
       setName(data.name ?? '')
       setFormat(data.format ?? 'mixed_doubles')
@@ -91,10 +96,24 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
       setDescription(data.description ?? '')
       setCostDollars(data.cost_cents ? String(data.cost_cents / 100) : '')
       setStandingsMethod((data.standings_method as 'win_loss' | 'total_points') ?? 'win_loss')
-      setExistingSessionCount(count ?? 0)
+      setPointsToWin(data.points_to_win?.toString() ?? '11')
+      setWinBy((data.win_by as 1 | 2) ?? 1)
+      setSubCreditCap(data.sub_credit_cap?.toString() ?? '7')
+      setExistingSessionCount(sessionCount ?? 0)
+      setRegistrantCount(regCount ?? 0)
       setFetching(false)
     })
   }, [params.id])
+
+  const pointsToWinNum = parseInt(pointsToWin) || 11
+
+  function handlePointsToWinChange(val: string) {
+    setPointsToWin(val)
+    const max = parseInt(val) || 11
+    if (parseInt(subCreditCap) > max) setSubCreditCap(String(max))
+  }
+
+  const formatAndSkillLocked = registrantCount > 0
 
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
@@ -126,6 +145,9 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
         description: description.trim() || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
+        points_to_win: pointsToWinNum,
+        win_by: winBy,
+        sub_credit_cap: parseInt(subCreditCap) || 7,
       })
       .eq('id', params.id)
 
@@ -160,13 +182,13 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
           <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full input" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Format">
-            <select value={format} onChange={(e) => setFormat(e.target.value)} className="w-full input">
+          <Field label="Format" hint={formatAndSkillLocked ? `Locked — ${registrantCount} player${registrantCount !== 1 ? 's' : ''} registered` : undefined}>
+            <select value={format} onChange={(e) => setFormat(e.target.value)} disabled={formatAndSkillLocked} className="w-full input disabled:opacity-50 disabled:cursor-not-allowed">
               {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
-          <Field label="Skill Level">
-            <select value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)} className="w-full input">
+          <Field label="Skill Level" hint={formatAndSkillLocked ? `Locked — ${registrantCount} player${registrantCount !== 1 ? 's' : ''} registered` : undefined}>
+            <select value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)} disabled={formatAndSkillLocked} className="w-full input disabled:opacity-50 disabled:cursor-not-allowed">
               {SKILL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
@@ -195,6 +217,45 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
           <Field label="Games/Play"><input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} className="w-full input" /></Field>
           <Field label="Max Players"><input type="number" min="2" value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} className="w-full input" /></Field>
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Points to Win">
+            <input
+              type="number"
+              min="1"
+              value={pointsToWin}
+              onChange={(e) => handlePointsToWinChange(e.target.value)}
+              placeholder="11"
+              className="w-full input"
+            />
+          </Field>
+          <Field label="Win By">
+            <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
+              <button
+                type="button"
+                onClick={() => setWinBy(1)}
+                className={`flex-1 text-sm font-medium transition-colors ${winBy === 1 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+              >
+                Win by 1
+              </button>
+              <button
+                type="button"
+                onClick={() => setWinBy(2)}
+                className={`flex-1 text-sm font-medium transition-colors ${winBy === 2 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
+              >
+                Win by 2
+              </button>
+            </div>
+          </Field>
+        </div>
+
+        <Field label="Sub Credit Cap" hint="Max points credited to an absent player when a sub plays in their place.">
+          <select value={subCreditCap} onChange={(e) => setSubCreditCap(e.target.value)} className="w-full input">
+            {Array.from({ length: pointsToWinNum }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
+            ))}
+          </select>
+        </Field>
 
         {/* Session preview — only shown when no sessions exist yet */}
         {hasNoSessions && (
@@ -265,10 +326,11 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-sm font-medium text-brand-dark mb-1">{label}</label>
+      {hint && <p className="text-xs text-brand-muted mb-1">{hint}</p>}
       {children}
     </div>
   )
