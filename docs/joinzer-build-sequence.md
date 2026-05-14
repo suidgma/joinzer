@@ -25,19 +25,17 @@ How to read each ticket:
 
 Independently shippable. Nothing here depends on anything else. Start here Monday morning.
 
-### [ ] 0.1 Fix doubles bracket render (display-only patch)
+### [x] 0.1 Fix doubles bracket render (display-only patch)
 - **Where:** Tournament division schedule renderer (likely a match-row component in `app/tournaments/[id]/`).
 - **What:** When division is doubles and a team has 2 players, render "Carter / Smith vs Denzer / Jones." When a team has 1 player (partner missing), render "Carter / **?**" in yellow.
 - **Prompt:** *"In the tournament division match schedule, fix the render so doubles matches show both players per side. If a team has fewer than 2 players, render a yellow '?' placeholder for the missing partner. Don't change any data model — just rendering. The bug currently shows 'Alex Carter vs Ben Denzer' instead of 'Carter / Smith vs Denzer / Jones'."*
 - **Verify:** Open the Pro Men tournament, scroll to the schedule. Should now show partner placeholders since none of those registrants are paired.
 - **Blocks:** Nothing. This is cosmetic and ships independently of the real model fix in Batch 1.
 
-### [ ] 0.2 Clean seed/test data on the public Leagues index
+### [x] 0.2 Clean seed/test data on the public Leagues index
 - **Where:** `/compete` query / list endpoint.
-- **What:** Hide leagues with keysmash names ("cbcvxbvcx", "zxcvxczv", "fddbfbf") or missing required fields from the public index. Option A: tag rows with `is_test` flag and filter. Option B: require `name` to match a sane regex.
-- **Prompt:** *"Add an `is_test` boolean column to the leagues table (default false). Update the existing test leagues by name pattern to is_test=true. Update the /compete leagues query to filter out is_test rows. Same for tournaments where applicable."*
-- **Verify:** `/compete` should show only "10 league" + any real ones. Test account can still see their own test rows on a dedicated `/dev` route or with a query param if you want.
-- **Decision needed:** Do you want a hidden `?showTest=1` query for your own access, or just delete the test rows entirely?
+- **What:** Added `dummy boolean NOT NULL DEFAULT false` to `leagues` and `tournaments` (matches `profiles.dummy`). Added `is_admin boolean NOT NULL DEFAULT false` to `profiles`. Backfilled 4 leagues and 16 tournaments as `dummy=true`. Both list pages filter `dummy=false` by default. `?showTest=1` bypasses filter for users with `profiles.is_admin = true` only.
+- **Decision:** Option A (tag-and-filter). See `docs/decisions.md`.
 
 ### [x] 0.3 Replace Division ID textbox with a dropdown on Import
 - **Where:** `/tournaments/[id]/import` form.
