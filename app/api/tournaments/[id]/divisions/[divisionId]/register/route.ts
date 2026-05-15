@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { registrationEmail, type EmailRow } from '@/lib/email/templates'
+import { generateIcs } from '@/lib/email/ics'
 
 export async function POST(
   req: NextRequest,
@@ -38,7 +40,7 @@ export async function POST(
   // Fetch division
   const { data: division } = await service
     .from('tournament_divisions')
-    .select('id, tournament_id, team_type, max_entries, waitlist_enabled, status')
+    .select('id, tournament_id, team_type, max_entries, waitlist_enabled, status, name')
     .eq('id', params.divisionId)
     .eq('tournament_id', params.id)
     .single()
@@ -207,6 +209,75 @@ export async function POST(
       }
     }
   }
+
+  // Confirmation email for the registering player (fire-and-forget)
+  ;(async () => {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY)
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+      const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
+
+      const [{ data: tournament }, { data: profile }] = await Promise.all([
+        service.from('tournaments').select('name, start_date, location_id').eq('id', params.id).single(),
+        service.from('profiles').select('name, email').eq('id', targetUserId).single(),
+      ])
+
+      if (!profile?.email || !tournament) return
+
+      const locationResult = tournament.location_id
+        ? await service.from('locations').select('name').eq('id', tournament.location_id).single()
+        : { data: null }
+      const locationName = locationResult.data?.name ?? null
+
+      const isWaitlist = registration.status === 'waitlisted'
+      const isSolo = registration_type === 'solo'
+      const firstName = profile.name?.split(' ')[0] ?? 'there'
+
+      const rows: EmailRow[] = [
+        ['Tournament', tournament.name],
+        ...(locationName ? [['Location', locationName] as EmailRow] : []),
+        ...(division.name ? [['Division', division.name] as EmailRow] : []),
+        ...(registration.team_name ? [['Team', registration.team_name] as EmailRow] : []),
+        ...(matchedWith?.name
+          ? [['Partner', matchedWith.name] as EmailRow]
+          : isSolo && !matchedWith
+            ? [['Type', 'Solo — awaiting a partner match'] as EmailRow]
+            : []),
+        ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
+        ['Fee', 'Free'],
+      ]
+
+      // ICS: single all-day event on tournament start_date; timed start_time deferred
+      const attachments = !isWaitlist && tournament.start_date ? [{
+        filename: 'joinzer-tournament.ics',
+        content: Buffer.from(generateIcs([{
+          uid: params.id,
+          title: tournament.name,
+          startDate: tournament.start_date,
+          ...(locationName ? { location: locationName } : {}),
+          url: tournamentUrl,
+        }])),
+      }] : []
+
+      await resend.emails.send({
+        from: 'Joinzer <support@joinzer.com>',
+        to: profile.email,
+        replyTo: 'martyfit50@gmail.com',
+        subject: isWaitlist ? `Waitlist confirmed: ${tournament.name}` : `Registered: ${tournament.name}`,
+        html: registrationEmail({
+          heading: isWaitlist ? "You're on the waitlist!" : "You're registered!",
+          firstName,
+          rows,
+          ctaLabel: 'View Tournament',
+          ctaUrl: tournamentUrl,
+          footerNote: "You're receiving this because you registered for a tournament on Joinzer.",
+        }),
+        ...(attachments.length > 0 ? { attachments } : {}),
+      })
+    } catch (err) {
+      console.error('Tournament confirmation email error:', err)
+    }
+  })()
 
   return NextResponse.json({ registration, matchedWith })
 }

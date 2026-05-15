@@ -848,6 +848,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           : ' · Solo — awaiting partner match'
                       )}
                     </div>
+                    {myReg.status === 'registered' && (
+                      <a
+                        href={`/api/tournaments/${tournamentId}/ics`}
+                        className="text-xs text-brand-active font-medium underline"
+                      >
+                        Add to calendar
+                      </a>
+                    )}
                     {(!myReg.payment_status || myReg.payment_status === 'unpaid') && (() => {
                       const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
                       if (effectiveCost <= 0) return null

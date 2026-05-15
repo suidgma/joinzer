@@ -153,7 +153,7 @@ Without these, the league flow can't actually run a paid season. P2.1 is the big
 
 These don't fix anything broken; they raise confidence around payments, identity, notifications. Compounds once real money flows.
 
-### [ ] 3.1 Transactional confirmation email after registration
+### [x] 3.1 Transactional confirmation email after registration
 - **Where:** Tournament + League registration completion hook.
 - **What:** Today: modal closes, nothing else. Send an email with confirmation + date + location + partner status + add-to-calendar `.ics`.
 - **Prompt:** *"Wire up a transactional email on successful tournament/league registration. Include: event name, date, time, location with map link, captain name, partner status (confirmed / invited / pending), entry fee paid, refund policy link, and an .ics attachment for adding to calendar. Use Supabase Edge Functions + Resend (or whatever email provider is already wired)."*
