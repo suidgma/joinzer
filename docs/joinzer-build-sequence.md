@@ -160,7 +160,7 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Verify:** Register for the 10 league, check inbox.
 - **⚠️ Reverted 2026-05-15:** First attempt broke free-league registration on prod. Root cause: the `.select()` in `app/api/league-register/route.ts` added `play_time` as a column on `leagues`, but `play_time` does not exist on that table (it lives on `league_sessions`). This caused the `leagueErr || !league` guard to fire for all free-league registrations. Before re-doing: run `SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues'` against the live DB to confirm available columns — do not infer schema from other files.
 
-### [ ] 3.2 Show waitlist position
+### [x] 3.2 Show waitlist position
 - **Where:** Division / league card after a player joins the waitlist.
 - **What:** Today: "On waitlist" with no number. Show "Waitlist #N of M."
 - **Prompt:** *"On tournament division and league registration cards, when the current user is waitlisted, show their position: 'Waitlist #2 of 4'. Pull from the waitlist row's index sorted by created_at."*
@@ -344,3 +344,13 @@ A few patterns that compound across sessions:
 4. **Verify in prod between batches.** Especially after 1.1 (taxonomy Phase 1) and 4.1 (Phase 2). Dual-write should run for at least a few days before you trust the data.
 5. **When in doubt, run the audit query.** The §3.2 audit in the migration plan should be run after backfill and before any column drops.
 6. **Don't let Claude Code design.** It executes well, designs poorly. When you find yourself in a "Claude is improvising the UX" loop, drop the prompt and write the spec first.
+
+---
+
+## Repo hygiene
+
+Low-urgency maintenance tasks. Pull from here between feature sessions.
+
+### [ ] Audit untracked files in main working tree
+- **What:** Several untracked files exist in the working tree that are neither committed nor in `.gitignore`: `CLAUDEv1.md`, `Joinzer_Platform_Overview.md`, `Joinzer_Platform_Overview.pdf`, `next-start-3001.log`, `test-results/`, `verification-report.md`, `.claude/worktrees/`.
+- **Action:** For each: decide committed to repo / added to `.gitignore` / deleted. Run `git status` to get a fresh list — this may drift.
