@@ -159,6 +159,13 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Prompt:** *"Wire up a transactional email on successful tournament/league registration. Include: event name, date, time, location with map link, captain name, partner status (confirmed / invited / pending), entry fee paid, refund policy link, and an .ics attachment for adding to calendar. Use Supabase Edge Functions + Resend (or whatever email provider is already wired)."*
 - **Verify:** Register for the 10 league, check inbox.
 - **⚠️ Reverted 2026-05-15:** First attempt broke free-league registration on prod. Root cause: the `.select()` in `app/api/league-register/route.ts` added `play_time` as a column on `leagues`, but `play_time` does not exist on that table (it lives on `league_sessions`). This caused the `leagueErr || !league` guard to fire for all free-league registrations. Before re-doing: run `SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues'` against the live DB to confirm available columns — do not infer schema from other files.
+- **📋 Spec after 2026-05-15 investigation:** `leagues` has no `play_time` column and no structured time field — only `schedule_description` (free text, e.g. "Wednesdays 6–9 PM"). Decision: use `schedule_description` for the email Schedule row; no play_time anywhere. ICS events use `session_date` (YYYY-MM-DD) as all-day entries — honest about what the schema knows. Salvage `lib/email/ics.ts` and `lib/email/templates.ts` from `feat/confirmation-email-ics` (both correct); rewrite all route code from scratch on a fresh branch from main. Do not branch from `feat/confirmation-email-ics`.
+
+### [ ] 3.1.1 Fix session-reminders cron: drop phantom play_time reference
+- **Where:** `app/api/cron/session-reminders/route.ts`
+- **What:** The cron joins `leagues!league_id (name, location_name, play_time)` — but `play_time` has never existed on `leagues`. PostgREST silently returns null, so the Time row is silently omitted from every league session reminder. Replace with `schedule_description`; rename the email template row label from "Time" to "Schedule".
+- **Verify:** Trigger the cron manually against a league with a schedule_description set. Confirm the reminder email shows the schedule line.
+- **Note:** Reminders are still sending — just missing the schedule line. Not urgent; ship after 3.1.
 
 ### [x] 3.2 Show waitlist position
 - **Where:** Division / league card after a player joins the waitlist.
