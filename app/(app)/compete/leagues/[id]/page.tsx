@@ -31,7 +31,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }, { data: waitlistRows }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, cost_cents, organization:organizations(name)')
@@ -93,9 +93,22 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       .eq('league_id', params.id)
       .order('created_at', { ascending: true })
       .limit(100),
+    // Unconditional — simplicity over optimization; waitlist sets are small and this avoids ordering complexity in Promise.all
+    supabase
+      .from('league_registrations')
+      .select('user_id, registered_at')
+      .eq('league_id', params.id)
+      .eq('status', 'waitlist')
+      .order('registered_at', { ascending: true })
+      .order('id', { ascending: true }),
   ])
 
   if (!league) notFound()
+
+  const waitlist = (waitlistRows ?? []) as { user_id: string; registered_at: string | null }[]
+  const waitlistTotal = waitlist.length
+  const idx = user ? waitlist.findIndex(r => r.user_id === user.id) : -1
+  const waitlistPosition = idx >= 0 ? idx + 1 : null
 
   // Fetch partner name if user is a matched solo
   const partnerUserId = (myReg as any)?.partner_user_id ?? null
@@ -239,6 +252,8 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             partnerUserName={partnerUserName}
             sessions={sessions ?? []}
             mySubSessionIds={Array.from(mySubSessionIds)}
+            waitlistPosition={waitlistPosition}
+            waitlistTotal={waitlistTotal}
           />
         </>
       )}
