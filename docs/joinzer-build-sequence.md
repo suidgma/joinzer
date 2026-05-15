@@ -354,3 +354,8 @@ Low-urgency maintenance tasks. Pull from here between feature sessions.
 ### [ ] Audit untracked files in main working tree
 - **What:** Several untracked files exist in the working tree that are neither committed nor in `.gitignore`: `CLAUDEv1.md`, `Joinzer_Platform_Overview.md`, `Joinzer_Platform_Overview.pdf`, `next-start-3001.log`, `test-results/`, `verification-report.md`, `.claude/worktrees/`.
 - **Action:** For each: decide committed to repo / added to `.gitignore` / deleted. Run `git status` to get a fresh list — this may drift.
+
+### [ ] Build repeatable waitlist UI test
+- **What:** Ticket 3.2 shipped unverified on prod — no league_registrations with status='waitlist' exist in the DB at pilot stage (no leagues are full yet).
+- **Options:** (a) SQL seed inserting a waitlist row directly; (b) set max_players=1 on a test league, fill it with account A, then register account B (auto-waitlisted). Option (b) tests the real code path end-to-end and is preferred for any future waitlist work.
+- **Action:** When a second test account is available, use option (b) to exercise the full waitlist flow and verify "Waitlist #N of M" renders correctly.
