@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
@@ -10,6 +10,13 @@ import FormRow from '@/components/ui/form-row'
 import type { LocationOption } from '@/lib/types'
 
 type Props = { locations: LocationOption[] }
+
+// Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
+function ptLocalToIso(local: string): string {
+  const month = parseInt(local.slice(5, 7), 10)
+  const ptOffset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
+  return `${local}:00${ptOffset}`
+}
 
 export default function CreateTournamentForm({ locations }: Props) {
   const router = useRouter()
@@ -23,6 +30,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [visibility, setVisibility] = useState<'public' | 'private'>('public')
   const [registrationStatus, setRegistrationStatus] = useState<'open' | 'closed'>('open')
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
+  const [deadlineTouched, setDeadlineTouched] = useState(false)
   const [costDollars, setCostDollars] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
@@ -30,6 +38,18 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+
+  // Auto-set deadline to 7 days before tournament date at 23:59 PT when startDate changes
+  useEffect(() => {
+    if (!deadlineTouched && startDate) {
+      const d = new Date(startDate + 'T00:00:00')
+      d.setDate(d.getDate() - 7)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      setRegistrationClosesAt(`${yyyy}-${mm}-${dd}T23:59`)
+    }
+  }, [startDate, deadlineTouched])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -53,7 +73,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         status,
         visibility,
         registration_status: registrationStatus,
-        registration_closes_at: registrationClosesAt || null,
+        registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
@@ -149,14 +169,13 @@ export default function CreateTournamentForm({ locations }: Props) {
         <FormRow
           label="Registration deadline"
           htmlFor="reg-closes"
-          helpText="Closes automatically at end of this date. Leave blank to manage manually."
+          helpText="Closes automatically at this time (Pacific). Leave blank to manage manually."
         >
           <input
             id="reg-closes"
-            type="date"
+            type="datetime-local"
             value={registrationClosesAt}
-            onChange={(e) => setRegistrationClosesAt(e.target.value)}
-            min={todayStr}
+            onChange={(e) => { setRegistrationClosesAt(e.target.value); setDeadlineTouched(true) }}
             className="w-full input"
           />
         </FormRow>

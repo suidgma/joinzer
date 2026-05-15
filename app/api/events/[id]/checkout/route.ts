@@ -17,13 +17,17 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: event } = await service
       .from('events')
-      .select('id, title, starts_at, price_cents, status, max_players, session_type')
+      .select('id, title, starts_at, price_cents, status, max_players, session_type, registration_closes_at')
       .eq('id', params.id)
       .single()
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.status === 'cancelled' || event.status === 'completed') {
       return NextResponse.json({ error: 'Event is not open for joining' }, { status: 409 })
+    }
+
+    if ((event as any).registration_closes_at && new Date() > new Date((event as any).registration_closes_at)) {
+      return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
     }
 
     const priceCents = event.price_cents ?? 0

@@ -48,6 +48,27 @@ function generateDates(start: string, count: number): string[] {
   return dates
 }
 
+// Convert ISO timestamptz to YYYY-MM-DDTHH:mm in PT for datetime-local inputs
+function isoToPtLocal(iso: string): string {
+  const d = new Date(iso)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+  const parts = Object.fromEntries(
+    formatter.formatToParts(d).map(({ type, value }) => [type, value])
+  )
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
+
+// Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
+function ptLocalToIso(local: string): string {
+  const month = parseInt(local.slice(5, 7), 10)
+  const ptOffset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
+  return `${local}:00${ptOffset}`
+}
+
 export default function EditLeaguePage(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params);
   const router = useRouter()
@@ -57,6 +78,7 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
   const [locationName, setLocationName] = useState('')
   const [scheduleDescription, setScheduleDescription] = useState('')
   const [startDate, setStartDate] = useState('')
+  const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [playDays, setPlayDays] = useState('')
   const [gamesPerSession, setGamesPerSession] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
@@ -88,6 +110,7 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
       setLocationName(data.location_name ?? '')
       setScheduleDescription(data.schedule_description ?? '')
       setStartDate(data.start_date ?? '')
+      setRegistrationClosesAt(data.registration_closes_at ? isoToPtLocal(data.registration_closes_at) : '')
       setPlayDays(data.play_days?.toString() ?? '')
       setGamesPerSession(data.games_per_session?.toString() ?? '')
       setMaxPlayers(data.max_players?.toString() ?? '')
@@ -141,6 +164,7 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
         games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
+        registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         status,
         description: description.trim() || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
@@ -211,6 +235,14 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
         </Field>
         <Field label="Start Date">
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
+        </Field>
+        <Field label="Registration deadline" hint="Closes automatically at this time (Pacific). Leave blank to manage manually.">
+          <input
+            type="datetime-local"
+            value={registrationClosesAt}
+            onChange={(e) => setRegistrationClosesAt(e.target.value)}
+            className="w-full input"
+          />
         </Field>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Play Days"><input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} className="w-full input" /></Field>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from './LocationCombobox'
@@ -9,6 +9,13 @@ import type { LocationOption } from '@/lib/types'
 import type { EventDefaults } from '@/app/(app)/events/create/page'
 
 const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
+
+// Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
+function ptLocalToIso(local: string): string {
+  const month = parseInt(local.slice(5, 7), 10)
+  const ptOffset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
+  return `${local}:00${ptOffset}`
+}
 
 export default function CreateEventForm({ locations, defaults }: { locations: LocationOption[]; defaults?: EventDefaults }) {
   const router = useRouter()
@@ -27,12 +34,26 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
   )
   const [priceCents, setPriceCents] = useState<number>(defaults?.priceCents ?? 1000)
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
+  const [registrationClosesAt, setRegistrationClosesAt] = useState('')
+  const [deadlineTouched, setDeadlineTouched] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const maxPlayers = courtCount * playersPerCourt
   // Use Vegas local date so evening sessions aren't blocked by UTC rollover
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+
+  // Auto-set deadline to 7 days before event date at 23:59 PT when date changes
+  useEffect(() => {
+    if (!deadlineTouched && date) {
+      const d = new Date(date + 'T00:00:00')
+      d.setDate(d.getDate() - 7)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      setRegistrationClosesAt(`${yyyy}-${mm}-${dd}T23:59`)
+    }
+  }, [date, deadlineTouched])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -66,6 +87,8 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       return d.toISOString()
     })
 
+    const deadlineIso = registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null
+
     // Insert all occurrences
     const eventRows = startTimes.map((st) => ({
       title: title.trim(),
@@ -84,6 +107,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
       price_cents: clinicType === 'paid' ? priceCents : null,
       recurrence_group_id: recurrenceGroupId,
+      registration_closes_at: deadlineIso,
     }))
 
     const { data: events, error: eventError } = await supabase
@@ -360,6 +384,20 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           placeholder="Paddle rotation, balls, reservation details…"
           rows={3}
           className="input resize-none"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Registration deadline{' '}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <p className="text-xs text-brand-muted mb-1">Closes automatically at this time (Pacific). Auto-set to 7 days before the session.</p>
+        <input
+          type="datetime-local"
+          value={registrationClosesAt}
+          onChange={(e) => { setRegistrationClosesAt(e.target.value); setDeadlineTouched(true) }}
+          className="w-full input"
         />
       </div>
 

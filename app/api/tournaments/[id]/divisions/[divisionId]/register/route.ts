@@ -64,6 +64,18 @@ export async function POST(
 
   if (existing) return NextResponse.json({ error: 'Player is already registered for this division' }, { status: 409 })
 
+  // Hard deadline for player self-registration; organizer manual adds bypass this
+  if (targetUserId === user.id) {
+    const { data: tEntry } = await service
+      .from('tournaments')
+      .select('registration_closes_at')
+      .eq('id', params.id)
+      .single()
+    if (tEntry?.registration_closes_at && new Date() > new Date(tEntry.registration_closes_at)) {
+      return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
+    }
+  }
+
   // Count team slots used:
   //   team registrations = 1 slot each
   //   matched solo pairs = 1 slot per pair (floor(solo_count / 2))
