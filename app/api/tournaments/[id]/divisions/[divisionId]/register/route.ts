@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
-import { registrationEmail, type EmailRow } from '@/lib/email/templates'
-import { generateIcs, type IcsEvent } from '@/lib/email/ics'
 
 export async function POST(
   req: NextRequest,
@@ -209,67 +207,6 @@ export async function POST(
       }
     }
   }
-
-  // Confirmation email — fire-and-forget, must not block registration
-  ;(async () => {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
-      const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
-
-      const [{ data: profile }, { data: tournament }, { data: divisionFull }] = await Promise.all([
-        service.from('profiles').select('name, email').eq('id', targetUserId).single(),
-        service.from('tournaments').select('id, name, start_date, start_time, location:locations!location_id(name)').eq('id', params.id).single(),
-        service.from('tournament_divisions').select('name').eq('id', params.divisionId).single(),
-      ])
-
-      if (!profile?.email || !tournament) return
-
-      const locationName = (tournament.location as any)?.name ?? null
-      const fmtDate = (d: string | null) =>
-        d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' }) : null
-
-      const rows: EmailRow[] = [
-        ['Tournament', tournament.name],
-        ...(divisionFull?.name ? [['Division', divisionFull.name] as EmailRow] : []),
-        ...(registration.team_name ? [['Team', registration.team_name] as EmailRow] : []),
-        ...(registration_type === 'solo'
-          ? [['Partner', matchedWith ? matchedWith.name : 'Solo — awaiting a partner match'] as EmailRow]
-          : []),
-        ...(locationName ? [['Location', locationName] as EmailRow] : []),
-        ...(fmtDate(tournament.start_date) ? [['Date', fmtDate(tournament.start_date)!] as EmailRow] : []),
-        ['Status', status === 'waitlisted' ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
-        ['Fee', 'Free'],
-      ]
-
-      const startDatetime = tournament.start_date && (tournament as any).start_time
-        ? `${tournament.start_date}T${(tournament as any).start_time}:00`
-        : tournament.start_date ?? null
-
-      const icsEvents: IcsEvent[] = startDatetime && status !== 'waitlisted'
-        ? [{ uid: `tournament-${params.id}`, title: tournament.name, startDate: startDatetime, location: locationName ?? undefined, url: tournamentUrl }]
-        : []
-
-      await resend.emails.send({
-        from: 'Joinzer <support@joinzer.com>',
-        to: profile.email,
-        replyTo: 'martyfit50@gmail.com',
-        subject: status === 'waitlisted' ? `Waitlist confirmed: ${tournament.name}` : `Registered: ${tournament.name}`,
-        html: registrationEmail({
-          firstName: profile.name?.split(' ')[0] ?? 'there',
-          heading: status === 'waitlisted' ? "You're on the waitlist!" : "You're registered!",
-          rows,
-          ctaLabel: 'View Tournament',
-          ctaUrl: tournamentUrl,
-        }),
-        ...(icsEvents.length > 0
-          ? { attachments: [{ filename: 'tournament.ics', content: generateIcs(icsEvents), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }
-          : {}),
-      })
-    } catch (err) {
-      console.error('Tournament confirmation email error:', err)
-    }
-  })()
 
   return NextResponse.json({ registration, matchedWith })
 }
