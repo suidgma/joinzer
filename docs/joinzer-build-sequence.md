@@ -153,11 +153,11 @@ Without these, the league flow can't actually run a paid season. P2.1 is the big
 
 These don't fix anything broken; they raise confidence around payments, identity, notifications. Compounds once real money flows.
 
-### [x] 3.1 Transactional confirmation email after registration
+### [ ] 3.1 Transactional confirmation email after registration
 - **Where:** Tournament + League registration completion hook.
-- **What:** Sends confirmation email (free + paid paths) with event details, partner status, .ics attachment. Shared `registrationEmail()` helper in `lib/email/templates.ts`. ICS generator in `lib/email/ics.ts`.
-- **Done:** Free league, free tournament, paid league (webhook), paid tournament (webhook). All fire-and-forget; send failure never blocks registration.
-- **Follow-ups filed below (non-blocking):** HTML escaping in template, RFC 5545 line folding, type the nested location select.
+- **What:** Today: modal closes, nothing else. Send an email with confirmation + date + location + partner status + add-to-calendar `.ics`.
+- **Prompt:** *"Wire up a transactional email on successful tournament/league registration. Include: event name, date, time, location with map link, captain name, partner status (confirmed / invited / pending), entry fee paid, refund policy link, and an .ics attachment for adding to calendar. Use Supabase Edge Functions + Resend (or whatever email provider is already wired)."*
+- **Verify:** Register for the 10 league, check inbox.
 
 ### [ ] 3.2 Show waitlist position
 - **Where:** Division / league card after a player joins the waitlist.
@@ -187,10 +187,9 @@ These don't fix anything broken; they raise confidence around payments, identity
 
 ### [ ] 3.6 Add to calendar + partner-pending nudges
 - **Where:** Registered-state cards, Home banner.
-- **What:** Three items; item 1 done.
-- **[x] Item 1 — "Add to calendar" link on registered cards.** Done: `LeagueActions.tsx` (registered state) and `DivisionsSection.tsx` (registered badge). Both hit auth-gated GET endpoints that stream the .ics.
-- **[ ] Item 2 — Partner-pending banner on /home.** Yellow banner when registered for any event with still-pending partner.
-- **[ ] Item 3 — Reminder email 24h before session.** Scheduled Edge Function or cron. See `app/api/cron/session-reminders/route.ts` for existing session-reminder scaffolding.
+- **What:** `.ics` link on every registered card. Yellow Home banner when registered for an event with a still-pending partner. Reminder email 24h before play.
+- **Prompt:** *"Three small adds: (1) On any registered-state card (tournament division, league registration), add an 'Add to calendar' link that downloads an .ics file. (2) On /home, render a yellow banner at the top when the user is registered for any event where their team has a pending partner: 'Pro Men tournament starts in 5 days — finish setting up your team. [Invite partner →]'. (3) Wire a scheduled function to send a reminder email 24 hours before any session/match the user is in."*
+- **Verify:** Test all three; the reminder needs a scheduled function so verify it fires by setting a test event to start in an hour.
 
 ---
 
@@ -245,16 +244,6 @@ Once the product works, unlock growth. Don't ship before Batch 1–3 land.
 - **What:** Capture intent now, email later. Free retention.
 - **Prompt:** *"On any league with registration_status = 'upcoming', show a 'Notify me when registration opens' button next to 'I'm interested in subbing'. Tapping it records an email subscription. When the league's status flips to 'open', send all subscribers an email."*
 - **Verify:** Tap notify on cbcvxbvcx, manually flip to Open in the DB, confirm email fires.
-
----
-
-## Tech debt / follow-ups from Batch 3
-
-Small, non-blocking. Do these after 3.2 and remaining 3.6 items.
-
-- **[ ] Email HTML escaping** — Add `escapeHtml()` to `lib/email/templates.ts` and apply to all interpolations (heading, firstName, intro, label/value rows, footerNote). User-controlled data flows in unescaped today. Low risk now (internal), but needs fixing before any user-supplied content (e.g. league name with `<`) reaches the template.
-- **[ ] ICS line folding** — Fold output lines at 75 octets per RFC 5545 §3.1. Most clients tolerate unfolded. Implement in `lib/email/ics.ts` `buildVevent()`. Test with Apple Calendar and Google Calendar.
-- **[ ] Type the locations nested select in `/api/tournaments/[id]/ics`** — Remove `(tournament.location as any)` cast. Add a manual interface for the `locations!location_id` nested-select result shape from Supabase PostgREST.
 
 ---
 
