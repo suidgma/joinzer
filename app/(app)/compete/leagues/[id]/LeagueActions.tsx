@@ -131,6 +131,12 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
                   ? 'Solo — awaiting partner match'
                   : "You're in for this league"}
             </p>
+            <a
+              href={`/api/leagues/${leagueId}/ics`}
+              className="text-xs text-brand-active underline mt-1 inline-block"
+            >
+              Add to calendar
+            </a>
           </div>
           <button onClick={() => setShowCancelConfirm(true)} disabled={loading} className="text-xs text-red-500 font-medium underline">
             Cancel
