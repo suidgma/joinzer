@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
     .from('league_sessions')
     .select(`
       id, league_id, session_number, session_date,
-      league:leagues!league_id (name, location_name, play_time)
+      league:leagues!league_id (name, location_name, schedule_description)
     `)
     .eq('session_date', tomorrowStr)
     .in('status', ['scheduled', 'in_progress'])
@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
     const league = session.league as any
     const leagueName = league?.name ?? 'League'
     const locationName = league?.location_name ?? ''
-    const playTime = league?.play_time ?? ''
+    const schedule = league?.schedule_description ?? ''
 
     const emailBatch = profiles.map((p) => ({
       from: 'Joinzer <support@joinzer.com>',
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
         name: `${leagueName} — Session ${session.session_number as number}`,
         details: [
           locationName && { label: 'Location', value: locationName },
-          playTime && { label: 'Time', value: playTime },
+          schedule && { label: 'Schedule', value: schedule },
         ].filter(Boolean) as { label: string; value: string }[],
         ctaUrl: `${siteUrl}/compete/leagues/${session.league_id}`,
         ctaText: 'View League',
