@@ -158,6 +158,7 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **What:** Today: modal closes, nothing else. Send an email with confirmation + date + location + partner status + add-to-calendar `.ics`.
 - **Prompt:** *"Wire up a transactional email on successful tournament/league registration. Include: event name, date, time, location with map link, captain name, partner status (confirmed / invited / pending), entry fee paid, refund policy link, and an .ics attachment for adding to calendar. Use Supabase Edge Functions + Resend (or whatever email provider is already wired)."*
 - **Verify:** Register for the 10 league, check inbox.
+- **⚠️ Reverted 2026-05-15:** First attempt broke free-league registration on prod. Root cause: the `.select()` in `app/api/league-register/route.ts` added `play_time` as a column on `leagues`, but `play_time` does not exist on that table (it lives on `league_sessions`). This caused the `leagueErr || !league` guard to fire for all free-league registrations. Before re-doing: run `SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues'` against the live DB to confirm available columns — do not infer schema from other files.
 
 ### [ ] 3.2 Show waitlist position
 - **Where:** Division / league card after a player joins the waitlist.
