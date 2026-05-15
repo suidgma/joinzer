@@ -27,9 +27,11 @@ type Props = {
   partnerUserName?: string | null
   sessions: Session[]
   mySubSessionIds: string[]
+  waitlistPosition: number | null
+  waitlistTotal: number
 }
 
-export default function LeagueActions({ leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName, sessions, mySubSessionIds }: Props) {
+export default function LeagueActions({ leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName, sessions, mySubSessionIds, waitlistPosition, waitlistTotal }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [subLoading, setSubLoading] = useState(false)
@@ -141,7 +143,9 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
       {localReg === 'waitlist' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-brand-dark">On waitlist</p>
+            <p className="text-sm font-semibold text-brand-dark">
+              {waitlistPosition != null ? `Waitlist #${waitlistPosition} of ${waitlistTotal}` : 'On waitlist'}
+            </p>
             <p className="text-xs text-brand-muted">You&apos;ll be notified if a spot opens</p>
           </div>
           <button onClick={() => setShowCancelConfirm(true)} disabled={loading} className="text-xs text-red-500 font-medium underline">
