@@ -23,19 +23,21 @@ export default async function CompetePage(props: { searchParams: Promise<SearchP
 
   let query = supabase
     .from('leagues')
-    .select('id, name, format, skill_level, location_name, start_date, end_date, max_players, registration_status')
+    .select('id, name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
     .eq('status', 'active')
     .order('start_date', { ascending: true })
 
   if (!showTest) query = query.eq('dummy', false)
 
-  const { data: leagues } = await query
+  const { data: leaguesRaw } = await query
+  // Supabase infers many-to-one nested joins as arrays; cast to the correct object shape
+  const leagues = (leaguesRaw ?? []) as unknown as Parameters<typeof CompeteClient>[0]['leagues']
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <h1 className="font-heading text-xl font-bold text-brand-dark">Compete</h1>
       <CompeteClient
-        leagues={leagues ?? []}
+        leagues={leagues}
         isLoggedIn={!!user}
       />
     </main>
