@@ -52,12 +52,12 @@ export async function POST(request: NextRequest) {
 
   if (leagueErr || !league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-  if (league.registration_status !== 'open' && league.registration_status !== 'waitlist_only') {
-    return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
-  }
-
   if ((league as any).registration_closes_at && new Date() > new Date((league as any).registration_closes_at)) {
     return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
+  }
+
+  if (league.registration_status !== 'open' && league.registration_status !== 'waitlist_only') {
+    return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
   }
 
   if ((league as any).cost_cents > 0) {
