@@ -173,6 +173,21 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **What:** Standardized `registration_closes_at timestamptz` column on all three tables. Backfilled from existing data. Hard cutoff enforced server-side on all 4 registration paths. Forms use `datetime-local` input with auto-default (7 days before event at 23:59 PT). Deadline displayed on detail pages.
 - **Deferred:** NOT NULL constraint on all three columns — evaluate coverage after deploy. League Match June has NULL start_date → NULL deadline (data quality issue, not blocking).
 
+### [ ] FOLLOWUP — ptLocalToIso DST handling (non-urgent, surfaces ~Nov 2026)
+- **Where:** `ptLocalToIso` defined in `components/features/tournaments/CreateTournamentForm.tsx`, `EditTournamentForm.tsx`, `components/features/events/CreateEventForm.tsx`, `EditEventForm.tsx`, `app/(app)/compete/leagues/create/CreateLeagueForm.tsx`, `app/(app)/compete/leagues/[id]/edit/page.tsx`
+- **Bug:** Offset is determined by month alone (`month >= 4 && month <= 10 ? '-07:00' : '-08:00'`). This is wrong during DST transition windows: March 8–31 (function says PST, should be PDT) and November 2–30 (function says PDT, should be PST). Deadlines set by organizers in those ~3-week windows store an hour off from their typed intent.
+- **Pilot impact:** No deadlines currently affected (Las Vegas, May 2026). Bug surfaces ~November 2026 or when March 2027 transitions hit.
+- **Fix:** Replace with `Intl`-based offset extraction for the specific instant, or use `date-fns-tz`. The `Intl` API is doable but cumbersome for this; `date-fns-tz` (`parseInTimeZone` / `formatInTimeZone`) is cleaner. Decide at implementation time.
+- **Test cases:** `2026-03-08 02:30` (DST start, should be PDT); `2026-11-01 01:30` (ambiguous — pick second occurrence per Postgres convention); `2027-03-14` (confirm not hardcoded to 2026 DST dates).
+- **Note:** `isoToPtLocal` (used in edit forms) is correct — it uses `Intl.DateTimeFormat` with explicit timezone. Only the save path is affected.
+
+### [x] 3.1.3 Hotfix: deadline guard ordering in league routes
+- **Where:** `app/api/league-register/route.ts`, `app/api/leagues/[id]/checkout/route.ts`
+- **Bug:** `registration_status` check fired before `registration_closes_at` check. A league with `status='upcoming'` and a past deadline returned `"Registration is not open"` instead of `"Registration is closed"` — hiding the actual reason from the player.
+- **Fix:** Deadline check moved immediately after the 404 existence guard, before all other business-rule checks, in both routes.
+- **Audit:** `tournaments/[id]/divisions/[divisionId]/register` and `events/[id]/checkout` were clean — no 'upcoming' analog on division or event status.
+- **Verified:** POST `/api/league-register` with league `ee3785d2` (status=upcoming, past deadline) now returns `400 {"error":"Registration is closed"}`.
+
 ### [ ] 3.1.2 ICS download filename uses league/tournament name instead of generic slug
 - **Where:** `app/api/leagues/[id]/ics/route.ts` line 58, `app/api/tournaments/[id]/ics/route.ts` line 55
 - **What:** Both endpoints return `Content-Disposition: attachment; filename="joinzer-league.ics"` (or `joinzer-tournament.ics`). Users who download multiple calendar files end up with identically named files. Use the entity name to generate a slug, e.g. `wednesday-rec-league.ics`.
@@ -373,6 +388,7 @@ A few patterns that compound across sessions:
 4. **Verify in prod between batches.** Especially after 1.1 (taxonomy Phase 1) and 4.1 (Phase 2). Dual-write should run for at least a few days before you trust the data.
 5. **When in doubt, run the audit query.** The §3.2 audit in the migration plan should be run after backfill and before any column drops.
 6. **Don't let Claude Code design.** It executes well, designs poorly. When you find yourself in a "Claude is improvising the UX" loop, drop the prompt and write the spec first.
+7. **Place new business-rule checks at the right priority level, not the end of the chain.** When adding a new guard to an existing route, determine where it belongs in the check hierarchy — don't append to the end. Deadline checks (hard time gates with specific user-facing messages) belong immediately after the 404 existence guard, before status/capacity/payment checks. Appending to the end masks the real error with a staler one. Caught in PR #11 review, fixed in PR #12 (fix/deadline-guard-ordering).
 
 ---
 
