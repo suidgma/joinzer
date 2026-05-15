@@ -34,7 +34,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }, { data: waitlistRows }] = await Promise.all([
     supabase
       .from('leagues')
-      .select('*, cost_cents, organization:organizations(name)')
+      .select('*, cost_cents, organization:organizations(name), creator:profiles!created_by (name)')
       .eq('id', params.id)
       .single(),
     supabase
@@ -183,6 +183,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
 
       {/* Details card */}
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
+        {(league as any).creator?.name && <Row label="Organizer" value={(league as any).creator.name} />}
         <Row label="Format" value={FORMAT_LABELS[league.format]} />
         <Row label="Skill Level" value={SKILL_LABELS[league.skill_level]} />
         {league.location_name && <Row label="Location" value={league.location_name} />}

@@ -25,6 +25,15 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-15 — Organizer name visibility on league surfaces
+**Status:** Active
+**Affects:** `/compete` league list, `/compete/leagues/[id]` detail page; any future league-adjacent surfaces
+**Decision:** Organizer display names are public on league list and detail pages. No opt-out for organizers at pilot scale.
+**Reasoning:** Knowing who runs a league is a primary trust signal for a player deciding whether to register. Displaying the organizer name is consistent with tournament surfaces (already done) and necessary for basic accountability. At pilot scale with known organizers this is acceptable. When the platform grows beyond known/consenting organizers, revisit: add a profile privacy toggle covering "show my name on public league pages."
+**Open questions:** `profiles.display_name` exists in the schema but is NULLABLE and unused — every surface uses `profiles.name` instead. Audit whether `display_name` was ever populated; if not, drop or repurpose the column in a future schema cleanup.
+
+---
+
 ## 2026-05-14 — Database backup strategy
 **Status:** Active
 **Affects:** Ticket 1.1 (taxonomy Phase 1); all of Batch 1; all future schema migrations

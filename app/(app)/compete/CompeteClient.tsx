@@ -51,6 +51,7 @@ type League = {
   end_date: string | null
   max_players: number | null
   registration_status: string
+  creator: { name: string } | null
 }
 
 type Props = {
@@ -160,6 +161,11 @@ export default function CompeteClient({ leagues, isLoggedIn }: Props) {
                       {badge.label}
                     </span>
                   </div>
+                  {league.creator?.name && (
+                    <p className="text-xs text-brand-muted pt-1.5 border-t border-brand-border">
+                      Organizer: {league.creator.name}
+                    </p>
+                  )}
                 </Link>
               )
             })}
