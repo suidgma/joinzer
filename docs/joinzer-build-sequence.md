@@ -147,6 +147,12 @@ Without these, the league flow can't actually run a paid season. P2.1 is the big
 - **Prompt:** *"On the league detail page, unify the sub-availability UI for members and non-members. After tapping 'I'm interested in subbing', the button becomes 'On the sub list · Manage' and reveals the per-session 'I can sub' toggles inline. State persists; tapping Manage lets the user remove their interest."*
 - **Verify:** Tap the sub button, see per-session toggles, refresh, state persists.
 
+### [x] 2.6 Organizer name on league list and detail pages (PR #13, 2026-05-15)
+- **Where:** `app/(app)/compete/page.tsx`, `app/(app)/compete/CompeteClient.tsx`, `app/(app)/compete/leagues/[id]/page.tsx`
+- **What:** Added `creator:profiles!created_by (name)` join to the leagues list query. Organizer name renders as a footer strip on each league card on `/compete`, and as the first row in the details card on the league detail page.
+- **Decision:** Organizer display names are public on league surfaces. No opt-out at pilot scale. See `docs/decisions.md` 2026-05-15.
+- **TypeScript note:** Supabase infers many-to-one FK joins as arrays; the cast `as unknown as Parameters<typeof CompeteClient>[0]['leagues']` reconciles inferred type with the correct runtime object shape. Same pattern used in `compete/page.tsx` and `tournaments/page.tsx`.
+
 ---
 
 ## Batch 3 — Trust and money
@@ -399,6 +405,16 @@ Low-urgency maintenance tasks. Pull from here between feature sessions.
 ### [ ] Audit untracked files in main working tree
 - **What:** Several untracked files exist in the working tree that are neither committed nor in `.gitignore`: `CLAUDEv1.md`, `Joinzer_Platform_Overview.md`, `Joinzer_Platform_Overview.pdf`, `next-start-3001.log`, `test-results/`, `verification-report.md`, `.claude/worktrees/`.
 - **Action:** For each: decide committed to repo / added to `.gitignore` / deleted. Run `git status` to get a fresh list — this may drift.
+
+### [ ] Audit and drop profiles.display_name column
+- **What:** `profiles.display_name` is NULLABLE, never populated, never queried. Every surface uses `profiles.name`. Decision needed: backfill from `name` or drop.
+- **Action:** Run `SELECT COUNT(*) FROM profiles WHERE display_name IS NOT NULL` against prod. If zero rows, file a migration to drop the column. If any rows exist, audit what populated them before dropping.
+- **Note:** Flagged during PR #13 organizer-display-on-leagues (2026-05-15). Recorded in `docs/decisions.md` open questions.
+
+### [ ] Clean up (as any) cast on league detail creator join
+- **Where:** `app/(app)/compete/leagues/[id]/page.tsx` — `(league as any).creator?.name`
+- **What:** The creator join uses a raw `(league as any)` cast. Should use the `Parameters<typeof Component>[0]['propName']` pattern from `compete/page.tsx` for consistency.
+- **Note:** No functional impact — cosmetic TypeScript improvement only. Low priority.
 
 ### [ ] Build repeatable waitlist UI test
 - **What:** Ticket 3.2 shipped unverified on prod — no league_registrations with status='waitlist' exist in the DB at pilot stage (no leagues are full yet).
