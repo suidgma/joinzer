@@ -43,6 +43,22 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-15 — Backup strategy clarification (pilot stage)
+**Status:** Active
+**Affects:** All schema migrations at pilot scale; supersedes the implied PITR requirement in 2026-05-14
+**Decision:** "Verified restore point" at pilot scale means Supabase Pro daily backups confirmed running AND a fresh pre-migration pg_dump of affected tables to a local file within 24 hours of the migration. PITR is not required at this stage.
+**Reasoning:** The 2026-05-14 decision required a "verified restore point" but never explicitly required PITR. After investigating actual Supabase costs (PITR is a $100/mo add-on requiring a compute upgrade), the practical interpretation for pilot stage is clarified here. At pilot scale (under 100 rows per table, under 50 test users), a daily backup + fresh local pg_dump provides sufficient recovery coverage. PITR becomes relevant when actual customer revenue or PII is at risk.
+
+**At pilot scale (current):** "Verified restore point" means BOTH of:
+1. Supabase Pro tier active with daily automated backups confirmed running (visible in Database → Backups → Scheduled Backups)
+2. A fresh pre-migration pg_dump or table export of the affected tables to a local file, performed within 24 hours of the migration
+
+**At production scale (when actual customer revenue or PII is at risk):** Re-evaluate PITR. The $100/mo cost becomes rounding error against the value of second-precision recovery once real customers are paying for events.
+
+The trigger to re-evaluate is "first real paid customer beyond Marty's test accounts." File a ticket then, not before.
+
+---
+
 ## 2026-05-13 — Import "No account" rows
 **Status:** Active
 **Affects:** Tickets 0.4, 1.5
