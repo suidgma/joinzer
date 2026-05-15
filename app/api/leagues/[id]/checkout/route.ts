@@ -23,12 +23,12 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-    if (league.registration_status !== 'open' && league.registration_status !== 'waitlist_only') {
-      return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
-    }
-
     if ((league as any).registration_closes_at && new Date() > new Date((league as any).registration_closes_at)) {
       return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
+    }
+
+    if (league.registration_status !== 'open' && league.registration_status !== 'waitlist_only') {
+      return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
     }
 
     const costCents = (league as any).cost_cents ?? 0
