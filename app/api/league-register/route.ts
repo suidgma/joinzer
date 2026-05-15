@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { registrationEmail, type EmailRow } from '@/lib/email/templates'
+import { generateIcs } from '@/lib/email/ics'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   const { data: league, error: leagueErr } = await admin
     .from('leagues')
-    .select('name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, cost_cents')
+    .select('name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, cost_cents, schedule_description')
     .eq('id', leagueId)
     .single()
 
@@ -221,44 +223,85 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Confirmation email for the registering player
-  if (user.email) {
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    const leagueUrl = `https://joinzer.com/compete/leagues/${leagueId}`
-    const isWaitlist = status === 'waitlist'
-    const isSolo = registration_type === 'solo'
-    resend.emails.send({
-      from: 'Joinzer <support@joinzer.com>',
-      to: user.email,
-      replyTo: 'martyfit50@gmail.com',
-      subject: isWaitlist ? `Waitlist confirmed: ${league.name}` : `Registered: ${league.name}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
-          <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
-            <h1 style="margin:0;font-size:20px;color:#012D0B">
-              ${isWaitlist ? "You're on the waitlist!" : "You're registered!"}
-            </h1>
-          </div>
-          <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
-            <h2 style="margin:0 0 16px;font-size:18px">${league.name}</h2>
-            <table style="width:100%;border-collapse:collapse">
-              ${league.format ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">🏓 Format</td><td style="padding:6px 0;font-size:14px">${FORMAT_LABELS[league.format] ?? league.format}</td></tr>` : ''}
-              ${league.skill_level ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">🎯 Skill Level</td><td style="padding:6px 0;font-size:14px">${SKILL_LABELS[league.skill_level] ?? league.skill_level}</td></tr>` : ''}
-              ${league.location_name ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">📍 Location</td><td style="padding:6px 0;font-size:14px">${league.location_name}</td></tr>` : ''}
-              ${fmtDate(league.start_date) ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">📅 Starts</td><td style="padding:6px 0;font-size:14px">${fmtDate(league.start_date)}</td></tr>` : ''}
-              ${fmtDate(league.end_date) ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">🏁 Ends</td><td style="padding:6px 0;font-size:14px">${fmtDate(league.end_date)}</td></tr>` : ''}
-              <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">✅ Status</td><td style="padding:6px 0;font-size:14px">${isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'}</td></tr>
-              ${isSolo ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">👤 Type</td><td style="padding:6px 0;font-size:14px">${matchedWith ? `Matched with ${matchedWith.name}` : "Solo — awaiting a partner match"}</td></tr>` : ''}
-            </table>
-            <div style="margin-top:24px">
-              <a href="${leagueUrl}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View League</a>
-            </div>
-            <p style="margin-top:24px;font-size:12px;color:#9ca3af">You're receiving this because you registered for a league on Joinzer.</p>
-          </div>
-        </div>
-      `,
-    }).catch((err) => console.error('League confirmation email error:', err))
-  }
+  // Confirmation email for the registering player (fire-and-forget)
+  ;(async () => {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY)
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+      const leagueUrl = `${siteUrl}/compete/leagues/${leagueId}`
+
+      const { data: profile } = await admin.from('profiles').select('name, email').eq('id', user.id).single()
+      const toEmail = profile?.email ?? user.email
+      if (!toEmail) return
+
+      const isWaitlist = status === 'waitlist'
+      const isSolo = registration_type === 'solo'
+      const firstName = profile?.name?.split(' ')[0] ?? 'there'
+      const partnerName = matchedWith?.name ?? null
+
+      const fmt = (d: string | null) => d
+        ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
+            .format(new Date(d + 'T00:00:00'))
+        : null
+      const startFmt = fmt(league.start_date ?? null)
+      const endFmt = fmt(league.end_date ?? null)
+
+      const rows: EmailRow[] = [
+        ['League', league.name],
+        ...(league.location_name ? [['Location', league.location_name] as EmailRow] : []),
+        ...(league.schedule_description ? [['Schedule', league.schedule_description] as EmailRow] : []),
+        ...(startFmt && endFmt
+          ? [['Dates', `${startFmt} — ${endFmt}`] as EmailRow]
+          : startFmt ? [['Starts', startFmt] as EmailRow] : []),
+        ...(FORMAT_LABELS[league.format] ? [['Format', FORMAT_LABELS[league.format]] as EmailRow] : []),
+        ...(SKILL_LABELS[league.skill_level] ? [['Skill level', SKILL_LABELS[league.skill_level]] as EmailRow] : []),
+        ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
+        ['Fee', 'Free'],
+        ...(isSolo && partnerName
+          ? [['Partner', partnerName] as EmailRow]
+          : isSolo && !partnerName
+            ? [['Type', 'Solo — awaiting a partner match'] as EmailRow]
+            : []),
+      ]
+
+      let attachments: { filename: string; content: Buffer }[] = []
+      if (!isWaitlist) {
+        const { data: sessions } = await admin
+          .from('league_sessions')
+          .select('id, session_date, session_number')
+          .eq('league_id', leagueId)
+          .order('session_number', { ascending: true })
+        if (sessions && sessions.length > 0) {
+          const ics = generateIcs(sessions.map(s => ({
+            uid: s.id,
+            title: `${league.name} — Session ${s.session_number}`,
+            startDate: s.session_date,
+            ...(league.location_name ? { location: league.location_name } : {}),
+            url: leagueUrl,
+          })))
+          attachments = [{ filename: 'joinzer-league.ics', content: Buffer.from(ics) }]
+        }
+      }
+
+      await resend.emails.send({
+        from: 'Joinzer <support@joinzer.com>',
+        to: toEmail,
+        replyTo: 'martyfit50@gmail.com',
+        subject: isWaitlist ? `Waitlist confirmed: ${league.name}` : `Registered: ${league.name}`,
+        html: registrationEmail({
+          heading: isWaitlist ? "You're on the waitlist!" : "You're registered!",
+          firstName,
+          rows,
+          ctaLabel: 'View League',
+          ctaUrl: leagueUrl,
+          footerNote: "You're receiving this because you registered for a league on Joinzer.",
+        }),
+        ...(attachments.length > 0 ? { attachments } : {}),
+      })
+    } catch (err) {
+      console.error('League confirmation email error:', err)
+    }
+  })()
 
   return NextResponse.json({ ok: true, status, matchedWith })
 }

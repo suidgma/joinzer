@@ -2,8 +2,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
+import { registrationEmail, type EmailRow } from '@/lib/email/templates'
+import { generateIcs } from '@/lib/email/ics'
 
 export const dynamic = 'force-dynamic'
+
+const FORMAT_LABELS: Record<string, string> = {
+  individual_round_robin: 'Individual Round Robin',
+  mens_doubles: "Men's Doubles",
+  womens_doubles: "Women's Doubles",
+  mixed_doubles: 'Mixed Doubles',
+  coed_doubles: 'Coed Doubles',
+  singles: 'Singles',
+  custom: 'Custom',
+}
+
+const SKILL_LABELS: Record<string, string> = {
+  beginner: 'Beginner',
+  beginner_plus: 'Beginner Plus',
+  intermediate: 'Intermediate',
+  intermediate_plus: 'Intermediate Plus',
+  advanced: 'Advanced',
+}
 
 export async function POST(req: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
@@ -51,11 +71,11 @@ export async function POST(req: NextRequest) {
       // Confirmation email
       const [{ data: reg }, { data: tournament }] = await Promise.all([
         service.from('tournament_registrations')
-          .select('user_id, division_id, team_name')
+          .select('user_id, division_id, team_name, partner_user_id')
           .eq('id', meta.registration_id)
           .single(),
         service.from('tournaments')
-          .select('id, name, start_date')
+          .select('id, name, start_date, location_id')
           .eq('id', meta.tournament_id)
           .single(),
       ])
@@ -65,27 +85,56 @@ export async function POST(req: NextRequest) {
           service.from('profiles').select('name, email').eq('id', reg.user_id).single(),
           service.from('tournament_divisions').select('name').eq('id', reg.division_id).single(),
         ])
+
+        const locationResult = tournament.location_id
+          ? await service.from('locations').select('name').eq('id', tournament.location_id).single()
+          : { data: null }
+        const partnerResult = reg.partner_user_id
+          ? await service.from('profiles').select('name').eq('id', reg.partner_user_id).single()
+          : { data: null }
+        const locationName = locationResult.data?.name ?? null
+        const partnerName = partnerResult.data?.name ?? null
+
         if (profile?.email) {
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+          const tournamentUrl = `${siteUrl}/tournaments/${tournament.id}`
           const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
           const resend = new Resend(process.env.RESEND_API_KEY)
+
+          const rows: EmailRow[] = [
+            ['Tournament', tournament.name],
+            ...(locationName ? [['Location', locationName] as EmailRow] : []),
+            ...(division?.name ? [['Division', division.name] as EmailRow] : []),
+            ...(reg.team_name ? [['Team', reg.team_name] as EmailRow] : []),
+            ...(partnerName ? [['Partner', partnerName] as EmailRow] : []),
+            ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+          ]
+
+          const attachments = tournament.start_date ? [{
+            filename: 'joinzer-tournament.ics',
+            content: Buffer.from(generateIcs([{
+              uid: tournament.id,
+              title: tournament.name,
+              startDate: tournament.start_date,
+              ...(locationName ? { location: locationName } : {}),
+              url: tournamentUrl,
+            }])),
+          }] : []
+
           await resend.emails.send({
             from: 'Joinzer <support@joinzer.com>',
             to: profile.email,
             replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${tournament.name}`,
-            html: confirmationEmail({
-              firstName: profile.name?.split(' ')[0] ?? 'there',
+            html: registrationEmail({
               heading: 'Payment Confirmed ✓',
-              rows: [
-                ['Tournament', tournament.name],
-                ...(division?.name ? [['Division', division.name] as [string, string]] : []),
-                ...(reg.team_name ? [['Team', reg.team_name] as [string, string]] : []),
-                ...(amountPaid ? [['Amount paid', amountPaid] as [string, string]] : []),
-              ],
+              firstName: profile.name?.split(' ')[0] ?? 'there',
+              rows,
               ctaLabel: 'View Tournament',
-              ctaUrl: `${siteUrl}/tournaments/${tournament.id}`,
+              ctaUrl: tournamentUrl,
+              footerNote: 'Keep this email as your payment receipt.',
             }),
+            ...(attachments.length > 0 ? { attachments } : {}),
           })
         }
       }
@@ -149,18 +198,19 @@ export async function POST(req: NextRequest) {
             to: profile.email,
             replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${ev.title}`,
-            html: confirmationEmail({
+            html: registrationEmail({
               firstName: profile.name?.split(' ')[0] ?? 'there',
-              heading: joinAs === 'joined' ? 'You\'re in! Payment Confirmed ✓' : 'Payment Confirmed — Waitlisted',
+              heading: joinAs === 'joined' ? "You're in! Payment Confirmed ✓" : 'Payment Confirmed — Waitlisted',
               rows: [
                 ['Session', ev.title],
                 ['Date', sessionDate],
                 ['Time', sessionTime],
-                ...(amountPaid ? [['Amount paid', amountPaid] as [string, string]] : []),
-                ...(joinAs === 'waitlist' ? [['Status', "You're on the waitlist — you'll be notified if a spot opens"] as [string, string]] : []),
+                ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+                ...(joinAs === 'waitlist' ? [['Status', "You're on the waitlist — you'll be notified if a spot opens"] as EmailRow] : []),
               ],
               ctaLabel: 'View Session',
               ctaUrl: `${siteUrl}/events/${meta.event_id}`,
+              footerNote: 'Keep this email as your payment receipt.',
             }),
           })
         }
@@ -184,69 +234,77 @@ export async function POST(req: NextRequest) {
 
       // Confirmation email
       const [{ data: league }, { data: profile }] = await Promise.all([
-        service.from('leagues').select('name').eq('id', meta.league_id).single(),
+        service.from('leagues')
+          .select('name, format, skill_level, location_name, start_date, end_date, schedule_description, cost_cents')
+          .eq('id', meta.league_id)
+          .single(),
         service.from('profiles').select('name, email').eq('id', meta.user_id).single(),
       ])
 
       if (profile?.email && league) {
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const leagueUrl = `${siteUrl}/compete/leagues/${meta.league_id}`
         const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
+        const isWaitlist = joinAs !== 'registered'
         const resend = new Resend(process.env.RESEND_API_KEY)
+
+        const fmt = (d: string | null) => d
+          ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
+              .format(new Date(d + 'T00:00:00'))
+          : null
+        const startFmt = fmt(league.start_date ?? null)
+        const endFmt = fmt(league.end_date ?? null)
+
+        const rows: EmailRow[] = [
+          ['League', league.name],
+          ...(league.location_name ? [['Location', league.location_name] as EmailRow] : []),
+          ...(league.schedule_description ? [['Schedule', league.schedule_description] as EmailRow] : []),
+          ...(startFmt && endFmt
+            ? [['Dates', `${startFmt} — ${endFmt}`] as EmailRow]
+            : startFmt ? [['Starts', startFmt] as EmailRow] : []),
+          ...(FORMAT_LABELS[league.format] ? [['Format', FORMAT_LABELS[league.format]] as EmailRow] : []),
+          ...(SKILL_LABELS[league.skill_level] ? [['Skill level', SKILL_LABELS[league.skill_level]] as EmailRow] : []),
+          ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
+          ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+        ]
+
+        let attachments: { filename: string; content: Buffer }[] = []
+        if (!isWaitlist) {
+          const { data: sessions } = await service
+            .from('league_sessions')
+            .select('id, session_date, session_number')
+            .eq('league_id', meta.league_id)
+            .order('session_number', { ascending: true })
+          if (sessions && sessions.length > 0) {
+            const ics = generateIcs(sessions.map(s => ({
+              uid: s.id,
+              title: `${league.name} — Session ${s.session_number}`,
+              startDate: s.session_date,
+              ...(league.location_name ? { location: league.location_name } : {}),
+              url: leagueUrl,
+            })))
+            attachments = [{ filename: 'joinzer-league.ics', content: Buffer.from(ics) }]
+          }
+        }
+
         await resend.emails.send({
           from: 'Joinzer <support@joinzer.com>',
           to: profile.email,
           replyTo: 'martyfit50@gmail.com',
           subject: `Payment confirmed — ${league.name}`,
-          html: confirmationEmail({
+          html: registrationEmail({
+            heading: isWaitlist ? 'Payment Confirmed — Waitlisted' : "You're registered! Payment Confirmed ✓",
             firstName: profile.name?.split(' ')[0] ?? 'there',
-            heading: joinAs === 'registered' ? 'You\'re registered! Payment Confirmed ✓' : 'Payment Confirmed — Waitlisted',
-            rows: [
-              ['League', league.name],
-              ...(amountPaid ? [['Amount paid', amountPaid] as [string, string]] : []),
-              ['Status', joinAs === 'registered' ? 'Registered' : "Waitlisted — you'll be notified if a spot opens"],
-            ],
+            rows,
             ctaLabel: 'View League',
-            ctaUrl: `${siteUrl}/compete/leagues/${meta.league_id}`,
+            ctaUrl: leagueUrl,
+            footerNote: 'Keep this email as your payment receipt.',
           }),
+          ...(attachments.length > 0 ? { attachments } : {}),
         })
       }
     }
   }
 
   return NextResponse.json({ received: true })
-}
-
-function confirmationEmail({
-  firstName,
-  heading,
-  rows,
-  ctaLabel,
-  ctaUrl,
-}: {
-  firstName: string
-  heading: string
-  rows: [string, string][]
-  ctaLabel: string
-  ctaUrl: string
-}) {
-  return `
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
-      <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
-        <h1 style="margin:0;font-size:20px;color:#012D0B">${heading}</h1>
-      </div>
-      <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
-        <p style="margin:0 0 20px;font-size:15px">Hi ${firstName}, your payment has been received.</p>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
-          ${rows.map(([label, value]) => `
-            <tr>
-              <td style="padding:6px 0;color:#6b7280;font-size:14px;width:40%">${label}</td>
-              <td style="padding:6px 0;font-size:14px;font-weight:500">${value}</td>
-            </tr>
-          `).join('')}
-        </table>
-        <a href="${ctaUrl}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">${ctaLabel}</a>
-        <p style="margin-top:24px;font-size:12px;color:#9ca3af">Keep this email as your payment receipt.</p>
-      </div>
-    </div>
-  `
 }
