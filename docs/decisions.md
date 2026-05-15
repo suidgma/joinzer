@@ -25,6 +25,16 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-15 — Taxonomy Phase 1 staged and verified, pending apply
+**Status:** Active
+**Affects:** Ticket 1.1; `tournament_divisions`, `leagues`, `events` tables
+**Decision:** Migration `20260514000001_taxonomy_phase1.sql` is staged on `feat/taxonomy-phase1`, schema-verified against live DB, and ready to apply in a dedicated session. Do not apply incidentally — it requires a dedicated apply window with the Supabase dashboard open.
+**Reasoning:** All gates cleared: Supabase Pro active, daily backups confirmed (latest 15 May 2026 09:23 UTC), pre-migration table export at `C:\Users\marty\joinzer-backups\pre-1.1-20260515-2100.sql`. Schema drift check confirmed no columns pre-exist and all source columns are present. The migration is additive only (ADD COLUMN + backfill UPDATE, wrapped in a transaction).
+**Phase 1 scope (confirmed):** `tournament_divisions` (add `format`, `skill_min`, `skill_max` + backfill), `leagues` (replace `format` CHECK constraint, add `skill_min`, `skill_max`), `events` (add `skill_min`, `skill_max`). Profiles and sessions are **Phase 2/3 only** — not touched here.
+**Open question for apply session:** `tournament_divisions` has an existing `format_type` column (`round_robin`, `single_elimination`) and the migration adds a new `format` column (canonical gender/team format: `mens_doubles` etc.). These are different columns with different semantics and do not conflict. However, before Phase 2 (read cutover), a decision is needed: should `format_type` be renamed, merged, or kept as a separate field? Resolve before Phase 2 coding begins.
+
+---
+
 ## 2026-05-15 — Organizer name visibility on league surfaces
 **Status:** Active
 **Affects:** `/compete` league list, `/compete/leagues/[id]` detail page; any future league-adjacent surfaces
