@@ -79,6 +79,7 @@ export type EventDetail = {
   notes: string | null
   min_skill_level: number | null
   max_skill_level: number | null
+  registration_closes_at: string | null
   creator_user_id: string
   captain_user_id: string
   location_id: string

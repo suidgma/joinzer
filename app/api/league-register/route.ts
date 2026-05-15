@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   const { data: league, error: leagueErr } = await admin
     .from('leagues')
-    .select('name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, cost_cents, schedule_description')
+    .select('name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, registration_closes_at, cost_cents, schedule_description')
     .eq('id', leagueId)
     .single()
 
@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
 
   if (league.registration_status !== 'open' && league.registration_status !== 'waitlist_only') {
     return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
+  }
+
+  if ((league as any).registration_closes_at && new Date() > new Date((league as any).registration_closes_at)) {
+    return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
   }
 
   if ((league as any).cost_cents > 0) {

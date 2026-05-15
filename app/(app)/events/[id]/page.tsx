@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { formatEventDate, formatEventTime, formatDuration } from '@/lib/utils/date'
+import { formatEventDate, formatEventTime, formatDuration, formatTimestamp } from '@/lib/utils/date'
 import JoinLeaveButton from '@/components/features/events/JoinLeaveButton'
 import AssignCaptainButton from '@/components/features/events/AssignCaptainButton'
 import EventChat from '@/components/features/events/EventChat'
@@ -64,7 +64,7 @@ export default async function EventDetailPage(
         .from('events')
         .select(`
           id, title, starts_at, duration_minutes, court_count, players_per_court,
-          max_players, status, notes, min_skill_level, max_skill_level, creator_user_id, captain_user_id, location_id,
+          max_players, status, notes, registration_closes_at, min_skill_level, max_skill_level, creator_user_id, captain_user_id, location_id,
           session_type, price_cents,
           location:locations!location_id (name, court_count, subarea, access_type),
           captain:profiles!captain_user_id (name),
@@ -179,6 +179,12 @@ export default async function EventDetailPage(
             {event.min_skill_level != null ? event.min_skill_level.toFixed(1) : '2.0'}
             {' – '}
             {event.max_skill_level != null ? event.max_skill_level.toFixed(1) : '& up'}
+          </p>
+        )}
+
+        {event.registration_closes_at && (
+          <p className="text-sm text-brand-muted">
+            Reg. closes {formatTimestamp(event.registration_closes_at)} PT
           </p>
         )}
 

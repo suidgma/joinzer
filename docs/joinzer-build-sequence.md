@@ -168,6 +168,11 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Note:** Reminders are still sending — just missing the schedule line. Not urgent; ship after 3.1.
 - **Known limitation:** `schedule_description` is a recurring description (e.g. "Wednesdays 7–9 PM"), not a per-session start time. The reminder now shows something useful, but not "7 PM tonight." The real fix is a `start_time` field on `league_sessions` — deferred to the play_time storage decision (Option A/B/C from the 3.1 investigation). When that lands, the reminder email improves automatically.
 
+### [x] Registration deadline enforcement (registration_closes_at standardization)
+- **Where:** Tournaments, leagues, events — all three registration paths, all three create/edit forms, display pages.
+- **What:** Standardized `registration_closes_at timestamptz` column on all three tables. Backfilled from existing data. Hard cutoff enforced server-side on all 4 registration paths. Forms use `datetime-local` input with auto-default (7 days before event at 23:59 PT). Deadline displayed on detail pages.
+- **Deferred:** NOT NULL constraint on all three columns — evaluate coverage after deploy. League Match June has NULL start_date → NULL deadline (data quality issue, not blocking).
+
 ### [ ] 3.1.2 ICS download filename uses league/tournament name instead of generic slug
 - **Where:** `app/api/leagues/[id]/ics/route.ts` line 58, `app/api/tournaments/[id]/ics/route.ts` line 55
 - **What:** Both endpoints return `Content-Disposition: attachment; filename="joinzer-league.ics"` (or `joinzer-tournament.ics`). Users who download multiple calendar files end up with identically named files. Use the entity name to generate a slug, e.g. `wednesday-rec-league.ics`.

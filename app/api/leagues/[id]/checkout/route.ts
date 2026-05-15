@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: league } = await service
       .from('leagues')
-      .select('id, name, cost_cents, registration_status, max_players')
+      .select('id, name, cost_cents, registration_status, registration_closes_at, max_players')
       .eq('id', params.id)
       .single()
 
@@ -25,6 +25,10 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     if (league.registration_status !== 'open' && league.registration_status !== 'waitlist_only') {
       return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
+    }
+
+    if ((league as any).registration_closes_at && new Date() > new Date((league as any).registration_closes_at)) {
+      return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
     }
 
     const costCents = (league as any).cost_cents ?? 0

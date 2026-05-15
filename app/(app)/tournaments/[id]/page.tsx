@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { formatSessionDate } from '@/lib/utils/date'
+import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
 import MatchesSection from '@/components/features/tournaments/MatchesSection'
@@ -108,8 +108,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     { label: 'Overview', href: `/tournaments/${params.id}` },
     { label: 'Edit',     href: `/tournaments/${params.id}/edit` },
   ]
-  const todayVegas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
-  const deadlinePassed = tournament.registration_closes_at != null && tournament.registration_closes_at < todayVegas
+  const deadlinePassed = tournament.registration_closes_at != null && new Date() > new Date(tournament.registration_closes_at)
   const regOpen = tournament.registration_status === 'open' && !deadlinePassed
 
   const startFormatted = formatTime(tournament.start_time)
@@ -180,7 +179,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             <span className="text-brand-muted text-xs pt-0.5">⏰</span>
             <p className={`text-sm ${deadlinePassed ? 'text-red-500 font-medium' : 'text-brand-dark'}`}>
               {deadlinePassed ? 'Registration closed ' : 'Registration closes '}
-              {formatDate(tournament.registration_closes_at)}
+              {formatTimestamp(tournament.registration_closes_at!)} PT
             </p>
           </div>
         )}

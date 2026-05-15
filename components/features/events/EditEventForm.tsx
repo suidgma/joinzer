@@ -17,7 +17,29 @@ type Props = {
     status: string
     session_type: string
     price_cents: number | null
+    registration_closes_at: string | null
   }
+}
+
+// Convert ISO timestamptz to YYYY-MM-DDTHH:mm in PT for datetime-local inputs
+function isoToPtLocal(iso: string): string {
+  const d = new Date(iso)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+  const parts = Object.fromEntries(
+    formatter.formatToParts(d).map(({ type, value }) => [type, value])
+  )
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
+
+// Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
+function ptLocalToIso(local: string): string {
+  const month = parseInt(local.slice(5, 7), 10)
+  const ptOffset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
+  return `${local}:00${ptOffset}`
 }
 
 export default function EditEventForm({ event }: Props) {
@@ -31,6 +53,9 @@ export default function EditEventForm({ event }: Props) {
     event.session_type === 'free_clinic' ? 'free' : event.session_type === 'paid_clinic' ? 'paid' : 'none'
   )
   const [priceCents, setPriceCents] = useState<number>(event.price_cents ?? 1000)
+  const [registrationClosesAt, setRegistrationClosesAt] = useState(
+    event.registration_closes_at ? isoToPtLocal(event.registration_closes_at) : ''
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,6 +104,7 @@ export default function EditEventForm({ event }: Props) {
           status,
           session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
           price_cents: clinicType === 'paid' ? priceCents : null,
+          registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         })
         .eq('id', event.id)
 
@@ -241,6 +267,19 @@ export default function EditEventForm({ event }: Props) {
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Registration deadline <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <p className="text-xs text-gray-400 mb-1">Time in Pacific. Leave blank for no automatic cutoff.</p>
+        <input
+          type="datetime-local"
+          value={registrationClosesAt}
+          onChange={(e) => setRegistrationClosesAt(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         />
       </div>
 

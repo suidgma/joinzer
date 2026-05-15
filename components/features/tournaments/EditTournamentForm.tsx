@@ -14,6 +14,27 @@ type Props = {
   locations: LocationOption[]
 }
 
+// Convert ISO timestamptz to YYYY-MM-DDTHH:mm in PT for datetime-local inputs
+function isoToPtLocal(iso: string): string {
+  const d = new Date(iso)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+  const parts = Object.fromEntries(
+    formatter.formatToParts(d).map(({ type, value }) => [type, value])
+  )
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
+
+// Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
+function ptLocalToIso(local: string): string {
+  const month = parseInt(local.slice(5, 7), 10)
+  const ptOffset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
+  return `${local}:00${ptOffset}`
+}
+
 export default function EditTournamentForm({ tournament, locations }: Props) {
   const router = useRouter()
   const [name, setName] = useState(tournament.name)
@@ -25,7 +46,9 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [status, setStatus] = useState(tournament.status)
   const [visibility, setVisibility] = useState(tournament.visibility)
   const [registrationStatus, setRegistrationStatus] = useState(tournament.registration_status)
-  const [registrationClosesAt, setRegistrationClosesAt] = useState(tournament.registration_closes_at ?? '')
+  const [registrationClosesAt, setRegistrationClosesAt] = useState(
+    tournament.registration_closes_at ? isoToPtLocal(tournament.registration_closes_at) : ''
+  )
   const [costDollars, setCostDollars] = useState(
     tournament.cost_cents ? String((tournament.cost_cents as any) / 100) : ''
   )
@@ -52,7 +75,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         status,
         visibility,
         registration_status: registrationStatus,
-        registration_closes_at: registrationClosesAt || null,
+        registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
@@ -146,11 +169,11 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         <FormRow
           label="Registration deadline"
           htmlFor="reg-closes"
-          helpText="Closes automatically at end of this date. Leave blank to manage manually."
+          helpText="Closes automatically at this time (Pacific). Leave blank to manage manually."
         >
           <input
             id="reg-closes"
-            type="date"
+            type="datetime-local"
             value={registrationClosesAt}
             onChange={(e) => setRegistrationClosesAt(e.target.value)}
             className="w-full input"

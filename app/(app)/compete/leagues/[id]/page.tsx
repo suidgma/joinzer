@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { formatSessionDate } from '@/lib/utils/date'
+import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import LeagueActions from './LeagueActions'
 import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
@@ -189,6 +189,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         {league.schedule_description && <Row label="Schedule" value={league.schedule_description} />}
         {fmt(league.start_date) && <Row label="Starts" value={fmt(league.start_date)!} />}
         {fmt(displayEndDate) && <Row label="Ends" value={fmt(displayEndDate)!} />}
+        {(league as any).registration_closes_at && (
+          <Row label="Reg. closes" value={formatTimestamp((league as any).registration_closes_at) + ' PT'} />
+        )}
         {league.play_days != null && <Row label="Play Days" value={`${league.play_days}`} />}
         {league.games_per_session != null && <Row label="Games/Play" value={`${league.games_per_session}`} />}
         {league.max_players != null && (

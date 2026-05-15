@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { LocationOption } from '@/lib/types'
@@ -31,6 +31,13 @@ const REG_OPTIONS = [
   { value: 'closed', label: 'Closed' },
 ]
 
+// Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
+function ptLocalToIso(local: string): string {
+  const month = parseInt(local.slice(5, 7), 10)
+  const ptOffset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
+  return `${local}:00${ptOffset}`
+}
+
 export default function CreateLeagueForm({ locations }: { locations: LocationOption[] }) {
   const router = useRouter()
   const [name, setName] = useState('')
@@ -39,6 +46,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [locationId, setLocationId] = useState('')
   const [scheduleDescription, setScheduleDescription] = useState('')
   const [startDate, setStartDate] = useState('')
+  const [registrationClosesAt, setRegistrationClosesAt] = useState('')
+  const [deadlineTouched, setDeadlineTouched] = useState(false)
 
   const [playDays, setPlayDays] = useState('7')
   const [gamesPerSession, setGamesPerSession] = useState('')
@@ -56,6 +65,18 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const selectedLocation = locations.find((l) => l.id === locationId)
 
   const pointsToWinNum = parseInt(pointsToWin) || 11
+
+  // Auto-set deadline to 7 days before league start date at 23:59 PT when startDate changes
+  useEffect(() => {
+    if (!deadlineTouched && startDate) {
+      const d = new Date(startDate + 'T00:00:00')
+      d.setDate(d.getDate() - 7)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      setRegistrationClosesAt(`${yyyy}-${mm}-${dd}T23:59`)
+    }
+  }, [startDate, deadlineTouched])
 
   function handlePointsToWinChange(val: string) {
     setPointsToWin(val)
@@ -106,6 +127,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
+        registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         description: description.trim() || null,
         points_to_win: pointsToWinNum,
         win_by: winBy,
@@ -178,6 +200,15 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
 
       <Field label="Start Date">
         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
+      </Field>
+
+      <Field label="Registration deadline" hint="Closes automatically at this time (Pacific). Auto-set to 7 days before start. Leave blank to manage manually.">
+        <input
+          type="datetime-local"
+          value={registrationClosesAt}
+          onChange={(e) => { setRegistrationClosesAt(e.target.value); setDeadlineTouched(true) }}
+          className="w-full input"
+        />
       </Field>
 
       <div className="grid grid-cols-3 gap-3">
