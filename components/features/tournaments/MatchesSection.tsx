@@ -34,7 +34,7 @@ type Registration = {
 type Division = {
   id: string
   name: string
-  format_type: string
+  bracket_type: string
   team_type: string
   tournament_registrations: Registration[]
 }
@@ -375,7 +375,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
           <div key={div.id} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="font-heading text-sm font-bold text-brand-dark">{div.name}</p>
-              <span className="text-xs text-brand-muted">{div.format_type.replace(/_/g, ' ')}</span>
+              <span className="text-xs text-brand-muted">{div.bracket_type.replace(/_/g, ' ')}</span>
             </div>
 
             {!hasMatches && isOrganizer && (
@@ -412,7 +412,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
                 )}
 
                 {/* Bracket view for elimination formats */}
-                {showsBracket(div.format_type) && (
+                {showsBracket(div.bracket_type) && (
                   <BracketView
                     matches={divMatches.filter(m => m.pool_number == null)}
                     regs={div.tournament_registrations}
@@ -430,13 +430,13 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
                 )}
 
                 {/* Flat list for plain round-robin (no pools, no bracket) */}
-                {pools.length === 0 && !showsBracket(div.format_type) && (
+                {pools.length === 0 && !showsBracket(div.bracket_type) && (
                   <div className="space-y-2">
                     {divMatches.map(m => <MatchCard key={m.id} match={m} {...matchCardProps} />)}
                   </div>
                 )}
 
-                {showsStandings(div.format_type) && hasCompletedMatches && (
+                {showsStandings(div.bracket_type) && hasCompletedMatches && (
                   <div className="border-t border-brand-border pt-3 space-y-3">
                     <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Standings</p>
                     {pools.length > 0 ? (

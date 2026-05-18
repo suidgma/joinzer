@@ -32,7 +32,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
   const { data: divisions } = await service
     .from('tournament_divisions')
-    .select('id, name, format_type, format_settings_json')
+    .select('id, name, bracket_type, format_settings_json')
     .eq('tournament_id', params.id)
     .order('created_at', { ascending: true })
 
@@ -68,7 +68,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
       continue
     }
 
-    const ft = division.format_type as string
+    const ft = division.bracket_type as string
     const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
     const base = { tournament_id: params.id, division_id: division.id, status: 'scheduled' }
 

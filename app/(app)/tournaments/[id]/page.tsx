@@ -67,7 +67,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .single(),
     db
       .from('tournament_divisions')
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json, cost_cents')
+      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
@@ -251,7 +251,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     const orgDivisions: OrgDivision[] = (divisionsRaw ?? []).map((d: any) => ({
       id: d.id,
       name: d.name,
-      format_type: d.format_type,
+      bracket_type: d.bracket_type,
     }))
 
     const orgMatches: OrgMatch[] = (matchesData ?? []) as OrgMatch[]
