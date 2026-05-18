@@ -4,7 +4,7 @@
 //   Static assets (JS/CSS/fonts/images) → cache-first, fetch and cache on miss
 //   API routes + Supabase → always network, never cache
 
-const CACHE = 'jz-shell-v2'
+const CACHE = 'jz-shell-v3'
 
 self.addEventListener('install', (e) => {
   // Activate immediately without waiting for old tabs to close
@@ -42,7 +42,7 @@ self.addEventListener('fetch', (e) => {
           }
           return res
         })
-        .catch(() => caches.match(request))
+        .catch(() => caches.match(request).then(r => r ?? Response.error()))
     )
     return
   }
