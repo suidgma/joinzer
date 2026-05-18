@@ -68,7 +68,7 @@ Independently shippable. Nothing here depends on anything else. Start here Monda
 
 Taxonomy migration is the foundation; everything else in this batch depends on it. Don't reorder.
 
-### [ ] 1.1 Taxonomy migration — Phase 1 (additive, dual-write)
+### [x] 1.1 Taxonomy migration — Phase 1 (additive, dual-write) — applied 2026-05-18, commit d5a1c13
 - **See:** `docs/joinzer-taxonomy-migration-plan.md` §5 Phase 1.
 - **What:** Add `format`, `skill_min`, `skill_max`, `self_rating` columns. Backfill from existing data. Dual-write on create/update. **Zero user-visible change.**
 - **Prompt:** *"Implement Phase 1 of docs/joinzer-taxonomy-migration-plan.md. Add the new columns to divisions, leagues, users, and sessions tables. Write the backfill migration with the safety audit query. Update create/update paths to dual-write to old and new columns. Do not change any reads or any UI yet."*

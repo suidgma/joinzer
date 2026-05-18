@@ -25,13 +25,23 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
-## 2026-05-15 — Taxonomy Phase 1 staged and verified, pending apply
+## 2026-05-18 — Taxonomy Phase 1 applied
 **Status:** Active
-**Affects:** Ticket 1.1; `tournament_divisions`, `leagues`, `events` tables
-**Decision:** Migration `20260514000001_taxonomy_phase1.sql` is staged on `feat/taxonomy-phase1`, schema-verified against live DB, and ready to apply in a dedicated session. Do not apply incidentally — it requires a dedicated apply window with the Supabase dashboard open.
-**Reasoning:** All gates cleared: Supabase Pro active, daily backups confirmed (latest 15 May 2026 09:23 UTC), pre-migration table export at `C:\Users\marty\joinzer-backups\pre-1.1-20260515-2100.sql`. Schema drift check confirmed no columns pre-exist and all source columns are present. The migration is additive only (ADD COLUMN + backfill UPDATE, wrapped in a transaction).
-**Phase 1 scope (confirmed):** `tournament_divisions` (add `format`, `skill_min`, `skill_max` + backfill), `leagues` (replace `format` CHECK constraint, add `skill_min`, `skill_max`), `events` (add `skill_min`, `skill_max`). Profiles and sessions are **Phase 2/3 only** — not touched here.
-**Open question for apply session:** `tournament_divisions` has an existing `format_type` column (`round_robin`, `single_elimination`) and the migration adds a new `format` column (canonical gender/team format: `mens_doubles` etc.). These are different columns with different semantics and do not conflict. However, before Phase 2 (read cutover), a decision is needed: should `format_type` be renamed, merged, or kept as a separate field? Resolve before Phase 2 coding begins.
+**Affects:** `tournament_divisions`, `leagues`, `events`
+**Decision:** Migration `20260514000001_taxonomy_phase1.sql` applied to production on 2026-05-18. All three post-migration verification queries passed.
+**Results:**
+- `tournament_divisions`: `format`, `skill_min`, `skill_max` columns added and backfilled (23 rows). Zero divisions missing a format. One non-dummy coerced row: "zzz" free event → `mens_singles` (expected; review with organizer before Phase 3 drops old columns).
+- `leagues`: `leagues_format_check` constraint replaced with full 10-value enum. `skill_min`, `skill_max` added and backfilled (7 rows, all `intermediate` → 3.0/3.5).
+- `events`: `skill_min`, `skill_max` added and copied from `min_skill_level`/`max_skill_level` (18 rows).
+- One line change from reviewed version: `category='singles' AND team_type='singles'` maps to `mens_singles` (not `open_singles`). Approved by Marty before apply.
+**Recovery:** Pre-migration dump at `C:\Users\marty\joinzer-backups\pre-1.1-20260518-1045.sql`. Supabase scheduled backup at apply time: 18 May 2026 09:27:21 UTC.
+**What's unblocked:** Tickets 1.2, 1.3, 1.6, and downstream Batch 4 reads switch. Phase 2 (dual-write on create/update paths) is next — wait for explicit go.
+**Open question (carry forward):** `tournament_divisions.format_type` (`round_robin`, `single_elimination`) and the new `format` column (`mens_doubles` etc.) are different columns with different semantics — no conflict. Before Phase 2 read cutover, decide: rename, merge, or keep separate?
+
+---
+
+## 2026-05-15 — Taxonomy Phase 1 staged and verified, pending apply
+**Status:** Superseded by 2026-05-18 entry above
 
 ---
 
