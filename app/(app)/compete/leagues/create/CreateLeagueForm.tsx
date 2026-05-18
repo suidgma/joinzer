@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { LocationOption } from '@/lib/types'
+import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
 import { formatSessionDate } from '@/lib/utils/date'
 
 const FORMAT_OPTIONS = [
@@ -116,8 +117,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       .from('leagues')
       .insert({
         name: name.trim(),
-        format,
-        skill_level: skillLevel,
+        ...prepareLeagueWrite({ format, skill_level: skillLevel }),
         location_name: selectedLocation?.name ?? null,
         location_id: locationId || null,
         schedule_description: scheduleDescription.trim() || null,
