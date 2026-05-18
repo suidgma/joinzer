@@ -25,6 +25,20 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — format_type vs format on tournament_divisions
+**Status:** Active
+**Affects:** `tournament_divisions`; Phase 2 dual-write plan; Phase 3 column drop plan
+**Question:** Are `format_type` and the new `format` column redundant, conflicting, or independent?
+**Investigation:** Read-only session 2026-05-18. Full report: [docs/investigations/format-type-vs-format-2026-05-18.md](investigations/format-type-vs-format-2026-05-18.md)
+**Answer:** Fully independent axes. Zero value-level overlap.
+- `format_type` = bracket/schedule algorithm (`round_robin`, `single_elimination`, `double_elimination`, `pool_play_playoffs`). Drives match generation API and bracket vs. standings UI. `NOT NULL DEFAULT 'round_robin'`, well-constrained, actively used across 6 files / 15 read-write sites.
+- `format` = gender/team composition (`mens_doubles`, `mixed_doubles`, `individual_round_robin`, etc.). Drives who plays. Added in Phase 1. Nullable until dual-write lands.
+**Decision:** Rename `format_type` → `bracket_type` in a dedicated ticket scheduled between Phase 2 and Phase 3. The name `format_type` is ambiguous next to `format`; `bracket_type` is self-documenting. Do not touch in Phase 2 — Phase 2 is strictly about writing the new `format` column, not renaming anything.
+**Rename scope:** One migration (`RENAME COLUMN`), one PR touching 6 files. Run `generate_typescript_types` post-migration — TypeScript compiler will catch any missed references. See ticket 4.1.5 in build sequence.
+**Open follow-up:** In practice, does `format = individual_round_robin` always pair with `bracket_type = round_robin`? If these two values are always coupled in real data, normalization could eventually collapse them. Not a blocker — revisit after Phase 3 drop when the data picture is clean.
+
+---
+
 ## 2026-05-18 — Taxonomy Phase 1 applied
 **Status:** Active
 **Affects:** `tournament_divisions`, `leagues`, `events`

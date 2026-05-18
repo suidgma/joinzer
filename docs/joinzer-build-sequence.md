@@ -245,6 +245,14 @@ Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in par
 - **Prompt:** *"Implement Phase 2 of the taxonomy migration. Switch all read paths to the new columns (format, skill_min, skill_max, self_rating). Build the SkillRangePicker shared component per §4.5 of the migration plan. Update: tournament division create form (replace Category × Team Type with Format), league create + edit forms (canonical Format list), play session create form (numeric Min/Max Skill), profile edit (self_rating picker), all filter UIs across /events, /compete, /tournaments. Keep dual-write on the write side."*
 - **Verify:** Create a new tournament division with `format=mens_doubles`. Old `team_type` and `category` columns should still get written for now. New `format` column should drive all display and match generation.
 
+### [ ] 4.1.5 Rename tournament_divisions.format_type → bracket_type
+- **What:** `format_type` is ambiguous next to the new `format` column. Rename to `bracket_type` to make the two axes self-documenting. Pure rename — no behavior change, no data change.
+- **Why here:** Must come after Phase 2 (dual-write) has shipped and stabilized, so the rename PR only touches one concern. Must come before Phase 3 (column drop) so the drop PR operates on clean names.
+- **Scope:** One migration (`ALTER TABLE tournament_divisions RENAME COLUMN format_type TO bracket_type`), one PR. Files affected: `FormatSettingsFields.tsx`, `DivisionsSection.tsx`, `MatchesSection.tsx`, `app/(app)/tournaments/[id]/page.tsx`, `app/api/tournaments/[id]/generate-all/route.ts`, `app/api/tournaments/[id]/divisions/[divisionId]/generate-matches/route.ts` — 6 files, ~15 references.
+- **Prompt:** *"Rename tournament_divisions.format_type to bracket_type. Write the migration (RENAME COLUMN). Update all TypeScript references: the FormatType type alias, FORMAT_DEFAULTS, FORMAT_META, validateFormatSettings, formatSummaryLines, all state variables (fFormatType → fBracketType, editFormatType → editBracketType), all Supabase select/insert/update strings, and the generate-matches and generate-all API routes. After migrating, run generate_typescript_types and fix any remaining type errors."*
+- **Verify:** Run `generate_typescript_types` post-migration. TypeScript compiler catches any missed references. Create a division and generate matches — confirm bracket type selector still works and matches generate correctly.
+- **See:** `docs/decisions.md` — 2026-05-18 format_type vs format entry. `docs/investigations/format-type-vs-format-2026-05-18.md` for full investigation.
+
 ### [ ] 4.2 Taxonomy Phase 3 — drop old columns
 - **See:** `docs/joinzer-taxonomy-migration-plan.md` §5 Phase 3.
 - **What:** Stop writing to old columns, drop them.
