@@ -7,6 +7,7 @@ import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
+import LeagueRosterPanel from './LeagueRosterPanel'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
@@ -31,7 +32,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }, { data: waitlistRows }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }, { data: waitlistRows }, { data: rosterRegs }, { data: allSubInterest }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, cost_cents, organization:organizations(name), creator:profiles!created_by (name)')
@@ -101,6 +102,18 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       .eq('status', 'waitlist')
       .order('registered_at', { ascending: true })
       .order('id', { ascending: true }),
+    // Roster panel: registrations with profiles (read-only display)
+    supabase
+      .from('league_registrations')
+      .select('id, user_id, status, registration_type, partner_user_id, is_co_admin, profile:profiles(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
+      .eq('league_id', params.id)
+      .neq('status', 'cancelled')
+      .order('registered_at', { ascending: true }),
+    // Roster panel: all sub interest for this league
+    supabase
+      .from('league_sub_interest')
+      .select('user_id')
+      .eq('league_id', params.id),
   ])
 
   if (!league) notFound()
@@ -109,6 +122,8 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const waitlistTotal = waitlist.length
   const idx = user ? waitlist.findIndex(r => r.user_id === user.id) : -1
   const waitlistPosition = idx >= 0 ? idx + 1 : null
+
+  const subInterestUserIds = new Set((allSubInterest ?? []).map(s => s.user_id as string))
 
   // Fetch partner name if user is a matched solo
   const partnerUserId = (myReg as any)?.partner_user_id ?? null
@@ -332,6 +347,16 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           <span className="text-brand-active text-sm">→</span>
         </Link>
       </div>
+
+      {/* Roster panel — visible to all visitors */}
+      <LeagueRosterPanel
+        leagueId={league.id}
+        format={league.format}
+        maxPlayers={league.max_players ?? null}
+        organizerUserId={league.created_by}
+        registrations={(rosterRegs ?? []) as any}
+        subInterestUserIds={subInterestUserIds}
+      />
 
       {/* Sessions list — hidden for admins who use the Manage League page instead */}
       {!isAdmin && sessions && sessions.length > 0 && (
