@@ -25,6 +25,29 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — Roster panel scope — Ticket 2.1
+**Status:** Active
+**Affects:** `/compete/leagues/[id]` — `LeagueRosterPanel.tsx` (new component), `page.tsx` (query + mount)
+**Decision:** Read-only roster panel shipped. Scoped to display only — no Add Player, Remove, or Import CSV in this ticket.
+**What shipped:**
+- `LeagueRosterPanel` client component: registered player list, doubles-adaptive (pairs via `partner_user_id`), singles flat list
+- RatingBadge per player (reuses existing component — `dupr_rating` / `estimated_rating` / `rating_source`)
+- Crown + "Organizer" badge for `created_by` user (no separate captain role in leagues schema)
+- "✓ can sub" badge from `league_sub_interest` table (league-scoped, not global)
+- Sub-available filter chip (Registered / Sub available toggle)
+- Empty state with copy-invite link
+- Capacity line: `X/max players · N spots open` or `Full · N on waitlist`
+**What was deferred:**
+- Skill-range filter: no per-user `skill_min`/`skill_max` on `profiles` — deferred until that column exists
+- Add Player / Remove / Import CSV: out of scope for 2.1; belongs in a later organizer-action ticket
+**Flag resolutions:**
+- Flag A (skill badge): `RatingBadge` as-is — no per-user skill range data source exists
+- Flag B (captain): `created_by` treated as Organizer with Crown icon — no separate captain concept in leagues
+- Flag C (sub flag): `league_sub_interest` only — league-scoped signal, correct source of truth
+**Constraint:** Tailwind-only styling enforced (project rule — no shadcn/ui, no Radix). `'use client'` boundary on panel only; page remains Server Component.
+
+---
+
 ## 2026-05-18 — format_type vs format on tournament_divisions
 **Status:** Active
 **Affects:** `tournament_divisions`; Phase 2 dual-write plan; Phase 3 column drop plan

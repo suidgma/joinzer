@@ -116,7 +116,7 @@ Taxonomy migration is the foundation; everything else in this batch depends on i
 
 Without these, the league flow can't actually run a paid season. P2.1 is the biggest hole.
 
-### [ ] 2.1 Roster panel on league overview (org view)
+### [x] 2.1 Roster panel on league overview — shipped 2026-05-18, commit 14b66ae
 - **Where:** `/compete/leagues/[id]` for users with org/captain role.
 - **What:** Today: no way to see, add, remove, or message registered players. Add a Roster panel: list of registrants/teams, status per row, +Add Player, Import CSV.
 - **Prompt:** *"On the league overview page, add a Roster panel visible only to org/captain roles. Mirror the tournament Manage panel: list of registrants with team name, status (Registered / Pending payment / Pending partner), Mark Paid / Remove actions, plus '+ Add Player' (using the team-aware modal from ticket 1.2) and 'Import CSV' (linking to /compete/leagues/[id]/import — create that page too, mirror the tournament importer)."*
