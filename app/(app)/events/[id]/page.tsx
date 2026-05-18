@@ -64,7 +64,7 @@ export default async function EventDetailPage(
         .from('events')
         .select(`
           id, title, starts_at, duration_minutes, court_count, players_per_court,
-          max_players, status, notes, registration_closes_at, min_skill_level, max_skill_level, creator_user_id, captain_user_id, location_id,
+          max_players, status, notes, registration_closes_at, skill_min, skill_max, creator_user_id, captain_user_id, location_id,
           session_type, price_cents,
           location:locations!location_id (name, court_count, subarea, access_type),
           captain:profiles!captain_user_id (name),
@@ -173,12 +173,14 @@ export default async function EventDetailPage(
         <p className="text-sm text-brand-muted">
           {formatEventTime(event.starts_at)} · {formatDuration(event.duration_minutes)}
         </p>
-        {(event.min_skill_level != null || event.max_skill_level != null) && (
+        {(event.skill_min != null || event.skill_max != null) && (
           <p className="text-sm text-brand-muted">
             Skill:{' '}
-            {event.min_skill_level != null ? event.min_skill_level.toFixed(1) : '2.0'}
-            {' – '}
-            {event.max_skill_level != null ? event.max_skill_level.toFixed(1) : '& up'}
+            {event.skill_min != null && event.skill_max != null
+              ? `${event.skill_min.toFixed(1)} – ${event.skill_max.toFixed(1)}`
+              : event.skill_min != null
+              ? `${event.skill_min.toFixed(1)} and up`
+              : `Up to ${event.skill_max!.toFixed(1)}`}
           </p>
         )}
 
