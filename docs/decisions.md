@@ -25,6 +25,17 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — 3A.1 — Garbage division cleanup
+**Status:** Complete
+**Affects:** `tournament_divisions` — Phase 3C prerequisite
+**What was deleted:**
+- 4 `tournament_divisions` rows with NULL `format`: "single" (46985294), "Open" (d4330f4c), "double" (6c69c827), "Women" (ababe148) — all in published tournament "For Testing", organizer Roderick Mendoza (confirmed tester account)
+- 6 `tournament_registrations` rows across the 4 divisions (3 by Marty, 3 by Roderick)
+**Final state:** 25 divisions total, 0 with NULL `format`, 0 skill backfill missed. Phase 3C prerequisite met.
+**Method:** Deletions executed via Supabase MCP directly — no migration file, no rollback SQL. Acceptable for this scope: data was cruft from now-removed broken UI options (`'singles'` league format, `'Open'` division skill entry) caught and fixed earlier in this session. No real organizer data affected.
+
+---
+
 ## 2026-05-18 — Phase 3 read cutover split (3A / 3A.1 / 3C / 3B)
 **Status:** Active
 **Affects:** `events`, `leagues`, `tournament_divisions` read paths; `CompeteClient` filter logic; `PlayerCheckIn` sub-request write path; all taxonomy-dependent UI components

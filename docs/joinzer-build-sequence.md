@@ -266,7 +266,7 @@ Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in par
 - **Verify:** Events list renders correctly with skill filter active. Detail page shows skill range. Duplicate-event flow (`?from=`) pre-fills skill correctly. EventCard shows "3.0+" for open-ceiling events rather than "3.0 –".
 - **Audit source:** `docs/investigations/phase3-read-cutover-audit-2026-05-18.md` RS-E1/E2/E3/E4, RD-E1/E2/E3/E4.
 
-### [ ] 3A.1 — Garbage division cleanup
+### [x] 3A.1 — Garbage division cleanup — 2026-05-18
 - **What:** Delete the 4 `tournament_divisions` rows with NULL `format`: "single" (id 46985294), "Open" (d4330f4c), "double" (6c69c827), "Women" (ababe148). Confirmed test/malformed rows created via now-removed broken UI options (the `'Open'` skill entry removed 2026-05-18 and similar artifacts). All have single-word names, no skill data.
 - **How:** Verify zero `tournament_registrations` and `tournament_matches` reference these IDs. Then delete via migration or direct SQL.
 - **Verify:** `SELECT COUNT(*) FROM tournament_divisions WHERE format IS NULL` returns 0.
