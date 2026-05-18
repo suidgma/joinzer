@@ -34,7 +34,7 @@ export default async function CreateEventPage(
     searchParams.from
       ? supabase
           .from('events')
-          .select('title, location_id, starts_at, duration_minutes, court_count, players_per_court, min_skill_level, max_skill_level, notes, session_type, price_cents')
+          .select('title, location_id, starts_at, duration_minutes, court_count, players_per_court, skill_min, skill_max, notes, session_type, price_cents')
           .eq('id', searchParams.from)
           .single()
       : Promise.resolve({ data: null }),
@@ -55,8 +55,8 @@ export default async function CreateEventPage(
       durationMinutes: src.duration_minutes,
       courtCount: src.court_count,
       playersPerCourt: src.players_per_court,
-      minSkill: src.min_skill_level != null ? String(src.min_skill_level) : '',
-      maxSkill: src.max_skill_level != null ? String(src.max_skill_level) : '',
+      minSkill: src.skill_min != null ? String(src.skill_min) : '',
+      maxSkill: src.skill_max != null ? String(src.skill_max) : '',
       notes: src.notes ?? '',
       sessionType: src.session_type ?? 'game',
       priceCents: src.price_cents ?? 1000,
