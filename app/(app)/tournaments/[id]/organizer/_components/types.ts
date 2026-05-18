@@ -29,5 +29,5 @@ export type OrgRegistration = {
 export type OrgDivision = {
   id: string
   name: string
-  format_type: string
+  bracket_type: string
 }

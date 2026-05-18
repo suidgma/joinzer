@@ -43,7 +43,7 @@ export async function POST(
   // Fetch division format
   const { data: division } = await service
     .from('tournament_divisions')
-    .select('id, format_type, format_settings_json')
+    .select('id, bracket_type, format_settings_json')
     .eq('id', params.divisionId)
     .eq('tournament_id', params.id)
     .single()
@@ -62,7 +62,7 @@ export async function POST(
     return NextResponse.json({ error: 'Need at least 2 registered entries to generate matches' }, { status: 400 })
   }
 
-  const ft = division.format_type as string
+  const ft = division.bracket_type as string
   const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
   const base = { tournament_id: params.id, division_id: params.divisionId, status: 'scheduled' }
 

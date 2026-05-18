@@ -1,6 +1,6 @@
 'use client'
 
-export type FormatType = 'round_robin' | 'single_elimination' | 'double_elimination' | 'pool_play_playoffs'
+export type BracketType = 'round_robin' | 'single_elimination' | 'double_elimination' | 'pool_play_playoffs'
 
 export type FormatSettings = {
   // shared
@@ -17,7 +17,7 @@ export type FormatSettings = {
   playoff_format?: string
 }
 
-export const FORMAT_DEFAULTS: Record<FormatType, FormatSettings> = {
+export const FORMAT_DEFAULTS: Record<BracketType, FormatSettings> = {
   round_robin:        { games_to: 11, win_by: 2, cap_score: null, ranking_method: 'wins' },
   single_elimination: { games_to: 11, win_by: 2 },
   double_elimination: { games_to: 11, win_by: 2 },
@@ -27,14 +27,14 @@ export const FORMAT_DEFAULTS: Record<FormatType, FormatSettings> = {
   },
 }
 
-const FORMAT_META: Record<FormatType, { label: string; description: string }> = {
+const FORMAT_META: Record<BracketType, { label: string; description: string }> = {
   round_robin:        { label: 'Round Robin',          description: 'Every team plays every other team.' },
   single_elimination: { label: 'Single Elimination',   description: 'One loss and you\'re out.' },
   double_elimination: { label: 'Double Elimination',   description: 'Teams eliminated after two losses.' },
   pool_play_playoffs: { label: 'Pool Play + Playoffs', description: 'Groups phase, then bracket playoffs.' },
 }
 
-export function validateFormatSettings(type: FormatType, s: FormatSettings): string | null {
+export function validateFormatSettings(type: BracketType, s: FormatSettings): string | null {
   const gt = s.games_to
   if (!gt || ![11, 15, 21].includes(gt)) return 'Games to must be 11, 15, or 21.'
   const wb = s.win_by
@@ -48,7 +48,7 @@ export function validateFormatSettings(type: FormatType, s: FormatSettings): str
   return null
 }
 
-export function formatSummaryLines(type: FormatType, s: FormatSettings): string[] {
+export function formatSummaryLines(type: BracketType, s: FormatSettings): string[] {
   const label = FORMAT_META[type]?.label ?? type
   const game = `Games to ${s.games_to ?? 11}, win by ${s.win_by ?? 2}`
   if (type === 'round_robin') {
@@ -65,13 +65,13 @@ export function formatSummaryLines(type: FormatType, s: FormatSettings): string[
 }
 
 type Props = {
-  formatType: FormatType
+  bracketType: BracketType
   formatSettings: FormatSettings
-  onTypeChange: (t: FormatType) => void
+  onTypeChange: (t: BracketType) => void
   onSettingsChange: (s: FormatSettings) => void
 }
 
-export default function FormatSettingsFields({ formatType, formatSettings, onTypeChange, onSettingsChange }: Props) {
+export default function FormatSettingsFields({ bracketType, formatSettings, onTypeChange, onSettingsChange }: Props) {
   const s = formatSettings
   const set = (patch: Partial<FormatSettings>) => onSettingsChange({ ...s, ...patch })
 
@@ -81,17 +81,17 @@ export default function FormatSettingsFields({ formatType, formatSettings, onTyp
 
       {/* Format type selector */}
       <div className="grid grid-cols-1 gap-2">
-        {(Object.keys(FORMAT_META) as FormatType[]).map(ft => (
+        {(Object.keys(FORMAT_META) as BracketType[]).map(ft => (
           <label key={ft} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
-            formatType === ft
+            bracketType === ft
               ? 'border-brand bg-brand-soft'
               : 'border-brand-border bg-white hover:bg-brand-soft/50'
           }`}>
             <input
               type="radio"
-              name="format_type"
+              name="bracket_type"
               value={ft}
-              checked={formatType === ft}
+              checked={bracketType === ft}
               onChange={() => {
                 onTypeChange(ft)
                 onSettingsChange(FORMAT_DEFAULTS[ft])
@@ -128,7 +128,7 @@ export default function FormatSettingsFields({ formatType, formatSettings, onTyp
       </div>
 
       {/* Round robin extras */}
-      {formatType === 'round_robin' && (
+      {bracketType === 'round_robin' && (
         <>
           <div>
             <label className="block text-xs font-medium text-brand-muted mb-1">Cap Score <span className="font-normal">(optional)</span></label>
@@ -155,7 +155,7 @@ export default function FormatSettingsFields({ formatType, formatSettings, onTyp
       )}
 
       {/* Pool play extras */}
-      {formatType === 'pool_play_playoffs' && (
+      {bracketType === 'pool_play_playoffs' && (
         <>
           <div className="grid grid-cols-3 gap-2">
             <div>

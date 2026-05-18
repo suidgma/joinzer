@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FormatSettingsFields, {
-  FORMAT_DEFAULTS, FormatType, FormatSettings,
+  FORMAT_DEFAULTS, BracketType, FormatSettings,
   validateFormatSettings, formatSummaryLines,
 } from './FormatSettingsFields'
 import QrCheckinModal from './QrCheckinModal'
@@ -45,7 +45,7 @@ type Division = {
   max_entries: number
   waitlist_enabled: boolean
   status: string
-  format_type: FormatType
+  bracket_type: BracketType
   format_settings_json: FormatSettings
   cost_cents: number | null
   tournament_registrations: Registration[]
@@ -98,7 +98,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [fTeamType, setFTeamType] = useState('doubles')
   const [fMax, setFMax] = useState(16)
   const [fWaitlist, setFWaitlist] = useState(false)
-  const [fFormatType, setFFormatType] = useState<FormatType>('round_robin')
+  const [fBracketType, setFBracketType] = useState<BracketType>('round_robin')
   const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
   const [fCostDollars, setFCostDollars] = useState('')
   const [fMinAge, setFMinAge] = useState('')
@@ -109,7 +109,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [fError, setFError] = useState<string | null>(null)
 
   // Inline format edit state (per division)
-  const [editFormatType, setEditFormatType] = useState<FormatType>('round_robin')
+  const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
   const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
   const [editFormatLoading, setEditFormatLoading] = useState(false)
   const [editFormatError, setEditFormatError] = useState<string | null>(null)
@@ -158,7 +158,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   // ── Add division ──────────────────────────────────────────────────
   async function handleAddDivision(e: React.FormEvent) {
     e.preventDefault()
-    const validErr = validateFormatSettings(fFormatType, fFormatSettings)
+    const validErr = validateFormatSettings(fBracketType, fFormatSettings)
     if (validErr) { setFError(validErr); return }
 
     setFLoading(true)
@@ -177,14 +177,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         max_entries: fMax,
         waitlist_enabled: fWaitlist,
         status: 'active',
-        format_type: fFormatType,
+        bracket_type: fBracketType,
         format_settings_json: fFormatSettings,
         cost_cents: fCostDollars ? Math.round(parseFloat(fCostDollars) * 100) : null,
         min_age: fMinAge ? parseInt(fMinAge) : null,
         max_age: fMaxAge ? parseInt(fMaxAge) : null,
         start_time: fStartTimeEnabled ? fStartTime : null,
       })
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, format_type, format_settings_json, cost_cents')
+      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -193,22 +193,22 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setShowAddForm(false)
     setFName(''); setFCategory('mixed_doubles'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
-    setFFormatType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
+    setFBracketType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
     setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('08:00')
     setFLoading(false)
   }
 
   // ── Open format editor for a division ────────────────────────────
   function openFormatEdit(div: Division) {
-    setEditFormatType(div.format_type)
-    setEditFormatSettings(div.format_settings_json ?? FORMAT_DEFAULTS[div.format_type])
+    setEditBracketType(div.bracket_type)
+    setEditFormatSettings(div.format_settings_json ?? FORMAT_DEFAULTS[div.bracket_type])
     setEditFormatError(null)
     setEditingFormatId(div.id)
   }
 
   // ── Save format edits ─────────────────────────────────────────────
   async function handleSaveFormat(divisionId: string) {
-    const validErr = validateFormatSettings(editFormatType, editFormatSettings)
+    const validErr = validateFormatSettings(editBracketType, editFormatSettings)
     if (validErr) { setEditFormatError(validErr); return }
 
     setEditFormatLoading(true)
@@ -217,14 +217,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     const supabase = createClient()
     const { error } = await supabase
       .from('tournament_divisions')
-      .update({ format_type: editFormatType, format_settings_json: editFormatSettings })
+      .update({ bracket_type: editBracketType, format_settings_json: editFormatSettings })
       .eq('id', divisionId)
 
     if (error) { setEditFormatError(error.message); setEditFormatLoading(false); return }
 
     setDivisions(prev => prev.map(d =>
       d.id === divisionId
-        ? { ...d, format_type: editFormatType, format_settings_json: editFormatSettings }
+        ? { ...d, bracket_type: editBracketType, format_settings_json: editFormatSettings }
         : d
     ))
     setEditingFormatId(null)
@@ -685,9 +685,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
 
           <div className="border-t border-brand-border pt-3">
             <FormatSettingsFields
-              formatType={fFormatType}
+              bracketType={fBracketType}
               formatSettings={fFormatSettings}
-              onTypeChange={t => { setFFormatType(t); setFFormatSettings(FORMAT_DEFAULTS[t]) }}
+              onTypeChange={t => { setFBracketType(t); setFFormatSettings(FORMAT_DEFAULTS[t]) }}
               onSettingsChange={setFFormatSettings}
             />
           </div>
@@ -743,7 +743,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             const isEditingFormat = editingFormatId === div.id
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
 
-            const fType = div.format_type ?? 'round_robin'
+            const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
             const summaryLines = formatSummaryLines(fType, fSettings)
 
@@ -793,9 +793,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       </p>
                     )}
                     <FormatSettingsFields
-                      formatType={editFormatType}
+                      bracketType={editBracketType}
                       formatSettings={editFormatSettings}
-                      onTypeChange={t => { setEditFormatType(t); setEditFormatSettings(FORMAT_DEFAULTS[t]) }}
+                      onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(FORMAT_DEFAULTS[t]) }}
                       onSettingsChange={setEditFormatSettings}
                     />
                     {editFormatError && <p className="text-xs text-red-600">{editFormatError}</p>}
