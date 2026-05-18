@@ -48,6 +48,8 @@ Removed `'Open'` from `SKILL_OPTIONS` in `DivisionsSection.tsx`. Violated the 20
 - `EditEventForm` — skill is immutable post-creation by design (Ticket 3.7 covers future editability)
 - `tournament_events` table — confirmed dead code path, no active UI routes to it
 **Smoke steps:** 4 manual browser verification steps documented. Run after deploy. See audit: [docs/investigations/phase2-dual-write-audit-2026-05-18.md](investigations/phase2-dual-write-audit-2026-05-18.md)
+**Site 2 note:** League edit skill/format fields are `disabled` when `registrantCount > 0` — intentional product guard to protect existing registrations. The `disabled` HTML attribute does not block dual-write; `prepareLeagueWrite` still fires on submit with the unchanged `skill_level` value from state.
+**Smoke verification (2026-05-18):** Sites 1, 3, 5 verified via live DB inspection of `phase2-verify-postdeploy` and `SMOKE-EVENT-SITE5` test rows. Site 2 verified via source inspection — single update path confirmed, helper on `edit/page.tsx:158`, full investigation report from this session.
 **What's next:** Ticket 4.1.5 (rename `format_type` → `bracket_type`) then Ticket 4.2 (Phase 3 column drop). Do not start either without explicit go.
 
 ---
