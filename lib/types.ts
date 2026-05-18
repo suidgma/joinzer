@@ -25,8 +25,8 @@ export type EventListItem = {
   session_type: 'game' | 'free_clinic' | 'paid_clinic'
   price_cents: number | null
   notes: string | null
-  min_skill_level: number | null
-  max_skill_level: number | null
+  skill_min: number | null
+  skill_max: number | null
   location_id: string
   location: { name: string; court_count: number } | null
   captain: { name: string } | null
@@ -77,8 +77,8 @@ export type EventDetail = {
   max_players: number
   status: string
   notes: string | null
-  min_skill_level: number | null
-  max_skill_level: number | null
+  skill_min: number | null
+  skill_max: number | null
   registration_closes_at: string | null
   creator_user_id: string
   captain_user_id: string
