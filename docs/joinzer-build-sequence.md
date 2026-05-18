@@ -444,3 +444,8 @@ Low-urgency maintenance tasks. Pull from here between feature sessions.
 - **What:** Ticket 3.2 shipped unverified on prod — no league_registrations with status='waitlist' exist in the DB at pilot stage (no leagues are full yet).
 - **Options:** (a) SQL seed inserting a waitlist row directly; (b) set max_players=1 on a test league, fill it with account A, then register account B (auto-waitlisted). Option (b) tests the real code path end-to-end and is preferred for any future waitlist work.
 - **Action:** When a second test account is available, use option (b) to exercise the full waitlist flow and verify "Waitlist #N of M" renders correctly.
+
+### [ ] Add vitest.config.ts to restrict include to lib/**/*.test.ts
+- **What:** Vitest's default include glob (`**/*.spec.ts`) sweeps `tests/e2e/*.spec.ts`, which are Playwright E2E specs. Running `npx vitest run` (or `npm run test:unit`) currently produces 8 "failed" suites from Playwright tests — the error is a framework identity conflict ("Playwright Test did not expect test.describe() to be called here"), not an assertion failure. The 15 real unit tests in `lib/` all pass, but the misleading red output obscures the signal.
+- **Action:** Add `vitest.config.ts` with `test: { include: ['lib/**/*.test.ts'] }` (or equivalent). This scopes vitest strictly to the unit test tree and eliminates the Playwright sweep entirely.
+- **Note:** Surfaced during Ticket 4.1.5 post-migration verification (2026-05-18). Low priority — the unit tests themselves are healthy. Becomes more important if test files accumulate outside `lib/`.
