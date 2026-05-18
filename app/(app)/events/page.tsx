@@ -46,7 +46,7 @@ export default async function EventsPage(
     .from('events')
     .select(`
       id, title, starts_at, duration_minutes, court_count, max_players, status,
-      session_type, price_cents, notes, min_skill_level, max_skill_level, location_id,
+      session_type, price_cents, notes, skill_min, skill_max, location_id,
       location:locations!location_id (name, court_count),
       captain:profiles!captain_user_id (name),
       event_participants!event_id (participant_status)
@@ -82,8 +82,8 @@ export default async function EventsPage(
   // Skill filter (JS post-filter — handles NULLs cleanly)
   if (skillFilter !== null) {
     events = events.filter((ev) => {
-      const minOk = ev.min_skill_level == null || ev.min_skill_level <= skillFilter
-      const maxOk = ev.max_skill_level == null || ev.max_skill_level >= skillFilter
+      const minOk = ev.skill_min == null || ev.skill_min <= skillFilter
+      const maxOk = ev.skill_max == null || ev.skill_max >= skillFilter
       return minOk && maxOk
     })
   }
