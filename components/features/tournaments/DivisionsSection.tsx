@@ -21,7 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   open:           'Open',
 }
 
-const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediate Plus', 'Advanced', 'Open']
+const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediate Plus', 'Advanced']
 
 type Registration = {
   id: string
@@ -194,7 +194,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setFName(''); setFCategory('mixed_doubles'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFFormatType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
-    setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('')
+    setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('08:00')
     setFLoading(false)
   }
 

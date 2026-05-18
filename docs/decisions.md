@@ -25,6 +25,11 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — Division SKILL_OPTIONS 'Open' removed
+Removed `'Open'` from `SKILL_OPTIONS` in `DivisionsSection.tsx`. Violated the 2026-05-13 decision to reserve "Open" exclusively for gender/format semantics. Also produced a partial DB row if selected — `skill_level='Open'` but `skill_min=null, skill_max=null` because `'Open'` has no entry in `DIVISION_SKILL_TO_RANGE`.
+
+---
+
 ## 2026-05-18 — Phase 2 dual-write — Ticket 4.1
 **Status:** Active
 **Affects:** `leagues`, `tournament_divisions`, `events` write paths; `lib/taxonomy/write-helpers.ts` (new); tickets 4.1.5 and 4.2 downstream
