@@ -233,6 +233,12 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Prompt:** *"Three small adds: (1) On any registered-state card (tournament division, league registration), add an 'Add to calendar' link that downloads an .ics file. (2) On /home, render a yellow banner at the top when the user is registered for any event where their team has a pending partner: 'Pro Men tournament starts in 5 days — finish setting up your team. [Invite partner →]'. (3) Wire a scheduled function to send a reminder email 24 hours before any session/match the user is in."*
 - **Verify:** Test all three; the reminder needs a scheduled function so verify it fires by setting a test event to start in an hour.
 
+### [ ] 3.7 Editable event skill range
+- **Where:** `components/features/events/EditEventForm.tsx` — Props type, form UI, update payload.
+- **What:** Organizers can change a session's skill range after creation. Currently immutable post-creation, forcing delete-and-recreate.
+- **Scope:** Add `min_skill_level` and `max_skill_level` to `EditEventForm` Props; add the two numeric inputs to the form UI; include them in the `.update()` payload; call `prepareEventWrite` (from `lib/taxonomy/write-helpers.ts`, added in ticket 4.1) so the new `skill_min`/`skill_max` columns are written at the same time. **Block on ticket 4.1 shipping first** — `prepareEventWrite` must exist before this wires it in.
+- **Verify:** Edit an existing event; change the skill range; confirm `min_skill_level`, `max_skill_level`, `skill_min`, `skill_max` all update correctly on the row.
+
 ---
 
 ## Batch 4 — Taxonomy Phases 2 + 3
