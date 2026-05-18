@@ -245,7 +245,7 @@ These don't fix anything broken; they raise confidence around payments, identity
 
 Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in parallel with Batch 3 if you want.
 
-### [ ] 4.1 Taxonomy Phase 2 — read cutover + new UI
+### [x] 4.1 Taxonomy Phase 2 — dual-write — shipped 2026-05-18, merge commit 3da35a1
 - **See:** `docs/joinzer-taxonomy-migration-plan.md` §5 Phase 2.
 - **What:** Switch reads to new columns. Ship Format dropdown on tournament division creation. Ship SkillRangePicker everywhere. Update filters.
 - **Prompt:** *"Implement Phase 2 of the taxonomy migration. Switch all read paths to the new columns (format, skill_min, skill_max, self_rating). Build the SkillRangePicker shared component per §4.5 of the migration plan. Update: tournament division create form (replace Category × Team Type with Format), league create + edit forms (canonical Format list), play session create form (numeric Min/Max Skill), profile edit (self_rating picker), all filter UIs across /events, /compete, /tournaments. Keep dual-write on the write side."*

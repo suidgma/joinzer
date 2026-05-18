@@ -25,6 +25,28 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — Phase 2 dual-write — Ticket 4.1
+**Status:** Active
+**Affects:** `leagues`, `tournament_divisions`, `events` write paths; `lib/taxonomy/write-helpers.ts` (new); tickets 4.1.5 and 4.2 downstream
+**Decision:** New columns (`format`, `skill_min`, `skill_max`) are now written on every relevant create/update. Legacy columns (`skill_level`, `category`, `team_type`, `min_skill_level`, `max_skill_level`) continue to be written unchanged. No reads changed. No schema changes. No DB triggers.
+**Architecture:**
+- Three pure TypeScript helpers at `lib/taxonomy/write-helpers.ts`: `prepareLeagueWrite`, `prepareDivisionWrite`, `prepareEventWrite`
+- Lookup tables named `LEAGUE_SKILL_TO_RANGE` (lowercase keys) and `DIVISION_SKILL_TO_RANGE` (Title Case keys) — casing difference is pre-existing and intentional to match DB values; dies naturally in Phase 3 read cutover
+- 15 unit tests at `lib/taxonomy/__tests__/write-helpers.test.ts` covering all 8 Phase 1 division mapping pairs, all skill level entries, fallbacks, null handling, and legacy pass-through
+**Write sites wired (4 of 4 in scope):**
+- Site 1: `app/(app)/compete/leagues/create/CreateLeagueForm.tsx` — leagues INSERT
+- Site 2: `app/(app)/compete/leagues/[id]/edit/page.tsx` — leagues UPDATE
+- Site 3: `components/features/tournaments/DivisionsSection.tsx` — tournament_divisions INSERT
+- Site 5: `components/features/events/CreateEventForm.tsx` — events INSERT
+**Deliberately out of scope:**
+- Site 4 (`DivisionsSection.tsx` division format-editor UPDATE) — writes only `format_type` + `format_settings_json`, no taxonomy columns
+- `EditEventForm` — skill is immutable post-creation by design (Ticket 3.7 covers future editability)
+- `tournament_events` table — confirmed dead code path, no active UI routes to it
+**Smoke steps:** 4 manual browser verification steps documented. Run after deploy. See audit: [docs/investigations/phase2-dual-write-audit-2026-05-18.md](investigations/phase2-dual-write-audit-2026-05-18.md)
+**What's next:** Ticket 4.1.5 (rename `format_type` → `bracket_type`) then Ticket 4.2 (Phase 3 column drop). Do not start either without explicit go.
+
+---
+
 ## 2026-05-18 — League format 'singles' removed
 Removed broken `'singles'` league format option (constraint violation since Phase 1). Replaced with `open_singles` labeled "Singles" in the UI. Future singles variants (men's/women's) can be added when demand exists.
 
