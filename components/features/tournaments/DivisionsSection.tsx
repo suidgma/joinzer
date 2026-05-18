@@ -11,6 +11,7 @@ import QrCheckinModal from './QrCheckinModal'
 import PrepTournamentModal from './PrepTournamentModal'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
 
 const CATEGORY_LABELS: Record<string, string> = {
   mens_doubles:   'Men',
@@ -172,9 +173,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
       .insert({
         tournament_id: tournamentId,
         name: autoName,
-        category: fCategory,
-        skill_level: fSkill || null,
-        team_type: fTeamType,
+        ...prepareDivisionWrite({ category: fCategory, team_type: fTeamType, skill_level: fSkill || null }),
         max_entries: fMax,
         waitlist_enabled: fWaitlist,
         status: 'active',
