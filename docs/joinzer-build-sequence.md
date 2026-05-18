@@ -430,10 +430,10 @@ Low-urgency maintenance tasks. Pull from here between feature sessions.
 - **What:** The creator join uses a raw `(league as any)` cast. Should use the `Parameters<typeof Component>[0]['propName']` pattern from `compete/page.tsx` for consistency.
 - **Note:** No functional impact — cosmetic TypeScript improvement only. Low priority.
 
-### [ ] Install pg_dump or use Supabase CLI db dump for future migrations
-- **What:** Pre-migration backups currently rely on table exports via the Supabase MCP (INSERT statements only). This does not capture DDL, sequences, triggers, RLS policies, or FK ordering. For 1.1 (additive, 48 rows) it is an acceptable tertiary safety net. For larger or destructive migrations it is not sufficient.
-- **Action:** Install PostgreSQL client tools (`pg_dump`) locally OR wire up `supabase db dump` via the Supabase CLI. Either produces a proper binary/SQL dump including schema. Store credentials in `.env.local` (gitignored).
-- **Note:** Flagged during 1.1 staging (2026-05-15). Primary recovery path for 1.1 remains the Supabase scheduled backup at 15 May 2026 09:23 UTC.
+### [ ] Install pg_dump on dev machine for future destructive migrations
+- **What:** Pre-migration backups currently rely on table exports via the Supabase MCP (SELECT * → JSON). This does not capture DDL, sequences, triggers, RLS policies, or FK ordering. For rename-only or additive migrations it is an acceptable safety net; for column drops or data-destructive migrations it is not sufficient.
+- **Action:** Install PostgreSQL client tools (`pg_dump`) on the dev machine OR wire up `supabase db dump` via the Supabase CLI. Either produces a proper binary/SQL dump including schema. Store DB credentials in `.env.local` (gitignored).
+- **Note:** Flagged during 1.1 staging (2026-05-15) and again during 4.1.5 (2026-05-18) — `pg_dump` was not found on the machine during both pre-migration backup steps. Primary recovery for both migrations remains the Supabase scheduled backup.
 
 ### [ ] Standardize backup file location and migration header reference
 - **What:** The pre-1.1 backup file was saved to an absolute OS path (`C:\Users\marty\joinzer-backups\`) and that path was written into the migration file header. Absolute paths are machine-specific and will break if the project moves or a second contributor joins.
