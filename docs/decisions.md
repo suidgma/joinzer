@@ -25,6 +25,17 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — Ticket 3A — Events read cutover
+**Status:** Complete
+**Affects:** `events` read paths — `EventListItem`, `EventDetail` types; `EventCard`, event detail page, events list page, create-from-template page
+**Scope:** 5 files, 4 commits — `lib/types.ts`, `components/features/events/EventCard.tsx`, `app/(app)/events/[id]/page.tsx`, `app/(app)/events/page.tsx`, `app/(app)/events/create/page.tsx`. Merged at `cd2ffaf`.
+**What changed:** All read paths on `events` now select and reference `skill_min` / `skill_max`. The legacy `min_skill_level` / `max_skill_level` fields remain in the schema and continue to be written by `prepareEventWrite` (Phase 2 dual-write, untouched). `EventListItem` and `EventDetail` types no longer declare the legacy fields.
+**Bonus fix:** Corrected a pre-existing render bug affecting 7 production rows where `max_skill_level = NULL` was rendered as "3.0 – undefined" or "3.0 – ". Replaced with four-case skill render logic: both set → "3.0 – 4.0"; min only → "3.0 and up"; max only → "Up to 4.0"; neither → no badge. Applied identically to EventCard (clinic variant), EventCard (game variant), and event detail page.
+**Phase 4 dependency:** `events.min_skill_level` and `events.max_skill_level` can be dropped from the schema once all of 3A, 3C, and 3B are deployed and stable for ≥ 7 days.
+**Future cleanup noted (not blocking):** The 11-line skill render block is now duplicated in three locations (EventCard clinic, EventCard game, event detail page). Extract to a `formatSkillRange(min, max)` helper in `lib/format.ts` or similar at next opportunity.
+
+---
+
 ## 2026-05-18 — 3A.1 — Garbage division cleanup
 **Status:** Complete
 **Affects:** `tournament_divisions` — Phase 3C prerequisite

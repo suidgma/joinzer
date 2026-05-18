@@ -259,7 +259,7 @@ Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in par
 - **Verify:** Run `generate_typescript_types` post-migration. TypeScript compiler catches any missed references. Create a division and generate matches — confirm bracket type selector still works and matches generate correctly.
 - **See:** `docs/decisions.md` — 2026-05-18 format_type vs format entry. `docs/investigations/format-type-vs-format-2026-05-18.md` for full investigation.
 
-### [ ] 3A — Events read cutover
+### [x] 3A — Events read cutover — 2026-05-18, merge cd2ffaf
 - **What:** Swap `min_skill_level` / `max_skill_level` reads to `skill_min` / `skill_max` across all events surfaces. Numeric-to-numeric, identical semantics — lowest risk of the three cutover tickets.
 - **Files:** `lib/types.ts` (EventListItem / EventDetail type declarations), `app/(app)/events/page.tsx` (select string + JS post-filter lines 84–88), `app/(app)/events/[id]/page.tsx` (select string), `app/(app)/events/create/page.tsx` (template pre-fill select + defaults lines 58–59), `components/features/events/EventCard.tsx` (render).
 - **Bonus fix:** EventCard renders `{event.max_skill_level?.toFixed(1)}` which produces blank or "undefined" when `max_skill_level` is NULL — 7 of 20 events have min-only skill ranges. Fix render to show "3.0+" when max is null. Pre-existing bug surfaced during audit.
