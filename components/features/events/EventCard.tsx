@@ -42,13 +42,15 @@ export default function EventCard({ event }: { event: EventListItem }) {
 
           <p className="text-sm text-amber-800">{formatEventTime(event.starts_at)}</p>
 
-          {(event.min_skill_level != null || event.max_skill_level != null) && (
+          {(event.skill_min != null || event.skill_max != null) && (
             <p className="text-xs text-amber-700">
               Skill:{' '}
               <span className="font-medium">
-                {event.min_skill_level != null ? event.min_skill_level.toFixed(1) : '2.0'}
-                {' – '}
-                {event.max_skill_level != null ? event.max_skill_level.toFixed(1) : '& up'}
+                {event.skill_min != null && event.skill_max != null
+                  ? `${event.skill_min.toFixed(1)} – ${event.skill_max.toFixed(1)}`
+                  : event.skill_min != null
+                  ? `${event.skill_min.toFixed(1)} and up`
+                  : `Up to ${event.skill_max!.toFixed(1)}`}
               </span>
             </p>
           )}
@@ -92,13 +94,15 @@ export default function EventCard({ event }: { event: EventListItem }) {
 
           <p className="text-sm text-brand-muted">{formatEventTime(event.starts_at)}</p>
 
-          {(event.min_skill_level != null || event.max_skill_level != null) && (
+          {(event.skill_min != null || event.skill_max != null) && (
             <p className="text-xs text-brand-muted">
               Skill:{' '}
               <span className="font-medium text-brand-body">
-                {event.min_skill_level != null ? event.min_skill_level.toFixed(1) : '2.0'}
-                {' – '}
-                {event.max_skill_level != null ? event.max_skill_level.toFixed(1) : '& up'}
+                {event.skill_min != null && event.skill_max != null
+                  ? `${event.skill_min.toFixed(1)} – ${event.skill_max.toFixed(1)}`
+                  : event.skill_min != null
+                  ? `${event.skill_min.toFixed(1)} and up`
+                  : `Up to ${event.skill_max!.toFixed(1)}`}
               </span>
             </p>
           )}
