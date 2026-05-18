@@ -63,7 +63,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
-  const [cancelPending, setCancelPending] = useState<{ divId: string; regId: string; divName: string } | null>(null)
+  const [cancelPending, setCancelPending] = useState<{ divId: string; regId: string; divName: string; paymentStatus: string | null } | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
 
@@ -309,13 +309,10 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   async function handleCancel(divisionId: string, regId: string) {
     setCancelLoading(true)
     setCancelError(null)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update({ status: 'cancelled' })
-      .eq('id', regId)
-    if (error) {
-      setCancelError(error.message === 'Already cancelled' ? 'Already cancelled — refreshing…' : "Couldn't cancel — please try again")
+    const res = await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}/cancel`, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setCancelError(body.error === 'Already cancelled' ? 'Already cancelled — refreshing…' : (body.error ?? "Couldn't cancel — please try again"))
       setCancelLoading(false)
       router.refresh()
       return
@@ -913,7 +910,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     )}
                     {myReg && (
                       <button
-                        onClick={() => setCancelPending({ divId: div.id, regId: myReg.id, divName: div.name })}
+                        onClick={() => setCancelPending({ divId: div.id, regId: myReg.id, divName: div.name, paymentStatus: myReg.payment_status ?? null })}
                         className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors"
                       >
                         Cancel Registration
@@ -1335,7 +1332,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         open={cancelPending !== null}
         title="Cancel registration?"
         body={cancelPending
-          ? `Cancel your registration for ${cancelPending.divName}? This can't be undone, and your spot may be given to someone on the waitlist.`
+          ? cancelPending.paymentStatus === 'paid'
+            ? `Cancel your registration for ${cancelPending.divName}? Your payment will be automatically refunded. Refunds typically appear within 5–10 business days.`
+            : `Cancel your registration for ${cancelPending.divName}? This can't be undone, and your spot may be given to someone on the waitlist.`
           : ''}
         confirmLabel="Cancel registration"
         loading={cancelLoading}
