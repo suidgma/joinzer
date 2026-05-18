@@ -40,7 +40,7 @@ export async function POST(
   // Fetch division
   const { data: division } = await service
     .from('tournament_divisions')
-    .select('id, tournament_id, team_type, max_entries, waitlist_enabled, status, name')
+    .select('id, tournament_id, team_type, max_entries, waitlist_enabled, status, name, cost_cents')
     .eq('id', params.divisionId)
     .eq('tournament_id', params.id)
     .single()
@@ -230,7 +230,7 @@ export async function POST(
       const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
 
       const [{ data: tournament }, { data: profile }] = await Promise.all([
-        service.from('tournaments').select('name, start_date, location_id').eq('id', params.id).single(),
+        service.from('tournaments').select('name, start_date, location_id, cost_cents').eq('id', params.id).single(),
         service.from('profiles').select('name, email').eq('id', targetUserId).single(),
       ])
 
@@ -245,6 +245,10 @@ export async function POST(
       const isSolo = registration_type === 'solo'
       const firstName = profile.name?.split(' ')[0] ?? 'there'
 
+      const effectiveCostCents = (division as any).cost_cents != null
+        ? (division as any).cost_cents
+        : ((tournament as any).cost_cents ?? 0)
+
       const rows: EmailRow[] = [
         ['Tournament', tournament.name],
         ...(locationName ? [['Location', locationName] as EmailRow] : []),
@@ -256,7 +260,7 @@ export async function POST(
             ? [['Type', 'Solo — awaiting a partner match'] as EmailRow]
             : []),
         ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
-        ['Fee', 'Free'],
+        ...(!isWaitlist ? [['Fee', effectiveCostCents > 0 ? `$${(effectiveCostCents / 100).toFixed(2)} — payment required` : 'Free'] as EmailRow] : []),
       ]
 
       // ICS: single all-day event on tournament start_date; timed start_time deferred

@@ -254,6 +254,16 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     ))
     router.refresh()
 
+    // Redirect to Stripe immediately for paid registrations (skip for waitlist)
+    const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
+    if (effectiveCost > 0 && json.registration.status === 'registered') {
+      setTeamName('')
+      setRegLoading(false)
+      setRegisteringDiv(null)
+      await handlePay(json.registration.id, div.id)
+      return
+    }
+
     // For team doubles, show partner invite step; solos are auto-matched
     if (div.team_type === 'doubles' && regType === 'team') {
       setJustRegistered({ regId: json.registration.id, divisionId: div.id })
