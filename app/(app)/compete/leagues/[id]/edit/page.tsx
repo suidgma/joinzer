@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
+import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
 
 const FORMAT_OPTIONS = [
   { value: 'individual_round_robin', label: 'Individual Round Robin' },
@@ -154,8 +155,7 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
       .from('leagues')
       .update({
         name: name.trim(),
-        format,
-        skill_level: skillLevel,
+        ...prepareLeagueWrite({ format, skill_level: skillLevel }),
         location_name: locationName.trim() || null,
         schedule_description: scheduleDescription.trim() || null,
         start_date: startDate || null,
