@@ -25,6 +25,23 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — Ticket 4.1.5 — format_type → bracket_type rename complete
+**Status:** Active
+**Affects:** `tournament_divisions.bracket_type` (was `format_type`); `tournament_divisions_bracket_type_check` constraint (was `tournament_divisions_format_type_check`); 8 app files
+**What was renamed:**
+- Column `tournament_divisions.format_type` → `bracket_type` (stores bracket/schedule algorithm: `round_robin`, `single_elimination`, `double_elimination`, `pool_play_playoffs`)
+- CHECK constraint `tournament_divisions_format_type_check` → `tournament_divisions_bracket_type_check` (constraint body auto-updates on `RENAME COLUMN`; name does not — required explicit `RENAME CONSTRAINT`)
+**Migration:** `supabase/migrations/20260518000001_rename_format_type_to_bracket_type.sql`, applied 2026-05-18. NOT idempotent — will fail if re-run. Rollback SQL in `docs/investigations/format-type-rename-2026-05-18.md §5`.
+**Scope:** 36 edits across 8 app files — `FormatSettingsFields.tsx`, `DivisionsSection.tsx`, `MatchesSection.tsx`, `app/(app)/tournaments/[id]/page.tsx`, `app/(app)/tournaments/[id]/organizer/_components/types.ts`, `app/api/tournaments/[id]/divisions/route.ts`, `app/api/tournaments/[id]/generate-all/route.ts`, `app/api/tournaments/[id]/divisions/[divisionId]/generate-matches/route.ts`. Single migration file. Merged at `2e56ab8`.
+**Verification:** Schema rename confirmed via live DB query — column exists as `bracket_type`, constraint as `tournament_divisions_bracket_type_check`, 28 rows preserved across all 4 bracket types. Vercel deploy green at `2e56ab8`. Manual surface check on joinzer.com confirmed divisions render and add-division form opens correctly.
+**Backup:** `C:\Users\marty\joinzer-backups\pre-4.1.5-20260518-1234.json` (28 rows, all columns, JSON export via Supabase MCP — pg_dump unavailable on dev machine).
+**Production downtime:** ~5 minutes between STEP 3 (migration apply) and Vercel deploy of `2e56ab8`.
+**Follow-up tickets logged:** "Install pg_dump on dev machine" and "Add vitest.config.ts to restrict include to lib/**/*.test.ts" — both added to `docs/joinzer-build-sequence.md` Repo hygiene section.
+**Audit:** [docs/investigations/format-type-rename-2026-05-18.md](investigations/format-type-rename-2026-05-18.md)
+**What's next:** Ticket 4.2 (Taxonomy Phase 3 — drop old columns). Do not start without explicit go.
+
+---
+
 ## 2026-05-18 — Division SKILL_OPTIONS 'Open' removed
 Removed `'Open'` from `SKILL_OPTIONS` in `DivisionsSection.tsx`. Violated the 2026-05-13 decision to reserve "Open" exclusively for gender/format semantics. Also produced a partial DB row if selected — `skill_level='Open'` but `skill_min=null, skill_max=null` because `'Open'` has no entry in `DIVISION_SKILL_TO_RANGE`.
 

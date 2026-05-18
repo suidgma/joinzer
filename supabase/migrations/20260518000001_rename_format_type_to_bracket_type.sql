@@ -2,6 +2,7 @@
 --
 -- NOT IDEMPOTENT: will fail with "column format_type does not exist" if re-run.
 -- Apply once only. Rollback SQL: docs/investigations/format-type-rename-2026-05-18.md §5
+-- Applied 2026-05-18, merge 2e56ab8
 
 BEGIN;
 
