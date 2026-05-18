@@ -2,9 +2,9 @@
 -- No columns dropped. No reads changed. Dual-write added in follow-up PR.
 -- Idempotent: re-running produces no errors (IF NOT EXISTS, WHERE col IS NULL).
 --
--- STATUS: Reviewed and approved 2026-05-14.
--- Unblocked 2026-05-15: Supabase Pro active, daily backups confirmed (latest 15 May 2026 09:23 UTC).
--- Pre-migration table export: C:\Users\marty\joinzer-backups\pre-1.1-20260515-2100.sql
+-- STATUS: Applied 2026-05-18. Verified: 0 missing formats, 1 expected coerced row (zzz/mens_singles).
+-- Pre-migration table export: C:\Users\marty\joinzer-backups\pre-1.1-20260518-1045.sql
+-- Supabase scheduled backup at apply time: 18 May 2026 09:27:21 UTC
 
 BEGIN;
 
@@ -64,7 +64,7 @@ UPDATE tournament_divisions SET format = CASE
   WHEN category = 'mens_doubles'   AND team_type = 'doubles' THEN 'mens_doubles'
   WHEN category = 'womens_doubles' AND team_type = 'doubles' THEN 'womens_doubles'
   WHEN category = 'mixed_doubles'  AND team_type = 'doubles' THEN 'mixed_doubles'
-  WHEN category = 'singles'        AND team_type = 'singles' THEN 'open_singles'
+  WHEN category = 'singles'        AND team_type = 'singles' THEN 'mens_singles'
   WHEN category = 'open'           AND team_type = 'singles' THEN 'open_singles'
   -- Mismatched pairs: category provides gender signal, team_type=singles wins
   WHEN category = 'mens_doubles'   AND team_type = 'singles' THEN 'mens_singles'

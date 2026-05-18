@@ -25,6 +25,20 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — Taxonomy Phase 1 applied
+**Status:** Active
+**Affects:** `tournament_divisions`, `leagues`, `events`
+**Decision:** Migration `20260514000001_taxonomy_phase1.sql` applied to production on 2026-05-18. All three post-migration verification queries passed.
+**Results:**
+- `tournament_divisions`: `format`, `skill_min`, `skill_max` columns added and backfilled (23 rows). Zero divisions missing a format. One non-dummy coerced row: "zzz" free event → `mens_singles` (expected; review with organizer before Phase 3 drops old columns).
+- `leagues`: `leagues_format_check` constraint replaced with full 10-value enum. `skill_min`, `skill_max` added and backfilled (7 rows, all `intermediate` → 3.0/3.5).
+- `events`: `skill_min`, `skill_max` added and copied from `min_skill_level`/`max_skill_level` (18 rows).
+- One line change from reviewed version: `category='singles' AND team_type='singles'` maps to `mens_singles` (not `open_singles`). Approved by Marty before apply.
+**Recovery:** Pre-migration dump at `C:\Users\marty\joinzer-backups\pre-1.1-20260518-1045.sql`. Supabase scheduled backup at apply time: 18 May 2026 09:27:21 UTC.
+**What's unblocked:** Tickets 1.2, 1.3, 1.6, and downstream Batch 4 reads switch. Phase 2 (dual-write on create/update paths) is next — wait for explicit go.
+
+---
+
 ## 2026-05-15 — Organizer name visibility on league surfaces
 **Status:** Active
 **Affects:** `/compete` league list, `/compete/leagues/[id]` detail page; any future league-adjacent surfaces
