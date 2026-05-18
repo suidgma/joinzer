@@ -7,6 +7,7 @@ import LocationCombobox from './LocationCombobox'
 import TimeSelect from './TimeSelect'
 import type { LocationOption } from '@/lib/types'
 import type { EventDefaults } from '@/app/(app)/events/create/page'
+import { prepareEventWrite } from '@/lib/taxonomy/write-helpers'
 
 const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
 
@@ -101,8 +102,10 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       players_per_court: playersPerCourt,
       max_players: maxPlayers,
       notes: notes.trim() || null,
-      min_skill_level: minSkill ? parseFloat(minSkill) : null,
-      max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
+      ...prepareEventWrite({
+        min_skill_level: minSkill ? parseFloat(minSkill) : null,
+        max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
+      }),
       status: 'open',
       session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
       price_cents: clinicType === 'paid' ? priceCents : null,
