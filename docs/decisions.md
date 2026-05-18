@@ -25,6 +25,21 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — Phase 3 read cutover split (3A / 3A.1 / 3C / 3B)
+**Status:** Active
+**Affects:** `events`, `leagues`, `tournament_divisions` read paths; `CompeteClient` filter logic; `PlayerCheckIn` sub-request write path; all taxonomy-dependent UI components
+**Decision:** Phase 3 (flip reads from legacy taxonomy columns to new canonical columns) split into four tickets executed in this order: 3A (events) → 3A.1 (garbage cleanup) → 3C (tournament divisions) → 3B (leagues). Phase 4 (drop legacy columns) is a separate ticket, gated on all three read-cutover tickets being live and stable in production for at least 7 days.
+**Ordering rationale:**
+- 3A first — events is a numeric-to-numeric shape swap with identical semantics, zero risk, builds confidence.
+- 3A.1 second — deletes the 4 null-format division rows (single, Open, double, Women — confirmed test data from now-removed broken UI options). Cheap prerequisite that unblocks 3C.
+- 3C third — tournament divisions is the most complex (team_type drives 5 logic branches, category drives player search gender filter), but its prerequisite (3A.1) is the cheapest item on the list. Doing the hard thing while energy is fresh; also fully resolves the naming ambiguity from ticket 4.1.5.
+- 3B last — leagues is the only ticket with real user-visible UX redesign (string-enum skill dropdown → numeric range picker). Deserves the most thought and design attention; wrong to rush it.
+**Precondition on 3B:** Complete a `league_sub_requests` mini-audit before opening the 3B PR. `PlayerCheckIn.tsx` posts `league.skill_level` as `requested_skill_level` to that table. Phase 3B must understand what reads that column downstream before the source column is dropped. Findings must be documented in `docs/decisions.md` before the PR opens.
+**Additional finding from audit:** 18 of 29 `tournament_divisions` rows have NULL `skill_min`/`skill_max`, all matching NULL `skill_level` in the legacy column. The Phase 1 backfill was correct — these divisions genuinely have no skill constraint. Whether that reflects organizer intent ("open to all") vs. organizer omission is a product UX question worth surfacing separately; it does not block Phase 3.
+**Audit source:** `docs/investigations/phase3-read-cutover-audit-2026-05-18.md`
+
+---
+
 ## 2026-05-18 — Ticket 4.1.5 — format_type → bracket_type rename complete
 **Status:** Active
 **Affects:** `tournament_divisions.bracket_type` (was `format_type`); `tournament_divisions_bracket_type_check` constraint (was `tournament_divisions_format_type_check`); 8 app files

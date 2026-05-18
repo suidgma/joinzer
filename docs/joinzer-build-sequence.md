@@ -259,11 +259,54 @@ Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in par
 - **Verify:** Run `generate_typescript_types` post-migration. TypeScript compiler catches any missed references. Create a division and generate matches — confirm bracket type selector still works and matches generate correctly.
 - **See:** `docs/decisions.md` — 2026-05-18 format_type vs format entry. `docs/investigations/format-type-vs-format-2026-05-18.md` for full investigation.
 
-### [ ] 4.2 Taxonomy Phase 3 — drop old columns
-- **See:** `docs/joinzer-taxonomy-migration-plan.md` §5 Phase 3.
-- **What:** Stop writing to old columns, drop them.
-- **Prompt:** *"After Phase 2 has run clean in prod for at least a week, implement Phase 3: stop writing to the old columns (category, team_type, skill_level, joinzer_level, min_skill, max_skill), drop them from the schema, and remove any backward-compat code paths."*
-- **Verify:** All forms still work. All filters still work. Run a tournament + league end-to-end.
+### [ ] 3A — Events read cutover
+- **What:** Swap `min_skill_level` / `max_skill_level` reads to `skill_min` / `skill_max` across all events surfaces. Numeric-to-numeric, identical semantics — lowest risk of the three cutover tickets.
+- **Files:** `lib/types.ts` (EventListItem / EventDetail type declarations), `app/(app)/events/page.tsx` (select string + JS post-filter lines 84–88), `app/(app)/events/[id]/page.tsx` (select string), `app/(app)/events/create/page.tsx` (template pre-fill select + defaults lines 58–59), `components/features/events/EventCard.tsx` (render).
+- **Bonus fix:** EventCard renders `{event.max_skill_level?.toFixed(1)}` which produces blank or "undefined" when `max_skill_level` is NULL — 7 of 20 events have min-only skill ranges. Fix render to show "3.0+" when max is null. Pre-existing bug surfaced during audit.
+- **Verify:** Events list renders correctly with skill filter active. Detail page shows skill range. Duplicate-event flow (`?from=`) pre-fills skill correctly. EventCard shows "3.0+" for open-ceiling events rather than "3.0 –".
+- **Audit source:** `docs/investigations/phase3-read-cutover-audit-2026-05-18.md` RS-E1/E2/E3/E4, RD-E1/E2/E3/E4.
+
+### [ ] 3A.1 — Garbage division cleanup
+- **What:** Delete the 4 `tournament_divisions` rows with NULL `format`: "single" (id 46985294), "Open" (d4330f4c), "double" (6c69c827), "Women" (ababe148). Confirmed test/malformed rows created via now-removed broken UI options (the `'Open'` skill entry removed 2026-05-18 and similar artifacts). All have single-word names, no skill data.
+- **How:** Verify zero `tournament_registrations` and `tournament_matches` reference these IDs. Then delete via migration or direct SQL.
+- **Verify:** `SELECT COUNT(*) FROM tournament_divisions WHERE format IS NULL` returns 0.
+- **Blocks:** 3C — Phase 3C cannot safely enforce NOT NULL on `format` until these rows are gone.
+
+### [ ] 3C — Tournament divisions read cutover
+- **What:** Swap `category`, `team_type`, and `skill_level` reads on `tournament_divisions` to `format`, `skill_min`, `skill_max`. Most complex of the three tickets: `team_type` drives logic in 5 places, `category` drives the player-search gender filter.
+- **Key changes:**
+  - All `team_type === 'doubles'` checks → `['mens_doubles','womens_doubles','mixed_doubles','coed_doubles'].includes(format)` — affects `DivisionsSection.tsx` lines 258/822/1028, `MatchesSection.tsx` line 110, `ScheduleManager.tsx` line 32, `MyMatchesSection.tsx` line 110, register route line 52
+  - `div.category` passed to `searchPlayers` for gender filter → replace with format-based check (`format === 'mens_doubles'` → male, `format === 'womens_doubles'` → female)
+  - `CATEGORY_LABELS[div.category]` display → replace with format label map
+  - `div.skill_level` display badge → replace with `skill_min`/`skill_max` range display
+  - Add `format`, `skill_min`, `skill_max` to select strings; remove `category`, `team_type`, `skill_level`
+- **Prerequisite:** 3A.1 (4 null-format rows deleted).
+- **Verify:** Create a mens doubles division — player search filters to male players. Generate matches for a doubles division — match rows show "LastName / LastName". Solo registration correctly blocked/allowed per division format. Division badge renders format label and skill range.
+- **Audit source:** `docs/investigations/phase3-read-cutover-audit-2026-05-18.md` RS-D1/D2, RD-D1 through D9.
+
+### [ ] 3B — Leagues read cutover
+- **What:** Swap `skill_level` reads on `leagues` to `skill_min` / `skill_max`. Includes a form shape change: the skill level `<select>` (string enum) becomes a numeric range picker backed by the new columns. The `CompeteClient` filter (`SKILL_LEVEL_TO_TIER` string lookup) must be replaced with a range-to-tier reverse lookup.
+- **Prerequisite (must complete before starting):** Mini-audit of `league_sub_requests` table — `PlayerCheckIn.tsx` posts `league.skill_level` as `requested_skill_level` to this table. Audit what reads `requested_skill_level` downstream (organizer screens, notifications, any dashboards) before dropping the source column. Add findings to `docs/decisions.md` before the PR opens.
+- **Key changes:**
+  - `compete/page.tsx` select: add `skill_min`, `skill_max`; remove `skill_level`
+  - `home/page.tsx`, `schedule/page.tsx`: same
+  - `CompeteClient.tsx`: replace `SKILL_LEVEL_TO_TIER` filter with numeric range comparison (lines 18–86)
+  - `leagues/[id]/edit/page.tsx`: skill dropdown → range picker (UX design call needed)
+  - `leagues/create/CreateLeagueForm.tsx`: same
+  - `leagues/[id]/page.tsx` `SKILL_LABELS` badge: replace with range display
+  - `league-register/route.ts`, `members/route.ts`: email copy update
+  - `PlayerCheckIn.tsx`: update `requested_skill_level` payload to numeric range or drop the field
+- **Verify:** League list filter works with skill range active. Edit league shows existing skill range. Create league persists skill range correctly.
+- **Audit source:** `docs/investigations/phase3-read-cutover-audit-2026-05-18.md` RS-L1 through L7, RD-L1 through L8.
+
+### [ ] 4.2 Phase 4 — Drop legacy columns
+- **Gate:** All of 3A, 3A.1, 3C, 3B must be live and stable in production for at least 7 days before this ticket starts.
+- **What:** Stop dual-writing to legacy columns, then drop them from the schema. Remove legacy columns from `prepareLeagueWrite`, `prepareDivisionWrite`, `prepareEventWrite` helpers. Write and apply migration with DROP COLUMN statements. Remove any remaining backward-compat code paths.
+- **Columns to drop:**
+  - `events`: `min_skill_level`, `max_skill_level`
+  - `leagues`: `skill_level`
+  - `tournament_divisions`: `category`, `team_type`, `skill_level`
+- **Verify:** All forms still work. All filters still work. Run a tournament + league end-to-end. `SELECT column_name FROM information_schema.columns WHERE table_name IN ('leagues','tournament_divisions','events')` — confirm dropped columns are absent.
 
 ---
 
