@@ -12,7 +12,7 @@ const FORMAT_OPTIONS = [
   { value: 'womens_doubles', label: "Women's Doubles" },
   { value: 'mixed_doubles', label: 'Mixed Doubles' },
   { value: 'coed_doubles', label: 'Coed Doubles' },
-  { value: 'singles', label: 'Singles' },
+  { value: 'open_singles', label: 'Singles' },
   { value: 'custom', label: 'Custom' },
 ]
 const SKILL_OPTIONS = [

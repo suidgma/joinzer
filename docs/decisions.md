@@ -25,6 +25,11 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-18 — League format 'singles' removed
+Removed broken `'singles'` league format option (constraint violation since Phase 1). Replaced with `open_singles` labeled "Singles" in the UI. Future singles variants (men's/women's) can be added when demand exists.
+
+---
+
 ## 2026-05-18 — Roster panel scope — Ticket 2.1
 **Status:** Active
 **Affects:** `/compete/leagues/[id]` — `LeagueRosterPanel.tsx` (new component), `page.tsx` (query + mount)
