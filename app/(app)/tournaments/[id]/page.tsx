@@ -67,7 +67,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .single(),
     db
       .from('tournament_divisions')
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents')
+      .select('id, name, format, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
