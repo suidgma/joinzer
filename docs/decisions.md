@@ -25,6 +25,16 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-19 — Issue 3 verified live (partner invite restore for paid tournaments)
+**Status:** Complete
+**Affects:** `components/features/tournaments/DivisionsSection.tsx` — `handleRegister`, `handleClosePartnerModal`, `justRegistered` state
+**Merge:** `d958b6b` (branch `fix/restore-partner-invite-paid-tournaments` → main)
+- Two-user smoke test passed: inviter sees modal, Stripe redirect fires; invitee sees Pay for Both option in their view.
+- The Roderick/Precious test session simultaneously surfaced 3 distinct higher-severity issues now scheduled as: B6 (refund CHECK constraint), B2 (concurrent payment race), B1 (inviter stale state).
+- Issue 3 fix is sufficient as scoped; B1 will replace it as the "full Pay for Both UX" ticket.
+
+---
+
 ## 2026-05-18 — Ticket 3A — Events read cutover
 **Status:** Complete
 **Affects:** `events` read paths — `EventListItem`, `EventDetail` types; `EventCard`, event detail page, events list page, create-from-template page
