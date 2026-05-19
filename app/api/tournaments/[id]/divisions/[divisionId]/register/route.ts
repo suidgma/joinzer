@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 export async function POST(
   req: NextRequest,
@@ -40,7 +41,7 @@ export async function POST(
   // Fetch division
   const { data: division } = await service
     .from('tournament_divisions')
-    .select('id, tournament_id, team_type, max_entries, waitlist_enabled, status, name, cost_cents')
+    .select('id, tournament_id, format, max_entries, waitlist_enabled, status, name, cost_cents')
     .eq('id', params.divisionId)
     .eq('tournament_id', params.id)
     .single()
@@ -49,7 +50,7 @@ export async function POST(
   if (division.status === 'closed') return NextResponse.json({ error: 'Division is closed' }, { status: 400 })
 
   // Solo only valid for doubles divisions
-  if (registration_type === 'solo' && division.team_type !== 'doubles') {
+  if (registration_type === 'solo' && !isDoublesFormat(division.format)) {
     return NextResponse.json({ error: 'Solo registration is only available for doubles divisions' }, { status: 400 })
   }
 
