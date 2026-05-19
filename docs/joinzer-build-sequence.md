@@ -103,12 +103,8 @@ Taxonomy migration is the foundation; everything else in this batch depends on i
 - **Verify:** Preview with a clean CSV → see Import button → click it → registrants appear in the division.
 - **Decision needed:** What happens to "No account" rows when commit fires? Stub-account-and-invite, or skip? (See §Decisions.)
 
-### [ ] 1.6 Switch reads to new format helpers
-- **Where:** Match generator, bracket renderer, anywhere `team_type` or `category` is read.
-- **What:** Grep for old column reads, replace with `isDoubles(format)` etc. The render fix from 0.1 becomes the *correct* render once teams have real partner data.
-- **Prompt:** *"Find every place in the codebase that reads `divisions.category`, `divisions.team_type`, or the legacy skill enums. Replace each with reads from `divisions.format`, `divisions.skill_min`, `divisions.skill_max`, using the helpers in lib/format.ts and lib/skill.ts. Be exhaustive — match generation, registration forms, schedule rendering, filters, exports. Keep dual-write (writes) in place; this PR is read-side only."*
-- **Verify:** Create a fresh doubles division, register two players with the team-aware Add Player from 1.2, generate matches. Should show "Player1 / Player2 vs Player3 / Player4."
-- **Blocks:** Batch 4.
+### [x] 1.6 Switch reads to new format helpers — closed 2026-05-19
+- Covered by 3A (events read cutover, merge cd2ffaf) and 3C (tournament divisions read cutover, merge 40767d6). All `team_type`/`category`/`skill_level` reads on tournament surfaces replaced with `isDoublesFormat(format)`, `formatSkillRange(skill_min, skill_max)`, and `FORMAT_LABELS`. Leagues surface tracked separately as ticket 3B.
 
 ---
 
