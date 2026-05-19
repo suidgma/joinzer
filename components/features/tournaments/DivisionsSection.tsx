@@ -27,6 +27,12 @@ const FORMAT_LABELS: Record<string, string> = {
   custom:                 'Custom',
 }
 
+// Legacy category → label fallback for auto-name builder (form state still holds legacy values)
+const LEGACY_CATEGORY_LABELS: Record<string, string> = {
+  singles: 'Singles',
+  open:    'Open',
+}
+
 const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediate Plus', 'Advanced']
 
 type Registration = {
@@ -171,7 +177,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setFError(null)
 
     const autoName = fName.trim() ||
-      [FORMAT_LABELS[fCategory], fSkill].filter(Boolean).join(' — ')
+      [FORMAT_LABELS[fCategory] ?? LEGACY_CATEGORY_LABELS[fCategory], fSkill].filter(Boolean).join(' — ')
 
     const supabase = createClient()
     const { data, error } = await supabase
