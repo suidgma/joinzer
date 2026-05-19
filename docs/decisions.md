@@ -25,6 +25,25 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-19 — Ticket 3C — Tournament divisions read cutover
+**Status:** Complete
+**Affects:** All tournament division reads across app/, components/features/tournaments/, api/tournaments/
+**Decision:** Swapped all reads from legacy `category`/`team_type`/`skill_level` columns on `tournament_divisions` to canonical `format`/`skill_min`/`skill_max`. Created `lib/taxonomy/formats.ts` as shared utility.
+**Scope:**
+- 8 files, 11 commits (including merge commit 40767d6)
+- 13 change points in DivisionsSection alone
+- New `lib/taxonomy/formats.ts`: exports `DOUBLES_FORMATS` constant, `isDoublesFormat()`, `formatSkillRange()` — reusable by Phase 3B leagues cutover
+- All `team_type === 'doubles'` checks replaced with `isDoublesFormat(format)`
+- Gender filter in `searchPlayers` correctly handles both `mens_doubles`/`womens_doubles` AND `mens_singles`/`womens_singles` (improvement over old filter which only covered doubles variants)
+- Skill display unified: `X.Y – X.Y` / `X.Y and up` / `Up to X.Y` — matches 3A EventCard convention
+- Bonus: dead `category` field dropped from invite route PostgREST join + TypeScript type (was selected, never rendered)
+**Known follow-ups logged:**
+- Add-division form still uses legacy `fCategory` + `fTeamType` state pair via `prepareDivisionWrite()` — ticket logged to refactor to single canonical Format dropdown, addressable alongside 3B
+- `npx vitest run` fails on Marty's Windows machine with default worker pool (worker_threads issue); `--pool=forks` is the working invocation — not a code issue
+**Phase 4 gate:** `tournament_divisions.category`, `team_type`, `skill_level` columns can be dropped once 3B is also live and stable for ≥7 days
+
+---
+
 ## 2026-05-19 — Ticket B6 — Fix payment_status CHECK constraint
 **Status:** Complete
 **Affects:** `tournament_registrations.payment_status` CHECK constraint; `supabase/migrations/20260519000001_fix_payment_status_refunded.sql`

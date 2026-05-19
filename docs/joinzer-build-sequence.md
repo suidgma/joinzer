@@ -272,7 +272,7 @@ Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in par
 - **Verify:** `SELECT COUNT(*) FROM tournament_divisions WHERE format IS NULL` returns 0.
 - **Blocks:** 3C — Phase 3C cannot safely enforce NOT NULL on `format` until these rows are gone.
 
-### [ ] 3C — Tournament divisions read cutover
+### [x] 3C — Tournament divisions read cutover — merged 2026-05-19, merge SHA 40767d6
 - **What:** Swap `category`, `team_type`, and `skill_level` reads on `tournament_divisions` to `format`, `skill_min`, `skill_max`. Most complex of the three tickets: `team_type` drives logic in 5 places, `category` drives the player-search gender filter.
 - **Key changes:**
   - All `team_type === 'doubles'` checks → `['mens_doubles','womens_doubles','mixed_doubles','coed_doubles'].includes(format)` — affects `DivisionsSection.tsx` lines 258/822/1028, `MatchesSection.tsx` line 110, `ScheduleManager.tsx` line 32, `MyMatchesSection.tsx` line 110, register route line 52
