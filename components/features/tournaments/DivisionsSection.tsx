@@ -120,7 +120,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
   // Partner invite step (shown after registration succeeds for doubles)
-  const [justRegistered, setJustRegistered] = useState<{ regId: string; divisionId: string } | null>(null)
+  const [justRegistered, setJustRegistered] = useState<{ regId: string; divisionId: string; requiresPayment: boolean } | null>(null)
   const [partnerEmail, setPartnerEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
@@ -254,19 +254,29 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     ))
     router.refresh()
 
-    // Redirect to Stripe immediately for paid registrations (skip for waitlist)
     const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
     if (effectiveCost > 0 && json.registration.status === 'registered') {
-      setTeamName('')
-      setRegLoading(false)
-      setRegisteringDiv(null)
-      await handlePay(json.registration.id, div.id)
+      if (div.team_type === 'doubles' && regType === 'team') {
+        // Paid doubles team: show partner invite first, payment fires on modal close
+        setJustRegistered({ regId: json.registration.id, divisionId: div.id, requiresPayment: true })
+        setPartnerEmail('')
+        setInviteError(null)
+        setInviteSent(false)
+        setTeamName('')
+        setRegLoading(false)
+      } else {
+        // Paid solo or non-doubles: redirect to Stripe immediately
+        setTeamName('')
+        setRegLoading(false)
+        setRegisteringDiv(null)
+        await handlePay(json.registration.id, div.id)
+      }
       return
     }
 
-    // For team doubles, show partner invite step; solos are auto-matched
+    // Free path: team doubles show partner invite step; solos are auto-matched
     if (div.team_type === 'doubles' && regType === 'team') {
-      setJustRegistered({ regId: json.registration.id, divisionId: div.id })
+      setJustRegistered({ regId: json.registration.id, divisionId: div.id, requiresPayment: false })
       setPartnerEmail('')
       setInviteError(null)
       setInviteSent(false)
@@ -303,6 +313,19 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     if (!res.ok) { setInviteError(json.error ?? 'Failed to send invite'); setInviteLoading(false); return }
     setInviteSent(true)
     setInviteLoading(false)
+  }
+
+  // ── Close partner invite modal (triggers payment if registration requires it) ──
+  async function handleClosePartnerModal() {
+    const reg = justRegistered
+    if (!reg) return                          // guard against double-click
+    setJustRegistered(null)
+    setRegisteringDiv(null)
+    if (reg.requiresPayment) {
+      setRegLoading(true)                     // keep buttons disabled during Stripe call
+      await handlePay(reg.regId, reg.divisionId)
+      // handlePay navigates away on success; on alert() failure modal is already closed
+    }
   }
 
   // ── Cancel own registration ───────────────────────────────────────
@@ -1251,8 +1274,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                   </p>
                 </div>
                 <button
-                  onClick={() => { setJustRegistered(null); setRegisteringDiv(null) }}
-                  className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+                  onClick={handleClosePartnerModal}
+                  disabled={regLoading}
+                  className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
                 >
                   Done
                 </button>
@@ -1290,8 +1314,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     {inviteLoading ? 'Sending…' : 'Send Invite'}
                   </button>
                   <button
-                    onClick={() => { setJustRegistered(null); setRegisteringDiv(null) }}
-                    className="px-4 py-2.5 rounded-xl border border-brand-border text-sm text-brand-muted hover:bg-brand-soft transition-colors"
+                    onClick={handleClosePartnerModal}
+                    disabled={regLoading}
+                    className="px-4 py-2.5 rounded-xl border border-brand-border text-sm text-brand-muted hover:bg-brand-soft disabled:opacity-50 transition-colors"
                   >
                     Skip
                   </button>
