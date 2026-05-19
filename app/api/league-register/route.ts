@@ -249,6 +249,7 @@ export async function POST(request: NextRequest) {
         : null
       const startFmt = fmt(league.start_date ?? null)
       const endFmt = fmt(league.end_date ?? null)
+      const effectiveCostCents = (league as any).cost_cents ?? 0
 
       const rows: EmailRow[] = [
         ['League', league.name],
@@ -260,7 +261,7 @@ export async function POST(request: NextRequest) {
         ...(FORMAT_LABELS[league.format] ? [['Format', FORMAT_LABELS[league.format]] as EmailRow] : []),
         ...(SKILL_LABELS[league.skill_level] ? [['Skill level', SKILL_LABELS[league.skill_level]] as EmailRow] : []),
         ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
-        ['Fee', 'Free'],
+        ...(!isWaitlist ? [['Fee', effectiveCostCents > 0 ? `$${(effectiveCostCents / 100).toFixed(2)} — payment required` : 'Free'] as EmailRow] : []),
         ...(isSolo && partnerName
           ? [['Partner', partnerName] as EmailRow]
           : isSolo && !partnerName
