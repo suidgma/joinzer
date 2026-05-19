@@ -12,13 +12,25 @@ import PrepTournamentModal from './PrepTournamentModal'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
+import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 
-const CATEGORY_LABELS: Record<string, string> = {
-  mens_doubles:   'Men',
-  womens_doubles: 'Women',
-  mixed_doubles:  'Mixed',
-  singles:        'Singles',
-  open:           'Open',
+const FORMAT_LABELS: Record<string, string> = {
+  mens_doubles:           "Men's Doubles",
+  womens_doubles:         "Women's Doubles",
+  mixed_doubles:          'Mixed Doubles',
+  coed_doubles:           'Coed Doubles',
+  open_doubles:           'Open Doubles',
+  mens_singles:           "Men's Singles",
+  womens_singles:         "Women's Singles",
+  open_singles:           'Open Singles',
+  individual_round_robin: 'Individual Round Robin',
+  custom:                 'Custom',
+}
+
+// Legacy category → label fallback for auto-name builder (form state still holds legacy values)
+const LEGACY_CATEGORY_LABELS: Record<string, string> = {
+  singles: 'Singles',
+  open:    'Open',
 }
 
 const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediate Plus', 'Advanced']
@@ -39,9 +51,9 @@ type Registration = {
 type Division = {
   id: string
   name: string
-  category: string
-  skill_level: string | null
-  team_type: string
+  format: string
+  skill_min: number | null
+  skill_max: number | null
   max_entries: number
   waitlist_enabled: boolean
   status: string
@@ -165,7 +177,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setFError(null)
 
     const autoName = fName.trim() ||
-      [CATEGORY_LABELS[fCategory], fSkill].filter(Boolean).join(' — ')
+      [FORMAT_LABELS[fCategory] ?? LEGACY_CATEGORY_LABELS[fCategory], fSkill].filter(Boolean).join(' — ')
 
     const supabase = createClient()
     const { data, error } = await supabase
@@ -184,7 +196,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         max_age: fMaxAge ? parseInt(fMaxAge) : null,
         start_time: fStartTimeEnabled ? fStartTime : null,
       })
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents')
+      .select('id, name, format, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -256,7 +268,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
 
     const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
     if (effectiveCost > 0 && json.registration.status === 'registered') {
-      if (div.team_type === 'doubles' && regType === 'team') {
+      if (isDoublesFormat(div.format) && regType === 'team') {
         // Paid doubles team: show partner invite first, payment fires on modal close
         setJustRegistered({ regId: json.registration.id, divisionId: div.id, requiresPayment: true })
         setPartnerEmail('')
@@ -275,7 +287,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     }
 
     // Free path: team doubles show partner invite step; solos are auto-matched
-    if (div.team_type === 'doubles' && regType === 'team') {
+    if (isDoublesFormat(div.format) && regType === 'team') {
       setJustRegistered({ regId: json.registration.id, divisionId: div.id, requiresPayment: false })
       setPartnerEmail('')
       setInviteError(null)
@@ -411,16 +423,15 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   }
 
   // ── Organizer: search players ─────────────────────────────────────
-  async function searchPlayers(query: string, excludeUserIds: string[] = [], category?: string) {
+  async function searchPlayers(query: string, excludeUserIds: string[] = [], format?: string) {
     setPlayerSearch(query)
     const supabase = createClient()
     let q = supabase.from('profiles').select('id, name, gender').order('name').limit(500)
     if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
     const excludeIds = Array.from(new Set((currentUserId ? [currentUserId] : []).concat(excludeUserIds)))
     if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
-    // Filter by gender based on stored category value
-    if (category === 'mens_doubles') q = (q as any).eq('gender', 'male')
-    else if (category === 'womens_doubles') q = (q as any).eq('gender', 'female')
+    if (format === 'mens_doubles' || format === 'mens_singles') q = (q as any).eq('gender', 'male')
+    else if (format === 'womens_doubles' || format === 'womens_singles') q = (q as any).eq('gender', 'female')
     const { data } = await q
     setPlayerResults(data ?? [])
   }
@@ -785,10 +796,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                   <div>
                     <p className="font-heading text-sm font-bold text-brand-dark">{div.name}</p>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      {CATEGORY_LABELS[div.category] ?? div.category}
-                      {' · '}
-                      {div.team_type === 'doubles' ? 'Doubles' : 'Singles'}
-                      {div.skill_level && ` · ${div.skill_level}`}
+                      {FORMAT_LABELS[div.format] ?? div.format}
+                      {formatSkillRange(div.skill_min, div.skill_max) && ` · ${formatSkillRange(div.skill_min, div.skill_max)}`}
                     </p>
                     <p className="text-xs text-brand-muted mt-0.5">{summaryLines.join(' · ')}</p>
                     {div.cost_cents != null && div.cost_cents > 0 && (
@@ -850,9 +859,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                 {/* Counts */}
                 <div className="flex items-center gap-3 text-xs text-brand-muted">
                   <span>
-                    <span className="font-semibold text-brand-dark">{div.team_type === 'doubles' ? effectiveTeams : active.length}</span>
+                    <span className="font-semibold text-brand-dark">{isDoublesFormat(div.format) ? effectiveTeams : active.length}</span>
                     {' / '}{div.max_entries}{' '}
-                    {div.team_type === 'doubles' ? 'teams' : 'players'}
+                    {isDoublesFormat(div.format) ? 'teams' : 'players'}
                     {unmatchedSolos > 0 && (
                       <span className="text-amber-600 ml-1">(+{unmatchedSolos} solo{unmatchedSolos > 1 ? 's' : ''} seeking partner)</span>
                     )}
@@ -1057,7 +1066,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                                   </span>
                                   {reg.partner_user_id ? (
                                     <span className="text-brand-muted">Partner ✓</span>
-                                  ) : div.team_type === 'doubles' ? (
+                                  ) : isDoublesFormat(div.format) ? (
                                     <span className="text-amber-600">No partner</span>
                                   ) : null}
                                 </div>
@@ -1124,8 +1133,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                         <input
                           type="text"
                           value={playerSearch}
-                          onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.category)}
-                          onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.category)}
+                          onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)}
+                          onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)}
                           placeholder="Search player by name…"
                           className="w-full input text-xs"
                           autoFocus
@@ -1155,7 +1164,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       </div>
                     ) : (
                       <button
-                        onClick={() => { setAddingPlayerId(div.id); setPlayerSearch(''); setAddPlayerError(null); searchPlayers('', div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.category) }}
+                        onClick={() => { setAddingPlayerId(div.id); setPlayerSearch(''); setAddPlayerError(null); searchPlayers('', div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format) }}
                         className="text-xs text-brand-active font-medium hover:underline pt-1"
                       >
                         + Add Player
@@ -1181,13 +1190,11 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             </h2>
 
             <p className="text-sm text-brand-muted">
-              {CATEGORY_LABELS[registeringDiv.category]}
-              {' · '}
-              {registeringDiv.team_type === 'doubles' ? 'Doubles' : 'Singles'}
-              {registeringDiv.skill_level && ` · ${registeringDiv.skill_level}`}
+              {FORMAT_LABELS[registeringDiv.format] ?? registeringDiv.format}
+              {formatSkillRange(registeringDiv.skill_min, registeringDiv.skill_max) && ` · ${formatSkillRange(registeringDiv.skill_min, registeringDiv.skill_max)}`}
             </p>
 
-            {registeringDiv.team_type === 'doubles' && (
+            {isDoublesFormat(registeringDiv.format) && (
               <div className="space-y-3">
                 {/* Team vs Solo toggle */}
                 <div>

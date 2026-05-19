@@ -377,6 +377,10 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 - **Must land before:** B1. Do not ship symmetric Pay for Both UI until this guard exists.
 - **Full context:** `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §5, §7 B2.
 
+### [ ] Update add-division form to use canonical format values directly
+- **What:** Add-division form's `fCategory` + `fTeamType` state still holds legacy column values (`mens_doubles`, `singles`, `open` + `doubles`/`singles`), requiring `prepareDivisionWrite()` translation on every insert. Cleaner design: drop the separate Team Type field, change Category dropdown to a single Format dropdown using canonical values (`mens_doubles`, `mens_singles`, `mixed_doubles`, `open_singles`, etc.). Reduces Phase 4 cleanup surface.
+- **Out of scope for 3C.** Addressable alongside 3B leagues form refactor.
+
 ### [ ] B1 — Symmetric "Pay for Both" UI (depends on B2)
 - **What:** Inviter's React state is stale after invitee accepts — `myReg.partner_user_id` is null in client memory until a manual page refresh, so "Pay for Both" button never appears for the inviter. Both DB rows have `partner_user_id` set; only the client is stale.
 - **Scope (three sub-items):**

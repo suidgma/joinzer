@@ -11,7 +11,7 @@ type InviteDetails = {
   inviter_name: string
   team_name: string | null
   tournament: { id: string; name: string; start_date: string }
-  division: { id: string; name: string; category: string }
+  division: { id: string; name: string }
 }
 
 export default function InviteAcceptPage(props: { params: Promise<{ token: string }> }) {
