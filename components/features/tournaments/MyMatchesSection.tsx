@@ -1,5 +1,7 @@
 'use client'
 
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
+
 function formatTime(t: string | null | undefined): string | null {
   if (!t) return null
   const [h, m] = t.split(':').map(Number)
@@ -37,7 +39,7 @@ type Registration = {
 type Division = {
   id: string
   name: string
-  team_type: string
+  format: string
   tournament_registrations: Registration[]
 }
 
@@ -107,7 +109,7 @@ export default function MyMatchesSection({ currentUserId, matches, divisions }: 
       <div className="space-y-2">
         {myMatches.map(m => {
           const iAmTeam1 = myRegIds.has(m.team_1_registration_id ?? '')
-          const isDoubles = divisions.find(d => d.id === m.division_id)?.team_type === 'doubles'
+          const isDoubles = isDoublesFormat(divisions.find(d => d.id === m.division_id)?.format ?? '')
           const myRegId = iAmTeam1 ? m.team_1_registration_id : m.team_2_registration_id
           const oppRegId = iAmTeam1 ? m.team_2_registration_id : m.team_1_registration_id
           const myScore = iAmTeam1 ? m.team_1_score : m.team_2_score
