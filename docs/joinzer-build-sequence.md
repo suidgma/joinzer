@@ -356,11 +356,11 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 - **Verified live:** Two-user smoke test (Roderick as inviter, Precious as invitee) — inviter saw modal, Stripe redirect fired; invitee saw Pay for Both option in their view.
 - **Full context:** `docs/investigations/payment-gate-and-partner-pay-audit-2026-05-19.md` §Issue 3
 
-### [ ] B6 — Refund payment_status CHECK constraint mismatch (HIGH integrity bug)
+### [x] B6 — Refund payment_status CHECK constraint mismatch — verified 2026-05-19, migration 20260519000001_fix_payment_status_refunded.sql
 - **What:** `tournament_registrations.payment_status` CHECK only allows `('unpaid','paid','waived')`. The cancel route (`app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts:59`) writes `'refunded'` — silently failing the constraint check. The `status='cancelled'` update succeeds. Result: all cancelled-after-paid registrations show `payment_status='paid'` permanently. The `refunded_at` column write likely fails too (column may not exist).
 - **Fix:** Migration to add `'refunded'` to the CHECK constraint + verify `refunded_at timestamptz` column exists (add if missing). No code changes needed once the schema matches.
 - **Evidence:** Marty's test row `2493b247` in division `3dc096c9` — `status='cancelled'`, `payment_status='paid'`, confirming the silent failure. Full context: `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §3 incidental finding.
-- **Must ship before:** B2 (concurrent payment fix) and before any real money flows through cancel.
+- **Verified:** 0 rows in broken state post-migration; Marty's row `payment_status='refunded'`, `refunded_at='2026-05-18 22:24:51.792561+00'`; new constraint confirmed via `pg_get_constraintdef`.
 
 ### [ ] B6.1 — Harden cancel route DB error checking (depends on B6)
 - **What:** `app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts` does not check return values from either Supabase `update()` call. After B6 fixes the CHECK constraint, the silent-fail vector is closed for that specific case, but the route still has no error handling on either DB write. Specifically: if the `payment_status='refunded'` write fails post-Stripe-refund, money has moved but the DB doesn't reflect it. Same risk on the `status='cancelled'` write.

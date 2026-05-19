@@ -25,6 +25,17 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-19 — Ticket B6 — Fix payment_status CHECK constraint
+**Status:** Complete
+**Affects:** `tournament_registrations.payment_status` CHECK constraint; `supabase/migrations/20260519000001_fix_payment_status_refunded.sql`
+- **What broke:** Cancel route writes `payment_status='refunded'` but the CHECK constraint only allowed `('unpaid','paid','waived')`, so the write silently failed via unchecked Supabase return value. The `status='cancelled'` update succeeded, leaving `payment_status='paid'` permanently on cancelled-after-paid rows.
+- **What was migrated:** CHECK constraint now includes `'refunded'`. 1 historical row backfilled: `2493b247` set to `payment_status='refunded'`, `refunded_at='2026-05-18 22:24:51.792561+00'` (row's `updated_at`, accurate to ~1 second of actual Stripe refund time).
+- **Discovered during:** Pay for Both audit (`docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §3 incidental finding).
+- **Context:** Marty's $5 Stripe refund was issued correctly on 2026-05-18 22:24 UTC; this migration catches the DB up to that reality.
+- **Follow-up:** B6.1 (cancel route hardening) still pending — this migration closes the silent-fail vector for the constraint mismatch specifically, but the route still has no error handling on either DB write.
+
+---
+
 ## 2026-05-19 — Issue 3 verified live (partner invite restore for paid tournaments)
 **Status:** Complete
 **Affects:** `components/features/tournaments/DivisionsSection.tsx` — `handleRegister`, `handleClosePartnerModal`, `justRegistered` state
