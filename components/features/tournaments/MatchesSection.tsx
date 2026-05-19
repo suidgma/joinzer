@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import BracketView from './BracketView'
 import ScheduleManager from './ScheduleManager'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 type Match = {
   id: string
@@ -35,7 +36,7 @@ type Division = {
   id: string
   name: string
   bracket_type: string
-  team_type: string
+  format: string
   tournament_registrations: Registration[]
 }
 
@@ -356,7 +357,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
         const pools = Array.from(new Set(divMatches.filter(m => m.pool_number != null).map(m => m.pool_number!))).sort((a, b) => a - b)
         const hasCompletedMatches = divMatches.some(m => m.status === 'completed' && m.team_2_registration_id)
 
-        const isDoubles = div.team_type === 'doubles'
+        const isDoubles = isDoublesFormat(div.format)
 
         const matchCardProps = {
           regs: div.tournament_registrations,
