@@ -346,6 +346,42 @@ Once the product works, unlock growth. Don't ship before Batch 1–3 land.
 
 ---
 
+## Bugs
+
+Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
+
+### [x] Issue 3 — Partner invite modal missing for paid tournament registrations — verified 2026-05-19, merge d958b6b
+- **Root cause:** Commit `7032cbc` added an immediate Stripe redirect for paid registrations, inserting a `return` before the `setJustRegistered()` call that opens the partner invite modal. Paid doubles team registrations bypassed Step 2 entirely, leaving `partner_user_id` unlinked and "Pay for Both" unavailable.
+- **Fix:** Three-way fork in `handleRegister` — paid doubles team shows partner invite first, payment fires on modal close via `handleClosePartnerModal`; paid solo/non-doubles still redirect immediately; free path unchanged. `justRegistered` type extended with `requiresPayment: boolean`.
+- **Verified live:** Two-user smoke test (Roderick as inviter, Precious as invitee) — inviter saw modal, Stripe redirect fired; invitee saw Pay for Both option in their view.
+- **Full context:** `docs/investigations/payment-gate-and-partner-pay-audit-2026-05-19.md` §Issue 3
+
+### [ ] B6 — Refund payment_status CHECK constraint mismatch (HIGH integrity bug)
+- **What:** `tournament_registrations.payment_status` CHECK only allows `('unpaid','paid','waived')`. The cancel route (`app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts:59`) writes `'refunded'` — silently failing the constraint check. The `status='cancelled'` update succeeds. Result: all cancelled-after-paid registrations show `payment_status='paid'` permanently. The `refunded_at` column write likely fails too (column may not exist).
+- **Fix:** Migration to add `'refunded'` to the CHECK constraint + verify `refunded_at timestamptz` column exists (add if missing). No code changes needed once the schema matches.
+- **Evidence:** Marty's test row `2493b247` in division `3dc096c9` — `status='cancelled'`, `payment_status='paid'`, confirming the silent failure. Full context: `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §3 incidental finding.
+- **Must ship before:** B2 (concurrent payment fix) and before any real money flows through cancel.
+
+### [ ] B2 — Concurrent "Pay for Both" double-charge race (HIGH financial bug)
+- **What:** No DB-level or route-level guard prevents both partners from clicking "Pay for Both" simultaneously. Both requests pass the `payment_status='unpaid'` check, both create Stripe sessions at 2× price, both complete → $20 charged for a $10 fee. Webhook uses unconditional UPDATE — silently overwrites `stripe_payment_intent_id` with the second payment, losing audit trail for the first.
+- **Fix required (two layers):**
+  1. Checkout route: after fetching partner's reg, if `partnerReg.payment_status === 'paid'`, return 409 "Already covered by your partner" instead of degrading to quantity=1.
+  2. Webhook: add `AND payment_status = 'unpaid'` filter on the partner row UPDATE so a second firing doesn't clobber the first PI ID.
+  3. (Optional, architecturally correct): Wrap payment status transitions in an RPC with `SELECT FOR UPDATE` per `docs/architecture-target.md` principle.
+- **Must land before:** B1. Do not ship symmetric Pay for Both UI until this guard exists.
+- **Full context:** `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §5, §7 B2.
+
+### [ ] B1 — Symmetric "Pay for Both" UI (depends on B2)
+- **What:** Inviter's React state is stale after invitee accepts — `myReg.partner_user_id` is null in client memory until a manual page refresh, so "Pay for Both" button never appears for the inviter. Both DB rows have `partner_user_id` set; only the client is stale.
+- **Scope (three sub-items):**
+  1. Stale state fix: call `router.refresh()` after the partner invite is sent (post-`setInviteSent`) so the next server render picks up the accepted state — OR add a Supabase real-time subscription on the own registration row.
+  2. "Already paid by partner" display: when `myReg.payment_status === 'paid'` and `myReg.stripe_payment_intent_id === partnerReg.stripe_payment_intent_id`, show "Partner covered your fee" instead of the generic "$ Payment received". Requires partner's reg data in the page query.
+  3. `handlePay` double-click guard: add a per-reg-id `payLoading` state, disable both payment buttons while checkout POST is in-flight. Prevents same-browser double-fire.
+- **Gate:** B2 must be deployed and verified before this ships.
+- **Full design:** `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §6, §7 B1/B3/B5.
+
+---
+
 ## Backlog (everything else, lower leverage)
 
 Don't pull from here unless you're between batches or a specific item becomes a customer ask.
