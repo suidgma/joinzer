@@ -14,7 +14,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const [{ data: divisions, error: divErr }, { data: regs, error: regErr }] = await Promise.all([
     db
       .from('tournament_divisions')
-      .select('id, name, category, skill_level, team_type, max_entries, waitlist_enabled, status, bracket_type, format_settings_json')
+      .select('id, name, format, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
