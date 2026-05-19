@@ -362,6 +362,12 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 - **Evidence:** Marty's test row `2493b247` in division `3dc096c9` — `status='cancelled'`, `payment_status='paid'`, confirming the silent failure. Full context: `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §3 incidental finding.
 - **Must ship before:** B2 (concurrent payment fix) and before any real money flows through cancel.
 
+### [ ] B6.1 — Harden cancel route DB error checking (depends on B6)
+- **What:** `app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts` does not check return values from either Supabase `update()` call. After B6 fixes the CHECK constraint, the silent-fail vector is closed for that specific case, but the route still has no error handling on either DB write. Specifically: if the `payment_status='refunded'` write fails post-Stripe-refund, money has moved but the DB doesn't reflect it. Same risk on the `status='cancelled'` write.
+- **Design needed before build:** What should the route do when a DB write fails after Stripe has already processed the refund? Options: return 500 and surface to the caller; retry with backoff; write to a dead-letter table; fire an alert. Each has tradeoffs. Resolve the design question before opening the PR.
+- **Scope:** ~30–60 min audit + design + build.
+- **Gate:** B6 must be deployed first. Out of scope for B6.
+
 ### [ ] B2 — Concurrent "Pay for Both" double-charge race (HIGH financial bug)
 - **What:** No DB-level or route-level guard prevents both partners from clicking "Pay for Both" simultaneously. Both requests pass the `payment_status='unpaid'` check, both create Stripe sessions at 2× price, both complete → $20 charged for a $10 fee. Webhook uses unconditional UPDATE — silently overwrites `stripe_payment_intent_id` with the second payment, losing audit trail for the first.
 - **Fix required (two layers):**
