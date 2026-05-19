@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 type Match = {
   id: string
@@ -29,7 +30,7 @@ type Registration = {
 type Division = {
   id: string
   name: string
-  team_type: string
+  format: string
   tournament_registrations: Registration[]
 }
 
@@ -530,7 +531,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                   const e = edits[m.id]
                   const isPending = !!edits[m.id] && !isEditing
                   const divName = divisionName(m.division_id)
-                  const isDoubles = divisions.find(d => d.id === m.division_id)?.team_type === 'doubles'
+                  const isDoubles = isDoublesFormat(divisions.find(d => d.id === m.division_id)?.format ?? '')
 
                   return (
                     <div
@@ -622,7 +623,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
             const isEditing = editingId === m.id
             const e = edits[m.id]
             const divName = divisionName(m.division_id)
-            const isDoubles = divisions.find(d => d.id === m.division_id)?.team_type === 'doubles'
+            const isDoubles = isDoublesFormat(divisions.find(d => d.id === m.division_id)?.format ?? '')
 
             return (
               <div key={m.id} className={`bg-brand-surface border rounded-xl p-3 ${edits[m.id] ? 'border-amber-300' : 'border-brand-border'}`}>
