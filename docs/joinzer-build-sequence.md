@@ -285,6 +285,7 @@ Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in par
 - **Audit source:** `docs/investigations/phase3-read-cutover-audit-2026-05-18.md` RS-D1/D2, RD-D1 through D9.
 
 ### [ ] 3B — Leagues read cutover
+**Status:** Pending — audit prompt drafted, not yet fired. Restart with: league_sub_requests mini-audit + form shape decision A/B/C (see Prerequisites below).
 - **What:** Swap `skill_level` reads on `leagues` to `skill_min` / `skill_max`. Includes a form shape change: the skill level `<select>` (string enum) becomes a numeric range picker backed by the new columns. The `CompeteClient` filter (`SKILL_LEVEL_TO_TIER` string lookup) must be replaced with a range-to-tier reverse lookup.
 - **Prerequisite (must complete before starting):** Mini-audit of `league_sub_requests` table — `PlayerCheckIn.tsx` posts `league.skill_level` as `requested_skill_level` to this table. Audit what reads `requested_skill_level` downstream (organizer screens, notifications, any dashboards) before dropping the source column. Add findings to `docs/decisions.md` before the PR opens.
 - **Key changes:**
@@ -300,6 +301,7 @@ Continue the migration. Phase 2 is user-visible; Phase 3 is cleanup. Ship in par
 - **Audit source:** `docs/investigations/phase3-read-cutover-audit-2026-05-18.md` RS-L1 through L7, RD-L1 through L8.
 
 ### [ ] 4.2 Phase 4 — Drop legacy columns
+**Status:** Blocked on 3B.
 - **Gate:** All of 3A, 3A.1, 3C, 3B must be live and stable in production for at least 7 days before this ticket starts.
 - **What:** Stop dual-writing to legacy columns, then drop them from the schema. Remove legacy columns from `prepareLeagueWrite`, `prepareDivisionWrite`, `prepareEventWrite` helpers. Write and apply migration with DROP COLUMN statements. Remove any remaining backward-compat code paths.
 - **Columns to drop:**
@@ -389,6 +391,11 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
   3. `handlePay` double-click guard: add a per-reg-id `payLoading` state, disable both payment buttons while checkout POST is in-flight. Prevents same-browser double-fire.
 - **Gate:** B2 must be deployed and verified before this ships.
 - **Full design:** `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §6, §7 B1/B3/B5.
+
+### [ ] B11 — Cancel-and-re-register orphans partner linkage (HIGH integrity bug)
+- **What:** When an inviter cancels their registration and re-registers, the new row is created with `partner_user_id=null`. Their previous partner's row still has `partner_user_id` pointing to the cancelled row, leaving the partner's "Pay for Both" / partner-relationship logic pointing into the void. The cancel route (`app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts`) only updates the cancelling user's row — does not null out the partner's `partner_user_id` or notify them. The invite-acceptance route does not re-link an existing partner on re-registration.
+- **Reproduced live:** 2026-05-19, division `3dc096c9-b9c1-438b-bb0e-e675567b7a4a` — Roderick re-registered after cancellation; Precious's row still pointed to cancelled reg `ad15f730`; new row `fb73cbc0` has no partner link.
+- **Design note:** Belongs to the architectural partner-flow ticket family with B1/B2. Likely should be solved as one design pass (what does cancel mean for both halves of a partnership?), not patched in isolation. Out of scope for tonight.
 
 ---
 

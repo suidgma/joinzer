@@ -25,6 +25,31 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-19 — Session close — Phase 3C shipped, partner-flow rabbit hole discovered
+**Status:** Active
+**Affects:** Joinzer session log, B1/B2/B11 partner-flow ticket family, 3B/Phase 4 sequencing
+**Shipped today (in order):**
+- Issue 4 — `a67552a`
+- Issue 3 — partner-invite restore + verified live with two-user smoke test — `d958b6b`
+- B6 — refund CHECK constraint + backfill — `aeaefbc`
+- Phase 3C — tournament divisions read cutover + `lib/taxonomy/formats.ts` — merge `40767d6`
+
+**Live verification:** Issue 3 confirmed with Roderick + Precious. Both: modal appears, Stripe redirect fires, invitee sees Pay for Both. Inviter does not — that's B1 (known, logged).
+
+**Partner-flow bugs uncovered during smoke:**
+- **B1** — inviter stale state (client `partner_user_id` null until page refresh)
+- **B2** — concurrent Pay for Both double-charge race (HIGH financial bug, no guard)
+- **B11** — cancel-and-re-register orphans partner linkage (reproduced live, logged today)
+All three belong to one design pass. Do not patch in isolation.
+
+**Not started:**
+- 3B leagues read cutover — audit prompt drafted, not fired. Restart: league_sub_requests mini-audit + form shape decision A/B/C
+- Phase 4 column drops — blocked on 3B
+
+**Quality signal:** Audit → diff review → smoke discipline held through 4 production merges with zero rollbacks. 3C has 33/33 taxonomy tests. tsc clean on all merges.
+
+---
+
 ## 2026-05-19 — Ticket 3C — Tournament divisions read cutover
 **Status:** Complete
 **Affects:** All tournament division reads across app/, components/features/tournaments/, api/tournaments/
