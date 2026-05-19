@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ token: s
     .select(`
       id, status, invitee_email,
       tournament:tournaments!tournament_id(id, name, start_date),
-      division:tournament_divisions!division_id(id, name, category),
+      division:tournament_divisions!division_id(id, name),
       inviter_reg:tournament_registrations!inviter_registration_id(
         user_id, team_name
       )
