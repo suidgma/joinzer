@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
+import { createInviteAndNotify } from '@/lib/leagues/partner'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const { leagueId } = body
   const registration_type: 'team' | 'solo' = body.registration_type === 'solo' ? 'solo' : 'team'
+  const partnerEmail: string | null = body.partner_email ?? null
 
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -87,15 +89,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Count registered players
+  const isDoublesTeam = DOUBLES_FORMATS.includes(league.format) && registration_type === 'team'
+  if (isDoublesTeam && !partnerEmail) {
+    return NextResponse.json({ error: 'Partner email is required for doubles team registration' }, { status: 400 })
+  }
+
+  // Count registered + pending_partner (both hold a spot)
   const { count: registeredCount } = await admin
     .from('league_registrations')
     .select('id', { count: 'exact', head: true })
     .eq('league_id', leagueId)
-    .eq('status', 'registered')
+    .in('status', ['registered', 'pending_partner'])
 
   const isFull = league.max_players != null && (registeredCount ?? 0) >= league.max_players
-  const status = (league.registration_status === 'open' && !isFull) ? 'registered' : 'waitlist'
+  const rawStatus = (league.registration_status === 'open' && !isFull) ? 'registered' : 'waitlist'
+  const status = isDoublesTeam ? 'pending_partner' : rawStatus
 
   const { error: upsertErr } = await admin
     .from('league_registrations')
@@ -105,6 +113,23 @@ export async function POST(request: NextRequest) {
     )
 
   if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 })
+
+  // For free doubles team: create invitation + stub + send email
+  if (isDoublesTeam && status === 'pending_partner' && partnerEmail) {
+    const { data: captainReg } = await admin
+      .from('league_registrations')
+      .select('id')
+      .eq('league_id', leagueId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (captainReg?.id) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+      await createInviteAndNotify(admin, captainReg.id, leagueId, partnerEmail, siteUrl)
+    }
+
+    return NextResponse.json({ ok: true, status: 'pending_partner' })
+  }
 
   // Auto-match solo players in doubles leagues
   let matchedWith: { name: string } | null = null

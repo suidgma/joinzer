@@ -4,6 +4,7 @@ import Stripe from 'stripe'
 import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
+import { createInviteAndNotify, voidCaptainHold } from '@/lib/leagues/partner'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
 
     // ── Tournament registration ────────────────────────────────────────────────
     if (meta.registration_id) {
@@ -58,17 +60,24 @@ export async function POST(req: NextRequest) {
         .eq('id', meta.registration_id)
 
       if (meta.partner_registration_id) {
-        await service
+        const { data: partnerUpdateData, error: partnerUpdateError } = await service
           .from('tournament_registrations')
           .update({ payment_status: 'paid', stripe_payment_intent_id: paymentIntentId })
           .eq('id', meta.partner_registration_id)
+          .eq('payment_status', 'unpaid')
+          .select('id')
+        if (!partnerUpdateError && (!partnerUpdateData || partnerUpdateData.length === 0)) {
+          console.warn('[B2] Partner UPDATE was a no-op — partner already paid', {
+            partnerRegistrationId: meta.partner_registration_id,
+            paymentIntentId,
+          })
+        }
       }
 
       if (meta.discount_code_id) {
         await service.rpc('increment_discount_uses', { code_id: meta.discount_code_id })
       }
 
-      // Confirmation email
       const [{ data: reg }, { data: tournament }] = await Promise.all([
         service.from('tournament_registrations')
           .select('user_id, division_id, team_name, partner_user_id')
@@ -96,7 +105,6 @@ export async function POST(req: NextRequest) {
         const partnerName = partnerResult.data?.name ?? null
 
         if (profile?.email) {
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
           const tournamentUrl = `${siteUrl}/tournaments/${tournament.id}`
           const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
           const resend = new Resend(process.env.RESEND_API_KEY)
@@ -149,7 +157,6 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (ev) {
-        // Re-check capacity at webhook time (final gatekeeper)
         const { count } = await service
           .from('event_participants')
           .select('id', { count: 'exact', head: true })
@@ -169,12 +176,10 @@ export async function POST(req: NextRequest) {
             joined_at: new Date().toISOString(),
           }, { onConflict: 'event_id,user_id' })
 
-        // Mark event full if needed
         if (joinAs === 'joined' && (count ?? 0) + 1 >= ev.max_players) {
           await service.from('events').update({ status: 'full' }).eq('id', meta.event_id)
         }
 
-        // Confirmation email
         const { data: profile } = await service
           .from('profiles')
           .select('name, email')
@@ -182,7 +187,6 @@ export async function POST(req: NextRequest) {
           .single()
 
         if (profile?.email) {
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
           const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
           const sessionDate = new Date(ev.starts_at).toLocaleDateString('en-US', {
             timeZone: 'America/Los_Angeles',
@@ -206,7 +210,7 @@ export async function POST(req: NextRequest) {
                 ['Date', sessionDate],
                 ['Time', sessionTime],
                 ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
-                ...(joinAs === 'waitlist' ? [['Status', "You're on the waitlist — you'll be notified if a spot opens"] as EmailRow] : []),
+                ...(joinAs === 'waitlist' ? [["Status", "You're on the waitlist — you'll be notified if a spot opens"] as EmailRow] : []),
               ],
               ctaLabel: 'View Session',
               ctaUrl: `${siteUrl}/events/${meta.event_id}`,
@@ -219,89 +223,313 @@ export async function POST(req: NextRequest) {
 
     // ── Paid league registration ───────────────────────────────────────────────
     else if (meta.event_type === 'league' && meta.league_id && meta.user_id) {
-      const joinAs = meta.join_as === 'waitlist' ? 'waitlist' : 'registered'
+      const isDoublesTeam = meta.registration_type === 'team' && !!meta.partner_email
 
-      await service
+      if (isDoublesTeam) {
+        // Auth-and-capture path: register captain as pending_partner, create invitation
+        const joinAs = meta.join_as === 'waitlist' ? 'waitlist' : 'pending_partner'
+
+        const { data: upserted } = await service
+          .from('league_registrations')
+          .upsert({
+            league_id: meta.league_id,
+            user_id: meta.user_id,
+            status: joinAs,
+            payment_status: 'authorized',
+            stripe_payment_intent_id: paymentIntentId,
+            registration_type: 'team',
+            registered_at: new Date().toISOString(),
+          }, { onConflict: 'league_id,user_id' })
+          .select('id')
+          .single()
+
+        if (upserted?.id && joinAs === 'pending_partner') {
+          await createInviteAndNotify(service, upserted.id, meta.league_id, meta.partner_email, siteUrl)
+        }
+      } else {
+        // Standard solo/individual path
+        const joinAs = meta.join_as === 'waitlist' ? 'waitlist' : 'registered'
+
+        await service
+          .from('league_registrations')
+          .upsert({
+            league_id: meta.league_id,
+            user_id: meta.user_id,
+            status: joinAs,
+            payment_status: 'paid',
+            stripe_payment_intent_id: paymentIntentId,
+            registration_type: meta.registration_type ?? 'solo',
+            registered_at: new Date().toISOString(),
+          }, { onConflict: 'league_id,user_id' })
+
+        // Confirmation email for standard path
+        const [{ data: league }, { data: profile }] = await Promise.all([
+          service.from('leagues')
+            .select('name, format, skill_level, location_name, start_date, end_date, schedule_description, cost_cents')
+            .eq('id', meta.league_id)
+            .single(),
+          service.from('profiles').select('name, email').eq('id', meta.user_id).single(),
+        ])
+
+        if (profile?.email && league) {
+          const leagueUrl = `${siteUrl}/compete/leagues/${meta.league_id}`
+          const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
+          const isWaitlist = joinAs !== 'registered'
+          const resend = new Resend(process.env.RESEND_API_KEY)
+
+          const fmt = (d: string | null) => d
+            ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
+                .format(new Date(d + 'T00:00:00'))
+            : null
+          const startFmt = fmt(league.start_date ?? null)
+          const endFmt = fmt(league.end_date ?? null)
+
+          const rows: EmailRow[] = [
+            ['League', league.name],
+            ...(league.location_name ? [['Location', league.location_name] as EmailRow] : []),
+            ...(league.schedule_description ? [['Schedule', league.schedule_description] as EmailRow] : []),
+            ...(startFmt && endFmt
+              ? [['Dates', `${startFmt} — ${endFmt}`] as EmailRow]
+              : startFmt ? [['Starts', startFmt] as EmailRow] : []),
+            ...(FORMAT_LABELS[league.format] ? [['Format', FORMAT_LABELS[league.format]] as EmailRow] : []),
+            ...(SKILL_LABELS[league.skill_level] ? [['Skill level', SKILL_LABELS[league.skill_level]] as EmailRow] : []),
+            ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
+            ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+          ]
+
+          let attachments: { filename: string; content: Buffer }[] = []
+          if (!isWaitlist) {
+            const { data: sessions } = await service
+              .from('league_sessions')
+              .select('id, session_date, session_number')
+              .eq('league_id', meta.league_id)
+              .order('session_number', { ascending: true })
+            if (sessions && sessions.length > 0) {
+              const ics = generateIcs(sessions.map(s => ({
+                uid: s.id,
+                title: `${league.name} — Session ${s.session_number}`,
+                startDate: s.session_date,
+                ...(league.location_name ? { location: league.location_name } : {}),
+                url: leagueUrl,
+              })))
+              attachments = [{ filename: 'joinzer-league.ics', content: Buffer.from(ics) }]
+            }
+          }
+
+          await resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: profile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `Payment confirmed — ${league.name}`,
+            html: registrationEmail({
+              heading: isWaitlist ? 'Payment Confirmed — Waitlisted' : "You're registered! Payment Confirmed ✓",
+              firstName: profile.name?.split(' ')[0] ?? 'there',
+              rows,
+              ctaLabel: 'View League',
+              ctaUrl: leagueUrl,
+              footerNote: 'Keep this email as your payment receipt.',
+            }),
+            ...(attachments.length > 0 ? { attachments } : {}),
+          })
+        }
+      }
+    }
+
+    // ── League partner payment ─────────────────────────────────────────────────
+    else if (meta.event_type === 'league_partner' && meta.invitation_id && meta.user_id) {
+      const { data: inv } = await service
+        .from('league_partner_invitations')
+        .select('id, captain_registration_id, league_id, invitee_email, status')
+        .eq('id', meta.invitation_id)
+        .eq('status', 'pending')
+        .single()
+
+      if (!inv) {
+        // Invitation already resolved (race with cron or double-fire) — refund partner
+        if (paymentIntentId) {
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+          await stripe.refunds.create({ payment_intent: paymentIntentId }).catch((err) =>
+            console.error('[webhook] partner refund on stale invite failed:', err)
+          )
+        }
+        return NextResponse.json({ received: true })
+      }
+
+      const { data: captainReg } = await service
         .from('league_registrations')
-        .upsert({
-          league_id: meta.league_id,
-          user_id: meta.user_id,
-          status: joinAs,
-          payment_status: 'paid',
-          stripe_payment_intent_id: paymentIntentId,
-          registered_at: new Date().toISOString(),
-        }, { onConflict: 'league_id,user_id' })
+        .select('stripe_payment_intent_id, user_id')
+        .eq('id', inv.captain_registration_id)
+        .single()
 
-      // Confirmation email
-      const [{ data: league }, { data: profile }] = await Promise.all([
-        service.from('leagues')
-          .select('name, format, skill_level, location_name, start_date, end_date, schedule_description, cost_cents')
-          .eq('id', meta.league_id)
-          .single(),
-        service.from('profiles').select('name, email').eq('id', meta.user_id).single(),
-      ])
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
-      if (profile?.email && league) {
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
-        const leagueUrl = `${siteUrl}/compete/leagues/${meta.league_id}`
-        const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
-        const isWaitlist = joinAs !== 'registered'
+      // Capture captain's held payment
+      let captureOk = false
+      if (captainReg?.stripe_payment_intent_id) {
+        try {
+          await stripe.paymentIntents.capture(captainReg.stripe_payment_intent_id)
+          captureOk = true
+        } catch (err) {
+          console.error('[webhook] captain capture failed:', err)
+        }
+      } else {
+        // No hold exists (free league path shouldn't reach here, but treat as ok)
+        captureOk = true
+      }
+
+      if (!captureOk) {
+        // Refund partner, reset invitation to retryable pending
+        if (paymentIntentId) {
+          await stripe.refunds.create({ payment_intent: paymentIntentId }).catch((err) =>
+            console.error('[webhook] partner refund after capture failure:', err)
+          )
+        }
+        // Email both parties
+        const [captainProfileResult, { data: league }] = await Promise.all([
+          captainReg?.user_id
+            ? service.from('profiles').select('name, email').eq('id', captainReg.user_id).single()
+            : Promise.resolve({ data: null }),
+          service.from('leagues').select('name, id').eq('id', inv.league_id).single(),
+        ])
+        const captainProfile = captainProfileResult.data
         const resend = new Resend(process.env.RESEND_API_KEY)
 
+        if (captainProfile?.email && league) {
+          resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: captainProfile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `Action needed — ${league.name} registration`,
+            html: registrationEmail({
+              heading: 'Payment capture failed',
+              firstName: captainProfile.name?.split(' ')[0] ?? 'there',
+              intro: `Your partner ${inv.invitee_email} paid, but we were unable to capture your registration fee. Your partner has been refunded. Please try registering again.`,
+              rows: [['League', league.name]],
+              ctaLabel: 'Try again',
+              ctaUrl: `${siteUrl}/compete/leagues/${league.id}`,
+              footerNote: '',
+            }),
+          }).catch(() => {})
+        }
+
+        const { data: partnerProfile } = await service.from('profiles').select('name, email').eq('id', meta.user_id).single()
+        if (partnerProfile?.email && league) {
+          resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: partnerProfile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `You've been refunded — ${league.name}`,
+            html: registrationEmail({
+              heading: 'Payment refunded',
+              firstName: partnerProfile.name?.split(' ')[0] ?? 'there',
+              intro: `There was a problem processing your partner's registration fee. Your payment has been refunded. Your partner will be in touch to retry.`,
+              rows: [['League', league.name]],
+              ctaLabel: 'View League',
+              ctaUrl: `${siteUrl}/compete/leagues/${league.id}`,
+              footerNote: '',
+            }),
+          }).catch(() => {})
+        }
+
+        return NextResponse.json({ received: true })
+      }
+
+      // Both payments succeeded — register partner, finalize captain, link both
+      const { data: league } = await service.from('leagues')
+        .select('name, format, skill_level, location_name, start_date, end_date, schedule_description')
+        .eq('id', inv.league_id).single()
+
+      const { data: partnerReg } = await service
+        .from('league_registrations')
+        .upsert({
+          league_id: inv.league_id,
+          user_id: meta.user_id,
+          status: 'registered',
+          payment_status: 'paid',
+          stripe_payment_intent_id: paymentIntentId,
+          registration_type: 'team',
+          registered_at: new Date().toISOString(),
+        }, { onConflict: 'league_id,user_id' })
+        .select('id')
+        .single()
+
+      if (partnerReg?.id) {
+        // Cross-link registrations
+        await Promise.all([
+          service.from('league_registrations').update({
+            status: 'registered',
+            payment_status: 'paid',
+            partner_user_id: meta.user_id,
+            partner_registration_id: partnerReg.id,
+          }).eq('id', inv.captain_registration_id),
+          service.from('league_registrations').update({
+            partner_user_id: captainReg?.user_id ?? null,
+            partner_registration_id: inv.captain_registration_id,
+          }).eq('id', partnerReg.id),
+          service.from('league_partner_invitations').update({ status: 'accepted' }).eq('id', inv.id),
+        ])
+      }
+
+      // Email both players
+      const [captainProfileResult, partnerProfileResult] = await Promise.all([
+        captainReg?.user_id
+          ? service.from('profiles').select('name, email').eq('id', captainReg.user_id).single()
+          : Promise.resolve({ data: null }),
+        service.from('profiles').select('name, email').eq('id', meta.user_id).single(),
+      ])
+      const captainProfile = captainProfileResult.data
+      const partnerProfile = partnerProfileResult.data
+
+      if (league) {
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        const leagueUrl = `${siteUrl}/compete/leagues/${inv.league_id}`
         const fmt = (d: string | null) => d
           ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
               .format(new Date(d + 'T00:00:00'))
           : null
-        const startFmt = fmt(league.start_date ?? null)
-        const endFmt = fmt(league.end_date ?? null)
 
-        const rows: EmailRow[] = [
+        const sharedRows: EmailRow[] = [
           ['League', league.name],
           ...(league.location_name ? [['Location', league.location_name] as EmailRow] : []),
           ...(league.schedule_description ? [['Schedule', league.schedule_description] as EmailRow] : []),
-          ...(startFmt && endFmt
-            ? [['Dates', `${startFmt} — ${endFmt}`] as EmailRow]
-            : startFmt ? [['Starts', startFmt] as EmailRow] : []),
-          ...(FORMAT_LABELS[league.format] ? [['Format', FORMAT_LABELS[league.format]] as EmailRow] : []),
-          ...(SKILL_LABELS[league.skill_level] ? [['Skill level', SKILL_LABELS[league.skill_level]] as EmailRow] : []),
-          ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
-          ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+          ...(fmt(league.start_date ?? null) ? [['Starts', fmt(league.start_date ?? null)!] as EmailRow] : []),
         ]
 
-        let attachments: { filename: string; content: Buffer }[] = []
-        if (!isWaitlist) {
-          const { data: sessions } = await service
-            .from('league_sessions')
-            .select('id, session_date, session_number')
-            .eq('league_id', meta.league_id)
-            .order('session_number', { ascending: true })
-          if (sessions && sessions.length > 0) {
-            const ics = generateIcs(sessions.map(s => ({
-              uid: s.id,
-              title: `${league.name} — Session ${s.session_number}`,
-              startDate: s.session_date,
-              ...(league.location_name ? { location: league.location_name } : {}),
-              url: leagueUrl,
-            })))
-            attachments = [{ filename: 'joinzer-league.ics', content: Buffer.from(ics) }]
-          }
+        if (captainProfile?.email) {
+          resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: captainProfile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `You're registered! — ${league.name}`,
+            html: registrationEmail({
+              heading: "You're registered! ✓",
+              firstName: captainProfile.name?.split(' ')[0] ?? 'there',
+              intro: `${partnerProfile?.name ?? 'Your partner'} accepted your invitation and paid. You're both registered for ${league.name}.`,
+              rows: [...sharedRows, ['Partner', partnerProfile?.name ?? inv.invitee_email]],
+              ctaLabel: 'View League',
+              ctaUrl: leagueUrl,
+              footerNote: 'Keep this email as your payment receipt.',
+            }),
+          }).catch(() => {})
         }
 
-        await resend.emails.send({
-          from: 'Joinzer <support@joinzer.com>',
-          to: profile.email,
-          replyTo: 'martyfit50@gmail.com',
-          subject: `Payment confirmed — ${league.name}`,
-          html: registrationEmail({
-            heading: isWaitlist ? 'Payment Confirmed — Waitlisted' : "You're registered! Payment Confirmed ✓",
-            firstName: profile.name?.split(' ')[0] ?? 'there',
-            rows,
-            ctaLabel: 'View League',
-            ctaUrl: leagueUrl,
-            footerNote: 'Keep this email as your payment receipt.',
-          }),
-          ...(attachments.length > 0 ? { attachments } : {}),
-        })
+        if (partnerProfile?.email) {
+          resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: partnerProfile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `Payment confirmed — ${league.name}`,
+            html: registrationEmail({
+              heading: 'Payment Confirmed ✓',
+              firstName: partnerProfile.name?.split(' ')[0] ?? 'there',
+              intro: `You and ${captainProfile?.name ?? 'your partner'} are registered for ${league.name}.`,
+              rows: [...sharedRows, ['Partner', captainProfile?.name ?? 'Your captain']],
+              ctaLabel: 'View League',
+              ctaUrl: leagueUrl,
+              footerNote: 'Keep this email as your payment receipt.',
+            }),
+          }).catch(() => {})
+        }
       }
     }
   }

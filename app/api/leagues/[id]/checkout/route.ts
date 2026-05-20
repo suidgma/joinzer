@@ -3,12 +3,17 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 
-export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
+
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   try {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const body = await req.json().catch(() => ({}))
+    const partnerEmail: string | null = body.partner_email ?? null
 
     const service = createServiceClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,7 +22,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: league } = await service
       .from('leagues')
-      .select('id, name, cost_cents, registration_status, registration_closes_at, max_players')
+      .select('id, name, cost_cents, format, registration_status, registration_closes_at, max_players')
       .eq('id', params.id)
       .single()
 
@@ -34,6 +39,13 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     const costCents = (league as any).cost_cents ?? 0
     if (costCents <= 0) return NextResponse.json({ error: 'This league is free — use the regular register flow' }, { status: 400 })
 
+    const registrationType: 'team' | 'solo' = body.registration_type === 'solo' ? 'solo' : 'team'
+    const isDoublesTeam = DOUBLES_FORMATS.includes(league.format) && registrationType === 'team'
+
+    if (isDoublesTeam && !partnerEmail) {
+      return NextResponse.json({ error: 'Partner email is required for doubles team registration' }, { status: 400 })
+    }
+
     // Check if already registered/paid
     const { data: existing } = await service
       .from('league_registrations')
@@ -45,13 +57,16 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     if (existing?.payment_status === 'paid' && existing?.status === 'registered') {
       return NextResponse.json({ error: 'Already registered and paid' }, { status: 409 })
     }
+    if (existing?.status === 'pending_partner') {
+      return NextResponse.json({ error: 'Already waiting for partner confirmation' }, { status: 409 })
+    }
 
-    // Determine join status (registered vs waitlist) based on capacity
+    // Capacity check — pending_partner holds a spot
     const { count } = await service
       .from('league_registrations')
       .select('id', { count: 'exact', head: true })
       .eq('league_id', params.id)
-      .eq('status', 'registered')
+      .in('status', ['registered', 'pending_partner'])
 
     const isFull = (league as any).max_players != null && (count ?? 0) >= (league as any).max_players
     const joinAs = isFull ? 'waitlist' : 'registered'
@@ -59,7 +74,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
 
-    const stripeSession = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       line_items: [{
         price_data: {
@@ -74,11 +89,19 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
         league_id: params.id,
         user_id: user.id,
         join_as: joinAs,
+        registration_type: registrationType,
+        ...(partnerEmail ? { partner_email: partnerEmail } : {}),
       },
       success_url: `${siteUrl}/compete/leagues/${params.id}?payment=success`,
       cancel_url: `${siteUrl}/compete/leagues/${params.id}?payment=cancelled`,
-    })
+    }
 
+    // Auth-and-capture for doubles team: hold captain's funds until partner pays
+    if (isDoublesTeam) {
+      sessionParams.payment_intent_data = { capture_method: 'manual' }
+    }
+
+    const stripeSession = await stripe.checkout.sessions.create(sessionParams)
     return NextResponse.json({ url: stripeSession.url })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Checkout failed'

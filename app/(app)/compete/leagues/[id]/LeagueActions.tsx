@@ -19,19 +19,25 @@ type Props = {
   leagueId: string
   leagueName: string
   registrationStatus: string
-  myReg: 'registered' | 'waitlist' | 'cancelled' | null
+  myReg: 'registered' | 'waitlist' | 'cancelled' | 'pending_partner' | null
   mySubInterest: boolean
   isFull: boolean
   costCents: number
   format: string
   partnerUserName?: string | null
+  pendingPartnerEmail?: string | null
+  pendingPartnerExpiresAt?: string | null
   sessions: Session[]
   mySubSessionIds: string[]
   waitlistPosition: number | null
   waitlistTotal: number
 }
 
-export default function LeagueActions({ leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format, partnerUserName, sessions, mySubSessionIds, waitlistPosition, waitlistTotal }: Props) {
+export default function LeagueActions({
+  leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format,
+  partnerUserName, pendingPartnerEmail, pendingPartnerExpiresAt,
+  sessions, mySubSessionIds, waitlistPosition, waitlistTotal,
+}: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [subLoading, setSubLoading] = useState(false)
@@ -40,36 +46,56 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
   const [localPartner, setLocalPartner] = useState(partnerUserName ?? null)
   const [error, setError] = useState<string | null>(null)
   const [regType, setRegType] = useState<'team' | 'solo'>('team')
+  const [partnerEmail, setPartnerEmail] = useState('')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
 
   const isDoubles = DOUBLES_FORMATS.includes(format)
-
   const canRegister = registrationStatus === 'open' || registrationStatus === 'waitlist_only'
   const isPaid = costCents > 0
+
+  const needsPartnerEmail = isDoubles && regType === 'team'
 
   async function handleRegister() {
     setLoading(true)
     setError(null)
 
+    if (needsPartnerEmail && !partnerEmail.trim()) {
+      setError('Enter your partner\'s email address')
+      setLoading(false)
+      return
+    }
+    if (needsPartnerEmail && !partnerEmail.includes('@')) {
+      setError('Enter a valid partner email address')
+      setLoading(false)
+      return
+    }
+
     if (isPaid) {
-      // Paid league — go to Stripe checkout
-      const res = await fetch(`/api/leagues/${leagueId}/checkout`, { method: 'POST' })
+      const res = await fetch(`/api/leagues/${leagueId}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registration_type: regType,
+          ...(needsPartnerEmail ? { partner_email: partnerEmail.trim() } : {}),
+        }),
+      })
       const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-        return
-      }
+      if (data.url) { window.location.href = data.url; return }
       setError(data.error ?? 'Could not start checkout')
       setLoading(false)
       return
     }
 
-    // Free league — register directly
+    // Free league
     const res = await fetch('/api/league-register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leagueId, registration_type: regType }),
+      body: JSON.stringify({
+        leagueId,
+        registration_type: regType,
+        ...(needsPartnerEmail ? { partner_email: partnerEmail.trim() } : {}),
+      }),
     })
     if (res.ok) {
       const data = await res.json()
@@ -119,9 +145,30 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
     setSubLoading(false)
   }
 
+  const expiresLabel = pendingPartnerExpiresAt
+    ? new Date(pendingPartnerExpiresAt).toLocaleDateString('en-US', {
+        timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+      })
+    : null
+
   return (
     <div className="space-y-2">
-      {/* Main registration CTA */}
+      {/* Pending partner state */}
+      {localReg === 'pending_partner' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <p className="text-sm font-semibold text-brand-dark">Waiting for partner ✉</p>
+          <p className="text-xs text-brand-muted mt-0.5">
+            Invite sent to {pendingPartnerEmail ?? 'your partner'}
+            {expiresLabel ? ` · expires ${expiresLabel} PT` : ''}
+          </p>
+          <p className="text-xs text-amber-700 mt-1">
+            Your payment is on hold and will be captured when your partner accepts.
+          </p>
+        </div>
+      )}
+
+      {/* Registered state */}
       {localReg === 'registered' && (
         <div className="bg-brand/20 border border-brand rounded-2xl p-4 flex items-center justify-between">
           <div>
@@ -129,7 +176,7 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
             <p className="text-xs text-brand-muted">
               {localPartner
                 ? `Partner: ${localPartner}`
-                : isDoubles && !localPartner
+                : isDoubles
                   ? 'Solo — awaiting partner match'
                   : "You're in for this league"}
             </p>
@@ -146,6 +193,7 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
         </div>
       )}
 
+      {/* Waitlist state */}
       {localReg === 'waitlist' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 flex items-center justify-between">
           <div>
@@ -160,6 +208,7 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
         </div>
       )}
 
+      {/* Registration form */}
       {(localReg === null || localReg === 'cancelled') && canRegister && (
         <div className="space-y-2">
           {isDoubles && (
@@ -178,6 +227,21 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
               >
                 Individual (solo)
               </button>
+            </div>
+          )}
+          {needsPartnerEmail && (
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Partner&apos;s email</label>
+              <input
+                type="email"
+                value={partnerEmail}
+                onChange={e => setPartnerEmail(e.target.value)}
+                placeholder="partner@example.com"
+                className="w-full input text-sm"
+              />
+              <p className="text-[10px] text-brand-muted mt-1">
+                Your partner will receive an invite link and pay their own registration fee.
+              </p>
             </div>
           )}
           {isDoubles && regType === 'solo' && (
@@ -215,7 +279,7 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
         <p className="text-sm text-center text-brand-muted py-2">Registration not yet open.</p>
       )}
 
-      {/* Sub interest + per-session availability */}
+      {/* Sub interest */}
       {(localReg === null || localReg === 'cancelled') && (
         localSub ? (
           <div className="space-y-2">
@@ -243,6 +307,7 @@ export default function LeagueActions({ leagueId, leagueName, registrationStatus
           </button>
         )
       )}
+
       <ConfirmModal
         open={showCancelConfirm}
         title="Cancel registration?"

@@ -44,7 +44,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       .eq('league_id', params.id)
       .order('session_date', { ascending: true }),
     user
-      ? supabase.from('league_registrations').select('status, is_co_admin, registration_type, partner_user_id').eq('league_id', params.id).eq('user_id', user.id).single()
+      ? supabase.from('league_registrations').select('id, status, is_co_admin, registration_type, partner_user_id').eq('league_id', params.id).eq('user_id', user.id).single()
       : Promise.resolve({ data: null }),
     user
       ? supabase.from('league_sub_interest').select('id').eq('league_id', params.id).eq('user_id', user.id).single()
@@ -150,10 +150,25 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     .filter((s) => s!.status === 'scheduled' || s!.status === 'in_progress')
   const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
   const isDoublesLeague = DOUBLES_FORMATS.includes(league.format)
-  const registeredRegs = regCounts?.filter((r) => r.status === 'registered') ?? []
-  const registeredCount = registeredRegs.length
+  // Fetch pending partner invitation if captain is awaiting response
+  let pendingPartnerEmail: string | null = null
+  let pendingPartnerExpiresAt: string | null = null
+  if (myReg?.status === 'pending_partner' && myReg?.id) {
+    const { data: pendingInv } = await supabase
+      .from('league_partner_invitations')
+      .select('invitee_email, expires_at')
+      .eq('captain_registration_id', myReg.id)
+      .eq('status', 'pending')
+      .maybeSingle()
+    pendingPartnerEmail = pendingInv?.invitee_email ?? null
+    pendingPartnerExpiresAt = pendingInv?.expires_at ?? null
+  }
+
+  const registeredRegs = regCounts?.filter((r) => r.status === 'registered' || r.status === 'pending_partner') ?? []
+  const registeredCount = registeredRegs.filter((r) => r.status === 'registered').length
   const waitlistCount = regCounts?.filter((r) => r.status === 'waitlist').length ?? 0
-  const isFull = league.max_players != null && registeredCount >= league.max_players
+  const registeredForCapacity = registeredRegs.length
+  const isFull = league.max_players != null && registeredForCapacity >= league.max_players
 
   // For doubles leagues: derive team/solo counts for display
   const soloRegs = isDoublesLeague ? registeredRegs.filter((r) => (r as any).registration_type === 'solo') : []
@@ -263,12 +278,14 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             leagueId={league.id}
             leagueName={league.name}
             registrationStatus={league.registration_status}
-            myReg={myReg?.status ?? null}
+            myReg={(myReg?.status ?? null) as 'registered' | 'waitlist' | 'cancelled' | 'pending_partner' | null}
             mySubInterest={!!mySubInterest}
             isFull={isFull}
             costCents={(league as any).cost_cents ?? 0}
             format={league.format}
             partnerUserName={partnerUserName}
+            pendingPartnerEmail={pendingPartnerEmail}
+            pendingPartnerExpiresAt={pendingPartnerExpiresAt}
             sessions={sessions ?? []}
             mySubSessionIds={Array.from(mySubSessionIds)}
             waitlistPosition={waitlistPosition}
