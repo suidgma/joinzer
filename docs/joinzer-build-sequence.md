@@ -366,6 +366,38 @@ Once the product works, unlock growth. Don't ship before Batch 1–3 land.
 
 ---
 
+## Environment / Infrastructure
+
+Ops-layer issues discovered 2026-05-20 during 2.4 smoke-test attempt. These are not code bugs — they are environment configuration gaps that make smoke testing unsafe or impossible.
+
+### [ ] STAGING-ISOLATION — BLOCKER — staging Vercel app points at prod Supabase
+- **Confirmed:** `joinzer-hsfk.vercel.app` (staging) has `NEXT_PUBLIC_SUPABASE_URL = https://gkbibpneusfnwkjedwbi.supabase.co` scoped "All Environments" in Vercel — the PRODUCTION Supabase project.
+- **Consequence:** Any write-path smoke test against staging hits prod directly. Registrations, stub accounts, invite emails, and Stripe authorizations all land in production data. This is why no safe 2.4 smoke test is possible today.
+- **Fix — four steps, in order:**
+  1. **Decision needed:** Isolated staging DB via Supabase branch (lighter, tied to a branch, auto-paused) or dedicated staging project (durable, always-on, separate billing). Branch is the right default at pilot scale.
+  2. Run all migrations (`20260420*` → `20260520*`) against the new DB + `seed.sql`.
+  3. In Vercel, scope the staging deployment's Supabase URL + anon key + service role key to the new DB — NOT "All Environments."
+  4. Confirm staging `STRIPE_SECRET_KEY` is `sk_test_` and webhook secret matches a test-mode endpoint in the Stripe dashboard.
+  5. **Verify isolation:** Write a registration row via staging, confirm it does NOT appear in prod Supabase.
+- **Blocks:** Safe smoke testing of ANY write path (2.4, B7.3, B7.4, B7.5, B1, B11 — everything that touches registrations, Stripe, or email).
+
+### [ ] RESTORE-STRIPE-KEYS — prod is running test-mode Stripe keys
+- **Confirmed:** During the 2026-05-20 smoke-test attempt, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` on the production deployment (`www.joinzer.com`) were swapped to test-mode values (`sk_test_` / test webhook secret).
+- **Consequence:** Real payments will fail — test mode rejects live cards. App is not public yet so no real users are affected, but this must be restored before any real registration goes through.
+- **Fix:** Manual Vercel env change — restore `sk_live_` key + matching live webhook secret → redeploy. Confirm via a Stripe dashboard check that the production webhook endpoint points to `www.joinzer.com` with the live secret.
+- **Priority:** Must fix before going public or accepting any real registration fee.
+
+### [ ] NO-TEST-SURFACE — no clean paid test surface exists for smoke testing
+- **Confirmed:** As of 2026-05-20, there is no paid tournament or league where:
+  - Entry fee > 0
+  - Registration deadline is open (or no deadline)
+  - Current user (Marty) is NOT already registered in every division
+  - Stripe is in test mode so a test card can be used
+- **What this blocks:** Browser verification of 2.4 (partner invite after league checkout), 3.4 refund line (code-verified only because of this gap), B7.3–B7.5 smoke tests, B1 Pay for Both.
+- **Fix:** Once STAGING-ISOLATION is resolved, create a dedicated test tournament + league in the staging DB with `cost_cents > 0`, open deadline, and no existing registrations for the test account. Test cards (4242 4242...) work against `sk_test_` keys. Do NOT create test events in prod.
+
+---
+
 ## Bugs
 
 Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
