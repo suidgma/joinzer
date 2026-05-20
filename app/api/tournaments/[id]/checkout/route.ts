@@ -97,7 +97,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         .eq('user_id', reg.partner_user_id)
         .eq('tournament_id', params.id)
         .maybeSingle()
-      if (partnerReg && partnerReg.payment_status !== 'paid') {
+      if (partnerReg?.payment_status === 'paid') {
+        return NextResponse.json(
+          {
+            error: "Your partner's registration has already been paid",
+            code: 'PARTNER_ALREADY_PAID',
+          },
+          { status: 409 }
+        )
+      }
+      if (partnerReg) {
         partnerRegId = partnerReg.id
       }
     }
