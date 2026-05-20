@@ -308,6 +308,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             isOrganizer={true}
             currentUserId={user!.id}
             tournamentCostCents={costCents}
+            registrationClosesAt={tournament.registration_closes_at ?? null}
           />
 
           {/* Discount codes */}
@@ -391,6 +392,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             isOrganizer={false}
             currentUserId={user?.id ?? null}
             tournamentCostCents={costCents}
+            registrationClosesAt={tournament.registration_closes_at ?? null}
           />
         )}
 

@@ -69,9 +69,10 @@ type Props = {
   isOrganizer: boolean
   currentUserId: string | null
   tournamentCostCents: number
+  registrationClosesAt?: string | null
 }
 
-export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents }: Props) {
+export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -1019,6 +1020,12 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                               Pay for Both · ${((effectiveCost * 2) / 100).toFixed(2)}
                             </button>
                           )}
+                          <p className="text-xs text-brand-muted">
+                            {registrationClosesAt
+                              ? <>Refundable until {new Date(registrationClosesAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} PT. </>
+                              : null}
+                            <a href="/refund-policy" className="underline hover:text-brand-dark">Refund policy →</a>
+                          </p>
                         </div>
                       )
                     })()}

@@ -211,14 +211,21 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **RLS note:** app-layer enforcement only for now; RLS SELECT policy on profiles still returns all columns to authenticated users. See B-Privacy-RLS below.
 - **Verify:** On `/profile/edit`, set Email visibility to "Only me" → save → confirm the DB value changed to 'self'.
 
-### [ ] 3.4 Refund + cancellation policy display
-- **Where:** Anywhere a paid registration CTA appears + `/refund-policy` page.
-- **What:** Today: no policy visible. Add a one-liner under "Pay $X to Register" and a linked policy page.
-- **Prompt:** *"Add a refund policy page at /refund-policy (content TBD by Marty — see docs/decisions.md). Below every 'Pay $X to Register' button, show 'Refundable until [registration_deadline]. [Refund policy →]'."*
-- **Verify:** Pay flow on 10 league shows the refund line.
-- **Decision needed:** What is your refund policy? (See §Decisions.)
+### [x] 3.4 Refund + cancellation policy display — shipped 2026-05-20, commit pending
+- **Decision:** Refund policy = auto-refund until registration deadline, no refunds after.
+- `DivisionsSection.tsx`: Added `registrationClosesAt?: string | null` prop. Below "Pay My Fee" / "Pay for Both" buttons: "Refundable until [date] PT. [Refund policy →]" (date conditional — link always shown).
+- `tournaments/[id]/page.tsx`: Both DivisionsSection call sites pass `registrationClosesAt`.
+- `app/(app)/refund-policy/page.tsx`: New page with full policy text (refundable before deadline, non-refundable after, organizer cancellation = full refund).
+- **Enforcement gap:** Cancel route (`/api/tournaments/[id]/registrations/[regId]/cancel/route.ts`) refunds unconditionally — no deadline check. See 3.4.1 below.
 
-### [x] 3.5 Solo auto-matcher — copy fix — shipped 2026-05-20, commit pending
+### [ ] 3.4.1 Enforce refund deadline in cancel route (backlog)
+- **Where:** `app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts` lines 51–65.
+- **What:** Route refunds unconditionally when `payment_status === 'paid'`. Policy says: refund only if current time < `registration_closes_at`. After deadline: cancel registration but do NOT issue refund; return `{ ok: true, refunded: false }`.
+- **Priority:** HIGH — display now shows "refundable until [date]" but code doesn't enforce it.
+- **Decision needed:** What to show the player when cancelling after deadline? (Modal warning? Or just cancel with no refund and show "non-refundable" notice?)
+- **Blocks:** Policy truthfulness.
+
+### [x] 3.5 Solo auto-matcher — copy fix — shipped 2026-05-20, commit 8c32839
 - **Decision:** Option B (copy fix). No matcher built.
 - `DivisionsSection.tsx` ~line 1440: Replaced "Auto-matched with a partner" + auto-pair promise with "Solo registration" + "The organizer will pair you with a partner. Watch for a message from them before the event."
 - `DivisionsSection.tsx` ~line 985: Replaced `' · Solo — awaiting partner match'` with `' · Solo — pending organizer pairing'`
