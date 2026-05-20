@@ -35,6 +35,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/contact' ||
     pathname === '/terms' ||
     pathname === '/privacy' ||
+    pathname === '/refund-policy' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     pathname === '/manifest.webmanifest' ||
