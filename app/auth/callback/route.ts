@@ -54,12 +54,18 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, is_stub')
       .eq('id', user.id)
       .single()
 
-    if (next) return NextResponse.redirect(`${origin}${next}`)
-    return NextResponse.redirect(profile ? `${origin}/home` : `${origin}/profile/setup`)
+    const isStub = !profile || profile.is_stub
+    if (isStub) {
+      const setupUrl = next
+        ? `${origin}/profile/setup?next=${encodeURIComponent(next)}`
+        : `${origin}/profile/setup`
+      return NextResponse.redirect(setupUrl)
+    }
+    return NextResponse.redirect(next ? `${origin}${next}` : `${origin}/home`)
   }
 
   if (!tokenHash) {
@@ -71,18 +77,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login`)
   }
 
-  // New users have no profile row yet — send them to setup
+  // New users have no profile row yet; stubs must complete setup before accessing the app
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, is_stub')
     .eq('id', user.id)
     .single()
 
-  if (next) {
-    return NextResponse.redirect(`${origin}${next}`)
+  const isStub2 = !profile || profile.is_stub
+  if (isStub2) {
+    const setupUrl = next
+      ? `${origin}/profile/setup?next=${encodeURIComponent(next)}`
+      : `${origin}/profile/setup`
+    return NextResponse.redirect(setupUrl)
   }
-
-  return NextResponse.redirect(
-    profile ? `${origin}/home` : `${origin}/profile/setup`
-  )
+  return NextResponse.redirect(next ? `${origin}${next}` : `${origin}/home`)
 }

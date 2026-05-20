@@ -29,6 +29,7 @@ type Registration = {
   status: string
   user_profile: { name: string } | null
   partner_user_id?: string | null
+  partner_registration_id?: string | null
   partner_profile?: { name: string } | null
 }
 
@@ -379,18 +380,29 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
               <span className="text-xs text-brand-muted">{div.bracket_type.replace(/_/g, ' ')}</span>
             </div>
 
-            {!hasMatches && isOrganizer && (
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleGenerate(div)}
-                  disabled={generating[div.id]}
-                  className="w-full py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-                >
-                  {generating[div.id] ? 'Generating…' : 'Generate Matches'}
-                </button>
-                {genError[div.id] && <p className="text-xs text-red-600">{genError[div.id]}</p>}
-              </div>
-            )}
+            {!hasMatches && isOrganizer && (() => {
+              const activeRegs = div.tournament_registrations.filter(r => r.status === 'registered')
+              const incompleteCount = isDoubles
+                ? activeRegs.filter(r => !r.partner_registration_id).length
+                : 0
+              return (
+                <div className="space-y-2">
+                  {incompleteCount > 0 && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      {incompleteCount} team{incompleteCount !== 1 ? 's' : ''} need a second player before matches can be generated.
+                    </p>
+                  )}
+                  <button
+                    onClick={() => handleGenerate(div)}
+                    disabled={generating[div.id] || incompleteCount > 0}
+                    className="w-full py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+                  >
+                    {generating[div.id] ? 'Generating…' : 'Generate Matches'}
+                  </button>
+                  {genError[div.id] && <p className="text-xs text-red-600">{genError[div.id]}</p>}
+                </div>
+              )
+            })()}
 
             {!hasMatches && !isOrganizer && (
               <p className="text-xs text-brand-muted">No matches scheduled yet.</p>

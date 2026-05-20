@@ -66,7 +66,7 @@ export default function ProfileSetupPage() {
       : ratingSource === 'estimated' && estimatedRating ? parseFloat(estimatedRating)
       : null
 
-    const { error } = await supabase.from('profiles').insert({
+    const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       name: name.trim(),
       email: user.email,
@@ -79,7 +79,8 @@ export default function ProfileSetupPage() {
       estimated_rating: ratingSource === 'estimated' ? numericRating : null,
       joinzer_rating: seedJoinzerRating(numericRating),
       gender,
-    })
+      is_stub: false,  // clear stub flag when player completes setup
+    }, { onConflict: 'id' })
 
     if (error) {
       setError(error.message)
@@ -94,7 +95,9 @@ export default function ProfileSetupPage() {
       body: JSON.stringify({ name: name.trim(), email: user.email ?? '' }),
     })
 
-    router.push('/home')
+    const rawNext = new URLSearchParams(window.location.search).get('next')
+    const safeNext = rawNext?.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/home'
+    router.push(safeNext)
   }
 
   const canSubmit = name.trim().length > 0 && ratingSource !== null && !loading

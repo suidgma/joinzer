@@ -12,15 +12,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const pathname = (await headers()).get('x-pathname') ?? ''
 
-  // Skip profile check on setup page to avoid infinite redirect loop
+  // Skip profile check on setup page to avoid infinite redirect loop.
+  // Stubs (is_stub=true) are treated the same as missing profiles — must complete setup.
   if (!pathname.includes('/profile/setup')) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, is_stub')
       .eq('id', user.id)
       .single()
 
-    if (!profile) redirect('/profile/setup')
+    if (!profile || profile.is_stub) redirect('/profile/setup')
   }
 
   return (

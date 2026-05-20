@@ -72,7 +72,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .order('created_at', { ascending: true }),
     db
       .from('tournament_registrations')
-      .select('id, division_id, user_id, partner_user_id, team_name, status, payment_status, stripe_payment_intent_id, checked_in')
+      .select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, payment_status, stripe_payment_intent_id, checked_in')
       .eq('tournament_id', params.id),
     db
       .from('tournament_matches')
@@ -122,10 +122,14 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     ...(regsRaw ?? []).map((r: any) => r.partner_user_id),
   ].filter(Boolean)))
   const { data: profilesRaw } = allUserIds.length > 0
-    ? await db.from('profiles').select('id, name').in('id', allUserIds)
+    ? await db.from('profiles').select('id, name, is_stub').in('id', allUserIds)
     : { data: [] }
   const profileNames: Record<string, string> = {}
-  for (const p of profilesRaw ?? []) profileNames[p.id] = p.name
+  const profileStubs: Record<string, boolean> = {}
+  for (const p of profilesRaw ?? []) {
+    profileNames[p.id] = p.name
+    if (p.is_stub) profileStubs[p.id] = true
+  }
 
   // Shared page header — used by both organizer and player views
   const pageHeader = (
@@ -227,7 +231,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       if (!regsByDivisionOrg[reg.division_id]) regsByDivisionOrg[reg.division_id] = []
       regsByDivisionOrg[reg.division_id].push({
         ...reg,
-        user_profile: { name: profileNames[reg.user_id] ?? null },
+        user_profile: { name: profileNames[reg.user_id] ?? null, is_stub: profileStubs[reg.user_id] ?? false },
         partner_profile: reg.partner_user_id ? { name: profileNames[reg.partner_user_id] ?? null } : null,
       })
     }
