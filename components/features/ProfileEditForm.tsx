@@ -7,6 +7,8 @@ import PhotoUpload from '@/components/features/PhotoUpload'
 
 type RatingSource = 'dupr_known' | 'estimated' | 'skipped'
 
+type VisibilityTier = 'self' | 'captains' | 'all'
+
 type Profile = {
   id: string
   name: string
@@ -19,6 +21,8 @@ type Profile = {
   notify_new_sessions: boolean
   profile_photo_url: string | null
   home_court_id: string | null
+  email_visibility: VisibilityTier
+  phone_visibility: VisibilityTier
 }
 
 type Location = { id: string; name: string }
@@ -43,6 +47,8 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
   )
   const [notifyNewSessions, setNotifyNewSessions] = useState(profile.notify_new_sessions)
   const [homeCourt, setHomeCourt] = useState<string>(profile.home_court_id ?? '')
+  const [emailVisibility, setEmailVisibility] = useState<VisibilityTier>(profile.email_visibility)
+  const [phoneVisibility, setPhoneVisibility] = useState<VisibilityTier>(profile.phone_visibility)
   const [courtQuery, setCourtQuery] = useState('')
   const [courtOpen, setCourtOpen] = useState(false)
   const courtRef = useRef<HTMLDivElement>(null)
@@ -82,6 +88,8 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
         joinzer_rating: seedJoinzerRating(numericRating),
         gender,
         home_court_id: homeCourt || null,
+        email_visibility: emailVisibility,
+        phone_visibility: phoneVisibility,
       })
       .eq('id', profile.id)
 
@@ -288,6 +296,37 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
           />
           <span className="text-sm">Prefer not to say</span>
         </label>
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium">Contact visibility</legend>
+        <p className="text-xs text-brand-muted">
+          Control who can see your email and phone number when viewing your profile.
+        </p>
+        <div>
+          <label className="block text-xs text-brand-muted mb-1">Email address</label>
+          <select
+            value={emailVisibility}
+            onChange={(e) => setEmailVisibility(e.target.value as VisibilityTier)}
+            className="w-full input"
+          >
+            <option value="self">Only me</option>
+            <option value="captains">Organizers &amp; co-admins of my events</option>
+            <option value="all">All signed-in players</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-brand-muted mb-1">Phone number</label>
+          <select
+            value={phoneVisibility}
+            onChange={(e) => setPhoneVisibility(e.target.value as VisibilityTier)}
+            className="w-full input"
+          >
+            <option value="self">Only me</option>
+            <option value="captains">Organizers &amp; co-admins of my events</option>
+            <option value="all">All signed-in players</option>
+          </select>
+        </div>
       </fieldset>
 
       <label className="flex items-start gap-3 cursor-pointer">
