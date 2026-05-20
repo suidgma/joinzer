@@ -982,7 +982,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                               const partner = div.tournament_registrations.find(r => r.id === myReg.partner_registration_id)
                               return partner ? ` · Partner: ${partner.user_profile?.name ?? 'Matched'}` : ' · Partner matched'
                             })()
-                          : ' · Solo — awaiting partner match'
+                          : ' · Solo — pending organizer pairing'
                       )}
                     </div>
                     {myReg.status === 'registered' && (
@@ -1437,9 +1437,9 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                   </div>
                 ) : (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                    <p className="text-xs text-amber-800 font-medium">Auto-matched with a partner</p>
+                    <p className="text-xs text-amber-800 font-medium">Solo registration</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      You&apos;ll be automatically paired with another solo player. Both players will be notified by email when matched.
+                      The organizer will pair you with a partner. Watch for a message from them before the event.
                     </p>
                   </div>
                 )}

@@ -218,12 +218,17 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Verify:** Pay flow on 10 league shows the refund line.
 - **Decision needed:** What is your refund policy? (See §Decisions.)
 
-### [ ] 3.5 Solo auto-matcher — ship it or change the copy
-- **Where:** Tournament/League registration → Individual (solo) path.
-- **What:** Copy promises auto-matching with email notification. Either implement it or change the copy.
-- **Decision needed:** Ship the matcher or change the copy? (See §Decisions.)
-- **Prompt (copy-only fix):** *"On the registration modal Individual (solo) path, replace the auto-match copy with: 'You'll be added to the solo queue. The organizer will pair solo players before the registration deadline.' Remove any reference to automatic email matching."*
-- **Prompt (ship the matcher):** *"Implement a solo auto-matcher: scheduled function that runs daily for each open doubles division/league with `auto_match_solo = true`. Pairs two solo registrants on FIFO basis, creates the team row, sends both an email with their new partner's contact info. Update the registrant card to show 'Solo - matched daily at 6 PM' with the queue position."*
+### [x] 3.5 Solo auto-matcher — copy fix — shipped 2026-05-20, commit pending
+- **Decision:** Option B (copy fix). No matcher built.
+- `DivisionsSection.tsx` ~line 1440: Replaced "Auto-matched with a partner" + auto-pair promise with "Solo registration" + "The organizer will pair you with a partner. Watch for a message from them before the event."
+- `DivisionsSection.tsx` ~line 985: Replaced `' · Solo — awaiting partner match'` with `' · Solo — pending organizer pairing'`
+- **Audit finding:** `register_doubles_pair` RPC creates new registrations for two players — it does NOT link two existing solo rows. Organizer can see `+N solos seeking partner` in capacity display but has no UI to pair them. See 3.5.1 below.
+
+### [ ] 3.5.1 Organizer UI to pair existing solo registrants (backlog)
+- **Where:** Tournament division Manage panel → solo registrants list.
+- **What:** Organizer sees unmatched solos (already surfaced as "+N solos seeking partner") but has no action to pair two of them. `register_doubles_pair` RPC only creates new registration pairs, not links. Need a "Pair these two solos" UI that creates the team linkage between two existing registrations.
+- **Priority:** HIGH — organizer has no way to fulfill the promise we show players ("The organizer will pair you").
+- **Blocks:** Promise in solo registration copy is hollow until this ships.
 
 ### [ ] 3.6 Add to calendar + partner-pending nudges
 - **Where:** Registered-state cards, Home banner.
