@@ -410,6 +410,10 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 
 ### [x] B7.2.2 — invite/token/route.ts capacity check payment-aware — shipped 2026-05-20, commit c239895
 
+### [x] B7.2.3 — generate-matches + generate-all routes payment-aware — shipped 2026-05-20, commit fdacb05
+
+### [x] B7.2.4 — waitlist.ts capacity count payment-aware — shipped 2026-05-20, commit fdacb05
+
 ### [ ] B7.3 — Refactor tournament solo registration to Pattern C (HIGH)
 - **What:** Move INSERT from `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts` to the `checkout.session.completed` webhook handler. Register route becomes: validate → capacity check (advisory) → create Stripe session with registration metadata → return URL. Webhook fires on payment → INSERT registration → send confirmation email.
 - **Impact:** `DivisionsSection.tsx` `handleRegister` flow changes: no longer adds a registration to local state immediately; instead redirects to Stripe (or shows partner invite modal first for doubles).
