@@ -474,6 +474,8 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 
 Don't pull from here unless you're between batches or a specific item becomes a customer ask.
 
+- `CreateEventForm` has the same min ≤ max gap on skill range — add the guard there too (3.7 only fixed `EditEventForm`).
+
 - Confirmation modals on all destructive actions (delete tournament, delete league, leave session)
 - Persistent "Install Joinzer App" floater — make dismissible per session
 - Date display polish: DOW after picking a date; "Sat, May 16" in summary blocks

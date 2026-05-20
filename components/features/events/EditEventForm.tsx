@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import TimeSelect from './TimeSelect'
+import { prepareEventWrite } from '@/lib/taxonomy/write-helpers'
+
+const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
 
 type Props = {
   event: {
@@ -18,6 +21,8 @@ type Props = {
     session_type: string
     price_cents: number | null
     registration_closes_at: string | null
+    skill_min: number | null
+    skill_max: number | null
   }
 }
 
@@ -56,8 +61,12 @@ export default function EditEventForm({ event }: Props) {
   const [registrationClosesAt, setRegistrationClosesAt] = useState(
     event.registration_closes_at ? isoToPtLocal(event.registration_closes_at) : ''
   )
+  const [minSkill, setMinSkill] = useState(event.skill_min?.toString() ?? '')
+  const [maxSkill, setMaxSkill] = useState(event.skill_max?.toString() ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const skillRangeInvalid = minSkill !== '' && maxSkill !== '' && parseFloat(minSkill) > parseFloat(maxSkill)
 
   // Parse starts_at into local date + time strings for the inputs
   const dt = new Date(event.starts_at)
@@ -105,6 +114,10 @@ export default function EditEventForm({ event }: Props) {
           session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
           price_cents: clinicType === 'paid' ? priceCents : null,
           registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
+          ...prepareEventWrite({
+            min_skill_level: minSkill ? parseFloat(minSkill) : null,
+            max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
+          }),
         })
         .eq('id', event.id)
 
@@ -213,6 +226,38 @@ export default function EditEventForm({ event }: Props) {
         </select>
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Min skill</label>
+          <select
+            value={minSkill}
+            onChange={(e) => setMinSkill(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          >
+            <option value="">No minimum</option>
+            {skillOptions.map((v) => (
+              <option key={v} value={v}>{v.toFixed(1)}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Max skill</label>
+          <select
+            value={maxSkill}
+            onChange={(e) => setMaxSkill(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          >
+            <option value="">& up</option>
+            {skillOptions.map((v) => (
+              <option key={v} value={v}>{v.toFixed(1)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {skillRangeInvalid && (
+        <p className="text-sm text-red-600">Minimum skill can&apos;t be higher than maximum</p>
+      )}
+
       <div className="bg-brand-soft border border-brand-border rounded-xl p-4 space-y-3">
         <p className="text-sm font-semibold text-brand-dark">Session type</p>
         <div className="space-y-2">
@@ -287,7 +332,7 @@ export default function EditEventForm({ event }: Props) {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || skillRangeInvalid}
         className="w-full bg-black text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
       >
         {loading ? 'Saving…' : 'Save changes'}
