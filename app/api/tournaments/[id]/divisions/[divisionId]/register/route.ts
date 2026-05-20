@@ -5,6 +5,7 @@ import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
+import { icsFilename } from '@/lib/utils/slug'
 
 export async function POST(
   req: NextRequest,
@@ -312,7 +313,7 @@ export async function POST(
 
       // ICS: single all-day event on tournament start_date; timed start_time deferred
       const attachments = !isWaitlist && tournament.start_date ? [{
-        filename: 'joinzer-tournament.ics',
+        filename: icsFilename(tournament.name, 'tournament'),
         content: Buffer.from(generateIcs([{
           uid: params.id,
           title: tournament.name,

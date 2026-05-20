@@ -5,6 +5,7 @@ import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify, voidCaptainHold } from '@/lib/leagues/partner'
+import { icsFilename } from '@/lib/utils/slug'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
           ]
 
           const attachments = tournament.start_date ? [{
-            filename: 'joinzer-tournament.ics',
+            filename: icsFilename(tournament.name, 'tournament'),
             content: Buffer.from(generateIcs([{
               uid: tournament.id,
               title: tournament.name,
@@ -312,7 +313,7 @@ export async function POST(req: NextRequest) {
                 ...(league.location_name ? { location: league.location_name } : {}),
                 url: leagueUrl,
               })))
-              attachments = [{ filename: 'joinzer-league.ics', content: Buffer.from(ics) }]
+              attachments = [{ filename: icsFilename(league.name, 'league'), content: Buffer.from(ics) }]
             }
           }
 

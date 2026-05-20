@@ -5,6 +5,7 @@ import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify } from '@/lib/leagues/partner'
+import { icsFilename } from '@/lib/utils/slug'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -309,7 +310,7 @@ export async function POST(request: NextRequest) {
             ...(league.location_name ? { location: league.location_name } : {}),
             url: leagueUrl,
           })))
-          attachments = [{ filename: 'joinzer-league.ics', content: Buffer.from(ics) }]
+          attachments = [{ filename: icsFilename(league.name, 'league'), content: Buffer.from(ics) }]
         }
       }
 
