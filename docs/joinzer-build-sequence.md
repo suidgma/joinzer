@@ -211,7 +211,7 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **RLS note:** app-layer enforcement only for now; RLS SELECT policy on profiles still returns all columns to authenticated users. See B-Privacy-RLS below.
 - **Verify:** On `/profile/edit`, set Email visibility to "Only me" → save → confirm the DB value changed to 'self'.
 
-### [x] 3.4 Refund + cancellation policy display — shipped 2026-05-20, commit pending
+### [x] 3.4 Refund + cancellation policy display — shipped 2026-05-20, commit 372cbee
 - **Decision:** Refund policy = auto-refund until registration deadline, no refunds after.
 - `DivisionsSection.tsx`: Added `registrationClosesAt?: string | null` prop. Below "Pay My Fee" / "Pay for Both" buttons: "Refundable until [date] PT. [Refund policy →]" (date conditional — link always shown).
 - `tournaments/[id]/page.tsx`: Both DivisionsSection call sites pass `registrationClosesAt`.
