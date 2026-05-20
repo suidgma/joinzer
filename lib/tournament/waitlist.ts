@@ -29,6 +29,7 @@ export async function maybePromoteWaitlisted(
     .select('id', { count: 'exact', head: true })
     .eq('division_id', divisionId)
     .eq('status', 'registered')
+    .in('payment_status', ['paid', 'waived'])
 
   if ((registeredCount ?? 0) >= division.max_entries) return null
 

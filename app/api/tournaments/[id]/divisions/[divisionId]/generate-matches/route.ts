@@ -49,17 +49,20 @@ export async function POST(
     .single()
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
 
-  // Fetch registered teams
+  // Fetch paid/waived registered teams — unpaid rows (abandoned checkouts) must not get bracket slots
   const { data: registrations } = await service
     .from('tournament_registrations')
     .select('id')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
+    .in('payment_status', ['paid', 'waived'])
     .order('created_at', { ascending: true })
 
   const teams = (registrations ?? []).map(r => r.id)
   if (teams.length < 2) {
-    return NextResponse.json({ error: 'Need at least 2 registered entries to generate matches' }, { status: 400 })
+    return NextResponse.json({
+      error: `Need at least 2 paid or waived registrations to generate matches. This division has ${teams.length} paid/waived registration${teams.length === 1 ? '' : 's'}.`,
+    }, { status: 400 })
   }
 
   const ft = division.bracket_type as string

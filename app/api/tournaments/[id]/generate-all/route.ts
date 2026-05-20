@@ -60,11 +60,12 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
       .select('id')
       .eq('division_id', division.id)
       .eq('status', 'registered')
+      .in('payment_status', ['paid', 'waived'])
       .order('created_at', { ascending: true })
 
     const teams = (registrations ?? []).map(r => r.id)
     if (teams.length < 2) {
-      results.push({ divisionId: division.id, name: division.name, matchCount: 0, skipped: 'fewer than 2 registered entries' })
+      results.push({ divisionId: division.id, name: division.name, matchCount: 0, skipped: `fewer than 2 paid/waived registrations (${teams.length} found)` })
       continue
     }
 
