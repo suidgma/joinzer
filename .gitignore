@@ -38,4 +38,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# logs
+*.log
+
+# test output
+/test-results/
+
+# Claude Code local config
+.claude/
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
