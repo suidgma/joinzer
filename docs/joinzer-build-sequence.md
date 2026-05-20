@@ -190,7 +190,7 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Audit:** `tournaments/[id]/divisions/[divisionId]/register` and `events/[id]/checkout` were clean — no 'upcoming' analog on division or event status.
 - **Verified:** POST `/api/league-register` with league `ee3785d2` (status=upcoming, past deadline) now returns `400 {"error":"Registration is closed"}`.
 
-### [ ] 3.1.2 ICS download filename uses league/tournament name instead of generic slug
+### [x] 3.1.2 ICS download filename uses league/tournament name instead of generic slug — shipped 2026-05-20, commit 62b55d3
 - **Where:** `app/api/leagues/[id]/ics/route.ts` line 58, `app/api/tournaments/[id]/ics/route.ts` line 55
 - **What:** Both endpoints return `Content-Disposition: attachment; filename="joinzer-league.ics"` (or `joinzer-tournament.ics`). Users who download multiple calendar files end up with identically named files. Use the entity name to generate a slug, e.g. `wednesday-rec-league.ics`.
 - **How:** `league.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')` + `.ics`. Same pattern for tournaments.
