@@ -25,6 +25,30 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-20 — Backlog: Add realtime publication membership to migrations
+**Status:** Active — not urgent, but will bite on next table
+**Affects:** Any table where Supabase realtime is required (currently: `league_messages`, `tournament_messages`, `tournament_registrations`)
+**Decision:** `ALTER PUBLICATION supabase_realtime ADD TABLE ...` statements should live in migration files, not only in the Supabase dashboard. When a table is added to the publication via dashboard only, the setting is not reproduced by `supabase db push` or any migration replay — it silently disappears in a new environment.
+**Why it matters:** `tournament_registrations` was missing from the publication when B1 shipped, breaking the partner-accepted realtime subscription silently. Only caught because realtime was manually verified as a deploy step. Any new Supabase project (true staging, disaster recovery, team member local) would have the same gap.
+**Required fix pattern:**
+```sql
+-- At the bottom of any migration that creates or enables realtime on a table:
+ALTER PUBLICATION supabase_realtime ADD TABLE <table_name>;
+```
+**Trigger:** Before next table gets realtime enabled — add the ALTER PUBLICATION to the same migration that creates the table, not as a separate dashboard click.
+
+---
+
+## 2026-05-19 — Backlog: Move tournament Pay-for-Both into SELECT FOR UPDATE RPC
+**Status:** Active — not urgent at pilot scale
+**Affects:** `app/api/tournaments/[id]/checkout/route.ts`; `app/api/stripe/webhook/route.ts`; B1 (symmetric Pay for Both UX)
+**Decision:** B2's application-level fix (409 guard in checkout + conditional WHERE on webhook partner UPDATE) narrows but does not close the concurrent double-charge race. A ~2–5 second window remains between Stripe session creation and webhook delivery where two simultaneous Pay for Both sessions can both pass the `payment_status='unpaid'` check and create two real charges.
+**Required future fix:** Wrap the payment status transition in a Postgres RPC using `SELECT ... FOR UPDATE` on both registration rows. Same pattern as `register_doubles_pair` in the architecture target. Prevents concurrent reads from seeing stale `unpaid` state. No application-level polling or retry needed — the DB lock serializes the race at the source.
+**Why deferred:** At pilot scale (< 50 test users, no concurrent real-money traffic), the race window is effectively zero. The B2 fix is production-safe for current volume. Re-evaluate when a tournament has simultaneous real-money team registrations (first paid event with real partners).
+**Trigger:** First paid tournament with ≥ 2 real teams registering in the same 5-minute window.
+
+---
+
 ## 2026-05-19 — Session close — Phase 3C shipped, partner-flow rabbit hole discovered
 **Status:** Active
 **Affects:** Joinzer session log, B1/B2/B11 partner-flow ticket family, 3B/Phase 4 sequencing

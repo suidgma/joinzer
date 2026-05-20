@@ -388,6 +388,51 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 - **Gate:** B2 must be deployed and verified before this ships.
 - **Full design:** `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §6, §7 B1/B3/B5.
 
+### [ ] B7 — Tournament registration pattern inconsistency (Pattern A vs Pattern C)
+
+**Root cause (from paid-reg survey 2026-05-20):** Tournaments use Pattern A — registration row created immediately on register, BEFORE payment, with `payment_status='unpaid'`. Leagues and events use Pattern C — row created only after payment succeeds via webhook. Pattern A produces: unpaid rows in rosters, payment-blind isRegistered checks, no cleanup for abandoned checkouts, spot-holding without payment.
+
+**Decision:** Standardize tournaments on Pattern C. Do NOT add a cleanup cron for Pattern A — that maintains two patterns. Pattern B (held-team, league split-payer 2.4) remains the intentional exception for two-party payment flows.
+
+**Tickets — ship in this order:**
+
+### [ ] B7.1 — Tournament player roster is payment-blind (HIGHEST — ship today)
+- **What:** `app/(app)/tournaments/[id]/page.tsx` player-path registration processing includes unpaid and cancelled rows. Players without payment appear in division rosters and the "you're registered" banner shows for them.
+- **Scope of fix:** Filter `regsRaw` at the player-view processing step (before building `regsByDivision`, ~line 350) to include only `payment_status IN ('paid', 'waived')` AND `status != 'cancelled'`. Do NOT filter the raw query (line 74–76) — the organizer path uses the same `regsRaw` and legitimately needs unpaid rows for payment management.
+- **Verify:** A `tournament_registrations` row with `payment_status='unpaid'` should not appear in any player-facing division roster or isRegistered check.
+
+### [ ] B7.2 — Tournament isRegistered check is payment-blind (HIGHEST — ship today)
+- **What:** `page.tsx:368` — `reg.status === 'registered'` check gates the "you're registered" banner but doesn't require payment. After B7.1 filters the player path, this is implicitly fixed — add explicit `payment_status === 'paid' || payment_status === 'waived'` as defense-in-depth.
+- **Verify:** Register for a tournament, don't pay. Should not see "you're registered" banner.
+
+### [ ] B7.3 — Refactor tournament solo registration to Pattern C (HIGH)
+- **What:** Move INSERT from `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts` to the `checkout.session.completed` webhook handler. Register route becomes: validate → capacity check (advisory) → create Stripe session with registration metadata → return URL. Webhook fires on payment → INSERT registration → send confirmation email.
+- **Impact:** `DivisionsSection.tsx` `handleRegister` flow changes: no longer adds a registration to local state immediately; instead redirects to Stripe (or shows partner invite modal first for doubles).
+- **B1 realtime subscription:** Will need adjustment or removal — subscription fires on UPDATE, not INSERT. After Pattern C, the INSERT happens in webhook. Review whether the subscription still serves a purpose.
+- **Scope:** `register/route.ts` (full rewrite), webhook `checkout.session.completed` handler (new tournament solo path), `DivisionsSection.tsx` `handleRegister` (remove optimistic INSERT add, adjust flow).
+- **Note:** Free divisions skip Stripe and still INSERT inline — that path is fine as-is.
+
+### [ ] B7.4 — Refactor tournament partner invite acceptance to Pattern C (HIGH)
+- **What:** `app/api/tournaments/invite/[token]/route.ts` — acceptance path currently creates the invitee's `tournament_registrations` row with `payment_status='unpaid'` (unset default). Under Pattern C: acceptance creates only the invitation acceptance record and redirects to Stripe (if paid division). Webhook creates the invitee's row.
+- **Scope:** `invite/[token]/route.ts` accept branch (create Stripe session instead of INSERT), webhook (new tournament partner-accept path), `app/(app)/tournaments/invite/[token]/page.tsx` (flow update).
+- **Dependency:** B7.3 must design the tournament webhook path first; B7.4 extends it.
+
+### [ ] B7.5 — Refactor tournament team Pay for Both to Pattern C (HIGH)
+- **What:** `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts` + `app/api/tournaments/[id]/checkout/route.ts` — under Pattern C, the checkout route no longer receives an existing `registration_id` to reference. The registration row doesn't exist until the webhook fires. This is the biggest structural change in the B7 family.
+- **Design note:** The "Pay for Both" concept (one person pays 2× for themselves and partner) may simplify under Pattern C — the partner's row is created by the webhook at the same time as the payer's. Revisit B2 RPC backlog ticket after this ships.
+- **Dependency:** B7.3 and B7.4 must be fully designed before B7.5 scoping begins.
+
+### [ ] B7.6 — One-time cleanup of existing bad data (MEDIUM)
+- **What:** Delete or cancel `tournament_registrations` rows with `payment_status='unpaid'` older than 24 hours. SQL migration. Confirm zero live unpaid rows before running.
+- **Gate:** After B7.1 and B7.2 ship (so the app no longer surfaces these rows), and before B7.3 (so cleanup is complete when Pattern C lands).
+- **Note:** Run `SELECT COUNT(*) FROM tournament_registrations WHERE payment_status = 'unpaid'` before writing migration to understand blast radius.
+
+### [ ] B7.7 — Standardize capacity-check timing across surfaces (LOW)
+- **What:** Events check capacity at checkout-session-creation time using `participant_status = 'joined'` (excludes waitlist). Leagues use `IN ('registered', 'pending_partner')`. After B7.3–B7.5 land, audit that all three surfaces use equivalent filters and document the canonical rule in decisions.md.
+- **Dependency:** B7.3–B7.5 must be complete.
+
+---
+
 ### [ ] B11 — Cancel-and-re-register orphans partner linkage (HIGH integrity bug)
 - **What:** When an inviter cancels their registration and re-registers, the new row is created with `partner_user_id=null`. Their previous partner's row still has `partner_user_id` pointing to the cancelled row, leaving the partner's "Pay for Both" / partner-relationship logic pointing into the void. The cancel route (`app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts`) only updates the cancelling user's row — does not null out the partner's `partner_user_id` or notify them. The invite-acceptance route does not re-link an existing partner on re-registration.
 - **Reproduced live:** 2026-05-19, division `3dc096c9-b9c1-438b-bb0e-e675567b7a4a` — Roderick re-registered after cancellation; Precious's row still pointed to cancelled reg `ad15f730`; new row `fb73cbc0` has no partner link.
