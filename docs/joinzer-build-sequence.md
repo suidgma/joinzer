@@ -211,12 +211,18 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **RLS note:** app-layer enforcement only for now; RLS SELECT policy on profiles still returns all columns to authenticated users. See B-Privacy-RLS below.
 - **Verify:** On `/profile/edit`, set Email visibility to "Only me" → save → confirm the DB value changed to 'self'.
 
-### [x] 3.4 Refund + cancellation policy display — shipped 2026-05-20, commit 372cbee
+### [x] 3.4 Refund + cancellation policy display — shipped 2026-05-20, commits 372cbee + cfd3601 + 5b76931
 - **Decision:** Refund policy = auto-refund until registration deadline, no refunds after.
-- `DivisionsSection.tsx`: Added `registrationClosesAt?: string | null` prop. Below "Pay My Fee" / "Pay for Both" buttons: "Refundable until [date] PT. [Refund policy →]" (date conditional — link always shown).
+- `DivisionsSection.tsx`: Added `registrationClosesAt?: string | null` prop. Below "Pay My Fee" / "Pay for Both" buttons: "Refundable until [date] PT. [Refund policy →]" at lines 1023–1028 (date conditional — link always shown).
 - `tournaments/[id]/page.tsx`: Both DivisionsSection call sites pass `registrationClosesAt`.
-- `app/(app)/refund-policy/page.tsx`: New page with full policy text (refundable before deadline, non-refundable after, organizer cancellation = full refund).
-- **Enforcement gap:** Cancel route (`/api/tournaments/[id]/registrations/[regId]/cancel/route.ts`) refunds unconditionally — no deadline check. See 3.4.1 below.
+- `app/refund-policy/page.tsx`: New page at top-level public route (NOT inside `(app)` — moved in 5b76931 after discovering `(app)` layout has hard auth guard). Middleware exception added in cfd3601.
+- **Enforcement gap:** Cancel route refunds unconditionally — no deadline check. See 3.4.1 below.
+- **Verification:** `/refund-policy` — CONFIRMED LIVE (200, public, full correct policy text, browser-verified 2026-05-20). Refund line — CODE-VERIFIED ONLY: correct string + date logic + policy link confirmed in source at `DivisionsSection.tsx:1023–1028`; placement is on the post-registration Pay My Fee card (unpaid state), which cannot be reached without creating a real registration row + Stripe checkout. Code-verification is the appropriate confidence level. See 3.4.2 for the UX gap this surfaces.
+
+### [ ] 3.4.2 Show refund terms BEFORE registration commitment (backlog)
+- **Where:** Registration modal in `DivisionsSection.tsx` — around the "Confirm Registration" button (~line 1451).
+- **What:** The refund line ("Refundable until [date] PT. [Refund policy →]") currently renders only on the post-registration Pay My Fee card (lines 1023–1028) — i.e., AFTER the user has already created a registration row. Users should see refund terms BEFORE committing. Add the same refund line + policy link below the "Confirm Registration" button in the registration modal, conditioned on `effectiveCost > 0`. Reuses existing `registrationClosesAt` prop and string logic — small UI addition only.
+- **Priority:** LOW (usability, not correctness)
 
 ### [ ] 3.4.1 Enforce refund deadline in cancel route (backlog)
 - **Where:** `app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts` lines 51–65.
@@ -230,6 +236,7 @@ These don't fix anything broken; they raise confidence around payments, identity
 - `DivisionsSection.tsx` ~line 1440: Replaced "Auto-matched with a partner" + auto-pair promise with "Solo registration" + "The organizer will pair you with a partner. Watch for a message from them before the event."
 - `DivisionsSection.tsx` ~line 985: Replaced `' · Solo — awaiting partner match'` with `' · Solo — pending organizer pairing'`
 - **Audit finding:** `register_doubles_pair` RPC creates new registrations for two players — it does NOT link two existing solo rows. Organizer can see `+N solos seeking partner` in capacity display but has no UI to pair them. See 3.5.1 below.
+- **Verification:** CONFIRMED LIVE — browser-verified 2026-05-20. Registration modal Individual (solo) path shows "Solo registration / The organizer will pair you with a partner. Watch for a message from them before the event." Old auto-match promise is gone.
 
 ### [ ] 3.5.1 Organizer UI to pair existing solo registrants (backlog)
 - **Where:** Tournament division Manage panel → solo registrants list.
