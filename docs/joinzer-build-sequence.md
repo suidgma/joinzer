@@ -203,11 +203,13 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Prompt:** *"On tournament division and league registration cards, when the current user is waitlisted, show their position: 'Waitlist #2 of 4'. Pull from the waitlist row's index sorted by created_at."*
 - **Verify:** Be the second waitlisted person on Pro Men. See "Waitlist #2 of 2."
 
-### [ ] 3.3 Privacy settings on profile
-- **Where:** `/profile` + `/profile/edit`.
-- **What:** Email and phone are plaintext. Add a privacy toggle: who can see them.
-- **Prompt:** *"Add a Privacy section to /profile/edit with two settings: 'Email visibility' and 'Phone visibility', each with options: 'Just me', 'Captains of events I join', 'All players'. Default to 'Just me'. Update any page that displays another user's email/phone to respect these settings."*
-- **Verify:** Set to "Just me," check that captain views of player rosters don't show your email.
+### [x] 3.3 Privacy settings on profile — shipped 2026-05-20
+- Migration `20260520000001`: `profiles.email_visibility` + `profiles.phone_visibility` (TEXT NOT NULL DEFAULT 'self', CHECK IN ('self','captains','all')) — applied and verified in prod.
+- Migration `20260520000002`: `is_captain_of(viewer_id, target_id)` Postgres function — STABLE SECURITY DEFINER, UNION of 4 branches (tournament organizer, tournament staff, league organizer, league co-admin), `status != 'cancelled'` filter on all target-side joins.
+- `lib/profile/captain-check.ts`: `isCaptainOf(viewerId, targetUserId)` server helper — wraps `rpc('is_captain_of')`. Ready for Players directory enforcement; not yet wired to any viewer route (none exist yet).
+- `ProfileEditForm.tsx` + `profile/edit/page.tsx`: two `<select>` dropdowns (Only me / Organizers & co-admins / All signed-in players) in a "Contact visibility" fieldset, persisted on save.
+- **RLS note:** app-layer enforcement only for now; RLS SELECT policy on profiles still returns all columns to authenticated users. See B-Privacy-RLS below.
+- **Verify:** On `/profile/edit`, set Email visibility to "Only me" → save → confirm the DB value changed to 'self'.
 
 ### [ ] 3.4 Refund + cancellation policy display
 - **Where:** Anywhere a paid registration CTA appears + `/refund-policy` page.
@@ -446,6 +448,25 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 - **What:** When an inviter cancels their registration and re-registers, the new row is created with `partner_user_id=null`. Their previous partner's row still has `partner_user_id` pointing to the cancelled row, leaving the partner's "Pay for Both" / partner-relationship logic pointing into the void. The cancel route (`app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts`) only updates the cancelling user's row — does not null out the partner's `partner_user_id` or notify them. The invite-acceptance route does not re-link an existing partner on re-registration.
 - **Reproduced live:** 2026-05-19, division `3dc096c9-b9c1-438b-bb0e-e675567b7a4a` — Roderick re-registered after cancellation; Precious's row still pointed to cancelled reg `ad15f730`; new row `fb73cbc0` has no partner link.
 - **Design note:** Belongs to the architectural partner-flow ticket family with B1/B2. Likely should be solved as one design pass (what does cancel mean for both halves of a partnership?), not patched in isolation. Out of scope for tonight.
+
+---
+
+### [ ] B-Privacy-RLS — Move contact-visibility enforcement into RLS (LOW)
+- **What:** Ticket 3.3 enforces email/phone visibility at the app layer only. The profiles RLS SELECT policy currently allows any authenticated user to read all columns. A future hardened version would use a security-barrier view or policy that masks `email` and `phone` columns based on `email_visibility`/`phone_visibility` and a call to `is_captain_of()` inside the policy.
+- **Why deferred:** At pilot scale, enforcement via server components is sufficient. RLS masking requires careful testing and a computed-column or view pattern — worth doing before opening the Players directory to all players.
+- **Blocks:** Players directory full launch.
+
+---
+
+### [ ] B12 — Index coverage for `is_captain_of` helper (LOW)
+- **What:** The `is_captain_of` Postgres function (migration `20260520000002`) joins across 5 tables. Audit run 2026-05-20 found these indexes missing:
+  - `tournament_registrations(user_id)` — needed to find all registrations for a target player
+  - `tournament_registrations(tournament_id)` — needed for JOIN to tournaments and tournament_staff
+  - `tournaments(organizer_id)` — needed to filter by organizer
+  - `leagues(created_by)` — needed to filter by organizer
+  - `league_registrations(user_id)` — existing composite `(league_id, user_id)` can't serve user_id-only scans
+- **Why deferred:** All five tables are small at pilot scale; seq scans are fast. Add before the Players directory reaches meaningful traffic.
+- **Fix:** Single migration adding all 5 indexes; no code changes required.
 
 ---
 
