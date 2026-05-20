@@ -80,12 +80,14 @@ export default async function ProfilePage() {
         <div>
           <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Email</p>
           <p className="text-sm text-brand-body">{profile.email ?? user.email}</p>
+          <p className="text-xs text-brand-muted mt-0.5">Visible to: {visibilityLabel(profile.email_visibility)}</p>
         </div>
 
         {profile.phone && (
           <div>
             <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Phone</p>
             <p className="text-sm text-brand-body">{profile.phone}</p>
+            <p className="text-xs text-brand-muted mt-0.5">Visible to: {visibilityLabel(profile.phone_visibility)}</p>
           </div>
         )}
 
@@ -137,6 +139,12 @@ export default async function ProfilePage() {
       <DeleteAccountButton />
     </main>
   )
+}
+
+function visibilityLabel(tier: string | null): string {
+  if (tier === 'captains') return 'Organizers & co-admins of your events'
+  if (tier === 'all') return 'All signed-in players'
+  return 'Only you'
 }
 
 function SignOutButton() {
