@@ -75,14 +75,14 @@ Taxonomy migration is the foundation; everything else in this batch depends on i
 - **Verify:** Run the audit query from §3.2 of the migration plan and review any coerced rows before committing. After dual-write ships, create one new tournament division and verify both old and new columns are populated correctly.
 - **Blocks:** 1.2, 1.3, 1.6, and the entirety of Batches 4 and parts of Batch 2.
 
-### [ ] 1.2 Make org-side Add Player team-aware
+### [x] 1.2 Make org-side Add Player team-aware — shipped 2026-05-20, commit 132cc35
 - **Where:** Tournament division Manage panel → `+ Add Player` modal.
 - **What:** When the division's `format` requires a partner, the modal has two player typeaheads + team name. Reuse the same component as self-service registration.
 - **Prompt:** *"Refactor the org-side Add Player modal on tournament divisions. When the division's format requires a partner (use the requiresPartner helper from lib/format.ts), show two player typeahead fields and a Team Name field. When singles, show one field. Reuse the modal component from the self-service registration flow if possible — they're the same shape."*
 - **Verify:** Pro Men division: clicking Add Player should now show a two-player form. Adding a single test division with `format=open_singles` should show one-player.
 - **Blocks:** 1.4 (match generation gate is meaningless if orgs can still add unpaired individuals).
 
-### [ ] 1.3 CSV importer respects division format
+### [x] 1.3 CSV importer respects division format — shipped 2026-05-20, commits 132cc35 + 959fa40
 - **Where:** `/tournaments/[id]/import`.
 - **What:** For doubles divisions, schema is `player1_email, player2_email, team_name`. For singles, `email`. Preview groups paired rows into one team card.
 - **Prompt:** *"Update the CSV import flow on /tournaments/[id]/import to be format-aware. When the selected division's format requires a partner, the expected CSV columns are player1_email, player2_email, team_name. When singles, just email. Update the placeholder, sample, helper copy, and the Preview rendering — paired rows should show as a single team card with both players inside."*
@@ -90,13 +90,13 @@ Taxonomy migration is the foundation; everything else in this batch depends on i
 - **Decision needed:** Add file upload (drag-and-drop) too, or just paste-in for now? Recommend doing both in this session — it's small.
 - **Done (bonus):** File upload added to import page (Upload file button + filename chip). ✅
 
-### [ ] 1.4 Block match generation on incomplete teams
+### [x] 1.4 Block match generation on incomplete teams — shipped 2026-05-20, commit 132cc35
 - **Where:** Tournament division Manage panel "Generate Matches" CTA.
 - **What:** Disable when any team has fewer than required players. Banner: "N unpaired registrants. They won't be scheduled."
 - **Prompt:** *"On the tournament division Manage panel, disable the Generate Matches button when any team in a doubles division has fewer than 2 confirmed players. Show a yellow banner: 'N unpaired registrants. They will not be scheduled until paired.' with a 'Resolve' link that scrolls to the registrants list."*
 - **Verify:** Pro Men division has 6 unpaired registrants. Generate button should be disabled with the banner.
 
-### [ ] 1.5 Add the Confirm Import button
+### [x] 1.5 Add the Confirm Import button — shipped 2026-05-20, commit 132cc35
 - **Where:** `/tournaments/[id]/import`.
 - **What:** Today Preview shows but there's no commit action. Always render an "Import N rows" button after Preview, disabled when blocking errors exist.
 - **Prompt:** *"On the tournament import page, after a successful Preview, render a green primary button 'Import N rows' below the preview. Disable it (with tooltip explaining why) if any row has blocking errors. Summary text above the button: 'Will import: X paired teams + Y solo. Z emails will be invited.'"*
@@ -130,7 +130,7 @@ Without these, the league flow can't actually run a paid season. P2.1 is the big
 - **Prompt:** *"On the league overview Schedule section, add a 'Manage →' link per session row, visible only to org/captain roles. Link goes to /compete/leagues/[id]/sessions/[sessionId]/live."*
 - **Verify:** As org, see Manage link on each session row.
 
-### [ ] 2.4 Partner invite step in league registration
+### [x] 2.4 Partner invite step in league registration — shipped 2026-05-20, commit 705a658
 - **Where:** League registration modal flow.
 - **What:** Tournament registration has a Step 2 partner invite. League registration jumps straight to payment. Mirror the tournament pattern.
 - **Prompt:** *"Update the league registration flow to add a Step 2 'Invite Your Partner' modal after Step 1 Team/Solo selection, mirroring the tournament registration flow. Step 2 has: Partner's Email field, Send Invite, and Skip. For paid leagues, the partner invite should fire after Stripe Checkout succeeds, not before — the captain pays first, then invites."*
@@ -366,7 +366,7 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 - **Scope:** ~30–60 min audit + design + build.
 - **Gate:** B6 must be deployed first. Out of scope for B6.
 
-### [ ] B2 — Concurrent "Pay for Both" double-charge race (HIGH financial bug)
+### [x] B2 — Concurrent "Pay for Both" double-charge race — required layers shipped 2026-05-20 (checkout 69e6ceb, webhook 705a658); optional SELECT FOR UPDATE RPC deferred per decisions.md
 - **What:** No DB-level or route-level guard prevents both partners from clicking "Pay for Both" simultaneously. Both requests pass the `payment_status='unpaid'` check, both create Stripe sessions at 2× price, both complete → $20 charged for a $10 fee. Webhook uses unconditional UPDATE — silently overwrites `stripe_payment_intent_id` with the second payment, losing audit trail for the first.
 - **Fix required (two layers):**
   1. Checkout route: after fetching partner's reg, if `partnerReg.payment_status === 'paid'`, return 409 "Already covered by your partner" instead of degrading to quantity=1.
@@ -383,7 +383,8 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 - **What:** Inviter's React state is stale after invitee accepts — `myReg.partner_user_id` is null in client memory until a manual page refresh, so "Pay for Both" button never appears for the inviter. Both DB rows have `partner_user_id` set; only the client is stale.
 - **Scope (three sub-items):**
   1. Stale state fix: call `router.refresh()` after the partner invite is sent (post-`setInviteSent`) so the next server render picks up the accepted state — OR add a Supabase real-time subscription on the own registration row.
-  2. "Already paid by partner" display: when `myReg.payment_status === 'paid'` and `myReg.stripe_payment_intent_id === partnerReg.stripe_payment_intent_id`, show "Partner covered your fee" instead of the generic "$ Payment received". Requires partner's reg data in the page query.
+     - ~~Realtime subscription wired~~ — DivisionsSection.tsx:102–138 shipped 2026-05-20 commit 132cc35, but requires Supabase Realtime publication on `tournament_registrations` to be enabled in prod (see backlog ticket on realtime publication in migrations). Sub-item 1 stays open until publication is verified.
+  2. ~~"Already paid by partner" display~~ — shipped 2026-05-20, commit 69e6ceb. When `myReg.payment_status === 'paid'` and `myReg.stripe_payment_intent_id === partnerReg.stripe_payment_intent_id`, show "Partner covered your fee" instead of the generic "$ Payment received". Requires partner's reg data in the page query.
   3. `handlePay` double-click guard: add a per-reg-id `payLoading` state, disable both payment buttons while checkout POST is in-flight. Prevents same-browser double-fire.
 - **Gate:** B2 must be deployed and verified before this ships.
 - **Full design:** `docs/investigations/pay-for-both-option-b-audit-2026-05-19.md` §6, §7 B1/B3/B5.
@@ -396,14 +397,18 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 
 **Tickets — ship in this order:**
 
-### [ ] B7.1 — Tournament player roster is payment-blind (HIGHEST — ship today)
+### [x] B7.1 — Tournament player roster is payment-blind — shipped 2026-05-20, commit c239895
 - **What:** `app/(app)/tournaments/[id]/page.tsx` player-path registration processing includes unpaid and cancelled rows. Players without payment appear in division rosters and the "you're registered" banner shows for them.
 - **Scope of fix:** Filter `regsRaw` at the player-view processing step (before building `regsByDivision`, ~line 350) to include only `payment_status IN ('paid', 'waived')` AND `status != 'cancelled'`. Do NOT filter the raw query (line 74–76) — the organizer path uses the same `regsRaw` and legitimately needs unpaid rows for payment management.
 - **Verify:** A `tournament_registrations` row with `payment_status='unpaid'` should not appear in any player-facing division roster or isRegistered check.
 
-### [ ] B7.2 — Tournament isRegistered check is payment-blind (HIGHEST — ship today)
+### [x] B7.2 — Tournament isRegistered check is payment-blind — shipped 2026-05-20, commit c239895
 - **What:** `page.tsx:368` — `reg.status === 'registered'` check gates the "you're registered" banner but doesn't require payment. After B7.1 filters the player path, this is implicitly fixed — add explicit `payment_status === 'paid' || payment_status === 'waived'` as defense-in-depth.
 - **Verify:** Register for a tournament, don't pay. Should not see "you're registered" banner.
+
+### [x] B7.2.1 — register/route.ts capacity check payment-aware — shipped 2026-05-20, commit c239895
+
+### [x] B7.2.2 — invite/token/route.ts capacity check payment-aware — shipped 2026-05-20, commit c239895
 
 ### [ ] B7.3 — Refactor tournament solo registration to Pattern C (HIGH)
 - **What:** Move INSERT from `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts` to the `checkout.session.completed` webhook handler. Register route becomes: validate → capacity check (advisory) → create Stripe session with registration metadata → return URL. Webhook fires on payment → INSERT registration → send confirmation email.
