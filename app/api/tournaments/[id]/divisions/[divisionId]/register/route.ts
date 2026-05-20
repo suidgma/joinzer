@@ -38,6 +38,51 @@ export async function POST(
     targetUserId = body.user_id
   }
 
+  // ── Doubles team add (organiser-only) ────────────────────────────────
+  if (body.partner_user_id) {
+    // Require organiser regardless of whether P1 is self
+    if (targetUserId === user.id) {
+      const { data: tourn } = await service
+        .from('tournaments')
+        .select('organizer_id')
+        .eq('id', params.id)
+        .single()
+      if (!tourn || tourn.organizer_id !== user.id) {
+        return NextResponse.json({ error: 'Only the organizer can add a doubles team' }, { status: 403 })
+      }
+    }
+
+    const p2UserId: string = body.partner_user_id
+    const { data: rpcResult, error: rpcError } = await service.rpc('register_doubles_pair', {
+      p_tournament_id: params.id,
+      p_division_id: params.divisionId,
+      p_player1_id: targetUserId,
+      p_player2_id: p2UserId,
+      p_team_name: team_name ?? null,
+    })
+
+    if (rpcError) {
+      const msg = rpcError.message ?? ''
+      const knownCodes = [
+        'division_not_found', 'division_closed', 'not_doubles_format',
+        'already_registered', 'gender_mismatch', 'division_full',
+      ]
+      const code = knownCodes.find(c => msg.includes(c)) ?? 'registration_failed'
+      const httpStatus = code === 'division_not_found' ? 404 : code === 'registration_failed' ? 500 : 400
+      return NextResponse.json({ error: code }, { status: httpStatus })
+    }
+
+    const { reg1_id, reg2_id } = rpcResult as { reg1_id: string; reg2_id: string; status: string }
+    const { data: regs } = await service
+      .from('tournament_registrations')
+      .select('id, user_id, partner_user_id, partner_registration_id, team_name, status, payment_status, registration_type')
+      .in('id', [reg1_id, reg2_id])
+
+    const reg1 = regs?.find(r => r.id === reg1_id) ?? null
+    const reg2 = regs?.find(r => r.id === reg2_id) ?? null
+    return NextResponse.json({ reg1, reg2 })
+  }
+
   // Fetch division
   const { data: division } = await service
     .from('tournament_divisions')
@@ -86,6 +131,7 @@ export async function POST(
     .select('registration_type, partner_registration_id')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
+    .in('payment_status', ['paid', 'waived'])
 
   const teamRegs = (regCounts ?? []).filter(r => r.registration_type === 'team').length
   const soloRegs = (regCounts ?? []).filter(r => r.registration_type === 'solo').length
