@@ -130,11 +130,16 @@ Without these, the league flow can't actually run a paid season. P2.1 is the big
 - **Prompt:** *"On the league overview Schedule section, add a 'Manage →' link per session row, visible only to org/captain roles. Link goes to /compete/leagues/[id]/sessions/[sessionId]/live."*
 - **Verify:** As org, see Manage link on each session row.
 
-### [x] 2.4 Partner invite step in league registration — shipped 2026-05-20, commit 705a658
-- **Where:** League registration modal flow.
+### [ ] 2.4 Partner invite step in league registration — CODE SHIPPED 2026-05-20 commit 705a658, CAPTURE PATH VERIFIED END-TO-END 2026-05-21
+- **Where:** League registration modal flow + partner-accept page + league detail page.
 - **What:** Tournament registration has a Step 2 partner invite. League registration jumps straight to payment. Mirror the tournament pattern.
-- **Prompt:** *"Update the league registration flow to add a Step 2 'Invite Your Partner' modal after Step 1 Team/Solo selection, mirroring the tournament registration flow. Step 2 has: Partner's Email field, Send Invite, and Skip. For paid leagues, the partner invite should fire after Stripe Checkout succeeds, not before — the captain pays first, then invites."*
-- **Verify:** Register for a paid league as a team. Should: select Team → Stripe Checkout → return → see partner invite step.
+- **Capture path status (2026-05-21): VERIFIED WORKING.** Full smoke test passed: captain reg 9d0b5d1b went pending_partner/authorized → registered/paid (PI pi_3TZZNr… captured), partner reg b7563875 flipped solo→team/paid, both cross-linked bidirectionally, invitation 4d227964 → accepted. Every assertion passed. The split-payer machine is correct.
+- **Remaining work:** Two routing/guard holes exposed by the first (failed) run — see B14 (routing guard on league detail page) and B15 (dupe-charge guard on accept route). Neither blocks the capture path itself; both must ship before 2.4 is considered complete.
+- **Test data catalogue (do NOT delete — needed for B14/B15 re-tests):**
+  - League a5a35685 (TESTDATA-2.4-paid): captain reg 9d0b5d1b + partner reg b7563875, now both registered/team/paid/linked.
+  - League 512a8b31 (TESTDATA-2.4-free). Stub→full account 578f3a39 ("Marty Test", martyfit50+partner@gmail.com, is_stub=false).
+  - Stripe test PIs: pi_3TZZNr… (captain, captured), pi_3TZaj9… (partner accept, captured), pi_3TZZpW… (ORPHANED solo — captured $1 test charge, no longer referenced by any registration row).
+  - Invitation 4d227964 (accepted).
 - **Decision needed:** Does the partner pay separately or does the captain pay for both? (See §Decisions.)
 
 ### [x] 2.5 Sub system state and unified UI
@@ -224,12 +229,27 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **What:** The refund line ("Refundable until [date] PT. [Refund policy →]") currently renders only on the post-registration Pay My Fee card (lines 1023–1028) — i.e., AFTER the user has already created a registration row. Users should see refund terms BEFORE committing. Add the same refund line + policy link below the "Confirm Registration" button in the registration modal, conditioned on `effectiveCost > 0`. Reuses existing `registrationClosesAt` prop and string logic — small UI addition only.
 - **Priority:** LOW (usability, not correctness)
 
-### [ ] 3.4.1 Enforce refund deadline in cancel route (backlog)
+### [x] 3.4.1-L Enforce refund deadline in league cancel route — merged 2026-05-21, PR #18, commit cf51f7d
+- **Where:** `app/api/league-cancel/route.ts` — full rewrite (77-line stub → 238-line complete implementation).
+- **What shipped:**
+  - Migration `20260521000001_league_registrations_add_refunded.sql`: widens `league_registrations.payment_status` CHECK to include `'refunded'`; adds `refunded_at timestamptz NULL`. Applied to prod before route code.
+  - Deadline gate on `leagues.registration_closes_at` (timestamptz, confirmed live): within deadline → Stripe refund; past deadline → cancel succeeds, no Stripe, `payment_status` stays `'paid'`, confirmation email says "refund window closed."
+  - Stripe/DB ordering: `stripe.refunds.create()` fires BEFORE DB write; if DB write fails post-refund, logs CRITICAL with Stripe refund ID and returns 500 (never silent drop).
+  - `authorized` → `paymentIntents.cancel()` (no deadline gate, no money captured).
+  - B11 partner unlink: partner's `partner_user_id` + `partner_registration_id` nulled on cancel.
+  - `pending_partner` invite cleanup: open invitations set to `'expired'`.
+  - Idempotency: 409 on double-cancel (limit(1) array guard).
+  - Waitlist promotion + emails: preserved from original + cancel confirmation email added.
+- **Schema verified live 2026-05-21:** `registration_closes_at` is `timestamptz` on `leagues` (not `date`); live values stored as `06:59:59+00` = `23:59:59 PT`; date comparison is numeric ms-on-ms, no off-by-one, no Invalid-Date path.
+- **Post-merge smoke test (deferred):** past-deadline paid cancel against a real reg — target one of the 5–6 leagues with `registration_closes_at` in the past. Verify Stripe not called, status → `'cancelled'`, `payment_status` stays `'paid'`, waitlist fires, email carries "refund window closed" line.
+- **Data hygiene note (not a code change):** 3 live leagues have `registration_closes_at = NULL` — per code that means every paid cancel refunds forever. Confirm those rows are intentionally open-ended before they take paid registrations.
+
+### [ ] 3.4.1-T Enforce refund deadline in tournament cancel route (HIGH — money path)
 - **Where:** `app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts` lines 51–65.
 - **What:** Route refunds unconditionally when `payment_status === 'paid'`. Policy says: refund only if current time < `registration_closes_at`. After deadline: cancel registration but do NOT issue refund; return `{ ok: true, refunded: false }`.
-- **Priority:** HIGH — display now shows "refundable until [date]" but code doesn't enforce it.
-- **Decision needed:** What to show the player when cancelling after deadline? (Modal warning? Or just cancel with no refund and show "non-refundable" notice?)
-- **Blocks:** Policy truthfulness.
+- **Audited 2026-05-21 (read-only):** Route has no deadline check, no error handling on DB writes post-Stripe-refund. Same gap as 3.4.1-L before fix, plus B11 orphan bug is still present on this route.
+- **Priority:** HIGH — display shows "refundable until [date]" but code doesn't enforce it.
+- **Blocks:** Policy truthfulness on tournament surface.
 
 ### [x] 3.5 Solo auto-matcher — copy fix — shipped 2026-05-20, commit 8c32839
 - **Decision:** Option B (copy fix). No matcher built.
@@ -503,12 +523,35 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 
 ---
 
-### [ ] B11 — Cancel-and-re-register orphans partner linkage (HIGH integrity bug)
-- **What:** When an inviter cancels their registration and re-registers, the new row is created with `partner_user_id=null`. Their previous partner's row still has `partner_user_id` pointing to the cancelled row, leaving the partner's "Pay for Both" / partner-relationship logic pointing into the void. The cancel route (`app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts`) only updates the cancelling user's row — does not null out the partner's `partner_user_id` or notify them. The invite-acceptance route does not re-link an existing partner on re-registration.
-- **Reproduced live:** 2026-05-19, division `3dc096c9-b9c1-438b-bb0e-e675567b7a4a` — Roderick re-registered after cancellation; Precious's row still pointed to cancelled reg `ad15f730`; new row `fb73cbc0` has no partner link.
-- **Design note:** Belongs to the architectural partner-flow ticket family with B1/B2. Likely should be solved as one design pass (what does cancel mean for both halves of a partnership?), not patched in isolation. Out of scope for tonight.
+### [x] B11 — Cancel-and-re-register orphans partner linkage — FIXED in 3.4.1-L, merged 2026-05-21
+- **Fix:** Combined into `app/api/league-cancel/route.ts` rewrite (3.4.1-L). When a registered player cancels, the route nulls `partner_user_id` and `partner_registration_id` on the partner's row before marking the canceller's row as `cancelled`. Partner keeps their registered status — only the FK pointers are cleared.
+- **Note:** Fix is in the league cancel route only. The tournament cancel route (`app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts`) still has the orphan bug — it is part of the 3.4.1-T scope.
+- **Original finding:** 2026-05-19, division `3dc096c9-b9c1-438b-bb0e-e675567b7a4a` — Roderick re-registered after cancellation; Precious's row still pointed to cancelled reg `ad15f730`; new row `fb73cbc0` has no partner link.
 
 ---
+
+### [x] B14 — League detail page shows registration form to invited partners — FIXED, merged 2026-05-21, PR #16, commit 9a7db50
+- **Root cause (from 2.4 smoke test 2026-05-21):** `leagues/[id]/page.tsx` does not query `league_partner_invitations` for the current user. `LeagueActions.tsx` renders the full registration form for any user with `myReg = null`, including users with a pending invitation. The "Individual (solo)" toggle at lines 214–230 lets them bypass the accept flow and register via the normal checkout path (`event_type='league'`), orphaning the captain's auth-hold PI.
+- **Audit (2026-05-21, read-only):**
+  1. `LeagueActions.tsx` render gate: line 212 — `(localReg === null || localReg === 'cancelled') && canRegister`. No invitation check anywhere. Solo/team toggle (lines 214–230) is rendered unconditionally for doubles leagues. Props type (lines 18–34) has no `pendingInvitation` field — component is fully blind to the invitations table.
+  2. `league_partner_invitations` columns confirmed in prod: `id`, `league_id`, `captain_registration_id`, `invitee_email`, `invitee_user_id` (nullable), `token`, `status`, `expires_at`, `invitation_email_sent_at`, `created_at`. All columns needed for the server-side guard exist.
+  3. Proposed server-side guard: in `leagues/[id]/page.tsx`, after fetching `myReg`, query: `SELECT id, token, expires_at FROM league_partner_invitations WHERE invitee_user_id = {userId} AND league_id = {id} AND status = 'pending' AND expires_at > now() LIMIT 1`. Pass result as `pendingInvitation: { token, expiresAt } | null` prop to `LeagueActions`.
+  4. Proposed client-side guard: in `LeagueActions.tsx`, when `pendingInvitation` is set and `localReg === null`, render an amber card ABOVE the registration form: "You've been invited as a doubles partner → [Accept invitation]" linking to `/compete/leagues/{id}/partner-accept?token={token}`. Do NOT suppress the form — a partner who wants to decline and register solo should still be able to.
+- **Effort:** Small — one additional server query + one conditional render block. No schema changes required.
+- **Priority:** HIGH — routing guard prevents the wrong-path registration that broke the first 2.4 smoke test.
+
+### [x] B15 — Accept route creates second Stripe charge when user already has a paid registration — FIXED, merged 2026-05-21, PR #15, commit bf12bd3
+- **Root cause (from 2.4 smoke test 2026-05-21):** `app/api/leagues/invitations/[token]/accept/route.ts` has no guard against an existing registration in the paid path. Lines 49–71: when `costCents > 0`, the route goes straight to `stripe.checkout.sessions.create()` — no check whether the accepting user already has a `paid` registration row for this league. If a user registers solo (paying once), then accepts a partner invite to the same league, the accept route creates a second Stripe charge. The webhook upsert (`onConflict: 'league_id,user_id'`) overwrites the solo row cleanly, but the first payment is orphaned and the user is double-charged.
+- **Proven in test (2026-05-21):** Orphaned solo PI pi_3TZZpWGO1WYoAlDg1UaRHiLx remains captured and unlinked after the correct team PI pi_3TZaj9… was written by the webhook upsert.
+- **Note:** The free path (lines 75–80) DOES have an existing-reg check (`maybeSingle()` guard) — only the paid path is missing it.
+- **Audit (2026-05-21, read-only):** Confirmed — lines 49–71 in `app/api/leagues/invitations/[token]/accept/route.ts` contain no `.from('league_registrations')` query before calling `stripe.checkout.sessions.create()`.
+- **Options (do not pick yet — design review required):**
+  - **A. Block with message:** if accepting user has `payment_status='paid'` in this league, return 409: "You're already registered as solo — cancel that registration first." Clearest user message, forces explicit action. Tradeoff: user must cancel and may lose their spot if league fills.
+  - **B. Convert without second charge:** if existing paid solo reg found, skip Stripe and convert the existing row to `registration_type='team'` inline, cross-link both regs, mark invitation accepted. No second charge. Tradeoff: most complex — must mirror everything the webhook does, including PI capture for the captain.
+  - **C. Refund-and-recharge:** issue Stripe refund on existing PI, then create new partner Stripe session. Tradeoff: two-step money movement, latency, refund failure surface.
+  - **Recommendation for review:** B is the cleanest UX but the logic is non-trivial (must also trigger captain PI capture). A is safe and simple to ship first; B can follow.
+- **This is a money-path change** → requires its own design review + end-to-end re-test before shipping. Do not bundle with B14.
+- **Priority:** HIGH — real-money double-charge in production if a paid-solo user accepts a partner invite.
 
 ### [ ] B-Privacy-RLS — Move contact-visibility enforcement into RLS (LOW)
 - **What:** Ticket 3.3 enforces email/phone visibility at the app layer only. The profiles RLS SELECT policy currently allows any authenticated user to read all columns. A future hardened version would use a security-barrier view or policy that masks `email` and `phone` columns based on `email_visibility`/`phone_visibility` and a call to `is_captain_of()` inside the policy.
