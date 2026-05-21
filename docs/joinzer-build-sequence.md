@@ -507,12 +507,15 @@ Live-discovered defects, ordered by severity. Ship B6 before B2 before B1.
 
 ### [x] B7.2.4 — waitlist.ts capacity count payment-aware — shipped 2026-05-20, commit fdacb05
 
-### [ ] B7.3 — Refactor tournament solo registration to Pattern C (HIGH)
-- **What:** Move INSERT from `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts` to the `checkout.session.completed` webhook handler. Register route becomes: validate → capacity check (advisory) → create Stripe session with registration metadata → return URL. Webhook fires on payment → INSERT registration → send confirmation email.
-- **Impact:** `DivisionsSection.tsx` `handleRegister` flow changes: no longer adds a registration to local state immediately; instead redirects to Stripe (or shows partner invite modal first for doubles).
-- **B1 realtime subscription:** Will need adjustment or removal — subscription fires on UPDATE, not INSERT. After Pattern C, the INSERT happens in webhook. Review whether the subscription still serves a purpose.
-- **Scope:** `register/route.ts` (full rewrite), webhook `checkout.session.completed` handler (new tournament solo path), `DivisionsSection.tsx` `handleRegister` (remove optimistic INSERT add, adjust flow).
-- **Note:** Free divisions skip Stripe and still INSERT inline — that path is fine as-is.
+### [x] B7.3 — Refactor tournament solo registration to Pattern C (HIGH)
+Merged 2026-05-21, commits 49cadae/e11060d/7470c5c → main 685431c.
+- Paid solo self-reg: register route creates Stripe Checkout session (no INSERT); webhook `tournament_solo` block inserts with `payment_status='paid'`, runs auto-match, sends confirmation email.
+- cost_cents===null → 400 (unconfigured fee, explicit rejection). cost_cents===0 → INSERT with `payment_status='waived'`.
+- Auto-match filter: `.in('payment_status', ['paid', 'waived'])` at all three sites — Pattern A unpaid ghosts cannot cross-link.
+- Division-full race: auto-refund via `stripe.refunds.create` with idempotency key `solo-race-refund-{pi}`. Double-failure CRITICAL log includes tId/divId/uId/paymentIntentId.
+- Team registrations remain Pattern A (INSERT-then-pay) to preserve partner-invite flow.
+- Discount codes validated and applied in register route; DivisionsSection passes discount_code in POST body.
+- Smoke test: deferred — needs staging isolation (STAGING-ISOLATION ticket). Division-full race test specifically: stage small division, two near-simultaneous payments, confirm auto-refund fires and idempotency key holds on forced webhook retry.
 
 ### [ ] B7.4 — Refactor tournament partner invite acceptance to Pattern C (HIGH)
 - **What:** `app/api/tournaments/invite/[token]/route.ts` — acceptance path currently creates the invitee's `tournament_registrations` row with `payment_status='unpaid'` (unset default). Under Pattern C: acceptance creates only the invitation acceptance record and redirects to Stripe (if paid division). Webhook creates the invitee's row.
