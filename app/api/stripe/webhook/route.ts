@@ -556,6 +556,209 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Tournament partner invite acceptance (B7.4 Pattern C) ──────────────────
+    else if (meta.event_type === 'tournament_partner_accept') {
+      const invId = meta.invitation_id
+      const tId = meta.tournament_id
+      const divId = meta.division_id
+      const uId = meta.user_id
+      const inviterRegId = meta.inviter_registration_id
+
+      if (!invId || !tId || !divId || !uId || !inviterRegId) {
+        console.error('[webhook] tournament_partner_accept missing required metadata', meta)
+        return NextResponse.json({ received: true })
+      }
+
+      // Idempotency: webhook retry guard — skip if registration already exists for this PI
+      if (paymentIntentId) {
+        const { data: existingByPi } = await service
+          .from('tournament_registrations')
+          .select('id')
+          .eq('stripe_payment_intent_id', paymentIntentId)
+          .limit(1)
+        if (existingByPi && existingByPi.length > 0) {
+          console.warn('[webhook] tournament_partner_accept duplicate PI, skipping', { paymentIntentId, invId, uId })
+          return NextResponse.json({ received: true })
+        }
+      }
+
+      // Inviter still registered? If they cancelled, refund invitee and abort.
+      const { data: inviterReg } = await service
+        .from('tournament_registrations')
+        .select('id, user_id')
+        .eq('id', inviterRegId)
+        .neq('status', 'cancelled')
+        .maybeSingle()
+
+      if (!inviterReg) {
+        console.warn('[webhook] tournament_partner_accept: inviter registration gone — refunding invitee', { inviterRegId, uId, paymentIntentId })
+        if (paymentIntentId) {
+          const refundStripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+          await refundStripe.refunds.create(
+            { payment_intent: paymentIntentId },
+            { idempotencyKey: `partner-inviter-gone-${paymentIntentId}` }
+          ).catch(err =>
+            console.error('[webhook] tournament_partner_accept: inviter-gone refund failed — MANUAL ACTION REQUIRED', { paymentIntentId, invId, uId, err })
+          )
+        }
+        return NextResponse.json({ received: true })
+      }
+
+      // Atomic double-accept guard: only the first webhook to arrive wins this UPDATE.
+      // Two Stripe sessions from a double-tap race have different PIs; the Stripe idempotency key
+      // cannot catch this — this row-level UPDATE is the guard. 0 rows = loser → refund.
+      const { data: acceptedRows, error: acceptErr } = await service
+        .from('tournament_team_invitations')
+        .update({ status: 'accepted', invitee_user_id: uId })
+        .eq('id', invId)
+        .eq('status', 'pending')
+        .select('id')
+
+      if (acceptErr) {
+        // Can't determine state safely — don't refund, log for manual review.
+        console.error('[webhook] tournament_partner_accept: invitation UPDATE error — CRITICAL, no refund issued', { invId, uId, paymentIntentId, err: acceptErr.message })
+        return NextResponse.json({ received: true })
+      }
+
+      if (!acceptedRows || acceptedRows.length === 0) {
+        // Double-accept loser — invitation already resolved by a concurrent webhook
+        console.warn('[webhook] tournament_partner_accept: double-accept loser — refunding', { invId, uId, paymentIntentId })
+        if (paymentIntentId) {
+          const refundStripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+          await refundStripe.refunds.create(
+            { payment_intent: paymentIntentId },
+            { idempotencyKey: `partner-stale-${paymentIntentId}` }
+          ).catch(err =>
+            console.error('[webhook] tournament_partner_accept: stale-invite refund failed — MANUAL ACTION REQUIRED', { paymentIntentId, invId, uId, err })
+          )
+        }
+        return NextResponse.json({ received: true })
+      }
+
+      // INSERT invitee's registration
+      const { data: newPartnerReg, error: partnerInsertErr } = await service
+        .from('tournament_registrations')
+        .insert({
+          tournament_id: tId,
+          division_id: divId,
+          user_id: uId,
+          status: 'registered',
+          registration_type: 'team',
+          payment_status: 'paid',
+          stripe_payment_intent_id: paymentIntentId,
+        })
+        .select('id')
+        .single()
+
+      if (partnerInsertErr || !newPartnerReg) {
+        // INSERT failed after invitation already accepted — mark expired to prevent retry loops, refund.
+        console.error('[webhook] tournament_partner_accept: INSERT failed after invitation accepted — CRITICAL', { invId, uId, paymentIntentId, err: partnerInsertErr?.message })
+        await service
+          .from('tournament_team_invitations')
+          .update({ status: 'expired' })
+          .eq('id', invId)
+        if (paymentIntentId) {
+          const refundStripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+          await refundStripe.refunds.create(
+            { payment_intent: paymentIntentId },
+            { idempotencyKey: `partner-insert-failed-${paymentIntentId}` }
+          ).catch(err =>
+            console.error('[webhook] tournament_partner_accept: insert-failed refund failed — MANUAL ACTION REQUIRED', { paymentIntentId, invId, uId, err })
+          )
+        }
+        return NextResponse.json({ received: true })
+      }
+
+      // Cross-link both registrations: partner_user_id + partner_registration_id
+      await Promise.all([
+        service.from('tournament_registrations').update({
+          partner_user_id: uId,
+          partner_registration_id: newPartnerReg.id,
+        }).eq('id', inviterRegId),
+        service.from('tournament_registrations').update({
+          partner_user_id: inviterReg.user_id,
+          partner_registration_id: inviterRegId,
+        }).eq('id', newPartnerReg.id),
+      ])
+
+      // Emails: invitee payment receipt + inviter partner-confirmed notification
+      const [{ data: partnerTournament }, { data: inviteeProfile }, { data: inviterProfile }, { data: inviteeDivision }] = await Promise.all([
+        service.from('tournaments').select('name, start_date, location_id').eq('id', tId).single(),
+        service.from('profiles').select('name, email').eq('id', uId).single(),
+        service.from('profiles').select('name, email').eq('id', inviterReg.user_id).single(),
+        service.from('tournament_divisions').select('name').eq('id', divId).single(),
+      ])
+
+      if (partnerTournament) {
+        const tournamentUrl = `${siteUrl}/tournaments/${tId}`
+        const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
+        const locationResult = (partnerTournament as any).location_id
+          ? await service.from('locations').select('name').eq('id', (partnerTournament as any).location_id).single()
+          : { data: null }
+        const locationName = locationResult.data?.name ?? null
+        const resend = new Resend(process.env.RESEND_API_KEY)
+
+        if (inviteeProfile?.email) {
+          const inviteeRows: EmailRow[] = [
+            ['Tournament', partnerTournament.name],
+            ...(locationName ? [['Location', locationName] as EmailRow] : []),
+            ...(inviteeDivision?.name ? [['Division', inviteeDivision.name] as EmailRow] : []),
+            ...(inviterProfile?.name ? [['Partner', inviterProfile.name] as EmailRow] : []),
+            ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+          ]
+
+          const attachments = (partnerTournament as any).start_date ? [{
+            filename: icsFilename(partnerTournament.name, 'tournament'),
+            content: Buffer.from(generateIcs([{
+              uid: tId,
+              title: partnerTournament.name,
+              startDate: (partnerTournament as any).start_date,
+              ...(locationName ? { location: locationName } : {}),
+              url: tournamentUrl,
+            }])),
+          }] : []
+
+          resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: inviteeProfile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `Payment confirmed — ${partnerTournament.name}`,
+            html: registrationEmail({
+              heading: 'Payment Confirmed ✓',
+              firstName: inviteeProfile.name?.split(' ')[0] ?? 'there',
+              rows: inviteeRows,
+              ctaLabel: 'View Tournament',
+              ctaUrl: tournamentUrl,
+              footerNote: 'Keep this email as your payment receipt.',
+            }),
+            ...(attachments.length > 0 ? { attachments } : {}),
+          }).catch(() => {})
+        }
+
+        if (inviterProfile?.email) {
+          resend.emails.send({
+            from: 'Joinzer <support@joinzer.com>',
+            to: inviterProfile.email,
+            replyTo: 'martyfit50@gmail.com',
+            subject: `Partner confirmed — ${partnerTournament.name}`,
+            html: registrationEmail({
+              heading: "You're set! Partner Confirmed ✓",
+              firstName: inviterProfile.name?.split(' ')[0] ?? 'there',
+              intro: `${inviteeProfile?.name ?? 'Your partner'} accepted your invitation and completed their registration.`,
+              rows: [
+                ['Tournament', partnerTournament.name],
+                ...(inviteeDivision?.name ? [['Division', inviteeDivision.name] as EmailRow] : []),
+                ['Partner', inviteeProfile?.name ?? '—'],
+              ],
+              ctaLabel: 'View Tournament',
+              ctaUrl: tournamentUrl,
+              footerNote: '',
+            }),
+          }).catch(() => {})
+        }
+      }
+    }
+
     // ── League partner payment ─────────────────────────────────────────────────
     else if (meta.event_type === 'league_partner' && meta.invitation_id && meta.user_id) {
       const { data: inv } = await service

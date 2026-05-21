@@ -11,15 +11,16 @@ type InviteDetails = {
   inviter_name: string
   team_name: string | null
   tournament: { id: string; name: string; start_date: string }
-  division: { id: string; name: string }
+  division: { id: string; name: string; cost_cents: number | null }
 }
 
 export default function InviteAcceptPage(props: { params: Promise<{ token: string }> }) {
-  const params = use(props.params);
+  const params = use(props.params)
   const router = useRouter()
   const [invite, setInvite] = useState<InviteDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [redirectingToPayment, setRedirectingToPayment] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<'accepted' | 'declined' | null>(null)
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string } | null>(null)
@@ -41,7 +42,6 @@ export default function InviteAcceptPage(props: { params: Promise<{ token: strin
 
   async function handleAction(action: 'accept' | 'decline') {
     if (!currentUser) {
-      // Redirect to login, come back after
       router.push(`/login?redirect=/tournaments/invite/${params.token}`)
       return
     }
@@ -54,6 +54,14 @@ export default function InviteAcceptPage(props: { params: Promise<{ token: strin
     })
     const json = await res.json()
     if (!res.ok) { setError(json.error ?? 'Something went wrong'); setActing(false); return }
+
+    // B7.4: paid division → Stripe Checkout redirect
+    if (json.url) {
+      setRedirectingToPayment(true)
+      window.location.href = json.url
+      return
+    }
+
     setDone(action === 'accept' ? 'accepted' : 'declined')
     if (action === 'accept' && invite?.tournament?.id) {
       setTimeout(() => router.push(`/tournaments/${invite.tournament.id}`), 2000)
@@ -100,7 +108,7 @@ export default function InviteAcceptPage(props: { params: Promise<{ token: strin
       <main className="max-w-sm mx-auto p-6 pt-16 text-center space-y-3">
         <p className="text-3xl">{done === 'accepted' ? '🎉' : '👋'}</p>
         <p className="font-heading text-base font-bold text-brand-dark">
-          {done === 'accepted' ? 'You\'re registered!' : 'Invitation declined'}
+          {done === 'accepted' ? "You're registered!" : 'Invitation declined'}
         </p>
         <p className="text-sm text-brand-muted">
           {done === 'accepted'
@@ -115,6 +123,17 @@ export default function InviteAcceptPage(props: { params: Promise<{ token: strin
       </main>
     )
   }
+
+  const hasFee = (invite.division.cost_cents ?? 0) > 0
+  const feeLabel = hasFee
+    ? `$${((invite.division.cost_cents as number) / 100).toFixed(2)}`
+    : null
+
+  const acceptLabel = (() => {
+    if (!currentUser) return 'Sign in to Accept'
+    if (hasFee) return `Accept & Pay ${feeLabel}`
+    return 'Accept & Register'
+  })()
 
   return (
     <main className="max-w-sm mx-auto p-4 pt-10 space-y-5">
@@ -131,6 +150,9 @@ export default function InviteAcceptPage(props: { params: Promise<{ token: strin
         <p className="text-xs text-brand-muted">{invite.division.name}</p>
         {invite.team_name && (
           <p className="text-xs text-brand-muted">Team: <span className="text-brand-dark font-medium">{invite.team_name}</span></p>
+        )}
+        {hasFee && (
+          <p className="text-xs text-brand-muted">Registration fee: <span className="text-brand-dark font-medium">{feeLabel}</span></p>
         )}
       </div>
 
@@ -154,7 +176,9 @@ export default function InviteAcceptPage(props: { params: Promise<{ token: strin
           disabled={acting}
           className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
         >
-          {acting ? 'Processing…' : currentUser ? 'Accept & Register' : 'Sign in to Accept'}
+          {acting
+            ? (redirectingToPayment ? 'Redirecting to payment…' : 'Processing…')
+            : acceptLabel}
         </button>
         <button
           onClick={() => handleAction('decline')}
