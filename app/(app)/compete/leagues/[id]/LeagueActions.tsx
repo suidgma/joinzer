@@ -31,11 +31,12 @@ type Props = {
   mySubSessionIds: string[]
   waitlistPosition: number | null
   waitlistTotal: number
+  pendingInvite?: { token: string; expiresAt: string } | null
 }
 
 export default function LeagueActions({
   leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format,
-  partnerUserName, pendingPartnerEmail, pendingPartnerExpiresAt,
+  partnerUserName, pendingPartnerEmail, pendingPartnerExpiresAt, pendingInvite = null,
   sessions, mySubSessionIds, waitlistPosition, waitlistTotal,
 }: Props) {
   const router = useRouter()
@@ -49,6 +50,7 @@ export default function LeagueActions({
   const [partnerEmail, setPartnerEmail] = useState('')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [showFallback, setShowFallback] = useState(false)
 
   const isDoubles = DOUBLES_FORMATS.includes(format)
   const canRegister = registrationStatus === 'open' || registrationStatus === 'waitlist_only'
@@ -152,6 +154,12 @@ export default function LeagueActions({
       })
     : null
 
+  const inviteExpiresLabel = pendingInvite
+    ? new Date(pendingInvite.expiresAt).toLocaleDateString('en-US', {
+        timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric',
+      })
+    : null
+
   return (
     <div className="space-y-2">
       {/* Pending partner state */}
@@ -208,8 +216,34 @@ export default function LeagueActions({
         </div>
       )}
 
+      {/* Pending partner invitation — invitee side (B14 guard) */}
+      {pendingInvite && !showFallback && (localReg === null || localReg === 'cancelled') && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">You have a partner invitation for this league</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Accept your captain&apos;s invitation to join as a team
+              {inviteExpiresLabel ? ` · expires ${inviteExpiresLabel}` : ''}.
+            </p>
+          </div>
+          <a
+            href={`/compete/leagues/${leagueId}/partner-accept?token=${pendingInvite.token}`}
+            className="block w-full text-center bg-amber-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-amber-700 transition-colors"
+          >
+            Accept invitation →
+          </a>
+          <button
+            type="button"
+            onClick={() => setShowFallback(true)}
+            className="block w-full text-center text-xs text-brand-muted underline underline-offset-2"
+          >
+            Not expecting this? Register normally instead.
+          </button>
+        </div>
+      )}
+
       {/* Registration form */}
-      {(localReg === null || localReg === 'cancelled') && canRegister && (
+      {(localReg === null || localReg === 'cancelled') && canRegister && (!pendingInvite || showFallback) && (
         <div className="space-y-2">
           {isDoubles && (
             <div className="flex rounded-xl overflow-hidden border border-brand-border">

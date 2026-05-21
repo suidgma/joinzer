@@ -164,6 +164,24 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     pendingPartnerExpiresAt = pendingInv?.expires_at ?? null
   }
 
+  // Fetch pending partner invitation for the current user (invitee side).
+  // Only runs when user has no active registration — guard against wrong-path solo reg (B14).
+  let pendingInvite: { token: string; expiresAt: string } | null = null
+  if (user && (!myReg || myReg.status === 'cancelled')) {
+    const { data: inviteRows } = await supabase
+      .from('league_partner_invitations')
+      .select('token, expires_at')
+      .eq('league_id', params.id)
+      .eq('invitee_user_id', user.id)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString())
+      .limit(1)
+    const inviteRow = inviteRows?.[0] ?? null
+    if (inviteRow) {
+      pendingInvite = { token: inviteRow.token, expiresAt: inviteRow.expires_at }
+    }
+  }
+
   const registeredRegs = regCounts?.filter((r) => r.status === 'registered' || r.status === 'pending_partner') ?? []
   const registeredCount = registeredRegs.filter((r) => r.status === 'registered').length
   const waitlistCount = regCounts?.filter((r) => r.status === 'waitlist').length ?? 0
@@ -286,6 +304,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             partnerUserName={partnerUserName}
             pendingPartnerEmail={pendingPartnerEmail}
             pendingPartnerExpiresAt={pendingPartnerExpiresAt}
+            pendingInvite={pendingInvite}
             sessions={sessions ?? []}
             mySubSessionIds={Array.from(mySubSessionIds)}
             waitlistPosition={waitlistPosition}
