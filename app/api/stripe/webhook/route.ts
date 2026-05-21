@@ -336,6 +336,215 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Tournament solo registration (B7.3 Pattern C) ────────────────────────
+    else if (meta.event_type === 'tournament_solo') {
+      const { tournament_id: tId, division_id: divId, user_id: uId } = meta
+      const regType: 'team' | 'solo' = meta.registration_type === 'solo' ? 'solo' : 'team'
+      const teamName = meta.team_name || null
+
+      if (!tId || !divId || !uId) {
+        console.error('[webhook] tournament_solo missing required metadata', meta)
+        return NextResponse.json({ received: true })
+      }
+
+      // Idempotency: skip if an active registration already exists
+      const { data: existingRows } = await service
+        .from('tournament_registrations')
+        .select('id')
+        .eq('tournament_id', tId)
+        .eq('division_id', divId)
+        .eq('user_id', uId)
+        .neq('status', 'cancelled')
+        .limit(1)
+      if (existingRows && existingRows.length > 0) {
+        console.warn('[webhook] tournament_solo duplicate, skipping', { tId, divId, uId })
+        return NextResponse.json({ received: true })
+      }
+
+      // Re-check capacity — another player may have filled the slot while this user was in Stripe
+      const [{ data: division }, { data: regCounts }] = await Promise.all([
+        service.from('tournament_divisions')
+          .select('id, name, format, max_entries, waitlist_enabled')
+          .eq('id', divId)
+          .single(),
+        service.from('tournament_registrations')
+          .select('registration_type, partner_registration_id')
+          .eq('division_id', divId)
+          .eq('status', 'registered')
+          .in('payment_status', ['paid', 'waived']),
+      ])
+
+      if (!division) {
+        console.error('[webhook] tournament_solo: division not found', divId)
+        return NextResponse.json({ received: true })
+      }
+
+      const tTeamRegs = (regCounts ?? []).filter(r => r.registration_type === 'team').length
+      const tSoloRegs = (regCounts ?? []).filter(r => r.registration_type === 'solo').length
+      const tFull = (tTeamRegs + Math.floor(tSoloRegs / 2)) >= division.max_entries
+      const regStatus = tFull && division.waitlist_enabled ? 'waitlisted' : 'registered'
+
+      if (tFull && !division.waitlist_enabled) {
+        // Division full, no waitlist — cannot register. TODO: auto-refund paymentIntentId.
+        console.error('[webhook] tournament_solo: division full, no waitlist — manual refund required', { tId, divId, uId, paymentIntentId })
+        return NextResponse.json({ received: true })
+      }
+
+      const { data: soloReg, error: soloInsertErr } = await service
+        .from('tournament_registrations')
+        .insert({
+          tournament_id: tId,
+          division_id: divId,
+          user_id: uId,
+          team_name: regType === 'team' ? teamName : null,
+          status: regStatus,
+          registration_type: regType,
+          payment_status: 'paid',
+          stripe_payment_intent_id: paymentIntentId,
+        })
+        .select('id, user_id, partner_user_id, partner_registration_id, registration_type, status')
+        .single()
+
+      if (soloInsertErr || !soloReg) {
+        console.error('[webhook] tournament_solo INSERT failed', soloInsertErr)
+        return NextResponse.json({ received: true })
+      }
+
+      if (meta.discount_code_id) {
+        await service.rpc('increment_discount_uses', { code_id: meta.discount_code_id })
+      }
+
+      // Auto-match solo players when both are in registered+paid state
+      if (regType === 'solo' && regStatus === 'registered') {
+        const { data: soloPartner } = await service
+          .from('tournament_registrations')
+          .select('id, user_id')
+          .eq('division_id', divId)
+          .eq('status', 'registered')
+          .eq('registration_type', 'solo')
+          .is('partner_registration_id', null)
+          .neq('user_id', uId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (soloPartner) {
+          await Promise.all([
+            service.from('tournament_registrations').update({
+              partner_user_id: soloPartner.user_id,
+              partner_registration_id: soloPartner.id,
+            }).eq('id', soloReg.id),
+            service.from('tournament_registrations').update({
+              partner_user_id: uId,
+              partner_registration_id: soloReg.id,
+            }).eq('id', soloPartner.id),
+          ])
+
+          const { data: matchProfiles } = await service
+            .from('profiles')
+            .select('id, name, email')
+            .in('id', [uId, soloPartner.user_id])
+          const myProfile = matchProfiles?.find(p => p.id === uId)
+          const partnerProfile = matchProfiles?.find(p => p.id === soloPartner.user_id)
+
+          if (myProfile && partnerProfile) {
+            const resend = new Resend(process.env.RESEND_API_KEY)
+            const tournamentUrl = `${siteUrl}/tournaments/${tId}`
+            const matchHtml = (recipientName: string, partnerName: string) => `
+              <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
+                <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
+                  <h1 style="margin:0;font-size:20px;color:#012D0B">You've been matched with a partner!</h1>
+                </div>
+                <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+                  <p style="margin:0 0 16px;font-size:15px">Hi ${recipientName.split(' ')[0]},</p>
+                  <p style="margin:0 0 16px;font-size:14px;color:#374151">
+                    Great news — you've been automatically matched with <strong>${partnerName}</strong> as your doubles partner for this tournament!
+                  </p>
+                  <p style="margin:0 0 24px;font-size:14px;color:#374151">
+                    We recommend reaching out to introduce yourselves and coordinate before the tournament.
+                  </p>
+                  <a href="${tournamentUrl}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">View Tournament</a>
+                  <p style="margin-top:24px;font-size:12px;color:#9ca3af">You're receiving this because you registered as a solo player on Joinzer.</p>
+                </div>
+              </div>
+            `
+            if (myProfile.email) {
+              resend.emails.send({
+                from: 'Joinzer <support@joinzer.com>',
+                to: myProfile.email,
+                replyTo: 'martyfit50@gmail.com',
+                subject: `Partner match confirmed — ${partnerProfile.name}`,
+                html: matchHtml(myProfile.name ?? '', partnerProfile.name ?? ''),
+              }).catch(() => {})
+            }
+            if (partnerProfile.email) {
+              resend.emails.send({
+                from: 'Joinzer <support@joinzer.com>',
+                to: partnerProfile.email,
+                replyTo: 'martyfit50@gmail.com',
+                subject: `Partner match confirmed — ${myProfile.name}`,
+                html: matchHtml(partnerProfile.name ?? '', myProfile.name ?? ''),
+              }).catch(() => {})
+            }
+          }
+        }
+      }
+
+      // Confirmation email
+      const [{ data: soloTournament }, { data: soloProfile }, { data: soloDivision }] = await Promise.all([
+        service.from('tournaments').select('name, start_date, location_id').eq('id', tId).single(),
+        service.from('profiles').select('name, email').eq('id', uId).single(),
+        service.from('tournament_divisions').select('name').eq('id', divId).single(),
+      ])
+
+      if (soloProfile?.email && soloTournament) {
+        const locationResult = (soloTournament as any).location_id
+          ? await service.from('locations').select('name').eq('id', (soloTournament as any).location_id).single()
+          : { data: null }
+        const locationName = locationResult.data?.name ?? null
+        const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
+        const isWaitlist = regStatus === 'waitlisted'
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        const tournamentUrl = `${siteUrl}/tournaments/${tId}`
+
+        const soloRows: EmailRow[] = [
+          ['Tournament', soloTournament.name],
+          ...(locationName ? [['Location', locationName] as EmailRow] : []),
+          ...(soloDivision?.name ? [['Division', soloDivision.name] as EmailRow] : []),
+          ...(teamName ? [['Team', teamName] as EmailRow] : []),
+          ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
+          ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+        ]
+
+        const attachments = !isWaitlist && (soloTournament as any).start_date ? [{
+          filename: icsFilename(soloTournament.name, 'tournament'),
+          content: Buffer.from(generateIcs([{
+            uid: tId,
+            title: soloTournament.name,
+            startDate: (soloTournament as any).start_date,
+            ...(locationName ? { location: locationName } : {}),
+            url: tournamentUrl,
+          }])),
+        }] : []
+
+        resend.emails.send({
+          from: 'Joinzer <support@joinzer.com>',
+          to: soloProfile.email,
+          replyTo: 'martyfit50@gmail.com',
+          subject: isWaitlist ? `Waitlist confirmed: ${soloTournament.name}` : `Payment confirmed — ${soloTournament.name}`,
+          html: registrationEmail({
+            heading: isWaitlist ? "You're on the waitlist!" : 'Payment Confirmed ✓',
+            firstName: soloProfile.name?.split(' ')[0] ?? 'there',
+            rows: soloRows,
+            ctaLabel: 'View Tournament',
+            ctaUrl: tournamentUrl,
+            footerNote: 'Keep this email as your payment receipt.',
+          }),
+          ...(attachments.length > 0 ? { attachments } : {}),
+        }).catch(() => {})
+      }
+    }
+
     // ── League partner payment ─────────────────────────────────────────────────
     else if (meta.event_type === 'league_partner' && meta.invitation_id && meta.user_id) {
       const { data: inv } = await service

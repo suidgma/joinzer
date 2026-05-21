@@ -293,11 +293,21 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     const res = await fetch(
       `/api/tournaments/${tournamentId}/divisions/${div.id}/register`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_name: regType === 'team' ? (teamName.trim() || null) : null, registration_type: regType }) }
+        body: JSON.stringify({
+          team_name: regType === 'team' ? (teamName.trim() || null) : null,
+          registration_type: regType,
+          discount_code: discountInputs[div.id]?.trim() || undefined,
+        }) }
     )
     const json = await res.json()
 
     if (!res.ok) { setRegError(json.error ?? 'Registration failed'); setRegLoading(false); return }
+
+    // B7.3: paid solo registered → Stripe Checkout (no registration object yet)
+    if (json.url) {
+      window.location.href = json.url
+      return
+    }
 
     const reg: Registration = { ...json.registration, registration_type: regType, partner_registration_id: null, user_profile: null }
     setDivisions(prev => prev.map(d =>
@@ -307,27 +317,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     ))
     router.refresh()
 
-    const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
-    if (effectiveCost > 0 && json.registration.status === 'registered') {
-      if (isDoublesFormat(div.format) && regType === 'team') {
-        // Paid doubles team: show partner invite first, payment fires on modal close
-        setJustRegistered({ regId: json.registration.id, divisionId: div.id, requiresPayment: true })
-        setPartnerEmail('')
-        setInviteError(null)
-        setInviteSent(false)
-        setTeamName('')
-        setRegLoading(false)
-      } else {
-        // Paid solo or non-doubles: redirect to Stripe immediately
-        setTeamName('')
-        setRegLoading(false)
-        setRegisteringDiv(null)
-        await handlePay(json.registration.id, div.id)
-      }
-      return
-    }
-
-    // Free path: team doubles show partner invite step; solos are auto-matched
+    // Free doubles team: show partner invite step; free/waitlisted solos are auto-matched inline
     if (isDoublesFormat(div.format) && regType === 'team') {
       setJustRegistered({ regId: json.registration.id, divisionId: div.id, requiresPayment: false })
       setPartnerEmail('')
