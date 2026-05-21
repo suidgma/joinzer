@@ -386,11 +386,15 @@ export async function POST(req: NextRequest) {
 
       if (tFull && !division.waitlist_enabled) {
         // Division filled between capacity check and payment — auto-refund so no manual intervention needed.
+        // Idempotency key scopes the refund to one per payment intent; safe on webhook retries.
         console.error('[webhook] tournament_solo: division full race — auto-refunding', { tId, divId, uId, paymentIntentId })
         if (paymentIntentId) {
           const refundStripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-          await refundStripe.refunds.create({ payment_intent: paymentIntentId }).catch(err =>
-            console.error('[webhook] tournament_solo: auto-refund failed — MANUAL ACTION REQUIRED', { paymentIntentId, err })
+          await refundStripe.refunds.create(
+            { payment_intent: paymentIntentId },
+            { idempotencyKey: `solo-race-refund-${paymentIntentId}` }
+          ).catch(err =>
+            console.error('[webhook] tournament_solo: auto-refund failed — MANUAL ACTION REQUIRED', { paymentIntentId, tId, divId, uId, err })
           )
         }
         return NextResponse.json({ received: true })
