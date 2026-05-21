@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import Stripe from 'stripe'
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
@@ -10,21 +11,141 @@ export async function POST(request: NextRequest) {
 
   const { leagueId } = await request.json()
 
-  // Cancel the requesting user's registration
-  const { error: cancelErr } = await supabase
-    .from('league_registrations')
-    .update({ status: 'cancelled' })
-    .eq('league_id', leagueId)
-    .eq('user_id', user.id)
-
-  if (cancelErr) return NextResponse.json({ error: cancelErr.message }, { status: 500 })
-
-  // Promote the oldest waitlisted player using service role (bypasses RLS)
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // Fetch active registration. limit(1) array guard — maybeSingle() 500s on dup rows.
+  const { data: regRows } = await admin
+    .from('league_registrations')
+    .select('id, status, payment_status, stripe_payment_intent_id, partner_registration_id, partner_user_id')
+    .eq('league_id', leagueId)
+    .eq('user_id', user.id)
+    .neq('status', 'cancelled')
+    .limit(1)
+
+  const reg = regRows?.[0] ?? null
+
+  // Idempotency: no active registration means already cancelled (or never registered).
+  if (!reg) {
+    return NextResponse.json({ error: 'Already cancelled' }, { status: 409 })
+  }
+
+  const { data: league } = await admin
+    .from('leagues')
+    .select('id, name, registration_closes_at')
+    .eq('id', leagueId)
+    .single()
+
+  if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+
+  let refunded = false
+
+  // ── paid → refund ─────────────────────────────────────────────────────────
+  if (reg.payment_status === 'paid' && reg.stripe_payment_intent_id) {
+    // Deadline gate: past registration_closes_at → refund window closed.
+    const deadline = league.registration_closes_at ? new Date(league.registration_closes_at) : null
+    if (deadline && new Date() > deadline) {
+      return NextResponse.json(
+        { error: 'The refund window has closed. Contact the organizer if you need assistance.' },
+        { status: 403 }
+      )
+    }
+
+    // Stripe FIRST — if this fails, no DB writes have happened, safe to abort.
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+    let stripeRefund: Stripe.Refund
+    try {
+      stripeRefund = await stripe.refunds.create({ payment_intent: reg.stripe_payment_intent_id })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return NextResponse.json({ error: `Refund failed: ${msg}` }, { status: 502 })
+    }
+
+    // DB update AFTER Stripe success. If this fails, money moved but record didn't — surface it.
+    const { error: refundDbErr } = await admin
+      .from('league_registrations')
+      .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
+      .eq('id', reg.id)
+
+    if (refundDbErr) {
+      // CRITICAL: Stripe refund was issued but DB record was not updated.
+      // Return an error immediately — do NOT proceed to cancel the registration.
+      // Manual reconciliation required: match stripeRefund.id to registration reg.id.
+      console.error(
+        `[league-cancel] CRITICAL: Stripe refund ${stripeRefund.id} issued for ` +
+        `registration ${reg.id} (league ${leagueId}, user ${user.id}) but ` +
+        `payment_status DB update failed: ${refundDbErr.message}. ` +
+        `Manual reconciliation required.`
+      )
+      return NextResponse.json(
+        { error: 'Refund was issued but the record could not be updated. Contact support immediately with your league and account details.' },
+        { status: 500 }
+      )
+    }
+
+    refunded = true
+
+  // ── authorized → release auth hold ───────────────────────────────────────
+  } else if (reg.payment_status === 'authorized' && reg.stripe_payment_intent_id) {
+    // No money was captured, so no deadline gate applies.
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+    try {
+      await stripe.paymentIntents.cancel(reg.stripe_payment_intent_id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return NextResponse.json({ error: `Could not release payment hold: ${msg}` }, { status: 502 })
+    }
+
+    const { error: releaseDbErr } = await admin
+      .from('league_registrations')
+      .update({ payment_status: 'unpaid' })
+      .eq('id', reg.id)
+
+    if (releaseDbErr) {
+      // Auth hold released (no money moved) but DB didn't update.
+      console.error(
+        `[league-cancel] WARNING: Auth hold released for registration ${reg.id} ` +
+        `(league ${leagueId}, user ${user.id}) but payment_status update failed: ${releaseDbErr.message}`
+      )
+      return NextResponse.json(
+        { error: 'Payment hold was released but the record could not be updated. Contact support.' },
+        { status: 500 }
+      )
+    }
+  }
+
+  // ── B11: clear partner link on the partner's row ──────────────────────────
+  // Partner keeps their registered status — only the FK pointers are nulled.
+  if (reg.partner_registration_id) {
+    await admin
+      .from('league_registrations')
+      .update({ partner_user_id: null, partner_registration_id: null })
+      .eq('id', reg.partner_registration_id)
+    // Best-effort: failure leaves stale FK but does not block the cancel.
+  }
+
+  // ── pending_partner: void any open invitations this captain sent ──────────
+  // 'expired' is the closest valid status value (CHECK: pending/accepted/declined/expired).
+  if (reg.status === 'pending_partner') {
+    await admin
+      .from('league_partner_invitations')
+      .update({ status: 'expired' })
+      .eq('captain_registration_id', reg.id)
+      .eq('status', 'pending')
+    // Best-effort: stale invite will expire naturally if this write fails.
+  }
+
+  // ── Cancel the registration ───────────────────────────────────────────────
+  const { error: cancelErr } = await admin
+    .from('league_registrations')
+    .update({ status: 'cancelled' })
+    .eq('id', reg.id)
+
+  if (cancelErr) return NextResponse.json({ error: cancelErr.message }, { status: 500 })
+
+  // ── Waitlist promotion (preserved from original) ──────────────────────────
   const { data: nextUp } = await admin
     .from('league_registrations')
     .select('id, user_id')
@@ -40,19 +161,19 @@ export async function POST(request: NextRequest) {
       .update({ status: 'registered' })
       .eq('id', nextUp.id)
 
-    // Email the promoted player
-    const [{ data: league }, { data: profile }] = await Promise.all([
-      admin.from('leagues').select('id, name').eq('id', leagueId).single(),
-      admin.from('profiles').select('name, email').eq('id', nextUp.user_id).single(),
-    ])
+    const { data: promotedProfile } = await admin
+      .from('profiles')
+      .select('name, email')
+      .eq('id', nextUp.user_id)
+      .single()
 
-    if (profile?.email && league) {
+    if (promotedProfile?.email) {
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
-      const firstName = profile.name?.split(' ')[0] ?? 'there'
+      const firstName = promotedProfile.name?.split(' ')[0] ?? 'there'
       const resend = new Resend(process.env.RESEND_API_KEY)
       resend.emails.send({
         from: 'Joinzer <support@joinzer.com>',
-        to: profile.email,
+        to: promotedProfile.email,
         replyTo: 'martyfit50@gmail.com',
         subject: `You're in! A spot opened up — ${league.name}`,
         html: `
@@ -69,9 +190,46 @@ export async function POST(request: NextRequest) {
             </div>
           </div>
         `,
-      }).catch(() => {}) // non-blocking
+      }).catch(() => {})
     }
   }
 
-  return NextResponse.json({ ok: true, promoted: !!nextUp })
+  // ── Cancel confirmation to the player who just cancelled ──────────────────
+  const { data: cancellerProfile } = await admin
+    .from('profiles')
+    .select('name, email')
+    .eq('id', user.id)
+    .single()
+
+  if (cancellerProfile?.email) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+    const firstName = cancellerProfile.name?.split(' ')[0] ?? 'there'
+    const refundLine = refunded
+      ? '<p style="margin:0 0 16px;font-size:15px">Your registration fee has been refunded. It typically appears within 5–10 business days.</p>'
+      : ''
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    resend.emails.send({
+      from: 'Joinzer <support@joinzer.com>',
+      to: cancellerProfile.email,
+      replyTo: 'martyfit50@gmail.com',
+      subject: `Registration cancelled — ${league.name}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
+          <div style="background:#f3f4f6;padding:24px 32px;border-radius:12px 12px 0 0">
+            <h1 style="margin:0;font-size:20px;color:#374151">Registration Cancelled</h1>
+          </div>
+          <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+            <p style="margin:0 0 16px;font-size:15px">
+              Hi ${firstName}, your registration for <strong>${league.name}</strong> has been cancelled.
+            </p>
+            ${refundLine}
+            <a href="${siteUrl}/compete/leagues/${leagueId}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">View League</a>
+            <p style="margin-top:24px;font-size:12px;color:#9ca3af">See you on the courts!</p>
+          </div>
+        </div>
+      `,
+    }).catch(() => {})
+  }
+
+  return NextResponse.json({ ok: true, refunded, promoted: !!nextUp })
 }
