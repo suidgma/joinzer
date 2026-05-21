@@ -37,7 +37,7 @@ export function toFilenameSlug(name: string, maxLen = 50): string {
  */
 export function icsFilename(
   name: string | null | undefined,
-  suffix: 'league' | 'tournament',
+  suffix: 'league' | 'tournament' | 'event',
 ): string {
   const slug = name?.trim() ? toFilenameSlug(name.trim()) : ''
   return slug ? `${slug}-${suffix}.ics` : `joinzer-${suffix}.ics`
