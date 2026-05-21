@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import Stripe from 'stripe'
 import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
@@ -19,6 +20,7 @@ export async function POST(
   const body = await req.json().catch(() => ({}))
   const team_name: string | null = body.team_name ?? null
   const registration_type: 'team' | 'solo' = body.registration_type === 'solo' ? 'solo' : 'team'
+  const discount_code: string | null = body.discount_code?.trim() || null
 
   const service = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -111,15 +113,25 @@ export async function POST(
 
   if (existing) return NextResponse.json({ error: 'Player is already registered for this division' }, { status: 409 })
 
-  // Hard deadline for player self-registration; organizer manual adds bypass this
+  // Hard deadline for player self-registration; organizer manual adds bypass this.
+  // Also capture fields needed for Stripe Connect check on paid solo path.
+  let tournamentForPay: { name: string; organizer_id: string; start_date: string | null; location_id: string | null } | null = null
   if (targetUserId === user.id) {
     const { data: tEntry } = await service
       .from('tournaments')
-      .select('registration_closes_at')
+      .select('name, organizer_id, start_date, location_id, registration_closes_at')
       .eq('id', params.id)
       .single()
     if (tEntry?.registration_closes_at && new Date() > new Date(tEntry.registration_closes_at)) {
       return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
+    }
+    if (tEntry) {
+      tournamentForPay = {
+        name: tEntry.name,
+        organizer_id: tEntry.organizer_id,
+        start_date: (tEntry as any).start_date ?? null,
+        location_id: (tEntry as any).location_id ?? null,
+      }
     }
   }
 
@@ -155,6 +167,108 @@ export async function POST(
   }
 
   const status = isFull && division.waitlist_enabled ? 'waitlisted' : 'registered'
+  const isOrganizerAdd = targetUserId !== user.id
+
+  // ── B7.3: Solo self-service paid registration → Stripe Checkout (no INSERT yet) ──
+  // Team registrations stay Pattern A (INSERT-then-pay) to preserve the partner-invite flow.
+  // Waitlisted solos INSERT immediately regardless of cost — no point charging for a queued spot.
+  if (!isOrganizerAdd && registration_type === 'solo' && status === 'registered') {
+    const costCents: number | null = (division as any).cost_cents ?? null
+
+    if (costCents === null) {
+      return NextResponse.json({ error: 'Division registration fee is not configured' }, { status: 400 })
+    }
+
+    if (costCents > 0) {
+      if (!tournamentForPay) {
+        return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+      }
+
+      const { data: organizerProfile } = await service
+        .from('profiles')
+        .select('stripe_connect_account_id, stripe_charges_enabled')
+        .eq('id', tournamentForPay.organizer_id)
+        .single()
+      const connectAccountId = (organizerProfile as any)?.stripe_charges_enabled
+        ? (organizerProfile as any)?.stripe_connect_account_id
+        : null
+
+      let unitAmount = costCents
+      let discountCodeId: string | null = null
+      if (discount_code) {
+        const { data: codeRow } = await service
+          .from('tournament_discount_codes')
+          .select('id, discount_type, discount_value, max_uses, uses_count, expires_at, is_active')
+          .eq('tournament_id', params.id)
+          .eq('code', discount_code.toUpperCase())
+          .eq('is_active', true)
+          .maybeSingle()
+        if (codeRow) {
+          const now = new Date().toISOString()
+          const expired = codeRow.expires_at && codeRow.expires_at < now
+          const exhausted = codeRow.max_uses != null && codeRow.uses_count >= codeRow.max_uses
+          if (!expired && !exhausted) {
+            discountCodeId = codeRow.id
+            if (codeRow.discount_type === 'percent') {
+              unitAmount = Math.round(costCents * (1 - codeRow.discount_value / 100))
+            } else {
+              unitAmount = Math.max(0, costCents - codeRow.discount_value)
+            }
+          }
+        }
+      }
+
+      if (unitAmount > 0) {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+        const label = `${tournamentForPay.name} — ${division.name ?? 'Entry Fee'}`
+        const applicationFeeAmount = connectAccountId ? Math.round(unitAmount * 0.05) : undefined
+
+        const session = await stripe.checkout.sessions.create({
+          mode: 'payment',
+          line_items: [{
+            price_data: {
+              currency: 'usd',
+              unit_amount: unitAmount,
+              product_data: { name: discountCodeId ? `${label} (discount applied)` : label },
+            },
+            quantity: 1,
+          }],
+          ...(connectAccountId ? {
+            payment_intent_data: {
+              application_fee_amount: applicationFeeAmount,
+              transfer_data: { destination: connectAccountId },
+            },
+          } : {}),
+          metadata: {
+            event_type: 'tournament_solo',
+            tournament_id: params.id,
+            division_id: params.divisionId,
+            user_id: user.id,
+            registration_type,
+            team_name: team_name ?? '',
+            discount_code_id: discountCodeId ?? '',
+          },
+          success_url: `${siteUrl}/tournaments/${params.id}?payment=success`,
+          cancel_url: `${siteUrl}/tournaments/${params.id}?payment=cancelled`,
+        })
+
+        return NextResponse.json({ url: session.url })
+      }
+
+      // Discount brought cost to 0 — fall through to free INSERT
+      if (discountCodeId) {
+        await service.rpc('increment_discount_uses', { code_id: discountCodeId })
+      }
+    }
+    // cost_cents === 0 or discounted to 0: fall through to INSERT with waived
+  }
+
+  // If we reach here for a self-registered solo registered slot, it's free (cost 0 or discounted).
+  // Waive payment so the pay button doesn't appear.
+  const insertPaymentStatus: 'waived' | undefined = (
+    !isOrganizerAdd && registration_type === 'solo' && status === 'registered'
+  ) ? 'waived' : undefined
 
   const { data: registration, error: insertErr } = await service
     .from('tournament_registrations')
@@ -165,6 +279,7 @@ export async function POST(
       team_name: registration_type === 'team' ? (team_name || null) : null,
       status,
       registration_type,
+      ...(insertPaymentStatus ? { payment_status: insertPaymentStatus } : {}),
     })
     .select('id, user_id, partner_user_id, partner_registration_id, team_name, status, payment_status, registration_type')
     .single()
