@@ -68,6 +68,12 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain, pri
             You&apos;re the captain. Leaving while others are joined requires reassigning first.
           </p>
         )}
+        <a
+          href={`/api/events/${eventId}/ics`}
+          className="text-xs text-brand-active font-medium underline"
+        >
+          Add to calendar
+        </a>
         <button
           onClick={handleLeave}
           disabled={loading}
