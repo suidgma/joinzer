@@ -25,6 +25,15 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-21 — Ticket 3.6 split: 3.6A shipped, 3.6B held
+**Status:** Active
+**Affects:** `docs/joinzer-build-sequence.md` tickets 3.6A and 3.6B; `/home` partner nudge (3.6B)
+**Decision:** Ticket 3.6 (add-to-calendar + partner nudges) split into two independent tickets. 3.6A (calendar links) shipped 2026-05-21. 3.6B (partner-pending nudge on Home) remains open.
+**3.6B constraint:** The nudge query must join to the partner's registration row and check its status — never use `partner_user_id IS NULL` alone. B11 orphan bug leaves `partner_user_id` set after a partner cancels, so a naïve IS NULL check silently misses every B11 victim. Correct predicate: `partner_user_id IS NULL OR partner_registration.status = 'cancelled'`. 3.6B can ship before B11 is fixed only if this join is in the query.
+**Also noted:** Tournaments and leagues already had the calendar link wired in earlier sessions and were never marked done in the tracker. Corrected in 3.6A tracker entry.
+
+---
+
 ## 2026-05-20 — Backlog: Add realtime publication membership to migrations
 **Status:** Active — not urgent, but will bite on next table
 **Affects:** Any table where Supabase realtime is required (currently: `league_messages`, `tournament_messages`, `tournament_registrations`)

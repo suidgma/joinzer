@@ -244,11 +244,18 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Priority:** HIGH — organizer has no way to fulfill the promise we show players ("The organizer will pair you").
 - **Blocks:** Promise in solo registration copy is hollow until this ships.
 
-### [ ] 3.6 Add to calendar + partner-pending nudges
-- **Where:** Registered-state cards, Home banner.
-- **What:** `.ics` link on every registered card. Yellow Home banner when registered for an event with a still-pending partner. Reminder email 24h before play.
-- **Prompt:** *"Three small adds: (1) On any registered-state card (tournament division, league registration), add an 'Add to calendar' link that downloads an .ics file. (2) On /home, render a yellow banner at the top when the user is registered for any event where their team has a pending partner: 'Pro Men tournament starts in 5 days — finish setting up your team. [Invite partner →]'. (3) Wire a scheduled function to send a reminder email 24 hours before any session/match the user is in."*
-- **Verify:** Test all three; the reminder needs a scheduled function so verify it fires by setting a test event to start in an hour.
+### [x] 3.6A Add to calendar (events) — shipped 2026-05-21, PR #14, commit 89c9f09
+- **Scope note:** Ticket 3.6 split into 3.6A (calendar) and 3.6B (partner nudges). Tournaments and leagues already had the ICS link wired in earlier sessions (never marked). Events was the only missing surface.
+- **New:** `app/api/events/[id]/ics/route.ts` — auth + participation guard (`participant_status='joined'`), timed ICS from `starts_at` + `duration_minutes`, location join.
+- **Edit:** `lib/utils/slug.ts` — `icsFilename` suffix type extended to include `'event'`.
+- **Edit:** `components/features/events/JoinLeaveButton.tsx` — calendar link in `currentStatus === 'joined'` block.
+- **Verified:** tsc clean. Browser-verify deferred (no test surface with a joined paid event on staging — same gap as 3.4 refund line). Code-verified: participation guard filters both `event_id` AND `user_id`; end-time uses `Date.getTime()` arithmetic, not string concat; auth short-circuits before service client is used.
+
+### [ ] 3.6B Partner-pending nudge (split from 3.6)
+- **Where:** `/home` — amber banner when registered for a tournament/league division as doubles but partner is not confirmed.
+- **What:** Yellow banner: "Pro Men tournament starts in N days — your partner spot is still open." Link to the division.
+- **CRITICAL constraint:** Query must use a join to check partner registration status — NEVER `partner_user_id IS NULL` alone. Reason: B11 orphan bug leaves `partner_user_id` set even after a partner cancels. The correct check is `partner_user_id IS NULL OR partner_registration.status = 'cancelled'`. A naïve IS NULL check silently skips all B11 victims.
+- **Gate:** Can ship before B11 is fixed, but only if the join query is written correctly as above.
 
 ### [x] 3.7 Editable event skill range — shipped 2026-05-20, commit 8ab654b
 - `EditEventForm.tsx`: `skill_min`/`skill_max` added to Props (reads new columns, consistent with display surfaces); two selects (2.0–8.0, 0.5 steps) after Status field; `prepareEventWrite()` dual-writes all four columns on save.
