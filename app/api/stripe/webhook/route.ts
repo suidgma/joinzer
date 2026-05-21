@@ -385,8 +385,14 @@ export async function POST(req: NextRequest) {
       const regStatus = tFull && division.waitlist_enabled ? 'waitlisted' : 'registered'
 
       if (tFull && !division.waitlist_enabled) {
-        // Division full, no waitlist — cannot register. TODO: auto-refund paymentIntentId.
-        console.error('[webhook] tournament_solo: division full, no waitlist — manual refund required', { tId, divId, uId, paymentIntentId })
+        // Division filled between capacity check and payment — auto-refund so no manual intervention needed.
+        console.error('[webhook] tournament_solo: division full race — auto-refunding', { tId, divId, uId, paymentIntentId })
+        if (paymentIntentId) {
+          const refundStripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+          await refundStripe.refunds.create({ payment_intent: paymentIntentId }).catch(err =>
+            console.error('[webhook] tournament_solo: auto-refund failed — MANUAL ACTION REQUIRED', { paymentIntentId, err })
+          )
+        }
         return NextResponse.json({ received: true })
       }
 
@@ -414,7 +420,7 @@ export async function POST(req: NextRequest) {
         await service.rpc('increment_discount_uses', { code_id: meta.discount_code_id })
       }
 
-      // Auto-match solo players when both are in registered+paid state
+      // Auto-match solo players. Filter paid/waived to avoid linking against Pattern A unpaid ghosts.
       if (regType === 'solo' && regStatus === 'registered') {
         const { data: soloPartner } = await service
           .from('tournament_registrations')
@@ -422,6 +428,7 @@ export async function POST(req: NextRequest) {
           .eq('division_id', divId)
           .eq('status', 'registered')
           .eq('registration_type', 'solo')
+          .in('payment_status', ['paid', 'waived'])
           .is('partner_registration_id', null)
           .neq('user_id', uId)
           .order('created_at', { ascending: true })

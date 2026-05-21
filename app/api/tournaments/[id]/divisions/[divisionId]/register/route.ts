@@ -292,13 +292,14 @@ export async function POST(
   let matchedWith: { userId: string; name: string; email: string | null } | null = null
 
   if (registration_type === 'solo' && status === 'registered' && unmatchedSolos > 0) {
-    // Find the oldest unmatched solo in this division (not the current user)
+    // Find the oldest unmatched solo. Filter paid/waived to avoid linking against Pattern A unpaid ghosts.
     const { data: soloPartner } = await service
       .from('tournament_registrations')
       .select('id, user_id')
       .eq('division_id', params.divisionId)
       .eq('status', 'registered')
       .eq('registration_type', 'solo')
+      .in('payment_status', ['paid', 'waived'])
       .is('partner_registration_id', null)
       .neq('user_id', targetUserId)
       .order('created_at', { ascending: true })
