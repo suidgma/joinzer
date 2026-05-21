@@ -244,12 +244,24 @@ These don't fix anything broken; they raise confidence around payments, identity
 - **Post-merge smoke test (deferred):** past-deadline paid cancel against a real reg — target one of the 5–6 leagues with `registration_closes_at` in the past. Verify Stripe not called, status → `'cancelled'`, `payment_status` stays `'paid'`, waitlist fires, email carries "refund window closed" line.
 - **Data hygiene note (not a code change):** 3 live leagues have `registration_closes_at = NULL` — per code that means every paid cancel refunds forever. Confirm those rows are intentionally open-ended before they take paid registrations.
 
-### [ ] 3.4.1-T Enforce refund deadline in tournament cancel route (HIGH — money path)
-- **Where:** `app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts` lines 51–65.
-- **What:** Route refunds unconditionally when `payment_status === 'paid'`. Policy says: refund only if current time < `registration_closes_at`. After deadline: cancel registration but do NOT issue refund; return `{ ok: true, refunded: false }`.
-- **Audited 2026-05-21 (read-only):** Route has no deadline check, no error handling on DB writes post-Stripe-refund. Same gap as 3.4.1-L before fix, plus B11 orphan bug is still present on this route.
-- **Priority:** HIGH — display shows "refundable until [date]" but code doesn't enforce it.
-- **Blocks:** Policy truthfulness on tournament surface.
+### [x] 3.4.1-T Enforce refund deadline in tournament cancel route — merged 2026-05-21, PR #19, commit 5fdd92b
+- **Where:** `app/api/tournaments/[id]/registrations/[regId]/cancel/route.ts` — full rewrite.
+- **What shipped:**
+  - Deadline gates the REFUND, not the cancellation: within window → Stripe refund; past window → cancel succeeds, `payment_status` stays `'paid'`, email says "window closed."
+  - Stripe/DB ordering: `stripe.refunds.create()` BEFORE DB write; CRITICAL log + 500 if DB write fails post-refund.
+  - B11 partner unlink: partner's `partner_user_id` + `partner_registration_id` nulled.
+  - Invite cleanup: `tournament_team_invitations` WHERE `inviter_registration_id = reg.id AND status='pending'` → `status='expired'`. No-op-safe (no `pending_partner` status on tournament regs — runs unconditionally).
+  - Waitlist promotion: division-scoped, `status='waitlisted'` (not `'waitlist'`), ordered by `created_at`.
+  - Cancel confirmation email always sent; conditional refund / past-deadline / plain line.
+  - Preserves `isOwner || isOrganizer` auth model.
+- **Key deltas vs 3.4.1-L (all silent traps confirmed correct in merged commit):**
+  - `'waitlisted'` not `'waitlist'` (tournament_registrations constraint) ✓
+  - `inviter_registration_id` not `captain_registration_id` (tournament_team_invitations FK) ✓
+  - `tournament_team_invitations` not `league_partner_invitations` ✓
+  - Invite cleanup runs unconditionally (no `pending_partner` status exists on tournament side) ✓
+- **`authorized` branch confirmed absent (post-merge):** Webhook `'authorized'` write (line 239) is inside `else if (meta.event_type === 'league')` — structurally unreachable from tournament block. Tournament webhook only writes `'paid'`. `tournament_registrations.payment_status` CHECK doesn't include `'authorized'` — constraint would reject any attempt.
+- **Post-merge smoke test (deferred):** Target one of the 4 past-deadline tournaments with a real paid reg. Verify: Stripe not called, status → `'cancelled'`, `payment_status` stays `'paid'`, division waitlist promotes a `'waitlisted'` player, email has "window closed" line.
+- **Data hygiene note (product/data call):** 14 of 23 tournaments have `registration_closes_at = NULL` → refunds forever. Higher exposure than the 3 null leagues. Confirm intentional before paid regs land.
 
 ### [x] 3.5 Solo auto-matcher — copy fix — shipped 2026-05-20, commit 8c32839
 - **Decision:** Option B (copy fix). No matcher built.
