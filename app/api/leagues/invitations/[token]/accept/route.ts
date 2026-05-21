@@ -47,6 +47,23 @@ export async function POST(
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
 
   if (costCents > 0) {
+    // Guard: block if user already has any non-cancelled registration in this league.
+    // Using .limit(1) array select (not .maybeSingle) so two stale rows can't 500 this route.
+    const { data: existingRegs } = await service
+      .from('league_registrations')
+      .select('id, status')
+      .eq('league_id', inv.league_id)
+      .eq('user_id', user.id)
+      .neq('status', 'cancelled')
+      .limit(1)
+
+    if (existingRegs && existingRegs.length > 0) {
+      return NextResponse.json(
+        { error: 'You already have an active registration in this league. Cancel it before accepting a partner invitation.' },
+        { status: 409 }
+      )
+    }
+
     // Paid league — partner pays via Stripe; webhook handles final state
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
     const stripeSession = await stripe.checkout.sessions.create({
