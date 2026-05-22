@@ -2,6 +2,15 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // API routes handle their own auth — never let middleware touch them.
+  // The matcher regex can match at inner path segments (unanchored), so this
+  // guard is the reliable backstop that prevents Stripe webhooks from being redirected.
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -26,7 +35,6 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
 
   const isPublicPath =
     pathname === '/' ||
