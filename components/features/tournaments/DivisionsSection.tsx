@@ -208,6 +208,12 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   const [moveLoading, setMoveLoading] = useState(false)
   const [moveError, setMoveError] = useState<string | null>(null)
 
+  // Pair solo players state (per reg)
+  const [pairingRegId, setPairingRegId] = useState<string | null>(null)
+  const [pairTargetId, setPairTargetId] = useState<string>('')
+  const [pairLoading, setPairLoading] = useState(false)
+  const [pairError, setPairError] = useState<string | null>(null)
+
   // ── Add division ──────────────────────────────────────────────────
   async function handleAddDivision(e: React.FormEvent) {
     e.preventDefault()
@@ -586,6 +592,38 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
     setMergeTargetId('')
     setMergeLoading(false)
     router.refresh()
+  }
+
+  // ── Pair two solo registrants ──────────────────────────────────────
+  async function handlePairSolo(divisionId: string, reg1Id: string, reg2Id: string) {
+    if (!pairTargetId) return
+    setPairLoading(true)
+    setPairError(null)
+    const res = await fetch(
+      `/api/tournaments/${tournamentId}/divisions/${divisionId}/pair-solos`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reg1_id: reg1Id, reg2_id: reg2Id }) }
+    )
+    const json = await res.json()
+    if (!res.ok) { setPairError(json.error ?? 'Pairing failed'); setPairLoading(false); return }
+
+    // Optimistic update: set partner links on both rows in local state
+    setDivisions(prev => prev.map(d => {
+      if (d.id !== divisionId) return d
+      const r1 = d.tournament_registrations.find(r => r.id === reg1Id)
+      const r2 = d.tournament_registrations.find(r => r.id === reg2Id)
+      if (!r1 || !r2) return d
+      return {
+        ...d,
+        tournament_registrations: d.tournament_registrations.map(r => {
+          if (r.id === reg1Id) return { ...r, partner_user_id: r2.user_id, partner_registration_id: reg2Id }
+          if (r.id === reg2Id) return { ...r, partner_user_id: r1.user_id, partner_registration_id: reg1Id }
+          return r
+        }),
+      }
+    }))
+    setPairingRegId(null)
+    setPairTargetId('')
+    setPairLoading(false)
   }
 
   // ── Move single player to another division ─────────────────────────
@@ -1195,6 +1233,14 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                                       Move
                                     </button>
                                   )}
+                                  {isDoublesFormat(div.format) && reg.registration_type === 'solo' && !reg.partner_registration_id && reg.status === 'registered' && (
+                                    <button
+                                      onClick={() => { setPairingRegId(pairingRegId === reg.id ? null : reg.id); setPairTargetId(''); setPairError(null) }}
+                                      className="text-brand-active hover:underline"
+                                    >
+                                      Pair
+                                    </button>
+                                  )}
                                   <button onClick={() => handleRemove(div.id, reg.id)} className="text-red-500 hover:underline">
                                     Remove
                                   </button>
@@ -1223,6 +1269,45 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                                 </div>
                               )}
                               {movingRegId === reg.id && moveError && <p className="text-xs text-red-600">{moveError}</p>}
+                              {/* Pair-solo inline picker */}
+                              {pairingRegId === reg.id && (() => {
+                                const availablePartners = div.tournament_registrations.filter(r =>
+                                  r.id !== reg.id &&
+                                  r.registration_type === 'solo' &&
+                                  !r.partner_registration_id &&
+                                  r.status === 'registered'
+                                )
+                                return (
+                                  <div className="space-y-1 pt-1">
+                                    {availablePartners.length === 0 ? (
+                                      <p className="text-xs text-brand-muted">No other unpaired solos in this division.</p>
+                                    ) : (
+                                      <div className="flex gap-2">
+                                        <select
+                                          value={pairTargetId}
+                                          onChange={e => setPairTargetId(e.target.value)}
+                                          className="flex-1 input text-xs"
+                                        >
+                                          <option value="">Pair with…</option>
+                                          {availablePartners.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                              {p.user_profile?.name ?? p.user_id.slice(0, 8)}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <button
+                                          onClick={() => handlePairSolo(div.id, reg.id, pairTargetId)}
+                                          disabled={!pairTargetId || pairLoading}
+                                          className="px-2 py-1 rounded-lg bg-brand-dark text-white text-xs font-semibold disabled:opacity-50"
+                                        >
+                                          {pairLoading ? '…' : 'Pair'}
+                                        </button>
+                                      </div>
+                                    )}
+                                    {pairError && <p className="text-xs text-red-600">{pairError}</p>}
+                                  </div>
+                                )
+                              })()}
                             </li>
                           ))}
                       </ul>
