@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
+import { formatSkillRange } from '@/lib/taxonomy/formats'
 
 const SKILL_TIERS = [
   'Beginner',
@@ -14,13 +15,13 @@ const SKILL_TIERS = [
 
 type SkillTier = typeof SKILL_TIERS[number]
 
-// DB skill_level values → display tier labels
-const SKILL_LEVEL_TO_TIER: Record<string, SkillTier> = {
-  beginner:          'Beginner',
-  beginner_plus:     'Beginner Plus',
-  intermediate:      'Intermediate',
-  intermediate_plus: 'Intermediate Plus',
-  advanced:          'Advanced',
+// Numeric range for each tier pill — used for overlap filtering
+const TIER_RANGES: Record<SkillTier, [number, number]> = {
+  'Beginner':          [2.0, 2.5],
+  'Beginner Plus':     [2.5, 3.0],
+  'Intermediate':      [3.0, 3.5],
+  'Intermediate Plus': [3.5, 4.0],
+  'Advanced':          [4.0, 4.5],
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -45,7 +46,8 @@ type League = {
   id: string
   name: string
   format: string
-  skill_level: string
+  skill_min: number | null
+  skill_max: number | null
   location_name: string | null
   start_date: string | null
   end_date: string | null
@@ -80,10 +82,12 @@ export default function CompeteClient({ leagues, isLoggedIn }: Props) {
   const filtering = activeFilters.size > 0
 
   const visibleLeagues = filtering
-    ? leagues.filter((l) => {
-        const tier = SKILL_LEVEL_TO_TIER[l.skill_level]
-        return tier ? activeFilters.has(tier) : false
-      })
+    ? leagues.filter((l) =>
+        Array.from(activeFilters).some((tier) => {
+          const [lo, hi] = TIER_RANGES[tier]
+          return l.skill_min != null && l.skill_max != null && l.skill_min <= hi && l.skill_max >= lo
+        })
+      )
     : leagues
 
   return (
@@ -135,7 +139,7 @@ export default function CompeteClient({ leagues, isLoggedIn }: Props) {
           <div className="space-y-3">
             {visibleLeagues.map((league) => {
               const badge = REG_BADGE[league.registration_status] ?? REG_BADGE.upcoming
-              const tier = SKILL_LEVEL_TO_TIER[league.skill_level] ?? league.skill_level
+              const skillLabel = formatSkillRange(league.skill_min, league.skill_max)
               return (
                 <Link
                   key={league.id}
@@ -146,7 +150,7 @@ export default function CompeteClient({ leagues, isLoggedIn }: Props) {
                     <div className="min-w-0">
                       <p className="font-semibold text-brand-dark truncate">{league.name}</p>
                       <p className="text-xs text-brand-muted mt-0.5">
-                        {FORMAT_LABELS[league.format] ?? league.format} · {tier}
+                        {FORMAT_LABELS[league.format] ?? league.format}{skillLabel ? ` · ${skillLabel}` : ''}
                       </p>
                       {league.location_name && (
                         <p className="text-xs text-brand-muted mt-0.5">📍 {league.location_name}</p>

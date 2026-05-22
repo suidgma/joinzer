@@ -4,6 +4,7 @@ import Link from 'next/link'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
+import { formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual RR',
@@ -15,25 +16,19 @@ const FORMAT_LABELS: Record<string, string> = {
   custom: 'Custom',
 }
 
-const SKILL_LABELS: Record<string, string> = {
-  beginner:          'Beginner',
-  beginner_plus:     'Beginner+',
-  intermediate:      'Intermediate',
-  intermediate_plus: 'Intermediate+',
-  advanced:          'Advanced',
-}
-
-const ALL_SKILL_TIERS = ['beginner', 'beginner_plus', 'intermediate', 'intermediate_plus', 'advanced']
-
-function matchingSkillLevels(duprRating: number | null, estimatedRating: number | null): string[] {
-  const r = duprRating ?? estimatedRating
-  if (!r) return ALL_SKILL_TIERS
+// Returns the ±1-tier skill range window for the discover query.
+// Leagues whose [skill_min, skill_max] overlaps [lo, hi] are surfaced.
+function matchingSkillRange(dupr: number | null, est: number | null): { lo: number; hi: number } | null {
+  const r = dupr ?? est
+  if (!r) return null
   let idx = 0
   if (r >= 4.0) idx = 4
   else if (r >= 3.5) idx = 3
   else if (r >= 3.0) idx = 2
   else if (r >= 2.5) idx = 1
-  return ALL_SKILL_TIERS.slice(Math.max(0, idx - 1), idx + 2)
+  const MINS = [2.0, 2.5, 3.0, 3.5, 4.0]
+  const MAXS = [2.5, 3.0, 3.5, 4.0, 4.5]
+  return { lo: MINS[Math.max(0, idx - 1)], hi: MAXS[Math.min(4, idx + 1)] }
 }
 
 function sessionDateLabel(d: string) {
@@ -73,7 +68,7 @@ export default async function HomePage() {
   // Leagues user is registered in or organizes
   const [{ data: registrations }, { data: organizedLeagues }, { data: organizedTournaments }] = await Promise.all([
     db.from('league_registrations').select('league_id').eq('user_id', user.id).eq('status', 'registered'),
-    db.from('leagues').select('id, name, format, skill_level, location_name, created_by').eq('created_by', user.id),
+    db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').eq('created_by', user.id),
     db.from('tournaments').select('id').eq('organizer_id', user.id).limit(1),
   ])
 
@@ -92,7 +87,7 @@ export default async function HomePage() {
     { data: tournamentRegistrations },
   ] = await Promise.all([
     registeredLeagueIds.length > 0
-      ? db.from('leagues').select('id, name, format, skill_level, location_name, created_by').in('id', registeredLeagueIds)
+      ? db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').in('id', registeredLeagueIds)
       : Promise.resolve({ data: [] }),
     leagueIds.length > 0
       ? db.from('league_sessions')
@@ -125,7 +120,7 @@ export default async function HomePage() {
       .in('status', ['registered', 'confirmed', 'approved']),
   ])
 
-  const skillTiers = matchingSkillLevels(
+  const skillRange = matchingSkillRange(
     (profile as any)?.dupr_rating ?? null,
     (profile as any)?.estimated_rating ?? null,
   )
@@ -156,12 +151,13 @@ export default async function HomePage() {
       : Promise.resolve({ data: [] }),
     (() => {
       let q = db.from('leagues')
-        .select('id, name, format, skill_level, location_name, registration_status, start_date, location:locations!location_id(lat, lng)')
-        .in('skill_level', skillTiers)
+        .select('id, name, format, skill_min, skill_max, location_name, registration_status, start_date, location:locations!location_id(lat, lng)')
         .in('registration_status', ['open', 'waitlist_only'])
         .order('start_date', { ascending: true, nullsFirst: false })
         .limit(20)
       if (leagueIds.length > 0) q = q.not('id', 'in', `(${leagueIds.join(',')})`)
+      // Overlap filter: league range must overlap user's ±1-tier comfort window
+      if (skillRange) q = (q as any).lte('skill_min', skillRange.hi).gte('skill_max', skillRange.lo)
       return q
     })(),
     db.from('tournaments')
@@ -334,7 +330,7 @@ export default async function HomePage() {
                       sessionId={s.id as string}
                       leagueId={s.league_id as string}
                       initialStatus={myStatus as any}
-                      leagueSkillLevel={(league?.skill_level as string | null) ?? null}
+                      leagueSkillLevel={skillRangeToLevel((league as any)?.skill_min ?? null, (league as any)?.skill_max ?? null)}
                     />
                   )}
                 </div>
@@ -447,8 +443,7 @@ export default async function HomePage() {
                       <p className="text-sm font-semibold text-brand-dark">{league.name as string}</p>
                       <p className="text-xs text-brand-muted">
                         {FORMAT_LABELS[league.format as string] ?? league.format as string}
-                        {' · '}
-                        {SKILL_LABELS[league.skill_level as string] ?? league.skill_level as string}
+                        {formatSkillRange((league as any).skill_min, (league as any).skill_max) ? ` · ${formatSkillRange((league as any).skill_min, (league as any).skill_max)}` : ''}
                       </p>
                       {league.location_name && (
                         <p className="text-xs text-brand-muted">{league.location_name as string}</p>

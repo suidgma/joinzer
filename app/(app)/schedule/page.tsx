@@ -5,6 +5,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
+import { skillRangeToLevel } from '@/lib/taxonomy/formats'
 
 // ── Date grouping ─────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ export default async function SchedulePage() {
   // 1. Leagues user belongs to or organizes
   const [{ data: registrations }, { data: organizedLeagues }] = await Promise.all([
     db.from('league_registrations').select('league_id').eq('user_id', user.id).eq('status', 'registered'),
-    db.from('leagues').select('id, name, format, skill_level, location_name, created_by').eq('created_by', user.id),
+    db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').eq('created_by', user.id),
   ])
 
   const registeredLeagueIds = (registrations ?? []).map((r) => r.league_id as string)
@@ -66,7 +67,7 @@ export default async function SchedulePage() {
     { data: tournamentRegistrations },
   ] = await Promise.all([
     registeredLeagueIds.length > 0
-      ? db.from('leagues').select('id, name, format, skill_level, location_name, created_by').in('id', registeredLeagueIds)
+      ? db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').in('id', registeredLeagueIds)
       : Promise.resolve({ data: [] }),
     leagueIds.length > 0
       ? db.from('league_sessions')
@@ -218,7 +219,7 @@ export default async function SchedulePage() {
                       sessionId={s.id as string}
                       leagueId={s.league_id as string}
                       initialStatus={myStatus as any}
-                      leagueSkillLevel={(league?.skill_level as string | null) ?? null}
+                      leagueSkillLevel={skillRangeToLevel((league as any)?.skill_min ?? null, (league as any)?.skill_max ?? null)}
                     />
                   )}
                 </div>

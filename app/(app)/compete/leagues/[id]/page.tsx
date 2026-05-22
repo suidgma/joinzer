@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
+import { formatSkillRange } from '@/lib/taxonomy/formats'
 import LeagueActions from './LeagueActions'
 import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
@@ -19,13 +20,6 @@ const FORMAT_LABELS: Record<string, string> = {
   custom: 'Custom',
 }
 
-const SKILL_LABELS: Record<string, string> = {
-  beginner: 'Beginner',
-  beginner_plus: 'Beginner+',
-  intermediate: 'Intermediate',
-  intermediate_plus: 'Intermediate+',
-  advanced: 'Advanced',
-}
 
 export default async function LeagueDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -233,7 +227,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
         {(league as any).creator?.name && <Row label="Organizer" value={(league as any).creator.name} />}
         <Row label="Format" value={FORMAT_LABELS[league.format]} />
-        <Row label="Skill Level" value={SKILL_LABELS[league.skill_level]} />
+        {formatSkillRange((league as any).skill_min, (league as any).skill_max) && (
+          <Row label="Skill Level" value={formatSkillRange((league as any).skill_min, (league as any).skill_max)!} />
+        )}
         {league.location_name && <Row label="Location" value={league.location_name} />}
         {league.schedule_description && <Row label="Schedule" value={league.schedule_description} />}
         {fmt(league.start_date) && <Row label="Starts" value={fmt(league.start_date)!} />}

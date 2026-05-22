@@ -23,7 +23,7 @@ export default async function CompetePage(props: { searchParams: Promise<SearchP
 
   let query = supabase
     .from('leagues')
-    .select('id, name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
+    .select('id, name, format, skill_min, skill_max, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
     .eq('status', 'active')
     .order('start_date', { ascending: true })
 

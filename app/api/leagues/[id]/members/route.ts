@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { formatSkillRange } from '@/lib/taxonomy/formats'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -65,7 +66,7 @@ async function notifyPlayerAdded(leagueId: string, userId: string) {
   const resend = new Resend(process.env.RESEND_API_KEY)
 
   const [{ data: league }, { data: player }] = await Promise.all([
-    db.from('leagues').select('name, format, skill_level, location_name').eq('id', leagueId).single(),
+    db.from('leagues').select('name, format, skill_min, skill_max, location_name').eq('id', leagueId).single(),
     db.from('profiles').select('email, name').eq('id', userId).single(),
   ])
 
@@ -102,7 +103,7 @@ async function notifyPlayerAdded(leagueId: string, userId: string) {
           <h2 style="margin:0 0 16px;font-size:18px">${(league as { name: string }).name}</h2>
           <table style="width:100%;border-collapse:collapse">
             ${formatLabel ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">🏓 Format</td><td style="padding:6px 0;font-size:14px">${formatLabel}</td></tr>` : ''}
-            ${(league as { skill_level: string | null }).skill_level ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">🎯 Skill Level</td><td style="padding:6px 0;font-size:14px">${(league as { skill_level: string }).skill_level}</td></tr>` : ''}
+            ${formatSkillRange((league as any).skill_min, (league as any).skill_max) ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">🎯 Skill Level</td><td style="padding:6px 0;font-size:14px">${formatSkillRange((league as any).skill_min, (league as any).skill_max)}</td></tr>` : ''}
             ${(league as { location_name: string | null }).location_name ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">📍 Location</td><td style="padding:6px 0;font-size:14px">${(league as { location_name: string }).location_name}</td></tr>` : ''}
           </table>
           <p style="margin:16px 0;font-size:14px;color:#374151">Log in to see your schedule, check in for sessions, and connect with your league.</p>

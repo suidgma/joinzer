@@ -18,3 +18,14 @@ export function formatSkillRange(min: number | null, max: number | null): string
   if (min != null) return `${min.toFixed(1)} and up`
   return `Up to ${max!.toFixed(1)}`
 }
+
+// Converts skill_min/max back to a skill_level key for sub request fields.
+// Uses skill_min as the anchor; if null, returns null.
+export function skillRangeToLevel(min: number | null, _max: number | null): string | null {
+  if (min == null) return null
+  if (min >= 4.0) return 'advanced'
+  if (min >= 3.5) return 'intermediate_plus'
+  if (min >= 3.0) return 'intermediate'
+  if (min >= 2.5) return 'beginner_plus'
+  return 'beginner'
+}
