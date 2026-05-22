@@ -10,7 +10,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { registration_id, pay_for_partner, discount_code } = await req.json().catch(() => ({}))
+    const { registration_id, pay_for_partner, discount_code, partner_email } = await req.json().catch(() => ({}))
     if (!registration_id) return NextResponse.json({ error: 'registration_id required' }, { status: 400 })
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
@@ -87,27 +87,63 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       .eq('id', reg.division_id)
       .single()
 
-    // Find partner registration if paying for both
-    let partnerRegId: string | null = null
-    if (pay_for_partner && reg.partner_user_id) {
-      const { data: partnerReg } = await service
-        .from('tournament_registrations')
-        .select('id, payment_status')
-        .eq('division_id', reg.division_id)
-        .eq('user_id', reg.partner_user_id)
-        .eq('tournament_id', params.id)
-        .maybeSingle()
-      if (partnerReg?.payment_status === 'paid') {
-        return NextResponse.json(
-          {
-            error: "Your partner's registration has already been paid",
-            code: 'PARTNER_ALREADY_PAID',
-          },
-          { status: 409 }
-        )
-      }
-      if (partnerReg) {
-        partnerRegId = partnerReg.id
+    // Resolve partner for "pay for both" — two paths:
+    // A) partner_email provided (no partner linked yet): look up by email, no existing reg required
+    // B) partner already cross-linked on the registration (legacy / invite-accept flow)
+    let partnerRegId: string | null = null      // existing partner reg to mark paid
+    let partnerUserId: string | null = null     // new partner user_id (Option A)
+    let partnerEmailMeta: string | null = null  // stored in session metadata for webhook
+
+    if (pay_for_partner) {
+      if (partner_email && !reg.partner_user_id) {
+        // Option A: captain pays for partner by email
+        const normalised = (partner_email as string).trim().toLowerCase()
+        const { data: partnerProfile } = await service
+          .from('profiles')
+          .select('id')
+          .eq('email', normalised)
+          .maybeSingle()
+        if (!partnerProfile) {
+          return NextResponse.json(
+            { error: `No Joinzer account found for ${normalised}. They need to create an account first.` },
+            { status: 404 }
+          )
+        }
+        if (partnerProfile.id === user.id) {
+          return NextResponse.json({ error: 'You cannot add yourself as a partner' }, { status: 400 })
+        }
+        const { data: alreadyReg } = await service
+          .from('tournament_registrations')
+          .select('id')
+          .eq('division_id', reg.division_id)
+          .eq('user_id', partnerProfile.id)
+          .eq('tournament_id', params.id)
+          .neq('status', 'cancelled')
+          .maybeSingle()
+        if (alreadyReg) {
+          return NextResponse.json(
+            { error: 'This player is already registered in this division' },
+            { status: 409 }
+          )
+        }
+        partnerUserId = partnerProfile.id
+        partnerEmailMeta = normalised
+      } else if (reg.partner_user_id) {
+        // Option B: partner already linked, pay for their existing registration
+        const { data: partnerReg } = await service
+          .from('tournament_registrations')
+          .select('id, payment_status')
+          .eq('division_id', reg.division_id)
+          .eq('user_id', reg.partner_user_id)
+          .eq('tournament_id', params.id)
+          .maybeSingle()
+        if (partnerReg?.payment_status === 'paid') {
+          return NextResponse.json(
+            { error: "Your partner's registration has already been paid", code: 'PARTNER_ALREADY_PAID' },
+            { status: 409 }
+          )
+        }
+        if (partnerReg) partnerRegId = partnerReg.id
       }
     }
 
@@ -149,8 +185,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       return NextResponse.json({ free: true })
     }
 
-    const quantity = partnerRegId ? 2 : 1
-    const label = partnerRegId
+    const payingForTwo = !!(partnerRegId || partnerUserId)
+    const quantity = payingForTwo ? 2 : 1
+    const label = payingForTwo
       ? `${tournament.name} — ${division?.name ?? 'Entry Fee'} (2 players)`
       : `${tournament.name} — ${division?.name ?? 'Entry Fee'}`
 
@@ -187,6 +224,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         registration_id,
         tournament_id: params.id,
         partner_registration_id: partnerRegId ?? '',
+        partner_user_id: partnerUserId ?? '',
+        partner_email: partnerEmailMeta ?? '',
         discount_code_id: discountCodeId ?? '',
       },
       success_url: `${siteUrl}/tournaments/${params.id}?payment=success`,

@@ -202,6 +202,10 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   // Discount code state (per division)
   const [discountInputs, setDiscountInputs] = useState<Record<string, string>>({})
 
+  // "Pay for Both" — partner email input (per division, shown when no partner linked yet)
+  const [payBothEmails, setPayBothEmails] = useState<Record<string, string>>({})
+  const [showPayBothInput, setShowPayBothInput] = useState<string | null>(null)
+
   // Move player state (per reg)
   const [movingRegId, setMovingRegId] = useState<string | null>(null)
   const [moveTargetId, setMoveTargetId] = useState<string>('')
@@ -652,7 +656,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
   }
 
   // ── Pay for registration via Stripe Checkout ─────────────────────
-  async function handlePay(regId: string, divisionId: string, payForPartner = false) {
+  async function handlePay(regId: string, divisionId: string, payForPartner = false, partnerEmailArg?: string) {
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/checkout`, {
         method: 'POST',
@@ -660,6 +664,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
         body: JSON.stringify({
           registration_id: regId,
           pay_for_partner: payForPartner,
+          partner_email: partnerEmailArg || undefined,
           discount_code: discountInputs[divisionId]?.trim() || undefined,
         }),
       })
@@ -1025,6 +1030,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     {(!myReg.payment_status || myReg.payment_status === 'unpaid') && (() => {
                       const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
                       if (effectiveCost <= 0) return null
+                      const isDoubles = isDoublesFormat(div.format)
                       return (
                         <div className="space-y-1.5">
                           <input
@@ -1040,13 +1046,54 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           >
                             Pay My Fee · ${(effectiveCost / 100).toFixed(2)}
                           </button>
-                          {myReg.partner_user_id && (
+                          {isDoubles && myReg.partner_user_id && (
                             <button
                               onClick={() => handlePay(myReg.id, div.id, true)}
                               className="w-full py-2 rounded-xl bg-indigo-100 text-indigo-700 text-xs font-semibold hover:bg-indigo-200 transition-colors"
                             >
                               Pay for Both · ${((effectiveCost * 2) / 100).toFixed(2)}
                             </button>
+                          )}
+                          {isDoubles && !myReg.partner_user_id && (
+                            showPayBothInput === div.id ? (
+                              <div className="space-y-1.5">
+                                <input
+                                  type="email"
+                                  value={payBothEmails[div.id] ?? ''}
+                                  onChange={e => setPayBothEmails(prev => ({ ...prev, [div.id]: e.target.value }))}
+                                  placeholder="Partner's email address"
+                                  className="w-full input text-xs"
+                                  autoFocus
+                                />
+                                <div className="flex gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      const email = payBothEmails[div.id]?.trim()
+                                      if (!email) return
+                                      setShowPayBothInput(null)
+                                      handlePay(myReg.id, div.id, true, email)
+                                    }}
+                                    className="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                                  >
+                                    Pay for Both · ${((effectiveCost * 2) / 100).toFixed(2)}
+                                  </button>
+                                  <button
+                                    onClick={() => setShowPayBothInput(null)}
+                                    className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                                <p className="text-xs text-brand-muted">Partner must have a Joinzer account.</p>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setShowPayBothInput(div.id)}
+                                className="w-full py-2 rounded-xl bg-indigo-100 text-indigo-700 text-xs font-semibold hover:bg-indigo-200 transition-colors"
+                              >
+                                Pay for Both · ${((effectiveCost * 2) / 100).toFixed(2)}
+                              </button>
+                            )
                           )}
                           <p className="text-xs text-brand-muted">
                             {registrationClosesAt

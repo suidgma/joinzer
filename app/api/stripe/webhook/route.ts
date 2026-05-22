@@ -90,7 +90,53 @@ export async function POST(req: NextRequest) {
           .single(),
       ])
 
+      // ── Option A: captain paid for partner by email — create partner's registration ──
+      let optionAPartnerUserId: string | null = null
+      let optionAPartnerRegId: string | null = null
+      if (meta.partner_email && meta.partner_user_id && reg) {
+        const { data: existingPartnerReg } = await service
+          .from('tournament_registrations')
+          .select('id')
+          .eq('division_id', reg.division_id)
+          .eq('user_id', meta.partner_user_id)
+          .eq('tournament_id', meta.tournament_id)
+          .neq('status', 'cancelled')
+          .maybeSingle()
+
+        if (!existingPartnerReg) {
+          const { data: newPartnerReg } = await service
+            .from('tournament_registrations')
+            .insert({
+              tournament_id: meta.tournament_id,
+              division_id: reg.division_id,
+              user_id: meta.partner_user_id,
+              status: 'registered',
+              registration_type: 'team',
+              payment_status: 'paid',
+              stripe_payment_intent_id: paymentIntentId,
+            })
+            .select('id')
+            .single()
+
+          if (newPartnerReg?.id) {
+            optionAPartnerUserId = meta.partner_user_id
+            optionAPartnerRegId = newPartnerReg.id
+            await Promise.all([
+              service.from('tournament_registrations').update({
+                partner_user_id: meta.partner_user_id,
+                partner_registration_id: newPartnerReg.id,
+              }).eq('id', meta.registration_id),
+              service.from('tournament_registrations').update({
+                partner_user_id: reg.user_id,
+                partner_registration_id: meta.registration_id,
+              }).eq('id', newPartnerReg.id),
+            ])
+          }
+        }
+      }
+
       if (reg && tournament) {
+        const partnerUserIdForEmail = optionAPartnerUserId ?? reg.partner_user_id ?? null
         const [{ data: profile }, { data: division }] = await Promise.all([
           service.from('profiles').select('name, email').eq('id', reg.user_id).single(),
           service.from('tournament_divisions').select('name').eq('id', reg.division_id).single(),
@@ -99,17 +145,17 @@ export async function POST(req: NextRequest) {
         const locationResult = tournament.location_id
           ? await service.from('locations').select('name').eq('id', tournament.location_id).single()
           : { data: null }
-        const partnerResult = reg.partner_user_id
-          ? await service.from('profiles').select('name').eq('id', reg.partner_user_id).single()
+        const partnerResult = partnerUserIdForEmail
+          ? await service.from('profiles').select('name, email').eq('id', partnerUserIdForEmail).single()
           : { data: null }
         const locationName = locationResult.data?.name ?? null
-        const partnerName = partnerResult.data?.name ?? null
+        const partnerName = (partnerResult.data as any)?.name ?? null
+
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        const tournamentUrl = `${siteUrl}/tournaments/${tournament.id}`
+        const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
 
         if (profile?.email) {
-          const tournamentUrl = `${siteUrl}/tournaments/${tournament.id}`
-          const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
-          const resend = new Resend(process.env.RESEND_API_KEY)
-
           const rows: EmailRow[] = [
             ['Tournament', tournament.name],
             ...(locationName ? [['Location', locationName] as EmailRow] : []),
@@ -145,6 +191,45 @@ export async function POST(req: NextRequest) {
             }),
             ...(attachments.length > 0 ? { attachments } : {}),
           })
+        }
+
+        // Email partner: "you've been registered" notification (Option A)
+        if (optionAPartnerRegId && partnerResult.data) {
+          const partnerEmail = (partnerResult.data as any).email
+          if (partnerEmail) {
+            const partnerRows: EmailRow[] = [
+              ['Tournament', tournament.name],
+              ...(locationName ? [['Location', locationName] as EmailRow] : []),
+              ...(division?.name ? [['Division', division.name] as EmailRow] : []),
+              ...(profile?.name ? [['Registered by', profile.name] as EmailRow] : []),
+            ]
+            const attachments = tournament.start_date ? [{
+              filename: icsFilename(tournament.name, 'tournament'),
+              content: Buffer.from(generateIcs([{
+                uid: tournament.id,
+                title: tournament.name,
+                startDate: tournament.start_date,
+                ...(locationName ? { location: locationName } : {}),
+                url: tournamentUrl,
+              }])),
+            }] : []
+            resend.emails.send({
+              from: 'Joinzer <support@joinzer.com>',
+              to: partnerEmail,
+              replyTo: 'martyfit50@gmail.com',
+              subject: `You're registered — ${tournament.name}`,
+              html: registrationEmail({
+                heading: "You're registered! ✓",
+                firstName: partnerName?.split(' ')[0] ?? 'there',
+                intro: `${profile?.name ?? 'Your partner'} paid your entry fee and added you to ${tournament.name}.`,
+                rows: partnerRows,
+                ctaLabel: 'View Tournament',
+                ctaUrl: tournamentUrl,
+                footerNote: 'Your entry fee was covered by your partner.',
+              }),
+              ...(attachments.length > 0 ? { attachments } : {}),
+            }).catch(() => {})
+          }
         }
       }
     }
