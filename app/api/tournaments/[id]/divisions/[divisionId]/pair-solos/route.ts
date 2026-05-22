@@ -54,6 +54,12 @@ export async function POST(req: NextRequest, props: Params) {
     if (msg.includes('different_divisions')) {
       return NextResponse.json({ error: 'Registrations must be in the same division' }, { status: 400 })
     }
+    if (msg.includes('cannot_pair_with_self')) {
+      return NextResponse.json({ error: 'Cannot pair a registration with itself' }, { status: 400 })
+    }
+    if (msg.includes('pair_write_failed')) {
+      return NextResponse.json({ error: 'Pairing write failed — registration state changed during request' }, { status: 409 })
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

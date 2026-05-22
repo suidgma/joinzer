@@ -12,9 +12,14 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_reg1 tournament_registrations%ROWTYPE;
-  v_reg2 tournament_registrations%ROWTYPE;
+  v_reg1  tournament_registrations%ROWTYPE;
+  v_reg2  tournament_registrations%ROWTYPE;
+  v_count integer;
 BEGIN
+  IF p_reg1_id = p_reg2_id THEN
+    RAISE EXCEPTION 'cannot_pair_with_self';
+  END IF;
+
   -- Lock in UUID order to prevent deadlock
   IF p_reg1_id < p_reg2_id THEN
     SELECT * INTO v_reg1 FROM tournament_registrations WHERE id = p_reg1_id FOR UPDATE;
@@ -39,16 +44,20 @@ BEGIN
     RAISE EXCEPTION 'different_divisions';
   END IF;
 
-  -- Self-guarding UPDATE: WHERE clauses repeat the guards so any race that
-  -- sneaks past the FOR UPDATE (shouldn't happen, but belt-and-suspenders)
-  -- produces 0 rows and the function errors rather than silently half-linking.
+  -- Self-guarding UPDATEs with row-count check: if either returns 0 rows
+  -- (shouldn't happen under FOR UPDATE, but catches any future mutation path),
+  -- raise before returning so the caller never sees silent half-linking.
   UPDATE tournament_registrations
     SET partner_user_id = v_reg2.user_id, partner_registration_id = p_reg2_id
     WHERE id = p_reg1_id AND partner_registration_id IS NULL AND status = 'registered';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count = 0 THEN RAISE EXCEPTION 'pair_write_failed'; END IF;
 
   UPDATE tournament_registrations
     SET partner_user_id = v_reg1.user_id, partner_registration_id = p_reg1_id
     WHERE id = p_reg2_id AND partner_registration_id IS NULL AND status = 'registered';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count = 0 THEN RAISE EXCEPTION 'pair_write_failed'; END IF;
 
   RETURN jsonb_build_object('reg1_id', p_reg1_id, 'reg2_id', p_reg2_id);
 END;
