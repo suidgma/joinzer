@@ -20,23 +20,19 @@ export async function GET(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Layer 2: must have an active registration
-  const { data: reg } = await service
-    .from('tournament_registrations')
-    .select('id')
-    .eq('tournament_id', id)
-    .eq('user_id', user.id)
-    .neq('status', 'cancelled')
-    .maybeSingle()
+  // Layer 2: organizer OR active registration
+  const [{ data: tournament }, { data: reg }] = await Promise.all([
+    service.from('tournaments').select('name, start_date, location_id, organizer_id').eq('id', id).single(),
+    service.from('tournament_registrations')
+      .select('id')
+      .eq('tournament_id', id)
+      .eq('user_id', user.id)
+      .neq('status', 'cancelled')
+      .maybeSingle(),
+  ])
 
-  if (!reg) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  // Layer 3: fetch tournament + conditional location
-  const { data: tournament } = await service
-    .from('tournaments')
-    .select('name, start_date, location_id')
-    .eq('id', id)
-    .single()
+  const isOrganizer = tournament?.organizer_id === user.id
+  if (!reg && !isOrganizer) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!tournament.start_date) return NextResponse.json({ error: 'Tournament date not set' }, { status: 404 })
