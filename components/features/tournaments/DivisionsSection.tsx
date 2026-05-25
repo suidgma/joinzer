@@ -1026,8 +1026,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                     </div>
                     {myReg.status === 'registered' && (() => {
                       const date = tournamentStartDate ?? new Date().toISOString().slice(0, 10)
-                      const startIso = tournamentStartTime ? `${date}T${tournamentStartTime}:00` : date
-                      const endIso = tournamentEndTime ? `${date}T${tournamentEndTime}:00` : undefined
+                      const startIso = tournamentStartTime ? `${date}T${tournamentStartTime}` : date
+                      const endIso = tournamentEndTime ? `${date}T${tournamentEndTime}` : undefined
                       return (
                         <AddToCalendarMenu
                           title={div.name}
