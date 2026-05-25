@@ -64,7 +64,7 @@ export default function PrepTournamentModal({
     {
       label: unpaid.length === 0 ? 'All fees collected' : `${unpaid.length} unpaid registration${unpaid.length !== 1 ? 's' : ''}`,
       done: unpaid.length === 0,
-      note: unpaid.length > 0 ? 'Use "Mark Paid" or "Refund" in each division' : undefined,
+      note: unpaid.length > 0 ? 'Use "Mark Comped" or "Refund" in each division' : undefined,
     },
     {
       label: closed ? 'Registration closed' : 'Close registration',

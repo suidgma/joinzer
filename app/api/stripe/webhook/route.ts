@@ -456,7 +456,7 @@ export async function POST(req: NextRequest) {
           .select('registration_type, partner_registration_id')
           .eq('division_id', divId)
           .eq('status', 'registered')
-          .in('payment_status', ['paid', 'waived']),
+          .in('payment_status', ['paid', 'waived', 'comped']),
       ])
 
       if (!division) {
@@ -517,7 +517,7 @@ export async function POST(req: NextRequest) {
           .eq('division_id', divId)
           .eq('status', 'registered')
           .eq('registration_type', 'solo')
-          .in('payment_status', ['paid', 'waived'])
+          .in('payment_status', ['paid', 'waived', 'comped'])
           .is('partner_registration_id', null)
           .neq('user_id', uId)
           .order('created_at', { ascending: true })

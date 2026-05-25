@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     if (!reg || reg.user_id !== user.id) {
       return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
     }
-    if (reg.payment_status === 'paid') {
+    if (reg.payment_status === 'paid' || reg.payment_status === 'comped') {
       return NextResponse.json({ error: 'Already paid' }, { status: 409 })
     }
 
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           .eq('user_id', reg.partner_user_id)
           .eq('tournament_id', params.id)
           .maybeSingle()
-        if (partnerReg?.payment_status === 'paid') {
+        if (partnerReg?.payment_status === 'paid' || partnerReg?.payment_status === 'comped') {
           return NextResponse.json(
             { error: "Your partner's registration has already been paid", code: 'PARTNER_ALREADY_PAID' },
             { status: 409 }

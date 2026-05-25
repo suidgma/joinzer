@@ -361,7 +361,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
   // Exclude unpaid and cancelled rows — only settled registrations belong in the player-facing roster.
   // The raw query intentionally returns all rows so the organizer path above can show payment management.
   const settledRegs = (regsRaw ?? []).filter(
-    (r: any) => (r.payment_status === 'paid' || r.payment_status === 'waived') && r.status !== 'cancelled'
+    (r: any) => (r.payment_status === 'paid' || r.payment_status === 'waived' || r.payment_status === 'comped') && r.status !== 'cancelled'
   )
   const regsByDivision: Record<string, any[]> = {}
   for (const reg of settledRegs) {
@@ -384,7 +384,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
           (reg: any) =>
             reg.user_id === user.id &&
             reg.status === 'registered' &&
-            (reg.payment_status === 'paid' || reg.payment_status === 'waived')
+            (reg.payment_status === 'paid' || reg.payment_status === 'waived' || reg.payment_status === 'comped')
         )
       )
     : false

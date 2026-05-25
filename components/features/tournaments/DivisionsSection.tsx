@@ -410,19 +410,19 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     await handleCancel(divisionId, regId)
   }
 
-  // ── Organizer: mark payment as paid ───────────────────────────────
-  async function handleMarkPaid(divisionId: string, regId: string) {
+  // ── Organizer: comp a registration (manual override, not real payment) ──
+  async function handleMarkComped(divisionId: string, regId: string) {
     const supabase = createClient()
     const { error } = await supabase
       .from('tournament_registrations')
-      .update({ payment_status: 'paid' })
+      .update({ payment_status: 'comped' })
       .eq('id', regId)
     if (error) { alert(error.message); return }
     setDivisions(prev => prev.map(d =>
       d.id !== divisionId ? d : {
         ...d,
         tournament_registrations: d.tournament_registrations.map(r =>
-          r.id === regId ? { ...r, payment_status: 'paid' } : r
+          r.id === regId ? { ...r, payment_status: 'comped' } : r
         ),
       }
     ))
@@ -1261,11 +1261,13 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                                     reg.payment_status === 'paid'     ? 'bg-green-100 text-green-700' :
                                     reg.payment_status === 'waived'   ? 'bg-gray-100 text-gray-500'   :
+                                    reg.payment_status === 'comped'   ? 'bg-blue-50 text-blue-600'    :
                                     reg.payment_status === 'refunded' ? 'bg-purple-100 text-purple-700' :
                                                                         'bg-red-50 text-red-600'
                                   }`}>
                                     {reg.payment_status === 'paid'     ? '$ Paid'    :
                                      reg.payment_status === 'waived'   ? 'Waived'    :
+                                     reg.payment_status === 'comped'   ? 'Comped'    :
                                      reg.payment_status === 'refunded' ? 'Refunded'  : '$ Unpaid'}
                                   </span>
                                   {reg.partner_user_id ? (
@@ -1275,9 +1277,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                                   ) : null}
                                 </div>
                                 <div className="flex shrink-0 gap-2 flex-wrap justify-end">
-                                  {reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && (
-                                    <button onClick={() => handleMarkPaid(div.id, reg.id)} className="text-green-600 hover:underline">
-                                      Mark Paid
+                                  {reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped' && (
+                                    <button onClick={() => handleMarkComped(div.id, reg.id)} className="text-brand-active hover:underline">
+                                      Mark Comped
                                     </button>
                                   )}
                                   {reg.payment_status === 'paid' && reg.stripe_payment_intent_id && (

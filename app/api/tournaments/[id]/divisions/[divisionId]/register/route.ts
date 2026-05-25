@@ -144,7 +144,7 @@ export async function POST(
     .select('registration_type, partner_registration_id')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
-    .in('payment_status', ['paid', 'waived'])
+    .in('payment_status', ['paid', 'waived', 'comped'])
 
   const teamRegs = (regCounts ?? []).filter(r => r.registration_type === 'team').length
   const soloRegs = (regCounts ?? []).filter(r => r.registration_type === 'solo').length
@@ -301,7 +301,7 @@ export async function POST(
       .eq('division_id', params.divisionId)
       .eq('status', 'registered')
       .eq('registration_type', 'solo')
-      .in('payment_status', ['paid', 'waived'])
+      .in('payment_status', ['paid', 'waived', 'comped'])
       .is('partner_registration_id', null)
       .neq('user_id', targetUserId)
       .order('created_at', { ascending: true })

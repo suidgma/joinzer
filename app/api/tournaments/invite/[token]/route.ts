@@ -100,7 +100,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ token: s
     .select('id', { count: 'exact', head: true })
     .eq('division_id', inv.division_id)
     .eq('status', 'registered')
-    .in('payment_status', ['paid', 'waived'])
+    .in('payment_status', ['paid', 'waived', 'comped'])
 
   const [{ data: division }, { data: tournament }] = await Promise.all([
     service.from('tournament_divisions')
