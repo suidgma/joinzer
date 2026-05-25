@@ -25,6 +25,20 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-25 — Convention: PostgREST FK disambiguation required on multi-referenced tables
+**Status:** Active
+**Affects:** All `.select()` calls that embed a related table using PostgREST resource syntax; any migration that adds a foreign key to a table already joined elsewhere in the codebase
+**Decision:** Whenever a table has more than one foreign key pointing to the same target table, every embedded resource join in `.select()` strings **must** carry an explicit `!relationship` hint (e.g., `profile:profiles!user_id(...)`, not `profile:profiles(...)`). This is a project-wide convention, not a case-by-case fix.
+**Why:** PostgREST silently returns empty results (no error, HTTP 200, `data: []`) when a join is ambiguous — i.e., when the source table has two FKs to the same target. The application receives an empty array and renders "No results" with no indication anything is wrong.
+**Incident that prompted this:** `league_registrations` had one FK to `profiles` (`user_id`) at creation. Migration `20260508000001` added a second FK (`partner_user_id → profiles`). Two `.select()` calls that joined `profiles` without a hint immediately started returning empty — the public-facing league roster panel and the organizer roster manager both showed 0 registered players. The header count (a separate query with no join) remained correct, masking the failure. The organizer roster manager was broken for ~17 days before the symptom was noticed on a different page. Fixed in commit `8e20d71` by adding `!user_id` to both join strings.
+**How to apply:**
+1. **When adding a new FK:** grep the codebase for every `.select()` that joins the target table from the source table (`from('source_table').select('..., alias:target_table(...)')`). Add `!column_name` to any bare join found.
+2. **When writing a new join:** if the source table has more than one FK to the target table, always use `!column_name`. If unsure, check the migrations for all FKs on the source table before writing the query.
+3. **Convention for `profiles` specifically:** `profiles` is joined from many tables. Current tables with multiple FKs to `profiles`: `league_registrations` (`user_id`, `partner_user_id`), `tournament_staff` (`user_id`, `invited_by`), `events` (`captain_user_id`, `creator_user_id`), `session_ratings` (`rater_id`, `rated_user_id`), `league_matches` (`team1_player1_id`, `team1_player2_id`, `team2_player1_id`, `team2_player2_id`). Any new join to `profiles` from these tables requires a hint.
+**Verified clean (2026-05-25):** Full grep of all query sites for these five tables confirmed every existing profiles join already carries an explicit hint — the only two bare joins were the two `league_registrations` sites fixed in `8e20d71`.
+
+---
+
 ## 2026-05-21 — Ticket 3.6 split: 3.6A shipped, 3.6B held
 **Status:** Active
 **Affects:** `docs/joinzer-build-sequence.md` tickets 3.6A and 3.6B; `/home` partner nudge (3.6B)
