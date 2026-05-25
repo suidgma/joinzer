@@ -13,6 +13,7 @@ import TimeSelect from '@/components/features/events/TimeSelect'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
 import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
+import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles:           "Men's Doubles",
@@ -70,9 +71,11 @@ type Props = {
   currentUserId: string | null
   tournamentCostCents: number
   registrationClosesAt?: string | null
+  tournamentStartDate?: string | null
+  tournamentLocationName?: string | null
 }
 
-export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt }: Props) {
+export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentLocationName }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -1019,13 +1022,13 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           : ' · Solo — pending organizer pairing'
                       )}
                     </div>
-                    {myReg.status === 'registered' && (
-                      <a
-                        href={`/api/tournaments/${tournamentId}/ics`}
-                        className="text-xs text-brand-active font-medium underline"
-                      >
-                        Add to calendar
-                      </a>
+                    {myReg.status === 'registered' && tournamentStartDate && (
+                      <AddToCalendarMenu
+                        title={div.name}
+                        startIso={tournamentStartDate}
+                        location={tournamentLocationName ?? undefined}
+                        icsUrl={`/api/tournaments/${tournamentId}/ics`}
+                      />
                     )}
                     {(!myReg.payment_status || myReg.payment_status === 'unpaid') && (() => {
                       const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
