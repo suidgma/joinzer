@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import SessionSubList from './SessionSubList'
+import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -32,12 +33,15 @@ type Props = {
   waitlistPosition: number | null
   waitlistTotal: number
   pendingInvite?: { token: string; expiresAt: string } | null
+  calendarStart?: string
+  calendarLocation?: string
 }
 
 export default function LeagueActions({
   leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format,
   partnerUserName, pendingPartnerEmail, pendingPartnerExpiresAt, pendingInvite = null,
   sessions, mySubSessionIds, waitlistPosition, waitlistTotal,
+  calendarStart, calendarLocation,
 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -188,12 +192,16 @@ export default function LeagueActions({
                   ? 'Solo — awaiting partner match'
                   : "You're in for this league"}
             </p>
-            <a
-              href={`/api/leagues/${leagueId}/ics`}
-              className="text-xs text-brand-active font-medium underline mt-1 inline-block"
-            >
-              Add to calendar
-            </a>
+            {calendarStart && (
+              <div className="mt-1">
+                <AddToCalendarMenu
+                  title={leagueName}
+                  startIso={calendarStart}
+                  location={calendarLocation}
+                  icsUrl={`/api/leagues/${leagueId}/ics`}
+                />
+              </div>
+            )}
           </div>
           <button onClick={() => setShowCancelConfirm(true)} disabled={loading} className="text-xs text-red-500 font-medium underline">
             Cancel

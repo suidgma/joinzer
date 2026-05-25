@@ -14,6 +14,7 @@ import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
 import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection'
 import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
+import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
 import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
 import DesktopShell from '@/components/ui/desktop-shell'
@@ -384,6 +385,22 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       <ManageNav items={navItems} mobileOnly />
       <div className="space-y-4">
         {pageHeader}
+
+        {isRegistered && tournament.start_date && (
+          <div className="bg-brand/20 border border-brand rounded-2xl px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-brand-dark">You&apos;re registered ✓</p>
+              <div className="mt-1">
+                <AddToCalendarMenu
+                  title={tournament.name}
+                  startIso={tournament.start_date}
+                  location={(tournament.location as any)?.name ?? undefined}
+                  icsUrl={`/api/tournaments/${tournament.id}/ics`}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {divisions.length > 0 && (
           <DivisionsSection

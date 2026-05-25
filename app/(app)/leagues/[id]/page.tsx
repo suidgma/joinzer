@@ -305,6 +305,8 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             mySubSessionIds={Array.from(mySubSessionIds)}
             waitlistPosition={waitlistPosition}
             waitlistTotal={waitlistTotal}
+            calendarStart={(league as any).start_date ?? undefined}
+            calendarLocation={(league as any).location_name ?? undefined}
           />
         </>
       )}

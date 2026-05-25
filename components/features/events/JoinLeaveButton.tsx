@@ -3,15 +3,23 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 
 type Props = {
   eventId: string
   currentStatus: string | null
   isCaptain: boolean
   priceCents?: number
+  calendarTitle?: string
+  calendarStart?: string
+  calendarEnd?: string
+  calendarLocation?: string
 }
 
-export default function JoinLeaveButton({ eventId, currentStatus, isCaptain, priceCents = 0 }: Props) {
+export default function JoinLeaveButton({
+  eventId, currentStatus, isCaptain, priceCents = 0,
+  calendarTitle, calendarStart, calendarEnd, calendarLocation,
+}: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,12 +76,15 @@ export default function JoinLeaveButton({ eventId, currentStatus, isCaptain, pri
             You&apos;re the captain. Leaving while others are joined requires reassigning first.
           </p>
         )}
-        <a
-          href={`/api/events/${eventId}/ics`}
-          className="text-xs text-brand-active font-medium underline"
-        >
-          Add to calendar
-        </a>
+        {calendarTitle && calendarStart && (
+          <AddToCalendarMenu
+            title={calendarTitle}
+            startIso={calendarStart}
+            endIso={calendarEnd}
+            location={calendarLocation}
+            icsUrl={`/api/events/${eventId}/ics`}
+          />
+        )}
         <button
           onClick={handleLeave}
           disabled={loading}

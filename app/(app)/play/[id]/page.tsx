@@ -219,6 +219,10 @@ export default async function EventDetailPage(
           eventId={event.id}
           currentStatus={myParticipation?.participant_status ?? null}
           isCaptain={isCaptain}
+          calendarTitle={event.title}
+          calendarStart={event.starts_at}
+          calendarEnd={new Date(new Date(event.starts_at).getTime() + event.duration_minutes * 60_000).toISOString()}
+          calendarLocation={(event.location as any)?.name}
         />
       )}
 
