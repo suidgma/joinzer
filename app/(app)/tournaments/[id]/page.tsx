@@ -52,7 +52,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data }, { data: divisionsRaw }, { data: regsRaw }, { data: matchesData }, { data: tournamentMessages }, { data: discountCodes }] = await Promise.all([
+  const [{ data }, { data: divisionsRaw }, { data: regsRaw }, { data: matchesData }, { data: tournamentMessages }, { data: discountCodes }, { data: staffRow }] = await Promise.all([
     db
       .from('tournaments')
       .select(`
@@ -94,6 +94,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select('id, code, description, discount_type, discount_value, max_uses, uses_count, expires_at, is_active')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
+    user
+      ? db.from('tournament_staff').select('role').eq('tournament_id', params.id).eq('user_id', user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
   if (!data) notFound()
@@ -102,11 +105,13 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
 
   const tournament = data as unknown as TournamentDetail
   const isOrganizer = user?.id === tournament.organizer_id
+  const isCoOrganizer = staffRow?.role === 'co_organizer'
+  const canEdit = isOrganizer || isCoOrganizer
 
   // Slice 3 will add schedule/standings/players/comms sub-routes; add them here then.
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/tournaments/${params.id}` },
-    { label: 'Edit',     href: `/tournaments/${params.id}/edit` },
+    ...(canEdit ? [{ label: 'Edit', href: `/tournaments/${params.id}/edit` }] : []),
   ]
   const deadlinePassed = tournament.registration_closes_at != null && new Date() > new Date(tournament.registration_closes_at)
   const regOpen = tournament.registration_status === 'open' && !deadlinePassed
