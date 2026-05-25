@@ -85,10 +85,12 @@ function PlayerRow({
   reg,
   isOrganizer,
   isSubAvailable,
+  isSoloAwaiting = false,
 }: {
   reg: Reg
   isOrganizer: boolean
   isSubAvailable: boolean
+  isSoloAwaiting?: boolean
 }) {
   return (
     <div className="flex items-center gap-2.5 min-w-0">
@@ -104,6 +106,11 @@ function PlayerRow({
         {isSubAvailable && (
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-brand-active leading-none whitespace-nowrap">
             ✓ can sub
+          </span>
+        )}
+        {isSoloAwaiting && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 leading-none whitespace-nowrap">
+            Solo — awaiting partner
           </span>
         )}
       </div>
@@ -231,8 +238,9 @@ export default function LeagueRosterPanel({
                 reg={row.player1}
                 isOrganizer={row.player1.user_id === organizerUserId}
                 isSubAvailable={subInterestUserIds.has(row.player1.user_id)}
+                isSoloAwaiting={!row.player2}
               />
-              {row.player2 ? (
+              {row.player2 && (
                 <>
                   <div className="border-t border-brand-border/60" />
                   <PlayerRow
@@ -240,11 +248,6 @@ export default function LeagueRosterPanel({
                     isOrganizer={row.player2.user_id === organizerUserId}
                     isSubAvailable={subInterestUserIds.has(row.player2.user_id)}
                   />
-                </>
-              ) : (
-                <>
-                  <div className="border-t border-brand-border/60" />
-                  <p className="text-xs text-brand-muted italic pl-10">looking for partner</p>
                 </>
               )}
             </div>

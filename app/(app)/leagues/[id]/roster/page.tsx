@@ -30,7 +30,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     await Promise.all([
       supabase
         .from('league_registrations')
-        .select('status, registered_at, is_co_admin, user_id, profile:profiles(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
+        .select('status, registered_at, is_co_admin, user_id, profile:profiles!user_id(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
         .eq('league_id', params.id)
         .neq('status', 'cancelled')
         .order('registered_at', { ascending: true }),
