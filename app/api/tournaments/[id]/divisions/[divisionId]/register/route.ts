@@ -264,10 +264,12 @@ export async function POST(
     // cost_cents === 0 or discounted to 0: fall through to INSERT with waived
   }
 
-  // If we reach here for a self-registered solo registered slot, it's free (cost 0 or discounted).
-  // Waive payment so the pay button doesn't appear.
+  // Free division (cost_cents null or 0) → always waived, regardless of registration_type.
+  // Paid division, solo self-service that reached this point → also waived (discount brought cost to $0).
+  // Paid division, team or organizer-add → leave unset so the DB default 'unpaid' applies.
+  const isFree = (division as any).cost_cents == null || (division as any).cost_cents === 0
   const insertPaymentStatus: 'waived' | undefined = (
-    !isOrganizerAdd && registration_type === 'solo' && status === 'registered'
+    isFree || (!isOrganizerAdd && registration_type === 'solo' && status === 'registered')
   ) ? 'waived' : undefined
 
   const { data: registration, error: insertErr } = await service

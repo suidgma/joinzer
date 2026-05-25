@@ -106,10 +106,19 @@ export async function POST(request: NextRequest) {
   const rawStatus = (league.registration_status === 'open' && !isFull) ? 'registered' : 'waitlist'
   const status = isDoublesTeam ? 'pending_partner' : rawStatus
 
+  const leagueCostCents: number | null = (league as any).cost_cents ?? null
+  const isFree = leagueCostCents == null || leagueCostCents === 0
+
   const { error: upsertErr } = await admin
     .from('league_registrations')
     .upsert(
-      { league_id: leagueId, user_id: user.id, status, registration_type },
+      {
+        league_id: leagueId,
+        user_id: user.id,
+        status,
+        registration_type,
+        ...(isFree ? { payment_status: 'waived' } : {}),
+      },
       { onConflict: 'league_id,user_id' }
     )
 
