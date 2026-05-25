@@ -213,6 +213,7 @@ export default async function HomePage() {
     .map((reg) => (reg.tournament as any)?.id as string)
     .filter(Boolean)
   const ratingMissing = !ratingSource || ratingSource === 'skipped'
+  const homeCourtMissing = !homeCourt
   const isOrganizer = (organizedLeagues?.length ?? 0) > 0 || (organizedTournaments?.length ?? 0) > 0
 
   return (
@@ -225,7 +226,7 @@ export default async function HomePage() {
         </p>
       </div>
 
-      {/* Profile completeness nudge — shown when rating is missing */}
+      {/* Profile completeness nudges */}
       {ratingMissing && (
         <Link
           href="/profile/edit"
@@ -235,6 +236,19 @@ export default async function HomePage() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-amber-800">Add your skill rating</p>
             <p className="text-xs text-amber-700">Helps us show you the right leagues and sessions.</p>
+          </div>
+          <span className="text-amber-400 text-sm flex-shrink-0">→</span>
+        </Link>
+      )}
+      {homeCourtMissing && (
+        <Link
+          href="/profile/edit"
+          className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 hover:border-amber-300 transition-colors"
+        >
+          <span className="text-amber-500 text-lg flex-shrink-0">⚠</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-amber-800">Set your home court</p>
+            <p className="text-xs text-amber-700">Helps us surface nearby events first.</p>
           </div>
           <span className="text-amber-400 text-sm flex-shrink-0">→</span>
         </Link>
