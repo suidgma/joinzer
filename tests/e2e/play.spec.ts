@@ -7,15 +7,15 @@ test.describe('Play session (coordination) flows', () => {
 
   test('play listing page loads', async ({ page }) => {
     await login(page)
-    await page.goto('/events', { waitUntil: 'commit' })
+    await page.goto('/play', { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
-    await expect(page).toHaveURL(/\/events/)
+    await expect(page).toHaveURL(/\/play/)
     await expect(page.locator('main')).toBeVisible()
   })
 
   test('user can create a play session', async ({ page }) => {
     await login(page)
-    await page.goto('/events/create', { waitUntil: 'commit' })
+    await page.goto('/play/create', { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
 
     // Title input has id="title" based on CreateEventForm
@@ -47,8 +47,8 @@ test.describe('Play session (coordination) flows', () => {
 
     await page.getByRole('button', { name: /create/i }).click()
 
-    // After creation, router.push('/events/<id>') — wait for event detail page
-    await page.waitForURL(url => url.pathname.startsWith('/events/') && !url.pathname.includes('/create'), { timeout: 15_000 })
+    // After creation, router.push('/play/<id>') — wait for event detail page
+    await page.waitForURL(url => url.pathname.startsWith('/play/') && !url.pathname.includes('/create'), { timeout: 15_000 })
     const url = page.url()
     const match = url.match(/\/events\/([^/]+)$/)
     if (match) createdEventId = match[1]
@@ -56,7 +56,7 @@ test.describe('Play session (coordination) flows', () => {
 
   test('created session appears in listing', async ({ page }) => {
     await login(page)
-    await page.goto('/events', { waitUntil: 'commit' })
+    await page.goto('/play', { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
     // Session created for today should appear in the listing
     await expect(page.getByText('Playwright Test Session').first()).toBeVisible({ timeout: 10_000 })
@@ -65,7 +65,7 @@ test.describe('Play session (coordination) flows', () => {
   test('event detail page loads with key info', async ({ page }) => {
     await login(page)
     if (!createdEventId) test.skip()
-    await page.goto(`/events/${createdEventId}`, { waitUntil: 'commit' })
+    await page.goto(`/play/${createdEventId}`, { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
     await expect(page.getByText('Playwright Test Session')).toBeVisible()
   })

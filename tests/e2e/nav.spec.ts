@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test'
 import { login } from './helpers/auth'
 
 const NAV_LINKS = [
-  { label: 'Play',        url: /\/events/ },
-  { label: 'Leagues',     url: /\/compete/ },
+  { label: 'Play',        url: /\/play/ },
+  { label: 'Leagues',     url: /\/leagues/ },
   { label: 'Tournaments', url: /\/tournaments/ },
   { label: 'Players',     url: /\/players/ },
   { label: 'Profile',     url: /\/profile/ },

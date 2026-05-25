@@ -48,7 +48,7 @@ export default function TrustSection() {
             </ul>
 
             <Link
-              href="/events"
+              href="/play"
               className="inline-block w-full sm:w-auto text-center bg-brand text-brand-dark font-semibold px-7 py-4 rounded-xl hover:bg-brand-hover transition-colors text-sm"
             >
               Explore Local Games

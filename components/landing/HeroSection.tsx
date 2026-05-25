@@ -36,7 +36,7 @@ export default function HeroSection() {
                 Create Free Account
               </Link>
               <Link
-                href="/events"
+                href="/play"
                 className="w-full sm:w-auto text-brand-dark font-semibold px-7 py-4 rounded-xl border border-brand-border hover:bg-brand-soft transition-colors text-sm text-center"
               >
                 Find Local Games

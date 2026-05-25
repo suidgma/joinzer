@@ -169,7 +169,7 @@ export default function EventCalendar({ events, selectedDate }: Props) {
             {eventsOnSelectedDate.map((ev) => {
               const joined = ev.event_participants.filter(p => p.participant_status === 'joined').length
               return (
-                <Link key={ev.id} href={`/events/${ev.id}`} className="block">
+                <Link key={ev.id} href={`/play/${ev.id}`} className="block">
                   <div className="bg-white border border-brand-border rounded-2xl p-4 hover:border-brand hover:shadow-sm transition-all space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-heading font-semibold text-sm text-brand-dark">{ev.title}</p>

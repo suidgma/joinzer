@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
 
         if (myProfile && partnerProfile) {
           const resend = new Resend(process.env.RESEND_API_KEY)
-          const leagueUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'}/compete/leagues/${leagueId}`
+          const leagueUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'}/leagues/${leagueId}`
 
           const emailHtml = (recipientName: string, partnerName: string) => `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
-      const leagueUrl = `${siteUrl}/compete/leagues/${leagueId}`
+      const leagueUrl = `${siteUrl}/leagues/${leagueId}`
 
       const { data: profile } = await admin.from('profiles').select('name, email').eq('id', user.id).single()
       const toEmail = profile?.email ?? user.email

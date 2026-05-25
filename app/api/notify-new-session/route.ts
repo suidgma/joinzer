@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   const hours = Math.floor(durationMinutes / 60)
   const mins = durationMinutes % 60
   const duration = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
-  const eventUrl = `https://joinzer.com/events/${eventId}`
+  const eventUrl = `https://joinzer.com/play/${eventId}`
 
   // Send in batches to stay within Resend limits
   const emails = profiles

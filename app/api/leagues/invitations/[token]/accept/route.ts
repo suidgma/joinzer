@@ -82,8 +82,8 @@ export async function POST(
         league_id: inv.league_id,
         user_id: user.id,
       },
-      success_url: `${siteUrl}/compete/leagues/${inv.league_id}?payment=success`,
-      cancel_url: `${siteUrl}/compete/leagues/${inv.league_id}/partner-accept?token=${token}`,
+      success_url: `${siteUrl}/leagues/${inv.league_id}?payment=success`,
+      cancel_url: `${siteUrl}/leagues/${inv.league_id}/partner-accept?token=${token}`,
     })
     return NextResponse.json({ url: stripeSession.url })
   }

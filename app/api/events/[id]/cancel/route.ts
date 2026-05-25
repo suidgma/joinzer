@@ -82,7 +82,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
                 <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">Date</td><td style="padding:6px 0;font-size:14px">${date}</td></tr>
                 <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">Time</td><td style="padding:6px 0;font-size:14px">${time}</td></tr>
               </table>
-              <a href="${siteUrl}/events" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">Find Another Session</a>
+              <a href="${siteUrl}/play" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">Find Another Session</a>
               <p style="margin-top:24px;font-size:12px;color:#9ca3af">Sorry for the inconvenience — see you on the courts soon!</p>
             </div>
           </div>

@@ -172,8 +172,8 @@ export default async function SchedulePage() {
           <p className="text-sm font-semibold text-brand-dark">Nothing scheduled yet.</p>
           <p className="text-xs text-brand-muted">Join a session, register for a league, or sign up for a tournament.</p>
           <div className="flex gap-2 justify-center mt-3">
-            <Link href="/events" className="py-2 px-4 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors">Find Play</Link>
-            <Link href="/compete" className="py-2 px-4 rounded-xl border border-brand-border text-brand-dark text-sm font-medium hover:bg-brand-soft transition-colors">Browse Leagues</Link>
+            <Link href="/play" className="py-2 px-4 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors">Find Play</Link>
+            <Link href="/leagues" className="py-2 px-4 rounded-xl border border-brand-border text-brand-dark text-sm font-medium hover:bg-brand-soft transition-colors">Browse Leagues</Link>
           </div>
         </div>
       )}
@@ -203,13 +203,13 @@ export default async function SchedulePage() {
                         <p className="text-xs text-brand-muted">{league.location_name as string}</p>
                       )}
                     </div>
-                    <Link href={`/compete/leagues/${s.league_id as string}`} className="shrink-0 text-xs text-brand-active hover:underline">
+                    <Link href={`/leagues/${s.league_id as string}`} className="shrink-0 text-xs text-brand-active hover:underline">
                       View →
                     </Link>
                   </div>
                   {isManager ? (
                     <Link
-                      href={`/compete/leagues/${s.league_id as string}/sessions/${s.id as string}/live`}
+                      href={`/leagues/${s.league_id as string}/sessions/${s.id as string}/live`}
                       className="block w-full text-center py-2 rounded-xl bg-brand text-brand-dark text-xs font-semibold hover:bg-brand-hover transition-colors"
                     >
                       Open Session Manager →
@@ -256,7 +256,7 @@ export default async function SchedulePage() {
             return (
               <Link
                 key={`e-${ev.id}`}
-                href={`/events/${ev.id}`}
+                href={`/play/${ev.id}`}
                 className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
               >
                 <div className="flex items-start justify-between gap-2">

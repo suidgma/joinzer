@@ -43,7 +43,7 @@ export async function GET(
   if (!league || !sessions) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
-  const leagueUrl = `${siteUrl}/compete/leagues/${id}`
+  const leagueUrl = `${siteUrl}/leagues/${id}`
 
   const ics = generateIcs(sessions.map(s => ({
     uid: s.id,

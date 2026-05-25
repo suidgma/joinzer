@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
               <p style="margin:0 0 20px;font-size:15px">
                 Good news, ${firstName}! A spot opened up in <strong>${league.name}</strong> and you've been automatically moved from the waitlist to registered.
               </p>
-              <a href="${siteUrl}/compete/leagues/${league.id}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">View League</a>
+              <a href="${siteUrl}/leagues/${league.id}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">View League</a>
               <p style="margin-top:24px;font-size:12px;color:#9ca3af">See you on the court!</p>
             </div>
           </div>
@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
               Hi ${firstName}, your registration for <strong>${league.name}</strong> has been cancelled.
             </p>
             ${refundLine}
-            <a href="${siteUrl}/compete/leagues/${leagueId}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">View League</a>
+            <a href="${siteUrl}/leagues/${leagueId}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">View League</a>
             <p style="margin-top:24px;font-size:12px;color:#9ca3af">See you on the courts!</p>
           </div>
         </div>

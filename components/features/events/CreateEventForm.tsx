@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from './LocationCombobox'
 import TimeSelect from './TimeSelect'
 import type { LocationOption } from '@/lib/types'
-import type { EventDefaults } from '@/app/(app)/events/create/page'
+import type { EventDefaults } from '@/app/(app)/play/create/page'
 import { prepareEventWrite } from '@/lib/taxonomy/write-helpers'
 
 const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
@@ -171,7 +171,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       }),
     }).catch(() => {})
 
-    router.push(`/events/${event.id}`)
+    router.push(`/play/${event.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
       setLoading(false)

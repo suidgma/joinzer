@@ -279,7 +279,7 @@ export default async function HomePage() {
                       )}
                     </div>
                     <Link
-                      href={`/compete/leagues/${s.league_id as string}`}
+                      href={`/leagues/${s.league_id as string}`}
                       className="shrink-0 text-xs text-brand-active hover:underline"
                     >
                       View →
@@ -287,7 +287,7 @@ export default async function HomePage() {
                   </div>
                   {isManager ? (
                     <Link
-                      href={`/compete/leagues/${s.league_id as string}/sessions/${s.id as string}/live`}
+                      href={`/leagues/${s.league_id as string}/sessions/${s.id as string}/live`}
                       className="block w-full text-center py-2 mt-2 rounded-xl bg-brand text-brand-dark text-xs font-semibold hover:bg-brand-hover transition-colors"
                     >
                       Open Session Manager →
@@ -330,7 +330,7 @@ export default async function HomePage() {
             return (
               <Link
                 key={`e-${ev.id}`}
-                href={`/events/${ev.id}`}
+                href={`/play/${ev.id}`}
                 className="block bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-1 hover:border-brand-active transition-colors"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -360,7 +360,7 @@ export default async function HomePage() {
                 Create Tournament
               </Link>
               <Link
-                href="/compete"
+                href="/leagues"
                 className="flex-1 text-center py-2.5 rounded-xl border border-brand-border text-brand-dark text-sm font-semibold hover:border-brand-active transition-colors"
               >
                 Browse Leagues
@@ -369,7 +369,7 @@ export default async function HomePage() {
           ) : (
             <>
               <Link
-                href="/compete"
+                href="/leagues"
                 className="flex-1 text-center py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
               >
                 Browse Leagues

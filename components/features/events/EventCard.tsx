@@ -13,7 +13,7 @@ export default function EventCard({ event }: { event: EventListItem }) {
   const isClinic     = isFreeClinic || isPaidClinic
 
   return (
-    <Link href={`/events/${event.id}`} className="block group">
+    <Link href={`/play/${event.id}`} className="block group">
       {isClinic ? (
         // ── Clinic card ────────────────────────────────────────────
         <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-2 hover:border-amber-400 hover:shadow-sm transition-all">

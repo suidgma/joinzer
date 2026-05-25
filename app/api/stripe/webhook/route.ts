@@ -299,7 +299,7 @@ export async function POST(req: NextRequest) {
                 ...(joinAs === 'waitlist' ? [["Status", "You're on the waitlist — you'll be notified if a spot opens"] as EmailRow] : []),
               ],
               ctaLabel: 'View Session',
-              ctaUrl: `${siteUrl}/events/${meta.event_id}`,
+              ctaUrl: `${siteUrl}/play/${meta.event_id}`,
               footerNote: 'Keep this email as your payment receipt.',
             }),
           })
@@ -358,7 +358,7 @@ export async function POST(req: NextRequest) {
         ])
 
         if (profile?.email && league) {
-          const leagueUrl = `${siteUrl}/compete/leagues/${meta.league_id}`
+          const leagueUrl = `${siteUrl}/leagues/${meta.league_id}`
           const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
           const isWaitlist = joinAs !== 'registered'
           const resend = new Resend(process.env.RESEND_API_KEY)
@@ -915,7 +915,7 @@ export async function POST(req: NextRequest) {
               intro: `Your partner ${inv.invitee_email} paid, but we were unable to capture your registration fee. Your partner has been refunded. Please try registering again.`,
               rows: [['League', league.name]],
               ctaLabel: 'Try again',
-              ctaUrl: `${siteUrl}/compete/leagues/${league.id}`,
+              ctaUrl: `${siteUrl}/leagues/${league.id}`,
               footerNote: '',
             }),
           }).catch(() => {})
@@ -934,7 +934,7 @@ export async function POST(req: NextRequest) {
               intro: `There was a problem processing your partner's registration fee. Your payment has been refunded. Your partner will be in touch to retry.`,
               rows: [['League', league.name]],
               ctaLabel: 'View League',
-              ctaUrl: `${siteUrl}/compete/leagues/${league.id}`,
+              ctaUrl: `${siteUrl}/leagues/${league.id}`,
               footerNote: '',
             }),
           }).catch(() => {})
@@ -991,7 +991,7 @@ export async function POST(req: NextRequest) {
 
       if (league) {
         const resend = new Resend(process.env.RESEND_API_KEY)
-        const leagueUrl = `${siteUrl}/compete/leagues/${inv.league_id}`
+        const leagueUrl = `${siteUrl}/leagues/${inv.league_id}`
         const fmt = (d: string | null) => d
           ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
               .format(new Date(d + 'T00:00:00'))

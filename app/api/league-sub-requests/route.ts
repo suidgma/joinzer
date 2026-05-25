@@ -111,7 +111,7 @@ async function sendOrganizerNotification(
   const { data: organizer } = await db.from('profiles').select('email, name').eq('id', league.created_by).single()
   if (!organizer?.email) return
 
-  const leagueUrl = `https://joinzer.com/compete/leagues/${leagueId}`
+  const leagueUrl = `https://joinzer.com/leagues/${leagueId}`
   await resend.emails.send({
     from: 'Joinzer <support@joinzer.com>',
     to: organizer.email,

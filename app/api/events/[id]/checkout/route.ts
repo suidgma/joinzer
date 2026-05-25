@@ -83,8 +83,8 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
         user_id: user.id,
         join_as: isFull ? 'waitlist' : 'joined',
       },
-      success_url: `${siteUrl}/events/${params.id}?payment=success`,
-      cancel_url: `${siteUrl}/events/${params.id}?payment=cancelled`,
+      success_url: `${siteUrl}/play/${params.id}?payment=success`,
+      cancel_url: `${siteUrl}/play/${params.id}?payment=cancelled`,
     })
 
     return NextResponse.json({ url: stripeSession.url })

@@ -93,7 +93,7 @@ export default function EditEventForm({ event }: Props) {
           setError(body.error ?? 'Failed to cancel session')
           return
         }
-        window.location.href = `/events/${event.id}`
+        window.location.href = `/play/${event.id}`
         return
       }
 
@@ -126,7 +126,7 @@ export default function EditEventForm({ event }: Props) {
         return
       }
 
-      window.location.href = `/events/${event.id}`
+      window.location.href = `/play/${event.id}`
     } finally {
       setLoading(false)
     }

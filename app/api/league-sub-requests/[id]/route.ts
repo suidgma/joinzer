@@ -97,7 +97,7 @@ async function sendClaimNotification(
     ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
     : ''
 
-  const leagueUrl = `https://joinzer.com/compete/leagues/${sr.league_id}`
+  const leagueUrl = `https://joinzer.com/leagues/${sr.league_id}`
 
   if (action === 'claim') {
     // Notify requester + organizer

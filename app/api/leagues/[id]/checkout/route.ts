@@ -92,8 +92,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         registration_type: registrationType,
         ...(partnerEmail ? { partner_email: partnerEmail } : {}),
       },
-      success_url: `${siteUrl}/compete/leagues/${params.id}?payment=success`,
-      cancel_url: `${siteUrl}/compete/leagues/${params.id}?payment=cancelled`,
+      success_url: `${siteUrl}/leagues/${params.id}?payment=success`,
+      cancel_url: `${siteUrl}/leagues/${params.id}?payment=cancelled`,
     }
 
     // Auth-and-capture for doubles team: hold captain's funds until partner pays

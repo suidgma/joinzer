@@ -27,7 +27,7 @@ export default async function UnsubscribedPage(props: Props) {
         )}
 
         <a
-          href="/events"
+          href="/play"
           className="inline-block bg-brand text-brand-dark text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-brand-hover transition-colors"
         >
           Go to Play

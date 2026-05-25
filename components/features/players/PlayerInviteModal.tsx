@@ -93,7 +93,7 @@ export default function PlayerInviteModal({ player, sessions, onClose }: Props) 
         ) : sessions.length === 0 ? (
           <p className="text-sm text-brand-muted text-center py-2">
             You have no upcoming sessions to invite them to.{' '}
-            <a href="/events/create" className="text-brand-active underline">Create one?</a>
+            <a href="/play/create" className="text-brand-active underline">Create one?</a>
           </p>
         ) : (
           <>

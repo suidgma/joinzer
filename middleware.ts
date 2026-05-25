@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js' ||
     pathname.startsWith('/auth/') ||
-    pathname.startsWith('/compete') ||
+    pathname.startsWith('/leagues') ||
     pathname.startsWith('/api/stripe/') ||
     pathname.startsWith('/api/cron/')
 

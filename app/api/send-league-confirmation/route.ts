@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   const { leagueName, format, skillLevel, locationName, startDate, endDate, leagueId, status } =
     await request.json()
 
-  const leagueUrl = `https://joinzer.com/compete/leagues/${leagueId}`
+  const leagueUrl = `https://joinzer.com/leagues/${leagueId}`
   const isWaitlist = status === 'waitlist'
 
   const { error } = await resend.emails.send({

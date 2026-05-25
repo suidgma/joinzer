@@ -49,7 +49,7 @@ export async function POST(_req: NextRequest, props: Params) {
   const dateStr = new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', {
     timeZone: 'America/Los_Angeles', weekday: 'long', month: 'long', day: 'numeric',
   })
-  const leagueUrl = `https://joinzer.com/compete/leagues/${league.id}`
+  const leagueUrl = `https://joinzer.com/leagues/${league.id}`
 
   const resend = new Resend(process.env.RESEND_API_KEY)
   const emails = recipients.map((p) => ({

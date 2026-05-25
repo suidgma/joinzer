@@ -50,7 +50,7 @@ export async function GET(
   const endDate = new Date(startMs + event.duration_minutes * 60_000).toISOString()
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
-  const eventUrl = `${siteUrl}/events/${id}`
+  const eventUrl = `${siteUrl}/play/${id}`
 
   const ics = generateIcs([{
     uid: id,

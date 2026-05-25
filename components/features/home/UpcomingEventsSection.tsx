@@ -214,7 +214,14 @@ export default async function UpcomingEventsSection({
 
   return (
     <section className="space-y-3">
-      <h2 className="font-heading text-base font-bold text-brand-dark">Upcoming Events</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-base font-bold text-brand-dark">Upcoming Events</h2>
+        <div className="flex items-center gap-3 text-xs text-brand-active">
+          <Link href="/play" className="hover:underline">Play →</Link>
+          <Link href="/leagues" className="hover:underline">Leagues →</Link>
+          <Link href="/tournaments" className="hover:underline">Tournaments →</Link>
+        </div>
+      </div>
       {items.map((item, i) => {
         if (item.kind === 'session') {
           const ev = item.data
@@ -222,7 +229,7 @@ export default async function UpcomingEventsSection({
           return (
             <Link
               key={`upcoming-s-${ev.id}-${i}`}
-              href={`/events/${ev.id as string}`}
+              href={`/play/${ev.id as string}`}
               className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
             >
               <div className="flex items-start justify-between gap-2">
@@ -268,7 +275,7 @@ export default async function UpcomingEventsSection({
         return (
           <Link
             key={`upcoming-l-${l.id}-${i}`}
-            href={`/compete/leagues/${l.id as string}`}
+            href={`/leagues/${l.id as string}`}
             className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
           >
             <div className="flex items-start justify-between gap-2">

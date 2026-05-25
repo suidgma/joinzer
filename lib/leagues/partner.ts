@@ -86,7 +86,7 @@ export async function voidCaptainHold(
             : `Your partner invitation to ${inv.invitee_email} for ${league.name} expired after 72 hours. Your registration has been cancelled and your payment was not charged.`,
           rows,
           ctaLabel: 'Register again',
-          ctaUrl: `${siteUrl}/compete/leagues/${league.id}`,
+          ctaUrl: `${siteUrl}/leagues/${league.id}`,
           footerNote: 'You can register again at any time while registration is open.',
         }),
       }).catch((err: unknown) => console.error('[voidCaptainHold] captain email failed:', err))
@@ -168,7 +168,7 @@ export async function createInviteAndNotify(
     captainName = captainProfile?.name ?? captainName
   }
 
-  const acceptUrl = `${siteUrl}/auth/callback?next=${encodeURIComponent(`/compete/leagues/${leagueId}/partner-accept?token=${token}`)}`
+  const acceptUrl = `${siteUrl}/auth/callback?next=${encodeURIComponent(`/leagues/${leagueId}/partner-accept?token=${token}`)}`
 
   const { data: linkData } = await db.auth.admin.generateLink({
     type: 'magiclink',

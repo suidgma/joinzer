@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing data' }, { status: 400 })
   }
 
-  const eventUrl = `https://joinzer.com/events/${event.id}`
+  const eventUrl = `https://joinzer.com/play/${event.id}`
   const date = new Date(event.starts_at).toLocaleDateString('en-US', {
     timeZone: 'America/Los_Angeles',
     weekday: 'long', month: 'long', day: 'numeric',

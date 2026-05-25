@@ -72,7 +72,7 @@ async function notifyPlayerAdded(leagueId: string, userId: string) {
 
   if (!league || !player?.email) return
 
-  const leagueUrl = `https://joinzer.com/compete/leagues/${leagueId}`
+  const leagueUrl = `https://joinzer.com/leagues/${leagueId}`
 
   const FORMAT_LABELS: Record<string, string> = {
     individual_round_robin: 'Individual Round Robin',

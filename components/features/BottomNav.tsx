@@ -14,7 +14,7 @@ const tabs = [
     ),
   },
   {
-    href: '/events',
+    href: '/play',
     label: 'Play',
     // Bolt = action / energy / "find a game now"
     icon: (active: boolean) => (
@@ -24,7 +24,7 @@ const tabs = [
     ),
   },
   {
-    href: '/compete',
+    href: '/leagues',
     label: 'Leagues',
     // Bar chart = standings / rankings / ongoing structured play
     icon: (active: boolean) => (

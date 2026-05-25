@@ -20,7 +20,7 @@ export default function LandingNav() {
           {/* Center nav links */}
           <nav className="hidden md:flex items-center gap-8">
             <a href="#how-it-works" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">How It Works</a>
-            <Link href="/events" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Find Games</Link>
+            <Link href="/play" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Find Games</Link>
             <a href="#community" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Courts</a>
             <Link href="/about" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">About</Link>
           </nav>
@@ -62,7 +62,7 @@ export default function LandingNav() {
       {open && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-3">
           <a href="#how-it-works" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">How It Works</a>
-          <Link href="/events" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Find Games</Link>
+          <Link href="/play" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Find Games</Link>
           <a href="#community" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Courts</a>
           <Link href="/about" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">About</Link>
           <div className="pt-2 space-y-2">
