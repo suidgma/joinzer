@@ -97,11 +97,12 @@ export async function POST(
     .maybeSingle()
 
   if (!existing) {
+    // Free-only branch — paid partners are created by the Stripe webhook as 'paid'.
     const { error } = await service.from('league_registrations').insert({
       league_id: inv.league_id,
       user_id: user.id,
       status: 'registered',
-      payment_status: 'free',
+      payment_status: 'waived',
       registration_type: 'team',
       registered_at: new Date().toISOString(),
     })
