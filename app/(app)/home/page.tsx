@@ -5,6 +5,7 @@ import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import { formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
+import UpcomingEventsSection from '@/components/features/home/UpcomingEventsSection'
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual RR',
@@ -127,7 +128,7 @@ export default async function HomePage() {
 
   const sessionIds = (upcomingSessions ?? []).map((s) => s.id as string)
 
-  const [{ data: attendance }, { data: openSubRequests }, { data: discoverLeagues }, { data: upcomingTournaments }] = await Promise.all([
+  const [{ data: attendance }, { data: openSubRequests }] = await Promise.all([
     sessionIds.length > 0
       ? db.from('league_session_attendance')
           .select('league_session_id, attendance_status')
@@ -149,63 +150,9 @@ export default async function HomePage() {
           .order('created_at', { ascending: false })
           .limit(5)
       : Promise.resolve({ data: [] }),
-    (() => {
-      let q = db.from('leagues')
-        .select('id, name, format, skill_min, skill_max, location_name, registration_status, start_date, location:locations!location_id(lat, lng)')
-        .in('registration_status', ['open', 'waitlist_only'])
-        .order('start_date', { ascending: true, nullsFirst: false })
-        .limit(20)
-      if (leagueIds.length > 0) q = q.not('id', 'in', `(${leagueIds.join(',')})`)
-      // Overlap filter: league range must overlap user's ±1-tier comfort window
-      if (skillRange) q = (q as any).lte('skill_min', skillRange.hi).gte('skill_max', skillRange.lo)
-      return q
-    })(),
-    db.from('tournaments')
-      .select('id, name, start_date, location:locations!location_id(name, lat, lng)')
-      .eq('status', 'published')
-      .eq('visibility', 'public')
-      .gte('start_date', today)
-      .order('start_date', { ascending: true })
-      .limit(20),
   ])
 
   const homeCourt = (profile as any)?.home_court as { lat: number; lng: number } | null
-
-  // Sort leagues by distance from home court if available, otherwise by start_date
-  const sortedDiscoverLeagues = [...(discoverLeagues ?? [])].sort((a, b) => {
-    if (homeCourt) {
-      const aLat = (a.location as any)?.lat
-      const aLng = (a.location as any)?.lng
-      const bLat = (b.location as any)?.lat
-      const bLng = (b.location as any)?.lng
-      if (aLat && bLat) {
-        return (
-          distanceMiles(homeCourt.lat, homeCourt.lng, aLat, aLng) -
-          distanceMiles(homeCourt.lat, homeCourt.lng, bLat, bLng)
-        )
-      }
-      if (aLat) return -1
-      if (bLat) return 1
-    }
-    return (a.start_date as string ?? '').localeCompare(b.start_date as string ?? '')
-  }).slice(0, 6)
-
-  // Sort tournaments by distance from home court if available, otherwise by date
-  const sortedTournaments = [...(upcomingTournaments ?? [])].sort((a, b) => {
-    if (homeCourt) {
-      const aLat = (a.location as any)?.lat
-      const aLng = (a.location as any)?.lng
-      const bLat = (b.location as any)?.lat
-      const bLng = (b.location as any)?.lng
-      if (aLat && bLat) {
-        return (
-          distanceMiles(homeCourt.lat, homeCourt.lng, aLat, aLng) -
-          distanceMiles(homeCourt.lat, homeCourt.lng, bLat, bLng)
-        )
-      }
-    }
-    return (a.start_date as string ?? '').localeCompare(b.start_date as string ?? '')
-  }).slice(0, 5)
 
   const attendanceMap = Object.fromEntries(
     (attendance ?? []).map((a) => [a.league_session_id as string, a.attendance_status as string])
@@ -257,8 +204,14 @@ export default async function HomePage() {
   const firstName = (profile?.name as string | null)?.split(' ')[0] ?? 'there'
   const hasSchedule = visibleSchedule.length > 0
   const scheduleIsSparse = scheduleItems.length < 3
-  const hasDiscover = sortedDiscoverLeagues.length > 0 || sortedTournaments.length > 0
   const ratingSource = (profile as any)?.rating_source as string | null
+
+  const excludeEventIds = (joinedEventRows ?? [])
+    .map((row) => (row.event as any)?.id as string)
+    .filter(Boolean)
+  const excludeTournamentIds = (tournamentRegistrations ?? [])
+    .map((reg) => (reg.tournament as any)?.id as string)
+    .filter(Boolean)
   const ratingMissing = !ratingSource || ratingSource === 'skipped'
   const isOrganizer = (organizedLeagues?.length ?? 0) > 0 || (organizedTournaments?.length ?? 0) > 0
 
@@ -418,82 +371,14 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ── Discover (always if sparse, always if no schedule) ── */}
-      {(scheduleIsSparse || !hasSchedule) && hasDiscover && (
-        <section className="space-y-5">
-          <h2 className="font-heading text-base font-bold text-brand-dark">
-            {hasSchedule ? 'More to Explore' : 'Find Your Game'}
-          </h2>
-
-          {/* Featured leagues */}
-          {sortedDiscoverLeagues.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-brand-dark">Leagues Near Your Level</h3>
-                <Link href="/compete" className="text-xs text-brand-active hover:underline">See all →</Link>
-              </div>
-              {sortedDiscoverLeagues.map((league) => (
-                <Link
-                  key={league.id as string}
-                  href={`/compete/leagues/${league.id as string}`}
-                  className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-brand-dark">{league.name as string}</p>
-                      <p className="text-xs text-brand-muted">
-                        {FORMAT_LABELS[league.format as string] ?? league.format as string}
-                        {formatSkillRange((league as any).skill_min, (league as any).skill_max) ? ` · ${formatSkillRange((league as any).skill_min, (league as any).skill_max)}` : ''}
-                      </p>
-                      {league.location_name && (
-                        <p className="text-xs text-brand-muted">{league.location_name as string}</p>
-                      )}
-                      {league.start_date && (
-                        <p className="text-xs text-brand-muted">Starts {sessionDateLabel(league.start_date as string)}</p>
-                      )}
-                    </div>
-                    <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand text-brand-dark capitalize">
-                      {league.registration_status === 'waitlist_only' ? 'Waitlist' : 'Open'}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          {/* Upcoming tournaments */}
-          {sortedTournaments.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-brand-dark">Upcoming Tournaments</h3>
-                <Link href="/compete" className="text-xs text-brand-active hover:underline">See all →</Link>
-              </div>
-              {sortedTournaments.map((t) => (
-                <Link
-                  key={t.id as string}
-                  href={`/tournaments/${t.id as string}`}
-                  className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:border-brand-active transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-brand-dark">{t.name as string}</p>
-                      {(t.location as any)?.name && (
-                        <p className="text-xs text-brand-muted">{(t.location as any).name}</p>
-                      )}
-                      {t.start_date && (
-                        <p className="text-xs text-brand-muted">{sessionDateLabel(t.start_date as string)}</p>
-                      )}
-                    </div>
-                    <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand/20 text-brand-dark">
-                      Tournament
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+      {/* ── Upcoming Events — always shown, featured override or personalized ── */}
+      <UpcomingEventsSection
+        skillRange={skillRange}
+        homeCourt={homeCourt}
+        excludeLeagueIds={leagueIds}
+        excludeEventIds={excludeEventIds}
+        excludeTournamentIds={excludeTournamentIds}
+      />
 
       {/* ── Open sub requests in my leagues ── */}
       {(openSubRequests ?? []).length > 0 && (
@@ -503,19 +388,6 @@ export default async function HomePage() {
         />
       )}
 
-      {/* Empty state */}
-      {!hasSchedule && !hasDiscover && (
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
-          <p className="text-sm font-semibold text-brand-dark">Nothing here yet.</p>
-          <p className="text-xs text-brand-muted">Browse leagues and tournaments to get started.</p>
-          <Link
-            href="/compete"
-            className="inline-block mt-2 py-2 px-4 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
-          >
-            Browse Leagues →
-          </Link>
-        </div>
-      )}
     </main>
   )
 }
