@@ -915,7 +915,8 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
             const myReg     = currentUserId
               ? div.tournament_registrations.find(r => r.user_id === currentUserId && r.status !== 'cancelled')
               : undefined
-            const isFull    = effectiveTeams >= div.max_entries
+            const maxPlayers = isDoublesFormat(div.format) ? div.max_entries * 2 : div.max_entries
+            const isFull    = active.length >= maxPlayers
             const isClosed  = div.status === 'closed'
             const canReg    = !myReg && !isClosed && (!isFull || div.waitlist_enabled)
             const isManaging = managingId === div.id
@@ -995,17 +996,21 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                 )}
 
                 {/* Counts */}
-                <div className="flex items-center gap-3 text-xs text-brand-muted">
-                  <span>
-                    <span className="font-semibold text-brand-dark">{isDoublesFormat(div.format) ? effectiveTeams : active.length}</span>
-                    {' / '}{div.max_entries}{' '}
-                    {isDoublesFormat(div.format) ? 'teams' : 'players'}
-                    {unmatchedSolos > 0 && (
-                      <span className="text-amber-600 ml-1">(+{unmatchedSolos} solo{unmatchedSolos > 1 ? 's' : ''} seeking partner)</span>
-                    )}
-                  </span>
-                  {waitlist.length > 0 && <span>· {waitlist.length} waitlisted</span>}
-                </div>
+                {(() => {
+                  const maxPlayers = isDoublesFormat(div.format) ? div.max_entries * 2 : div.max_entries
+                  return (
+                    <div className="flex items-center gap-3 text-xs text-brand-muted">
+                      <span>
+                        <span className="font-semibold text-brand-dark">{active.length}</span>
+                        {' / '}{maxPlayers}{' players'}
+                        {unmatchedSolos > 0 && (
+                          <span className="text-amber-600 ml-1">(+{unmatchedSolos} seeking partner)</span>
+                        )}
+                      </span>
+                      {waitlist.length > 0 && <span>· {waitlist.length} waitlisted</span>}
+                    </div>
+                  )
+                })()}
 
                 {/* My status */}
                 {myReg && (
