@@ -310,6 +310,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             tournamentCostCents={costCents}
             registrationClosesAt={tournament.registration_closes_at ?? null}
             tournamentStartDate={tournament.start_date ?? null}
+            tournamentStartTime={tournament.start_time ?? null}
+            tournamentEndTime={tournament.estimated_end_time ?? null}
             tournamentLocationName={(tournament.location as any)?.name ?? null}
           />
 
@@ -396,6 +398,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             tournamentCostCents={costCents}
             registrationClosesAt={tournament.registration_closes_at ?? null}
             tournamentStartDate={tournament.start_date ?? null}
+            tournamentStartTime={tournament.start_time ?? null}
+            tournamentEndTime={tournament.estimated_end_time ?? null}
             tournamentLocationName={(tournament.location as any)?.name ?? null}
           />
         )}

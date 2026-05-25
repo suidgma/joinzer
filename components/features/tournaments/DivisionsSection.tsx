@@ -72,10 +72,12 @@ type Props = {
   tournamentCostCents: number
   registrationClosesAt?: string | null
   tournamentStartDate?: string | null
+  tournamentStartTime?: string | null
+  tournamentEndTime?: string | null
   tournamentLocationName?: string | null
 }
 
-export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentLocationName }: Props) {
+export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -1022,14 +1024,21 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           : ' · Solo — pending organizer pairing'
                       )}
                     </div>
-                    {myReg.status === 'registered' && (
-                      <AddToCalendarMenu
-                        title={div.name}
-                        startIso={tournamentStartDate ?? new Date().toISOString().slice(0, 10)}
-                        location={tournamentLocationName ?? undefined}
-                        icsUrl={`/api/tournaments/${tournamentId}/ics`}
-                      />
-                    )}
+                    {myReg.status === 'registered' && (() => {
+                      const date = tournamentStartDate ?? new Date().toISOString().slice(0, 10)
+                      const startIso = tournamentStartTime ? `${date}T${tournamentStartTime}:00` : date
+                      const endIso = tournamentEndTime ? `${date}T${tournamentEndTime}:00` : undefined
+                      return (
+                        <AddToCalendarMenu
+                          title={div.name}
+                          startIso={startIso}
+                          endIso={endIso}
+                          location={tournamentLocationName ?? undefined}
+                          icsUrl={`/api/tournaments/${tournamentId}/ics`}
+                          timezone="America/Los_Angeles"
+                        />
+                      )
+                    })()}
                     {(!myReg.payment_status || myReg.payment_status === 'unpaid') && (() => {
                       const effectiveCost = div.cost_cents != null ? div.cost_cents : tournamentCostCents
                       if (effectiveCost <= 0) return null

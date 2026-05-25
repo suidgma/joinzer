@@ -5,14 +5,21 @@ import { Calendar } from 'lucide-react'
 
 type Props = {
   title: string
-  startIso: string    // ISO datetime OR YYYY-MM-DD date-only
-  endIso?: string     // ISO datetime OR YYYY-MM-DD date-only
+  startIso: string    // ISO datetime (UTC/offset), YYYY-MM-DD, or YYYY-MM-DDTHH:MM:SS (local, no Z)
+  endIso?: string
   location?: string
   icsUrl: string
+  timezone?: string   // e.g. 'America/Los_Angeles' — used when startIso is a local datetime
 }
 
+// Returns calendar date string. Local datetimes (no Z/offset) stay unqualified so
+// Google/Yahoo can interpret them in the provided timezone.
 function toCalDate(iso: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso.replace(/-/g, '')
+  // Local datetime (no Z, no +offset) — strip separators but keep no Z
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(iso)) {
+    return iso.replace(/[-:]/g, '').padEnd(15, '0').slice(0, 15)
+  }
   return new Date(iso).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
 }
 
@@ -22,7 +29,14 @@ function nextDay(dateOnlyIso: string): string {
   return d.toISOString().slice(0, 10).replace(/-/g, '')
 }
 
-export default function AddToCalendarMenu({ title, startIso, endIso, location, icsUrl }: Props) {
+function addHours(localIso: string, hours: number): string {
+  const [datePart, timePart = '00:00:00'] = localIso.split('T')
+  const [h, m, s = '00'] = timePart.split(':').map(Number)
+  const newH = h + hours
+  return `${datePart}T${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+export default function AddToCalendarMenu({ title, startIso, endIso, location, icsUrl, timezone }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -35,18 +49,23 @@ export default function AddToCalendarMenu({ title, startIso, endIso, location, i
   }, [])
 
   const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(startIso)
+  const isLocal = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(startIso)
+
   const start = toCalDate(startIso)
   const end = endIso
     ? toCalDate(endIso)
     : isDateOnly
       ? nextDay(startIso)
-      : toCalDate(new Date(new Date(startIso).getTime() + 2 * 3_600_000).toISOString())
+      : isLocal
+        ? toCalDate(addHours(startIso, 2))
+        : toCalDate(new Date(new Date(startIso).getTime() + 2 * 3_600_000).toISOString())
 
   const googleUrl = 'https://calendar.google.com/calendar/render?' + new URLSearchParams({
     action: 'TEMPLATE',
     text: title,
     dates: `${start}/${end}`,
     ...(location ? { location } : {}),
+    ...(timezone ? { ctz: timezone } : {}),
   })
 
   const yahooUrl = 'https://calendar.yahoo.com/?' + new URLSearchParams({
@@ -55,6 +74,7 @@ export default function AddToCalendarMenu({ title, startIso, endIso, location, i
     st: start,
     et: end,
     ...(location ? { in_loc: location } : {}),
+    ...(timezone ? { tz: timezone } : {}),
   })
 
   const options = [
