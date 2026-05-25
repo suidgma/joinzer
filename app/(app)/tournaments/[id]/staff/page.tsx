@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
+import { useParams } from 'next/navigation'
 import { Trash2, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 
@@ -12,41 +12,85 @@ type StaffMember = {
   profiles: { name: string } | null
 }
 
+type Player = {
+  id: string
+  name: string
+  email: string
+}
+
 export default function StaffPage() {
   const params = useParams<{ id: string }>()
-  const router = useRouter()
   const tournamentId = params.id
 
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState('')
   const [role, setRole] = useState<'co_organizer' | 'volunteer'>('co_organizer')
   const [inviting, setInviting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Player picker state
+  const [players, setPlayers] = useState<Player[]>([])
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [query, setQuery] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const comboboxRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     fetch(`/api/tournaments/${tournamentId}/staff`)
       .then(r => r.json())
       .then(j => { setStaff(j.staff ?? []); setLoading(false) })
-      .catch(() => { setLoading(false) })
+      .catch(() => setLoading(false))
   }, [tournamentId])
+
+  useEffect(() => {
+    fetch('/api/players')
+      .then(r => r.json())
+      .then(j => setPlayers(j.players ?? []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filteredPlayers = query.trim()
+    ? players.filter(p =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        p.email.toLowerCase().includes(query.toLowerCase())
+      )
+    : players
+
+  function handleSelectPlayer(p: Player) {
+    setSelectedPlayer(p)
+    setQuery('')
+    setDropdownOpen(false)
+    setError(null)
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
+    if (!selectedPlayer) { setError('Please select a player'); return }
     setInviting(true)
     setError(null)
     setSuccess(null)
     const res = await fetch(`/api/tournaments/${tournamentId}/staff`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email: selectedPlayer.email, role }),
     })
     const json = await res.json()
     if (!res.ok) { setError(json.error ?? 'Failed'); setInviting(false); return }
     setStaff(prev => [...prev, json.staff])
-    setEmail('')
-    setSuccess(`${email} added as ${role === 'co_organizer' ? 'Co-organizer' : 'Volunteer'}.`)
+    setSuccess(`${selectedPlayer.name} added as ${role === 'co_organizer' ? 'Co-organizer' : 'Volunteer'}.`)
+    setSelectedPlayer(null)
+    setQuery('')
     setInviting(false)
   }
 
@@ -61,6 +105,8 @@ export default function StaffPage() {
     volunteer: 'Volunteer',
   }
 
+  const inputDisplay = selectedPlayer && !dropdownOpen ? selectedPlayer.name : query
+
   return (
     <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center gap-3">
@@ -73,17 +119,54 @@ export default function StaffPage() {
         <h2 className="font-heading text-sm font-bold text-brand-dark flex items-center gap-2">
           <UserPlus size={15} /> Add Staff Member
         </h2>
+
+        {/* Player combobox */}
         <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1">Email address</label>
-          <input
-            required
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="player@email.com"
-            className="w-full input"
-          />
+          <label className="block text-xs font-medium text-brand-muted mb-1">Player</label>
+          <div ref={comboboxRef} className="relative">
+            <input
+              type="text"
+              value={inputDisplay}
+              onChange={e => {
+                setQuery(e.target.value)
+                setSelectedPlayer(null)
+                setDropdownOpen(true)
+              }}
+              onFocus={() => {
+                setQuery('')
+                setDropdownOpen(true)
+              }}
+              placeholder="Search by name or email…"
+              autoComplete="off"
+              className="w-full input"
+            />
+            {dropdownOpen && (
+              <ul className="absolute z-10 mt-1 w-full bg-brand-surface border border-brand-border rounded-xl shadow-lg max-h-48 overflow-auto">
+                {filteredPlayers.length === 0 ? (
+                  <li className="px-3 py-2 text-sm text-brand-muted">No players found</li>
+                ) : (
+                  filteredPlayers.slice(0, 30).map(p => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onMouseDown={() => handleSelectPlayer(p)}
+                        className="w-full text-left px-3 py-2 hover:bg-brand-soft transition-colors"
+                      >
+                        <span className="text-sm font-medium text-brand-dark">{p.name}</span>
+                        <span className="text-xs text-brand-muted ml-2">{p.email}</span>
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </div>
+          {selectedPlayer && (
+            <p className="mt-1 text-xs text-brand-muted">{selectedPlayer.email}</p>
+          )}
         </div>
+
+        {/* Role selector */}
         <div>
           <label className="block text-xs font-medium text-brand-muted mb-1">Role</label>
           <div className="flex rounded-xl border border-brand-border overflow-hidden">
@@ -107,11 +190,13 @@ export default function StaffPage() {
             ))}
           </div>
         </div>
+
         {error && <p className="text-xs text-red-600">{error}</p>}
         {success && <p className="text-xs text-green-600">{success}</p>}
+
         <button
           type="submit"
-          disabled={inviting}
+          disabled={inviting || !selectedPlayer}
           className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
         >
           {inviting ? 'Adding…' : 'Add Staff Member'}
