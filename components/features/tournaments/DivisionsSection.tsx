@@ -66,6 +66,7 @@ type Division = {
 
 type Props = {
   tournamentId: string
+  tournamentName?: string
   initialDivisions: Division[]
   isOrganizer: boolean
   currentUserId: string | null
@@ -77,7 +78,7 @@ type Props = {
   tournamentLocationName?: string | null
 }
 
-export default function DivisionsSection({ tournamentId, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -1035,7 +1036,7 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                       const endIso = tournamentEndTime ? `${date}T${tournamentEndTime}` : undefined
                       return (
                         <AddToCalendarMenu
-                          title={div.name}
+                          title={tournamentName ?? div.name}
                           startIso={startIso}
                           endIso={endIso}
                           location={tournamentLocationName ?? undefined}

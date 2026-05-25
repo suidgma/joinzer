@@ -309,6 +309,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
           {/* Divisions + player registration — setup tools always visible to organizer */}
           <DivisionsSection
             tournamentId={tournament.id}
+            tournamentName={tournament.name}
             initialDivisions={divisionsForOrg}
             isOrganizer={true}
             currentUserId={user!.id}
@@ -397,6 +398,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         {divisions.length > 0 && (
           <DivisionsSection
             tournamentId={tournament.id}
+            tournamentName={tournament.name}
             initialDivisions={divisions}
             isOrganizer={false}
             currentUserId={user?.id ?? null}
