@@ -18,7 +18,7 @@ export default async function ProfileEditPage() {
     supabase
       .from('locations')
       .select('id, name')
-      .order('court_count', { ascending: false })
+      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('name', { ascending: true }),
   ])
 
