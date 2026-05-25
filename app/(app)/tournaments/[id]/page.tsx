@@ -309,6 +309,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             currentUserId={user!.id}
             tournamentCostCents={costCents}
             registrationClosesAt={tournament.registration_closes_at ?? null}
+            tournamentStartDate={tournament.start_date ?? null}
+            tournamentLocationName={(tournament.location as any)?.name ?? null}
           />
 
           {/* Discount codes */}

@@ -1022,10 +1022,10 @@ export default function DivisionsSection({ tournamentId, initialDivisions, isOrg
                           : ' · Solo — pending organizer pairing'
                       )}
                     </div>
-                    {myReg.status === 'registered' && tournamentStartDate && (
+                    {myReg.status === 'registered' && (
                       <AddToCalendarMenu
                         title={div.name}
-                        startIso={tournamentStartDate}
+                        startIso={tournamentStartDate ?? new Date().toISOString().slice(0, 10)}
                         location={tournamentLocationName ?? undefined}
                         icsUrl={`/api/tournaments/${tournamentId}/ics`}
                       />
