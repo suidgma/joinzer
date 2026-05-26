@@ -1269,7 +1269,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <span className="font-medium text-brand-dark truncate">
-                                    {reg.user_profile?.name ?? reg.user_id.slice(0, 8)}
+                                    {reg.user_profile?.name ?? (reg.user_id?.slice(0, 8) ?? '—')}
                                   </span>
                                   {reg.user_profile?.is_stub && (
                                     <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">
@@ -1390,7 +1390,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                                           <option value="">Pair with…</option>
                                           {availablePartners.map(p => (
                                             <option key={p.id} value={p.id}>
-                                              {p.user_profile?.name ?? p.user_id.slice(0, 8)}
+                                              {p.user_profile?.name ?? (p.user_id?.slice(0, 8) ?? '—')}
                                             </option>
                                           ))}
                                         </select>
