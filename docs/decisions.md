@@ -25,6 +25,15 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-26 — SECURITY DEFINER hardening: p_user_id should be derived, not trusted
+**Status:** Active (hardening note — not a blocker)
+**Affects:** `self_register_doubles`, `accept_free_partner_invite` RPCs
+**Decision:** Both RPCs accept `p_user_id` as a caller-supplied parameter. The current sole caller (register route) is correct. This is a hardening gap, not a live risk.
+**Reasoning:** SECURITY DEFINER functions bypass RLS; their own body is the security boundary. Accepting a user ID as a parameter means any future caller (another route, a script, a misconfigured RPC) can pass an arbitrary ID. The durable fix is to derive the acting user from `auth.uid()` inside the function instead of accepting it, or add an explicit `WHERE p_user_id = auth.uid()` guard. Today's route-level guarantee (`!isOrganizerAdd` gate) is correct but caller-scoped, not function-scoped.
+**Open questions:** `auth.uid()` is available inside SECURITY DEFINER functions in Supabase (uses the invoker's JWT). Confirm before rewriting — if available, derive; if not, add the explicit equality check inside the function body.
+
+---
+
 ## 2026-05-26 — Tournament paid-doubles payment model: per-player
 **Status:** Active
 **Affects:** Paid doubles registration flow (captain + partner); `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts`; `app/api/stripe/webhook/route.ts`
