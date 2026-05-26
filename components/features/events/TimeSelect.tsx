@@ -49,7 +49,7 @@ export default function TimeSelect({ value, onChange, required }: Props) {
       <select
         value={minute}
         onChange={(e) => update(hour, e.target.value, period)}
-        className={`w-20 ${selectClass}`}
+        className={`flex-1 ${selectClass}`}
       >
         {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
       </select>
@@ -57,7 +57,7 @@ export default function TimeSelect({ value, onChange, required }: Props) {
       <select
         value={period}
         onChange={(e) => update(hour, minute, e.target.value as 'AM' | 'PM')}
-        className={`w-20 ${selectClass}`}
+        className={`flex-1 ${selectClass}`}
       >
         <option value="AM">AM</option>
         <option value="PM">PM</option>
