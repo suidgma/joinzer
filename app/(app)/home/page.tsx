@@ -67,10 +67,14 @@ export default async function HomePage() {
   const now = new Date().toISOString()
 
   // Leagues user is registered in or organizes
-  const [{ data: registrations }, { data: organizedLeagues }, { data: organizedTournaments }] = await Promise.all([
+  const [{ data: registrations }, { data: organizedLeagues }, { data: organizedTournaments }, { data: pendingPartnerRegs }] = await Promise.all([
     db.from('league_registrations').select('league_id').eq('user_id', user.id).eq('status', 'registered'),
     db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').eq('created_by', user.id),
     db.from('tournaments').select('id').eq('organizer_id', user.id).limit(1),
+    db.from('league_registrations')
+      .select('id, league_id, pending_partner_email, leagues!league_id(id, name)')
+      .eq('user_id', user.id)
+      .eq('status', 'pending_partner'),
   ])
 
   const registeredLeagueIds = (registrations ?? []).map((r) => r.league_id as string)
@@ -253,6 +257,27 @@ export default async function HomePage() {
           <span className="text-amber-400 text-sm flex-shrink-0">→</span>
         </Link>
       )}
+      {(pendingPartnerRegs ?? []).map((reg: any) => {
+        const leagueName = reg.leagues?.name ?? 'your league'
+        return (
+          <Link
+            key={reg.id}
+            href={`/leagues/${reg.league_id}`}
+            className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 hover:border-amber-300 transition-colors"
+          >
+            <span className="text-amber-500 text-lg flex-shrink-0">⏳</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-amber-800">Waiting on your partner — {leagueName}</p>
+              <p className="text-xs text-amber-700">
+                {reg.pending_partner_email
+                  ? `Invite sent to ${reg.pending_partner_email}. Your spot is held until they confirm.`
+                  : 'Your partner hasn\'t confirmed yet. Your spot is held.'}
+              </p>
+            </div>
+            <span className="text-amber-400 text-sm flex-shrink-0">→</span>
+          </Link>
+        )
+      })}
 
       {/* ── My Schedule ── */}
       {hasSchedule && (

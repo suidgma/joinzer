@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FormatSettingsFields, {
@@ -1230,10 +1230,28 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       <p className="text-xs text-brand-muted">No registrants yet.</p>
                     ) : (
                       <ul className="space-y-2">
-                        {div.tournament_registrations
-                          .filter(r => r.status !== 'cancelled')
-                          .map(reg => (
-                            <li key={reg.id} className="text-xs border border-brand-border rounded-xl px-3 py-2 space-y-1.5">
+                        {(() => {
+                          const nonCancelled = div.tournament_registrations.filter(r => r.status !== 'cancelled')
+                          const isConfirmed = (r: typeof nonCancelled[0]) => ['paid', 'waived', 'comped'].includes(r.payment_status ?? '')
+                          const confirmed = nonCancelled.filter(isConfirmed)
+                          const awaiting = nonCancelled.filter(r => !isConfirmed(r))
+                          const sorted = [...confirmed, ...awaiting]
+                          return sorted.map((reg, idx) => {
+                            const isUnpaid = !isConfirmed(reg)
+                            return (
+                              <Fragment key={reg.id}>
+                                {isUnpaid && idx === confirmed.length && confirmed.length > 0 && (
+                                  <li className="py-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 border-t border-brand-border/60" />
+                                      <span className="text-[10px] font-semibold text-brand-muted whitespace-nowrap">
+                                        Awaiting payment · {awaiting.length}
+                                      </span>
+                                      <div className="flex-1 border-t border-brand-border/60" />
+                                    </div>
+                                  </li>
+                                )}
+                                <li className={`text-xs border border-brand-border rounded-xl px-3 py-2 space-y-1.5 ${isUnpaid ? 'opacity-60' : ''}`}>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <span className="font-medium text-brand-dark truncate">
@@ -1375,8 +1393,11 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                                   </div>
                                 )
                               })()}
-                            </li>
-                          ))}
+                                </li>
+                              </Fragment>
+                            )
+                          })
+                        })()}
                       </ul>
                     )}
 

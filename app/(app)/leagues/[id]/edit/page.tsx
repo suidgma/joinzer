@@ -93,6 +93,9 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
   const [pointsToWin, setPointsToWin] = useState('11')
   const [winBy, setWinBy] = useState<1 | 2>(1)
   const [subCreditCap, setSubCreditCap] = useState('7')
+  const [noPlayDates, setNoPlayDates] = useState<string[]>([])
+  const [noPlayInput, setNoPlayInput] = useState('')
+  const [existingSessionDates, setExistingSessionDates] = useState<string[]>([])
   const [registrantCount, setRegistrantCount] = useState(0)
   const [existingSessionCount, setExistingSessionCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -103,10 +106,12 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
     const supabase = createClient()
     Promise.all([
       supabase.from('leagues').select('*').eq('id', params.id).single(),
-      supabase.from('league_sessions').select('id', { count: 'exact', head: true }).eq('league_id', params.id),
+      supabase.from('league_sessions').select('id, session_date', { count: 'exact' }).eq('league_id', params.id).order('session_date', { ascending: true }),
       supabase.from('league_registrations').select('id', { count: 'exact', head: true }).eq('league_id', params.id).neq('status', 'cancelled'),
-    ]).then(([{ data }, { count: sessionCount }, { count: regCount }]) => {
+    ]).then(([{ data }, { data: sessionRows, count: sessionCount }, { count: regCount }]) => {
       if (!data) return
+      setNoPlayDates(data.no_play_dates ?? [])
+      setExistingSessionDates((sessionRows ?? []).map((s: any) => s.session_date as string))
       setName(data.name ?? '')
       setFormat(data.format ?? 'mixed_doubles')
       setSkillLevel(data.skill_level ?? 'intermediate')
@@ -176,6 +181,7 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
         points_to_win: pointsToWinNum,
         win_by: winBy,
         sub_credit_cap: parseInt(subCreditCap) || 7,
+        no_play_dates: noPlayDates,
       })
       .eq('id', params.id)
 
@@ -249,6 +255,62 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
             </div>
           </div>
         </Field>
+        <Field label="No-play dates" hint="Skip weeks — sessions on these dates won't be scheduled. Existing sessions are not removed automatically.">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={noPlayInput}
+                onChange={(e) => setNoPlayInput(e.target.value)}
+                className="flex-1 input"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!noPlayInput || noPlayDates.includes(noPlayInput)) return
+                  setNoPlayDates(prev => [...prev, noPlayInput].sort())
+                  setNoPlayInput('')
+                }}
+                className="px-3 py-1.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+              >
+                Add
+              </button>
+            </div>
+            {noPlayDates.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {noPlayDates.map(d => {
+                  const conflictsWithSession = existingSessionDates.includes(d)
+                  return (
+                    <span
+                      key={d}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                        conflictsWithSession
+                          ? 'bg-red-50 border border-red-200 text-red-700'
+                          : 'bg-amber-50 border border-amber-200 text-amber-800'
+                      }`}
+                    >
+                      {conflictsWithSession && '⚠ '}
+                      {formatSessionDate(d)}
+                      <button
+                        type="button"
+                        onClick={() => setNoPlayDates(prev => prev.filter(x => x !== d))}
+                        className="ml-0.5 opacity-60 hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+            {noPlayDates.some(d => existingSessionDates.includes(d)) && (
+              <p className="text-xs text-red-600">
+                ⚠ One or more skip dates overlap with existing sessions. Those sessions won't be removed automatically — delete them from the Session Manager if needed.
+              </p>
+            )}
+          </div>
+        </Field>
+
         <Field label="Registration deadline" hint="Closes automatically at this time (Pacific). Leave blank to manage manually.">
           <input
             type="datetime-local"
