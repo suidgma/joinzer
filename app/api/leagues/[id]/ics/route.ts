@@ -62,7 +62,7 @@ export async function GET(
 
   // Layer 3: fetch league + sessions
   const [{ data: league }, { data: sessions }] = await Promise.all([
-    service.from('leagues').select('name, location_name, schedule_description').eq('id', id).single(),
+    service.from('leagues').select('name, location_name, schedule_description, start_time, estimated_end_time').eq('id', id).single(),
     service.from('league_sessions')
       .select('id, session_date, session_number')
       .eq('league_id', id)
@@ -74,7 +74,17 @@ export async function GET(
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
   const leagueUrl = `${siteUrl}/leagues/${id}`
 
-  const times = parseScheduleDescription((league as any).schedule_description)
+  // Prefer structured time columns; fall back to parsing freeform schedule_description for legacy leagues
+  const rawStart = (league as any).start_time as string | null
+  const rawEnd = (league as any).estimated_end_time as string | null
+  let times: ParsedTime | null = null
+  if (rawStart && rawEnd) {
+    const [sh, sm] = rawStart.split(':').map(Number)
+    const [eh, em] = rawEnd.split(':').map(Number)
+    times = { startHour: sh, startMin: sm, endHour: eh, endMin: em }
+  } else {
+    times = parseScheduleDescription((league as any).schedule_description)
+  }
 
   const ics = generateIcs(sessions.map(s => ({
     uid: s.id,

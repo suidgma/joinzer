@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
 import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
+import TimeSelect from '@/components/features/events/TimeSelect'
 
 const FORMAT_OPTIONS = [
   { value: 'individual_round_robin', label: 'Individual Round Robin' },
@@ -77,7 +78,8 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
   const [format, setFormat] = useState('mixed_doubles')
   const [skillLevel, setSkillLevel] = useState('intermediate')
   const [locationName, setLocationName] = useState('')
-  const [scheduleDescription, setScheduleDescription] = useState('')
+  const [startTime, setStartTime] = useState('08:00')
+  const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
   const [startDate, setStartDate] = useState('')
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [playDays, setPlayDays] = useState('')
@@ -109,7 +111,8 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
       setFormat(data.format ?? 'mixed_doubles')
       setSkillLevel(data.skill_level ?? 'intermediate')
       setLocationName(data.location_name ?? '')
-      setScheduleDescription(data.schedule_description ?? '')
+      setStartTime(data.start_time ?? '08:00')
+      setEstimatedEndTime(data.estimated_end_time ?? '17:00')
       setStartDate(data.start_date ?? '')
       setRegistrationClosesAt(data.registration_closes_at ? isoToPtLocal(data.registration_closes_at) : '')
       setPlayDays(data.play_days?.toString() ?? '')
@@ -157,7 +160,8 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
         name: name.trim(),
         ...prepareLeagueWrite({ format, skill_level: skillLevel }),
         location_name: locationName.trim() || null,
-        schedule_description: scheduleDescription.trim() || null,
+        start_time: startTime || null,
+        estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
         end_date: lastDate || null,
         play_days: playDays ? parseInt(playDays) : null,
@@ -230,11 +234,20 @@ export default function EditLeaguePage(props: { params: Promise<{ id: string }> 
         <Field label="Location">
           <input value={locationName} onChange={(e) => setLocationName(e.target.value)} className="w-full input" />
         </Field>
-        <Field label="Schedule Description">
-          <input value={scheduleDescription} onChange={(e) => setScheduleDescription(e.target.value)} className="w-full input" />
-        </Field>
         <Field label="Start Date">
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
+        </Field>
+        <Field label="Times">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+              <TimeSelect value={startTime} onChange={setStartTime} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
+              <TimeSelect value={estimatedEndTime} onChange={setEstimatedEndTime} />
+            </div>
+          </div>
         </Field>
         <Field label="Registration deadline" hint="Closes automatically at this time (Pacific). Leave blank to manage manually.">
           <input

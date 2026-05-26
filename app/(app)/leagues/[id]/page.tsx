@@ -10,24 +10,14 @@ import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
 import LeagueRosterPanel from './LeagueRosterPanel'
 
-function parseScheduleTime(desc: string | null): { startTime: string; endTime: string } | null {
-  if (!desc) return null
-  const m = desc.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i)
-  if (!m) return null
-  let sh = parseInt(m[1])
-  const sm = parseInt(m[2] ?? '0')
-  const sAp = m[3].toLowerCase()
-  let eh = parseInt(m[4])
-  const em = parseInt(m[5] ?? '0')
-  const eAp = m[6].toLowerCase()
-  if (sAp === 'pm' && sh !== 12) sh += 12
-  if (sAp === 'am' && sh === 12) sh = 0
-  if (eAp === 'pm' && eh !== 12) eh += 12
-  if (eAp === 'am' && eh === 12) eh = 0
-  return {
-    startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}:00`,
-    endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`,
-  }
+// Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
+function fmtTime(t: string | null): string | null {
+  if (!t) return null
+  const h = parseInt(t.slice(0, 2))
+  const m = parseInt(t.slice(3, 5))
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -227,9 +217,14 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const displayEndDate = lastSessionDate ?? league.end_date
 
   const calStartDate = (league as any).start_date ?? null
-  const calTimes = parseScheduleTime((league as any).schedule_description ?? null)
-  const calendarStart = calTimes && calStartDate ? `${calStartDate}T${calTimes.startTime}` : calStartDate ?? undefined
-  const calendarEnd = calTimes && calStartDate ? `${calStartDate}T${calTimes.endTime}` : undefined
+  const rawStartTime = (league as any).start_time as string | null
+  const rawEndTime = (league as any).estimated_end_time as string | null
+  const calendarStart = rawStartTime && calStartDate
+    ? `${calStartDate}T${rawStartTime.slice(0, 5)}:00`
+    : calStartDate ?? undefined
+  const calendarEnd = rawEndTime && calStartDate
+    ? `${calStartDate}T${rawEndTime.slice(0, 5)}:00`
+    : undefined
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
@@ -256,7 +251,16 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           <Row label="Skill Level" value={formatSkillRange((league as any).skill_min, (league as any).skill_max)!} />
         )}
         {league.location_name && <Row label="Location" value={league.location_name} />}
-        {league.schedule_description && <Row label="Schedule" value={league.schedule_description} />}
+        {(rawStartTime || league.schedule_description) && (
+          <Row
+            label="Times"
+            value={
+              rawStartTime
+                ? [fmtTime(rawStartTime), fmtTime(rawEndTime)].filter(Boolean).join(' – ')
+                : league.schedule_description!
+            }
+          />
+        )}
         {fmt(league.start_date) && <Row label="Starts" value={fmt(league.start_date)!} />}
         {fmt(displayEndDate) && <Row label="Ends" value={fmt(displayEndDate)!} />}
         {(league as any).registration_closes_at && (

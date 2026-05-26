@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { LocationOption } from '@/lib/types'
 import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
 import { formatSessionDate } from '@/lib/utils/date'
+import TimeSelect from '@/components/features/events/TimeSelect'
 
 const FORMAT_OPTIONS = [
   { value: 'individual_round_robin', label: 'Individual Round Robin' },
@@ -45,7 +46,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [format, setFormat] = useState('mixed_doubles')
   const [skillLevel, setSkillLevel] = useState('intermediate')
   const [locationId, setLocationId] = useState('')
-  const [scheduleDescription, setScheduleDescription] = useState('')
+  const [startTime, setStartTime] = useState('08:00')
+  const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
   const [startDate, setStartDate] = useState('')
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [deadlineTouched, setDeadlineTouched] = useState(false)
@@ -146,7 +148,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         ...prepareLeagueWrite({ format, skill_level: skillLevel }),
         location_name: selectedLocation?.name ?? null,
         location_id: locationId || null,
-        schedule_description: scheduleDescription.trim() || null,
+        start_time: startTime || null,
+        estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
         end_date: submitDates[submitDates.length - 1] ?? lastDate ?? null,
         play_days: playDays ? parseInt(playDays) : null,
@@ -221,12 +224,21 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         </select>
       </Field>
 
-      <Field label="Schedule Description">
-        <input value={scheduleDescription} onChange={(e) => setScheduleDescription(e.target.value)} placeholder="e.g. Wednesdays 6–9 PM" className="w-full input" />
-      </Field>
-
       <Field label="Start Date">
         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
+      </Field>
+
+      <Field label="Times">
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+            <TimeSelect value={startTime} onChange={setStartTime} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
+            <TimeSelect value={estimatedEndTime} onChange={setEstimatedEndTime} />
+          </div>
+        </div>
       </Field>
 
       <Field label="Registration deadline" hint="Closes automatically at this time (Pacific). Auto-set to 7 days before start. Leave blank to manage manually.">
