@@ -185,6 +185,136 @@ export async function POST(
     }
   }
 
+  // ── Free doubles self-service → transactional RPC (atomic reg + invite) ─────────
+  // Paid doubles captain path is a separate design ticket (see docs/decisions.md).
+  if (!isOrganizerAdd && registration_type === 'team' && isDoublesFormat(division.format) &&
+      ((division as any).cost_cents == null || (division as any).cost_cents === 0)) {
+
+    const { data: rpcResult, error: rpcErr } = await service.rpc('self_register_doubles', {
+      p_tournament_id: params.id,
+      p_division_id:   params.divisionId,
+      p_user_id:       targetUserId,
+      p_partner_email: partner_email!,
+      p_team_name:     team_name ?? null,
+    })
+
+    if (rpcErr) {
+      const msg = rpcErr.message ?? ''
+      const knownCodes = [
+        'division_not_found', 'division_closed', 'not_doubles_format',
+        'already_registered', 'division_full',
+      ]
+      const code = knownCodes.find(c => msg.includes(c)) ?? 'registration_failed'
+      const httpStatus = code === 'division_not_found' ? 404 : code === 'registration_failed' ? 500 : 400
+      return NextResponse.json({ error: code }, { status: httpStatus })
+    }
+
+    const rpc = rpcResult as {
+      reg_id: string; invitation_id: string; invitation_token: string; status: string
+    }
+
+    // Fire-and-forget invite email
+    ;(async () => {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const acceptUrl = `${siteUrl}/tournaments/invite/${rpc.invitation_token}`
+        const [{ data: inviterProf }, { data: tourn }, { data: div }] = await Promise.all([
+          service.from('profiles').select('name').eq('id', targetUserId).single(),
+          service.from('tournaments').select('name').eq('id', params.id).single(),
+          service.from('tournament_divisions').select('name').eq('id', params.divisionId).single(),
+        ])
+        const inviterName = inviterProf?.name ?? 'A player'
+        const tournamentName = tourn?.name ?? 'a tournament'
+        const divisionName = div?.name ?? 'a division'
+        await resend.emails.send({
+          from: 'Joinzer <support@joinzer.com>',
+          to: partner_email!,
+          replyTo: 'martyfit50@gmail.com',
+          subject: `${inviterName} wants you as their partner`,
+          html: `
+            <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
+              <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
+                <h1 style="margin:0;font-size:20px;color:#012D0B">Partner Invitation</h1>
+              </div>
+              <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+                <p style="margin:0 0 20px;font-size:15px">
+                  <strong>${inviterName}</strong> has invited you to be their partner in:
+                </p>
+                <h2 style="margin:0 0 4px;font-size:18px">${tournamentName}</h2>
+                <p style="margin:0 0 24px;font-size:14px;color:#6b7280">${divisionName}</p>
+                <p style="margin:0 0 24px;font-size:14px">
+                  Accept to confirm your spot as their doubles partner. You'll need a Joinzer account if you don't have one.
+                </p>
+                <a href="${acceptUrl}?action=accept" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">Accept Invitation</a>
+                <a href="${acceptUrl}?action=decline" style="background:#f3f4f6;color:#374151;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block;margin-left:8px">Decline</a>
+                <p style="margin-top:24px;font-size:12px;color:#9ca3af">This invitation expires after 7 days. If you don't know ${inviterName}, you can safely ignore this email.</p>
+              </div>
+            </div>
+          `,
+        })
+      } catch {}
+    })()
+
+    // Fire-and-forget captain confirmation email
+    ;(async () => {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
+        const [{ data: tourn }, { data: profile }] = await Promise.all([
+          service.from('tournaments').select('name, start_date, location_id').eq('id', params.id).single(),
+          service.from('profiles').select('name, email').eq('id', targetUserId).single(),
+        ])
+        if (!profile?.email || !tourn) return
+        const locationResult = (tourn as any).location_id
+          ? await service.from('locations').select('name').eq('id', (tourn as any).location_id).single()
+          : { data: null }
+        const locationName = locationResult.data?.name ?? null
+        const isWaitlist = rpc.status === 'waitlisted'
+        const rows: EmailRow[] = [
+          ['Tournament', tourn.name],
+          ...(locationName ? [['Location', locationName] as EmailRow] : []),
+          ...(division.name ? [['Division', division.name] as EmailRow] : []),
+          ...(team_name ? [['Team', team_name] as EmailRow] : []),
+          ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
+          ['Fee', 'Free'],
+        ]
+        const attachments = !isWaitlist && (tourn as any).start_date ? [{
+          filename: icsFilename(tourn.name, 'tournament'),
+          content: Buffer.from(generateIcs([{
+            uid: params.id,
+            title: tourn.name,
+            startDate: (tourn as any).start_date,
+            ...(locationName ? { location: locationName } : {}),
+            url: tournamentUrl,
+          }])),
+        }] : []
+        await resend.emails.send({
+          from: 'Joinzer <support@joinzer.com>',
+          to: profile.email,
+          replyTo: 'martyfit50@gmail.com',
+          subject: isWaitlist ? `Waitlist confirmed: ${tourn.name}` : `Registered: ${tourn.name}`,
+          html: registrationEmail({
+            heading: isWaitlist ? "You're on the waitlist!" : "You're registered!",
+            firstName: profile.name?.split(' ')[0] ?? 'there',
+            rows,
+            ctaLabel: 'View Tournament',
+            ctaUrl: tournamentUrl,
+            footerNote: "You're receiving this because you registered for a tournament on Joinzer.",
+          }),
+          ...(attachments.length > 0 ? { attachments } : {}),
+        })
+      } catch (err) {
+        console.error('Tournament confirmation email error:', err)
+      }
+    })()
+
+    return NextResponse.json({
+      registration: { id: rpc.reg_id, status: rpc.status, registration_type: 'team', payment_status: 'waived' },
+    })
+  }
+
   // ── B7.3: Solo self-service paid registration → Stripe Checkout (no INSERT yet) ──
   // Team registrations stay Pattern A (INSERT-then-pay) to preserve the partner-invite flow.
   // Waitlisted solos INSERT immediately regardless of cost — no point charging for a queued spot.

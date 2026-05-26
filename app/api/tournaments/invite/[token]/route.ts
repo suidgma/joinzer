@@ -197,63 +197,36 @@ export async function POST(req: NextRequest, props: { params: Promise<{ token: s
     // costCents === 0: fall through to inline INSERT with payment_status: 'waived'
   }
 
-  // ── Free registered or waitlisted → inline INSERT ─────────────────────────
-  // Atomic accept: only one concurrent request can win this UPDATE (same guard as paid claim,
-  // but takes status directly to 'accepted' since no Stripe session is involved).
-  const { data: acceptedRows, error: acceptErr } = await service
-    .from('tournament_team_invitations')
-    .update({ status: 'accepted', invitee_user_id: user.id })
-    .eq('id', inv.id)
-    .eq('status', 'pending')
-    .select('id')
+  // ── Free registered or waitlisted → transactional RPC ───────────────────────────
+  // Fixes stuck-state bug: previously invite flipped to 'accepted' before registration
+  // INSERT; if INSERT failed, invite was stuck accepted with no registration and no retry.
+  // RPC makes both atomic: failure on either rolls back both, invitation stays 'pending'.
+  const { data: rpcResult, error: rpcErr } = await service.rpc('accept_free_partner_invite', {
+    p_token:   params.token,
+    p_user_id: user.id,
+  })
 
-  if (acceptErr || !acceptedRows || acceptedRows.length === 0) {
-    return NextResponse.json({ error: `Invitation already ${inv.status}` }, { status: 409 })
+  if (rpcErr) {
+    const msg = rpcErr.message ?? ''
+    if (msg.includes('invitation_not_claimable'))
+      return NextResponse.json({ error: 'Invitation already accepted or expired' }, { status: 409 })
+    if (msg.includes('division_closed'))
+      return NextResponse.json({ error: 'Division is closed' }, { status: 400 })
+    if (msg.includes('already_registered'))
+      return NextResponse.json({ error: 'You are already registered for this division' }, { status: 409 })
+    if (msg.includes('division_full'))
+      return NextResponse.json({ error: 'Division is full' }, { status: 400 })
+    if (msg.includes('inviter_registration_gone'))
+      return NextResponse.json({ error: 'Your partner is no longer registered — contact the organizer' }, { status: 409 })
+    return NextResponse.json({ error: rpcErr.message ?? 'Registration failed' }, { status: 500 })
   }
 
-  const insertPaymentStatus = regStatus === 'registered' ? 'waived' : undefined
-
-  const { data: newReg, error: regErr } = await service
-    .from('tournament_registrations')
-    .insert({
-      tournament_id: inv.tournament_id,
-      division_id: inv.division_id,
-      user_id: user.id,
-      status: regStatus,
-      registration_type: 'team',
-      ...(insertPaymentStatus ? { payment_status: insertPaymentStatus } : {}),
-    })
-    .select('id')
-    .single()
-
-  if (regErr || !newReg) {
-    return NextResponse.json({ error: regErr?.message ?? 'Registration failed' }, { status: 500 })
-  }
-
-  // Fetch inviter's registration to get their user_id for cross-link
-  const { data: inviterReg } = await service
-    .from('tournament_registrations')
-    .select('id, user_id')
-    .eq('id', inv.inviter_registration_id)
-    .single()
-
-  if (inviterReg) {
-    await Promise.all([
-      service.from('tournament_registrations').update({
-        partner_user_id: user.id,
-        partner_registration_id: newReg.id,
-      }).eq('id', inviterReg.id),
-      service.from('tournament_registrations').update({
-        partner_user_id: inviterReg.user_id,
-        partner_registration_id: inviterReg.id,
-      }).eq('id', newReg.id),
-    ])
-  }
+  const rpc = rpcResult as { reg_id: string; tournament_id: string; status: string }
 
   return NextResponse.json({
     ok: true,
     action: 'accepted',
-    tournament_id: inv.tournament_id,
-    registration_id: newReg.id,
+    tournament_id: rpc.tournament_id,
+    registration_id: rpc.reg_id,
   })
 }

@@ -25,6 +25,33 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-26 — Tournament paid-doubles payment model: per-player
+**Status:** Active
+**Affects:** Paid doubles registration flow (captain + partner); `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts`; `app/api/stripe/webhook/route.ts`
+**Decision:** Both players pay their own half. Captain pays at registration via Stripe (same as tournament solo). Partner pays at invite acceptance via Stripe (existing `tournament_partner_accept` webhook already handles this correctly). No captain-pays-full, no hold/capture model.
+**Why:** Matches how leagues already work (both-pay-separately via `league_partner` webhook). Avoids the hold/capture complexity. No refund automation needed: if partner never accepts, they never paid — captain's row stands as a solo-pending-partner registration.
+**Build plan:**
+1. Extend register route: paid doubles team → Stripe session (like solo), carry `partner_email` in metadata
+2. Extend `tournament_solo` webhook handler (or add `tournament_team` event type): on payment success, call `self_register_doubles` RPC to create registration + invite atomically
+3. Partner accept → existing `tournament_partner_accept` webhook — no changes needed
+**NOT building:** hold/capture model, auto-refund on non-acceptance. Existing manual refund tooling (`payment_status='refunded'`, `refunded_at`, `stripe_payment_intent_id`) is sufficient for edge cases.
+**Prerequisite:** `self_register_doubles` RPC must be deployed first (it is the mechanism the webhook calls).
+
+---
+
+## 2026-05-26 — Count-audit: capacity check inconsistency between register route and accept route
+**Status:** Active — file under count-audit / people-vs-teams counting problem
+**Affects:** `app/api/tournaments/invite/[token]/route.ts` (accept); `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts` (register)
+**Problem:** The two capacity checks use different math:
+- Register route (lines 143–172): effective-teams = `teamRegs + floor(soloRegs / 2)` — accounts for solo pairings correctly
+- Accept route (line 98–103): flat count = `COUNT(*) WHERE status='registered' AND payment_status IN (...)` — all registrations treated as one team slot each
+For doubles-only divisions where all registrations are `registration_type='team'`, the flat count and effective-teams count produce the same result. For divisions that allow both solo and team registrations, they diverge.
+**Risk at current scale:** Divisions are currently either doubles (all team) or singles (solo). No mixed division type exists. Divergence is theoretical today but becomes real if a division type allows both.
+**Correct fix:** Both paths should use the same effective-teams math. The accept route should use `COUNT(*) FILTER (WHERE registration_type = 'team') + floor(COUNT(*) FILTER (WHERE registration_type = 'solo') / 2)`.
+**Also note:** `accept_free_partner_invite` RPC (shipped 2026-05-26) intentionally mirrors the accept route's flat-count behavior to stay consistent with the route it replaces. Both need updating together.
+
+---
+
 ## 2026-05-26 — OPEN TICKET: self_register_doubles RPC — must ship before first real-volume tournament
 **Status:** Active — BLOCKING for any tournament expected to run 40+ doubles registrations
 **Affects:** `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts`; tournament doubles registration integrity

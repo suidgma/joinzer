@@ -55,7 +55,7 @@ export async function POST(
   const { data: inviteeProfile } = await service
     .from('profiles')
     .select('id, name')
-    .ilike('email', partner_email.trim())
+    .eq('email', partner_email.trim().toLowerCase())
     .maybeSingle()
 
   // Create invitation record
