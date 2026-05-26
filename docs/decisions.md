@@ -25,6 +25,30 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-05-26 — OPEN TICKET: self_register_doubles RPC — must ship before first real-volume tournament
+**Status:** Active — BLOCKING for any tournament expected to run 40+ doubles registrations
+**Affects:** `app/api/tournaments/[id]/divisions/[divisionId]/register/route.ts`; tournament doubles registration integrity
+**Decision:** The current self-service doubles registration uses a compensating-delete pattern (INSERT registration → INSERT invite → if invite fails, DELETE registration). This is a stopgap. It eliminates the Skip/abandon orphan path (the actual prod bug), but is not a true transaction: if the DELETE itself fails (network blip, timeout), the orphan still leaks. The correct fix is a single Postgres RPC that wraps both inserts atomically so both commit or both roll back together. This RPC must ship before the first real-volume doubles tournament.
+**Why the deadline matters:** The compensating-delete failure window is per-operation and narrow. At 60 registrations in 10 minutes — a realistic load for a live tournament — "low per-op probability" becomes "likely at least once per event." An orphaned registration on tournament day breaks the roster and requires manual intervention during live operations. Unacceptable.
+**RPC name:** `self_register_doubles(p_tournament_id, p_division_id, p_user_id, p_partner_email, p_team_name)`
+
+**Two bugs that MUST be fixed in the RPC — do not replicate the stopgap's approach:**
+
+1. **Email lookup: use exact match, not ILIKE.**
+   The current stopgap and the invite-partner route both use `.ilike('email', partner_email)`. ILIKE treats `%` and `_` as wildcards — a crafted or malformed partner email could match the wrong account silently, or match nothing silently. The RPC must use `WHERE email = lower(p_partner_email)` (exact match after normalisation). Server-side email-format validation (same `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` rule added client-side) must run inside the RPC before the lookup, not only in the calling route. This is the same silent-failure class as the PostgREST FK ambiguity bug — wrong match returns HTTP 200 with bad data, no error surfaced.
+
+2. **Invitee lookup: both branches must be explicit — account found AND account not found.**
+   The sketch in the code review had `v_invitee uuid` captured but left the no-match branch implicit. The RPC must be explicit:
+   - If `SELECT id FROM profiles WHERE email = lower(p_partner_email)` returns a row → set `invitee_user_id = that id` in the invite INSERT.
+   - If it returns no row → set `invitee_user_id = NULL` (email-only invite, partner creates account on accept).
+   Neither branch should be silent. A NULL `invitee_user_id` is valid and expected; a missing branch that quietly drops the value is not.
+
+**What the RPC replaces:** The register route's current block at lines 311–332 (invite insert + compensating delete). The route calls `service.rpc('self_register_doubles', {...})` and gets back `{ registration_id, invitation_token }` in one round-trip. No application-layer delete needed.
+**What it does NOT replace:** `register_doubles_pair` (organizer-side two-player add, already atomic). That path is untouched.
+**Also fix when building the RPC:** `.ilike()` in the existing `invite-partner/route.ts` (line 51) should be changed to exact-match `eq` at the same time so both paths are consistent.
+
+---
+
 ## 2026-05-25 — Convention: PostgREST FK disambiguation required on multi-referenced tables
 **Status:** Active
 **Affects:** All `.select()` calls that embed a related table using PostgREST resource syntax; any migration that adds a foreign key to a table already joined elsewhere in the codebase
