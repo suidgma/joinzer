@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 export async function POST(
   req: NextRequest,
   props: { params: Promise<{ id: string; divisionId: string }> }
@@ -17,6 +21,9 @@ export async function POST(
 
   if (!registration_id || !partner_email) {
     return NextResponse.json({ error: 'registration_id and partner_email are required' }, { status: 400 })
+  }
+  if (!isValidEmail(partner_email.trim())) {
+    return NextResponse.json({ error: 'invalid_partner_email' }, { status: 400 })
   }
 
   const service = createServiceClient(

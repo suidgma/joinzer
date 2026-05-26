@@ -8,6 +8,10 @@ import { generateIcs } from '@/lib/email/ics'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { icsFilename } from '@/lib/utils/slug'
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 export async function POST(
   req: NextRequest,
   props: { params: Promise<{ id: string; divisionId: string }> }
@@ -21,6 +25,7 @@ export async function POST(
   const team_name: string | null = body.team_name ?? null
   const registration_type: 'team' | 'solo' = body.registration_type === 'solo' ? 'solo' : 'team'
   const discount_code: string | null = body.discount_code?.trim() || null
+  const partner_email: string | null = body.partner_email ? body.partner_email.trim().toLowerCase() : null
 
   const service = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -169,6 +174,17 @@ export async function POST(
   const status = isFull && division.waitlist_enabled ? 'waitlisted' : 'registered'
   const isOrganizerAdd = targetUserId !== user.id
 
+  // Self-service doubles team registration requires partner_email up-front so that the
+  // invite record is created atomically with the registration row — prevents orphaned teams.
+  if (!isOrganizerAdd && registration_type === 'team' && isDoublesFormat(division.format)) {
+    if (!partner_email) {
+      return NextResponse.json({ error: 'partner_email_required' }, { status: 400 })
+    }
+    if (!isValidEmail(partner_email)) {
+      return NextResponse.json({ error: 'invalid_partner_email' }, { status: 400 })
+    }
+  }
+
   // ── B7.3: Solo self-service paid registration → Stripe Checkout (no INSERT yet) ──
   // Team registrations stay Pattern A (INSERT-then-pay) to preserve the partner-invite flow.
   // Waitlisted solos INSERT immediately regardless of cost — no point charging for a queued spot.
@@ -288,6 +304,76 @@ export async function POST(
 
   if (insertErr || !registration) {
     return NextResponse.json({ error: insertErr?.message ?? 'Insert failed' }, { status: 500 })
+  }
+
+  // Doubles team: atomically create the partner invite record in the same request.
+  // If this insert fails, roll back the registration so no orphaned team row is left.
+  if (!isOrganizerAdd && registration_type === 'team' && isDoublesFormat(division.format) && partner_email) {
+    const { data: inviteeProfile } = await service
+      .from('profiles')
+      .select('id')
+      .ilike('email', partner_email)
+      .maybeSingle()
+
+    const { data: invitation, error: invErr } = await service
+      .from('tournament_team_invitations')
+      .insert({
+        tournament_id: params.id,
+        division_id: params.divisionId,
+        inviter_registration_id: registration.id,
+        invitee_email: partner_email,
+        invitee_user_id: inviteeProfile?.id ?? null,
+      })
+      .select('id, token')
+      .single()
+
+    if (invErr || !invitation) {
+      await service.from('tournament_registrations').delete().eq('id', registration.id)
+      return NextResponse.json({ error: 'Failed to create partner invitation — please try again' }, { status: 500 })
+    }
+
+    // Fire-and-forget invite email
+    ;(async () => {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const acceptUrl = `${siteUrl}/tournaments/invite/${invitation.token}`
+        const [{ data: inviterProf }, { data: tourn }, { data: div }] = await Promise.all([
+          service.from('profiles').select('name').eq('id', targetUserId).single(),
+          service.from('tournaments').select('name').eq('id', params.id).single(),
+          service.from('tournament_divisions').select('name').eq('id', params.divisionId).single(),
+        ])
+        const inviterName = inviterProf?.name ?? 'A player'
+        const tournamentName = tourn?.name ?? 'a tournament'
+        const divisionName = div?.name ?? 'a division'
+        await resend.emails.send({
+          from: 'Joinzer <support@joinzer.com>',
+          to: partner_email,
+          replyTo: 'martyfit50@gmail.com',
+          subject: `${inviterName} wants you as their partner`,
+          html: `
+            <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
+              <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
+                <h1 style="margin:0;font-size:20px;color:#012D0B">Partner Invitation</h1>
+              </div>
+              <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+                <p style="margin:0 0 20px;font-size:15px">
+                  <strong>${inviterName}</strong> has invited you to be their partner in:
+                </p>
+                <h2 style="margin:0 0 4px;font-size:18px">${tournamentName}</h2>
+                <p style="margin:0 0 24px;font-size:14px;color:#6b7280">${divisionName}</p>
+                <p style="margin:0 0 24px;font-size:14px">
+                  Accept to confirm your spot as their doubles partner. You'll need a Joinzer account if you don't have one.
+                </p>
+                <a href="${acceptUrl}?action=accept" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">Accept Invitation</a>
+                <a href="${acceptUrl}?action=decline" style="background:#f3f4f6;color:#374151;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block;margin-left:8px">Decline</a>
+                <p style="margin-top:24px;font-size:12px;color:#9ca3af">This invitation expires after 7 days. If you don't know ${inviterName}, you can safely ignore this email.</p>
+              </div>
+            </div>
+          `,
+        })
+      } catch {}
+    })()
   }
 
   // Auto-match solo players

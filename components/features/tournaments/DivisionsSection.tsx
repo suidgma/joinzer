@@ -171,14 +171,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // Registration modal state
   const [teamName, setTeamName] = useState('')
   const [regType, setRegType] = useState<'team' | 'solo'>('team')
+  const [partnerEmail, setPartnerEmail] = useState('')
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
-  // Partner invite step (shown after registration succeeds for doubles)
-  const [justRegistered, setJustRegistered] = useState<{ regId: string; divisionId: string; requiresPayment: boolean } | null>(null)
-  const [partnerEmail, setPartnerEmail] = useState('')
-  const [inviteLoading, setInviteLoading] = useState(false)
-  const [inviteError, setInviteError] = useState<string | null>(null)
-  const [inviteSent, setInviteSent] = useState(false)
 
   // Add player state (organizer)
   const [addingPlayerId, setAddingPlayerId] = useState<string | null>(null) // division id
@@ -303,6 +298,19 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // ── Register ─────────────────────────────────────────────────────
   async function handleRegister(div: Division) {
     if (!currentUserId) return
+
+    // Client-side guard: doubles team requires a partner email before committing
+    if (isDoublesFormat(div.format) && regType === 'team') {
+      if (!partnerEmail.trim()) {
+        setRegError("Partner's email is required for doubles registration.")
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(partnerEmail.trim())) {
+        setRegError('Please enter a valid email address for your partner.')
+        return
+      }
+    }
+
     setRegLoading(true)
     setRegError(null)
 
@@ -313,11 +321,19 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
           team_name: regType === 'team' ? (teamName.trim() || null) : null,
           registration_type: regType,
           discount_code: discountInputs[div.id]?.trim() || undefined,
+          ...(isDoublesFormat(div.format) && regType === 'team' ? { partner_email: partnerEmail.trim() } : {}),
         }) }
     )
     const json = await res.json()
 
-    if (!res.ok) { setRegError(json.error ?? 'Registration failed'); setRegLoading(false); return }
+    if (!res.ok) {
+      const msg = json.error === 'partner_email_required' ? "Partner's email is required."
+        : json.error === 'invalid_partner_email' ? 'Please enter a valid partner email address.'
+        : (json.error ?? 'Registration failed')
+      setRegError(msg)
+      setRegLoading(false)
+      return
+    }
 
     // B7.3: paid solo registered → Stripe Checkout (no registration object yet)
     if (json.url) {
@@ -332,59 +348,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         : d
     ))
     router.refresh()
-
-    // Free doubles team: show partner invite step; free/waitlisted solos are auto-matched inline
-    if (isDoublesFormat(div.format) && regType === 'team') {
-      setJustRegistered({ regId: json.registration.id, divisionId: div.id, requiresPayment: false })
-      setPartnerEmail('')
-      setInviteError(null)
-      setInviteSent(false)
-    } else {
-      setRegisteringDiv(null)
-    }
-    setTeamName('')
-    setRegLoading(false)
-  }
-
-  // ── Send partner invite ───────────────────────────────────────────
-  async function handleSendInvite() {
-    if (!justRegistered || !partnerEmail.trim()) return
-    setInviteLoading(true)
-    setInviteError(null)
-
-    // Prevent self-invite — check against current user's profile email
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user?.email && user.email.toLowerCase() === partnerEmail.trim().toLowerCase()) {
-      setInviteError("You can't invite yourself as a partner.")
-      setInviteLoading(false)
-      return
-    }
-    const res = await fetch(
-      `/api/tournaments/${tournamentId}/divisions/${justRegistered.divisionId}/invite-partner`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registration_id: justRegistered.regId, partner_email: partnerEmail.trim() }),
-      }
-    )
-    const json = await res.json()
-    if (!res.ok) { setInviteError(json.error ?? 'Failed to send invite'); setInviteLoading(false); return }
-    setInviteSent(true)
-    setInviteLoading(false)
-  }
-
-  // ── Close partner invite modal (triggers payment if registration requires it) ──
-  async function handleClosePartnerModal() {
-    const reg = justRegistered
-    if (!reg) return                          // guard against double-click
-    setJustRegistered(null)
     setRegisteringDiv(null)
-    if (reg.requiresPayment) {
-      setRegLoading(true)                     // keep buttons disabled during Stripe call
-      await handlePay(reg.regId, reg.divisionId)
-      // handlePay navigates away on success; on alert() failure modal is already closed
-    }
+    setTeamName('')
+    setPartnerEmail('')
+    setRegLoading(false)
   }
 
   // ── Cancel own registration ───────────────────────────────────────
@@ -1553,7 +1520,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       )}
 
       {/* ── Registration modal ── */}
-      {registeringDiv && !justRegistered && (
+      {registeringDiv && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) { setRegisteringDiv(null); setRegError(null) } }}
@@ -1592,18 +1559,35 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                 </div>
 
                 {regType === 'team' ? (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Team Name <span className="text-brand-muted font-normal">(optional)</span></label>
-                    <input
-                      type="text"
-                      value={teamName}
-                      onChange={e => setTeamName(e.target.value)}
-                      placeholder="e.g. Power Smashers"
-                      className="w-full input"
-                    />
-                    <p className="text-xs text-brand-muted mt-1.5">
-                      You&apos;ll invite your partner in the next step.
-                    </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Team Name <span className="text-brand-muted font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={teamName}
+                        onChange={e => setTeamName(e.target.value)}
+                        placeholder="e.g. Power Smashers"
+                        className="w-full input"
+                      />
+                    </div>
+                    {registeringDiv && isDoublesFormat(registeringDiv.format) && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          Partner&apos;s Email <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={partnerEmail}
+                          onChange={e => setPartnerEmail(e.target.value)}
+                          placeholder="partner@email.com"
+                          className="w-full input"
+                          autoComplete="off"
+                        />
+                        <p className="text-xs text-brand-muted mt-1">
+                          Your partner will get an email to confirm their spot.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
@@ -1637,76 +1621,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Partner invite modal (shown after doubles registration) ── */}
-      {justRegistered && registeringDiv && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
-            {inviteSent ? (
-              <>
-                <div className="text-center space-y-2">
-                  <p className="text-3xl">📧</p>
-                  <h2 className="font-heading text-base font-bold text-brand-dark">Invite Sent!</h2>
-                  <p className="text-sm text-brand-muted">
-                    We emailed <span className="font-medium text-brand-dark">{partnerEmail}</span> with a link to accept your partner invitation.
-                  </p>
-                </div>
-                <button
-                  onClick={handleClosePartnerModal}
-                  disabled={regLoading}
-                  className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-                >
-                  Done
-                </button>
-              </>
-            ) : (
-              <>
-                <div>
-                  <p className="text-xs font-semibold text-brand-active uppercase tracking-wide mb-1">Step 2 of 2</p>
-                  <h2 className="font-heading text-base font-bold text-brand-dark">Invite Your Partner</h2>
-                  <p className="text-sm text-brand-muted mt-1">
-                    You&apos;re registered! Now invite your doubles partner.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Partner&apos;s Email</label>
-                  <input
-                    type="email"
-                    value={partnerEmail}
-                    onChange={e => setPartnerEmail(e.target.value)}
-                    placeholder="partner@email.com"
-                    className="w-full input"
-                    autoFocus
-                  />
-                </div>
-
-                {inviteError && <p className="text-sm text-red-600">{inviteError}</p>}
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSendInvite}
-                    disabled={inviteLoading || !partnerEmail.trim()}
-                    className="flex-1 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-                  >
-                    {inviteLoading ? 'Sending…' : 'Send Invite'}
-                  </button>
-                  <button
-                    onClick={handleClosePartnerModal}
-                    disabled={regLoading}
-                    className="px-4 py-2.5 rounded-xl border border-brand-border text-sm text-brand-muted hover:bg-brand-soft disabled:opacity-50 transition-colors"
-                  >
-                    Skip
-                  </button>
-                </div>
-                <p className="text-xs text-brand-muted text-center">
-                  You can also coordinate your partner with the organizer later.
-                </p>
-              </>
-            )}
           </div>
         </div>
       )}
