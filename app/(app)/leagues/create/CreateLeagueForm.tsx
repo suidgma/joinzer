@@ -126,6 +126,14 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     e.preventDefault()
     setLoading(true)
     setError(null)
+    // Commit any date sitting in the input that the organizer forgot to Add.
+    // Derive synchronously — setNoPlayDates won't flush before the INSERT reads noPlayDates.
+    // Commit any date sitting in the input that the organizer forgot to Add.
+    // Derive synchronously — setNoPlayDates won't flush before the INSERT reads noPlayDates.
+    const finalNoPlayDates = noPlayInput && !noPlayDates.includes(noPlayInput)
+      ? [...noPlayDates, noPlayInput].sort()
+      : noPlayDates
+    const submitDates = generateDates(startDate, parseInt(playDays) || 0, new Set(finalNoPlayDates))
 
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -140,7 +148,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         location_id: locationId || null,
         schedule_description: scheduleDescription.trim() || null,
         start_date: startDate || null,
-        end_date: lastDate || null,
+        end_date: submitDates[submitDates.length - 1] ?? lastDate ?? null,
         play_days: playDays ? parseInt(playDays) : null,
         games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
@@ -152,7 +160,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         sub_credit_cap: parseInt(subCreditCap) || 7,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
-        no_play_dates: noPlayDates,
+        no_play_dates: finalNoPlayDates,
         created_by: user.id,
       })
       .select('id')
@@ -164,9 +172,9 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       return
     }
 
-    if (generatedDates.length > 0) {
+    if (submitDates.length > 0) {
       const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
-      const rows = generatedDates.map((d, i) => ({
+      const rows = submitDates.map((d, i) => ({
         league_id: league.id,
         session_date: d,
         session_number: i + 1,
