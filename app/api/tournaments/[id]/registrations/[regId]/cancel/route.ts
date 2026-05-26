@@ -123,7 +123,10 @@ export async function POST(_req: NextRequest, props: Params) {
     .update({ status: 'cancelled' })
     .eq('id', params.regId)
 
-  if (cancelErr) return NextResponse.json({ error: cancelErr.message }, { status: 500 })
+  if (cancelErr) {
+    console.error(`[tournament-cancel] registration cancel failed reg=${params.regId} tournament=${params.id} user=${user.id}`, cancelErr)
+    return NextResponse.json({ error: cancelErr.message || 'Cancel failed' }, { status: 500 })
+  }
 
   // ── Waitlist promotion ────────────────────────────────────────────────────
   // Scoped to the same division. Status = 'waitlisted' (NOT 'waitlist' — tournament constraint).

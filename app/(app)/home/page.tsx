@@ -72,7 +72,7 @@ export default async function HomePage() {
     db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').eq('created_by', user.id),
     db.from('tournaments').select('id').eq('organizer_id', user.id).limit(1),
     db.from('league_registrations')
-      .select('id, league_id, pending_partner_email, leagues!league_id(id, name)')
+      .select('id, league_id, leagues!league_id(id, name)')
       .eq('user_id', user.id)
       .eq('status', 'pending_partner'),
   ])
@@ -269,9 +269,7 @@ export default async function HomePage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-amber-800">Waiting on your partner — {leagueName}</p>
               <p className="text-xs text-amber-700">
-                {reg.pending_partner_email
-                  ? `Invite sent to ${reg.pending_partner_email}. Your spot is held until they confirm.`
-                  : 'Your partner hasn\'t confirmed yet. Your spot is held.'}
+                Your partner hasn&apos;t confirmed yet. Your spot is held.
               </p>
             </div>
             <span className="text-amber-400 text-sm flex-shrink-0">→</span>
