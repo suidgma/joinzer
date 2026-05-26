@@ -48,7 +48,7 @@ export default async function LiveSessionPage(
     db.from('league_session_players').select('user_id, id, player_type').eq('session_id', params.sessionId),
     db.from('league_session_attendance').select('user_id, attendance_status').eq('league_session_id', params.sessionId),
     db.from('league_registrations')
-      .select('user_id, profile:profiles(id, name, joinzer_rating, dupr_rating, estimated_rating)')
+      .select('user_id, profile:profiles!user_id(id, name, joinzer_rating, dupr_rating, estimated_rating)')
       .eq('league_id', params.id)
       .eq('status', 'registered'),
     db.from('league_session_subs')

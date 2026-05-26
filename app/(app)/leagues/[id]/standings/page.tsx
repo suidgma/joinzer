@@ -64,7 +64,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
     supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
-      .select('user_id, profile:profiles(id, name, profile_photo_url)')
+      .select('user_id, profile:profiles!user_id(id, name, profile_photo_url)')
       .eq('league_id', params.id)
       .eq('status', 'registered'),
     supabase

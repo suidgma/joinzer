@@ -39,7 +39,7 @@ export default async function SessionResultsPage(
       .order('round_number', { ascending: true }),
     supabase
       .from('league_registrations')
-      .select('user_id, profile:profiles(id, name)')
+      .select('user_id, profile:profiles!user_id(id, name)')
       .eq('league_id', params.id)
       .eq('status', 'registered'),
     supabase

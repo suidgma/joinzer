@@ -33,7 +33,7 @@ export async function POST(_req: NextRequest, props: Params) {
   // Fetch all registered players with emails
   const { data: registrations } = await db
     .from('league_registrations')
-    .select('user_id, profile:profiles(id, name, email)')
+    .select('user_id, profile:profiles!user_id(id, name, email)')
     .eq('league_id', session.league_id)
     .eq('status', 'registered')
 
