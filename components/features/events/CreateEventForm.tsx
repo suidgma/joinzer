@@ -11,6 +11,16 @@ import { prepareEventWrite } from '@/lib/taxonomy/write-helpers'
 
 const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
 
+function computeEndTime(startTime: string, durationMinutes: number): string {
+  const [h, m] = startTime.split(':').map(Number)
+  const totalMins = h * 60 + m + durationMinutes
+  const endH = Math.floor(totalMins / 60) % 24
+  const endM = totalMins % 60
+  const period = endH >= 12 ? 'PM' : 'AM'
+  const h12 = endH % 12 || 12
+  return `${h12}:${String(endM).padStart(2, '0')} ${period}`
+}
+
 // Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
 function ptLocalToIso(local: string): string {
   const month = parseInt(local.slice(5, 7), 10)
@@ -243,6 +253,13 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           <option value={420}>7 hours</option>
           <option value={480}>8 hours</option>
         </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">End time</label>
+        <div className="input bg-brand-soft text-brand-muted select-none">
+          {computeEndTime(time, durationMinutes)}
+        </div>
       </div>
 
       <div>
