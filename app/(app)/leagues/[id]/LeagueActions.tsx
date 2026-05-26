@@ -34,6 +34,8 @@ type Props = {
   waitlistTotal: number
   pendingInvite?: { token: string; expiresAt: string } | null
   calendarStart?: string
+  calendarEnd?: string
+  calendarTimezone?: string
   calendarLocation?: string
 }
 
@@ -41,7 +43,7 @@ export default function LeagueActions({
   leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format,
   partnerUserName, pendingPartnerEmail, pendingPartnerExpiresAt, pendingInvite = null,
   sessions, mySubSessionIds, waitlistPosition, waitlistTotal,
-  calendarStart, calendarLocation,
+  calendarStart, calendarEnd, calendarTimezone, calendarLocation,
 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -197,6 +199,8 @@ export default function LeagueActions({
                 <AddToCalendarMenu
                   title={leagueName}
                   startIso={calendarStart}
+                  endIso={calendarEnd}
+                  timezone={calendarTimezone}
                   location={calendarLocation}
                   icsUrl={`/api/leagues/${leagueId}/ics`}
                 />

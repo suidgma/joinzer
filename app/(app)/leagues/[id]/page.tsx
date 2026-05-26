@@ -10,6 +10,26 @@ import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
 import LeagueRosterPanel from './LeagueRosterPanel'
 
+function parseScheduleTime(desc: string | null): { startTime: string; endTime: string } | null {
+  if (!desc) return null
+  const m = desc.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i)
+  if (!m) return null
+  let sh = parseInt(m[1])
+  const sm = parseInt(m[2] ?? '0')
+  const sAp = m[3].toLowerCase()
+  let eh = parseInt(m[4])
+  const em = parseInt(m[5] ?? '0')
+  const eAp = m[6].toLowerCase()
+  if (sAp === 'pm' && sh !== 12) sh += 12
+  if (sAp === 'am' && sh === 12) sh = 0
+  if (eAp === 'pm' && eh !== 12) eh += 12
+  if (eAp === 'am' && eh === 12) eh = 0
+  return {
+    startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}:00`,
+    endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`,
+  }
+}
+
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
   mens_doubles: "Men's Doubles",
@@ -206,6 +226,11 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const lastSessionDate = sessions && sessions.length > 0 ? sessions[sessions.length - 1].session_date : null
   const displayEndDate = lastSessionDate ?? league.end_date
 
+  const calStartDate = (league as any).start_date ?? null
+  const calTimes = parseScheduleTime((league as any).schedule_description ?? null)
+  const calendarStart = calTimes && calStartDate ? `${calStartDate}T${calTimes.startTime}` : calStartDate ?? undefined
+  const calendarEnd = calTimes && calStartDate ? `${calStartDate}T${calTimes.endTime}` : undefined
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center gap-2">
@@ -311,7 +336,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             mySubSessionIds={Array.from(mySubSessionIds)}
             waitlistPosition={waitlistPosition}
             waitlistTotal={waitlistTotal}
-            calendarStart={(league as any).start_date ?? undefined}
+            calendarStart={calendarStart}
+            calendarEnd={calendarEnd}
+            calendarTimezone="America/Los_Angeles"
             calendarLocation={(league as any).location_name ?? undefined}
           />
         </>
