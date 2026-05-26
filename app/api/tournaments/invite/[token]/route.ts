@@ -108,7 +108,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ token: s
       .eq('id', inv.division_id)
       .single(),
     service.from('tournaments')
-      .select('id, name, start_date, location_id, organizer_id')
+      .select('id, name, start_date, location_id, organizer_id, cost_cents')
       .eq('id', inv.tournament_id)
       .single(),
   ])
@@ -126,15 +126,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ token: s
   }
 
   const regStatus = isFull ? 'waitlisted' : 'registered'
-  const costCents: number | null = (division as any).cost_cents ?? null
+  // division.cost_cents is nullable; tournament.cost_cents is NOT NULL — tournament is the safe fallback.
+  const costCents: number = (division as any).cost_cents ?? (tournament as any).cost_cents ?? 0
 
   // ── Paid registered path → Stripe Checkout ────────────────────────────────
   // Waitlisted always inserts inline — no charge for a queued spot.
   if (regStatus === 'registered') {
-    if (costCents === null) {
-      return NextResponse.json({ error: 'Division registration fee is not configured' }, { status: 400 })
-    }
-
     if (costCents > 0) {
       // Atomic claim: sets invitee_user_id so only one Stripe session is created per invite.
       // Same user can re-claim their own (abandoned-payment re-entry).

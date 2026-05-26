@@ -120,11 +120,11 @@ export async function POST(
 
   // Hard deadline for player self-registration; organizer manual adds bypass this.
   // Also capture fields needed for Stripe Connect check on paid solo path.
-  let tournamentForPay: { name: string; organizer_id: string; start_date: string | null; location_id: string | null } | null = null
+  let tournamentForPay: { name: string; organizer_id: string; start_date: string | null; location_id: string | null; cost_cents: number } | null = null
   if (targetUserId === user.id) {
     const { data: tEntry } = await service
       .from('tournaments')
-      .select('name, organizer_id, start_date, location_id, registration_closes_at')
+      .select('name, organizer_id, start_date, location_id, registration_closes_at, cost_cents')
       .eq('id', params.id)
       .single()
     if (tEntry?.registration_closes_at && new Date() > new Date(tEntry.registration_closes_at)) {
@@ -136,9 +136,13 @@ export async function POST(
         organizer_id: tEntry.organizer_id,
         start_date: (tEntry as any).start_date ?? null,
         location_id: (tEntry as any).location_id ?? null,
+        cost_cents: tEntry.cost_cents ?? 0,
       }
     }
   }
+
+  // division.cost_cents is nullable; tournaments.cost_cents is NOT NULL — tournament is the safe fallback.
+  const effectiveCostCents: number = (division as any).cost_cents ?? tournamentForPay?.cost_cents ?? 0
 
   // Count team slots used:
   //   team registrations = 1 slot each
@@ -188,7 +192,7 @@ export async function POST(
   // ── Free doubles self-service → transactional RPC (atomic reg + invite) ─────────
   // Paid doubles captain path is a separate design ticket (see docs/decisions.md).
   if (!isOrganizerAdd && registration_type === 'team' && isDoublesFormat(division.format) &&
-      ((division as any).cost_cents == null || (division as any).cost_cents === 0)) {
+      effectiveCostCents === 0) {
 
     const { data: rpcResult, error: rpcErr } = await service.rpc('self_register_doubles', {
       p_tournament_id: params.id,
@@ -319,11 +323,7 @@ export async function POST(
   // Team registrations stay Pattern A (INSERT-then-pay) to preserve the partner-invite flow.
   // Waitlisted solos INSERT immediately regardless of cost — no point charging for a queued spot.
   if (!isOrganizerAdd && registration_type === 'solo' && status === 'registered') {
-    const costCents: number | null = (division as any).cost_cents ?? null
-
-    if (costCents === null) {
-      return NextResponse.json({ error: 'Division registration fee is not configured' }, { status: 400 })
-    }
+    const costCents = effectiveCostCents
 
     if (costCents > 0) {
       if (!tournamentForPay) {
@@ -413,7 +413,7 @@ export async function POST(
   // Free division (cost_cents null or 0) → always waived, regardless of registration_type.
   // Paid division, solo self-service that reached this point → also waived (discount brought cost to $0).
   // Paid division, team or organizer-add → leave unset so the DB default 'unpaid' applies.
-  const isFree = (division as any).cost_cents == null || (division as any).cost_cents === 0
+  const isFree = effectiveCostCents === 0
   const insertPaymentStatus: 'waived' | undefined = (
     isFree || (!isOrganizerAdd && registration_type === 'solo' && status === 'registered')
   ) ? 'waived' : undefined

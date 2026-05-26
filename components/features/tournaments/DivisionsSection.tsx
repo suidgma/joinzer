@@ -165,6 +165,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // Inline format edit state (per division)
   const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
   const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
+  const [editCostDollars, setEditCostDollars] = useState('')
   const [editFormatLoading, setEditFormatLoading] = useState(false)
   const [editFormatError, setEditFormatError] = useState<string | null>(null)
 
@@ -266,6 +267,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   function openFormatEdit(div: Division) {
     setEditBracketType(div.bracket_type)
     setEditFormatSettings(div.format_settings_json ?? FORMAT_DEFAULTS[div.bracket_type])
+    setEditCostDollars(div.cost_cents != null ? String(div.cost_cents / 100) : '')
     setEditFormatError(null)
     setEditingFormatId(div.id)
   }
@@ -278,17 +280,19 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditFormatLoading(true)
     setEditFormatError(null)
 
+    const newCostCents = editCostDollars !== '' ? Math.round(parseFloat(editCostDollars) * 100) : null
+
     const supabase = createClient()
     const { error } = await supabase
       .from('tournament_divisions')
-      .update({ bracket_type: editBracketType, format_settings_json: editFormatSettings })
+      .update({ bracket_type: editBracketType, format_settings_json: editFormatSettings, cost_cents: newCostCents })
       .eq('id', divisionId)
 
     if (error) { setEditFormatError(error.message); setEditFormatLoading(false); return }
 
     setDivisions(prev => prev.map(d =>
       d.id === divisionId
-        ? { ...d, bracket_type: editBracketType, format_settings_json: editFormatSettings }
+        ? { ...d, bracket_type: editBracketType, format_settings_json: editFormatSettings, cost_cents: newCostCents }
         : d
     ))
     setEditingFormatId(null)
@@ -944,6 +948,21 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(FORMAT_DEFAULTS[t]) }}
                       onSettingsChange={setEditFormatSettings}
                     />
+                    <div>
+                      <label className="block text-xs font-medium text-brand-muted mb-1">Entry Fee <span className="font-normal">(leave blank to use tournament fee)</span></label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="5"
+                          value={editCostDollars}
+                          onChange={e => setEditCostDollars(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full input pl-7"
+                        />
+                      </div>
+                    </div>
                     {editFormatError && <p className="text-xs text-red-600">{editFormatError}</p>}
                     <div className="flex gap-2 pt-1">
                       <button
