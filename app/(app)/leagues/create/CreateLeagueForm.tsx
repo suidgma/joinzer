@@ -60,6 +60,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [subCreditCap, setSubCreditCap] = useState('7')
   const [costDollars, setCostDollars] = useState('')
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('win_loss')
+  const [noPlayDates, setNoPlayDates] = useState<string[]>([])
+  const [noPlayInput, setNoPlayInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,20 +87,36 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     if (parseInt(subCreditCap) > max) setSubCreditCap(String(max))
   }
 
-  // Auto-generate weekly session dates from startDate + playDays
-  function generateDates(start: string, count: number): string[] {
+  // Cursor-based weekly date generator. Advances one week at a time; dates in
+  // skipDates are bypassed without consuming a session slot, so the season end
+  // extends by the number of skipped weeks. Cap prevents infinite loop if the
+  // skip list somehow covers every candidate week.
+  function generateDates(start: string, count: number, skipDates: Set<string> = new Set()): string[] {
     if (!start || !count || count < 1) return []
     const dates: string[] = []
-    const base = new Date(start + 'T00:00:00')
-    for (let i = 0; i < count; i++) {
-      const d = new Date(base)
-      d.setDate(base.getDate() + i * 7)
-      dates.push(d.toISOString().slice(0, 10))
+    const cursor = new Date(start + 'T00:00:00')
+    const maxWeeks = count * 3
+    let weeksAdvanced = 0
+    while (dates.length < count && weeksAdvanced < maxWeeks) {
+      const dateStr = cursor.toISOString().slice(0, 10)
+      if (!skipDates.has(dateStr)) dates.push(dateStr)
+      cursor.setDate(cursor.getDate() + 7)
+      weeksAdvanced++
     }
     return dates
   }
 
-  const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
+  function addNoPlayDate() {
+    if (!noPlayInput || noPlayDates.includes(noPlayInput)) return
+    setNoPlayDates(prev => [...prev, noPlayInput].sort())
+    setNoPlayInput('')
+  }
+
+  function removeNoPlayDate(date: string) {
+    setNoPlayDates(prev => prev.filter(d => d !== date))
+  }
+
+  const generatedDates = generateDates(startDate, parseInt(playDays) || 0, new Set(noPlayDates))
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
 
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -134,6 +152,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         sub_credit_cap: parseInt(subCreditCap) || 7,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
+        no_play_dates: noPlayDates,
         created_by: user.id,
       })
       .select('id')
@@ -260,6 +279,37 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
           ))}
         </select>
+      </Field>
+
+      <Field label="No-play dates" hint="Sessions that fall on these dates shift forward one week. Season end extends by the number of skips.">
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={noPlayInput}
+              onChange={(e) => setNoPlayInput(e.target.value)}
+              className="flex-1 input"
+            />
+            <button
+              type="button"
+              onClick={addNoPlayDate}
+              disabled={!noPlayInput || noPlayDates.includes(noPlayInput)}
+              className="px-3 py-2 rounded-xl bg-brand text-brand-dark text-sm font-medium hover:bg-brand-hover disabled:opacity-40 transition-colors"
+            >
+              Add
+            </button>
+          </div>
+          {noPlayDates.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {noPlayDates.map(d => (
+                <span key={d} className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800">
+                  {formatSessionDate(d)}
+                  <button type="button" onClick={() => removeNoPlayDate(d)} className="text-amber-600 hover:text-amber-900 leading-none ml-0.5">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </Field>
 
       {/* Auto-generated schedule preview */}

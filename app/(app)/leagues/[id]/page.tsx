@@ -237,6 +237,12 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         {(league as any).registration_closes_at && (
           <Row label="Reg. closes" value={formatTimestamp((league as any).registration_closes_at) + ' PT'} />
         )}
+        {(league as any).no_play_dates?.length > 0 && (
+          <Row
+            label="No-play dates"
+            value={(league as any).no_play_dates.map((d: string) => formatSessionDate(d)).join(', ')}
+          />
+        )}
         {league.play_days != null && <Row label="Play Days" value={`${league.play_days}`} />}
         {league.games_per_session != null && <Row label="Games/Play" value={`${league.games_per_session}`} />}
         {league.max_players != null && (
