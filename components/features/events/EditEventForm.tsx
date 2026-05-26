@@ -26,6 +26,16 @@ type Props = {
   }
 }
 
+function computeEndTime(startTime: string, durationMinutes: number): string {
+  const [h, m] = startTime.split(':').map(Number)
+  const totalMins = h * 60 + m + durationMinutes
+  const endH = Math.floor(totalMins / 60) % 24
+  const endM = totalMins % 60
+  const period = endH >= 12 ? 'PM' : 'AM'
+  const h12 = endH % 12 || 12
+  return `${h12}:${String(endM).padStart(2, '0')} ${period}`
+}
+
 // Convert ISO timestamptz to YYYY-MM-DDTHH:mm in PT for datetime-local inputs
 function isoToPtLocal(iso: string): string {
   const d = new Date(iso)
@@ -179,6 +189,13 @@ export default function EditEventForm({ event }: Props) {
           <option value={420}>7 hours</option>
           <option value={480}>8 hours</option>
         </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">End time</label>
+        <div className="input bg-brand-soft text-brand-muted select-none">
+          {computeEndTime(time, duration)}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
