@@ -162,6 +162,11 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fLoading, setFLoading] = useState(false)
   const [fError, setFError] = useState<string | null>(null)
 
+  // Delete division state
+  const [deleteDivPending, setDeleteDivPending] = useState<{ divId: string; divName: string } | null>(null)
+  const [deleteDivLoading, setDeleteDivLoading] = useState(false)
+  const [deleteDivError, setDeleteDivError] = useState<string | null>(null)
+
   // Inline format edit state (per division)
   const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
   const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
@@ -427,6 +432,21 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .eq('id', regId)
     if (error) { alert(error.message); return }
     updateReg(divisionId, regId, 'registered')
+  }
+
+  // ── Organizer: delete division ────────────────────────────────────
+  async function handleDeleteDivision(divisionId: string) {
+    setDeleteDivLoading(true)
+    setDeleteDivError(null)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('tournament_divisions')
+      .delete()
+      .eq('id', divisionId)
+    if (error) { setDeleteDivError(error.message); setDeleteDivLoading(false); return }
+    setDivisions(prev => prev.filter(d => d.id !== divisionId))
+    setDeleteDivPending(null)
+    setDeleteDivLoading(false)
   }
 
   // ── Organizer: close division ─────────────────────────────────────
@@ -1171,6 +1191,14 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                             Close
                           </button>
                         )}
+                        <button
+                          onClick={() => { setDeleteDivError(null); setDeleteDivPending({ divId: div.id, divName: div.name }) }}
+                          disabled={hasRegistrants}
+                          title={hasRegistrants ? 'Cancel or remove all registrants before deleting' : undefined}
+                          className="text-xs text-red-700 hover:underline font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
 
@@ -1680,6 +1708,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         error={cancelError}
         onConfirm={() => cancelPending && handleCancel(cancelPending.divId, cancelPending.regId)}
         onClose={() => { setCancelPending(null); setCancelError(null) }}
+      />
+
+      {/* Delete division confirmation */}
+      <ConfirmModal
+        open={deleteDivPending !== null}
+        title="Delete division?"
+        body={deleteDivPending ? `Permanently delete "${deleteDivPending.divName}"? This cannot be undone.` : ''}
+        confirmLabel="Delete division"
+        loading={deleteDivLoading}
+        error={deleteDivError}
+        onConfirm={() => deleteDivPending && handleDeleteDivision(deleteDivPending.divId)}
+        onClose={() => { setDeleteDivPending(null); setDeleteDivError(null) }}
       />
     </div>
   )
