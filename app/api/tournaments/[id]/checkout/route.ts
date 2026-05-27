@@ -133,6 +133,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     if (useConnect && organizer?.stripe_account_id) {
       checkoutPayload.payment_intent_data = {
         application_fee_amount: applicationFeeAmount,
+        // on_behalf_of makes the connected account the merchant of record:
+        //   • their statement descriptor shows on the customer's card
+        //   • their EIN is on the 1099-K (not Joinzer's)
+        //   • their dashboard owns the charge
+        // Must match transfer_data.destination.
+        on_behalf_of: organizer.stripe_account_id,
         transfer_data: { destination: organizer.stripe_account_id },
       }
     }
