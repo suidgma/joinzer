@@ -7,11 +7,12 @@ import LockedRoundsScoring, { type LockedMatch } from './LockedRoundsScoring'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SessionResultsPage({
-  params,
-}: {
-  params: { id: string; sessionId: string }
-}) {
+export default async function SessionResultsPage(
+  props: {
+    params: Promise<{ id: string; sessionId: string }>
+  }
+) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

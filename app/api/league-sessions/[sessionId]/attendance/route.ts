@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
-type Params = { params: { sessionId: string } }
+type Params = { params: Promise<{ sessionId: string }> }
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -19,7 +19,8 @@ const ACTUAL_STATUS_MAP: Record<string, string> = {
 }
 
 // GET — all attendance records for this session
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(_req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -36,7 +37,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 // POST — upsert own attendance (player self check-in)
 // Body: { attendance_status, notes? }
 // Organizer override: body also includes { user_id } — validated against league.created_by
-export async function POST(req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

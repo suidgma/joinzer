@@ -3,7 +3,8 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import EditEventForm from '@/components/features/events/EditEventForm'
 
-export default async function EditEventPage({ params }: { params: { id: string } }) {
+export default async function EditEventPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

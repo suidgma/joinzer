@@ -8,8 +8,9 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 // to the competition_matches enum (CLAUDE.md Section 6).
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; matchId: string } }
+  props: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

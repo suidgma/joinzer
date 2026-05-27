@@ -10,11 +10,12 @@ import FinalCTA from '@/components/landing/FinalCTA'
 import LandingFooter from '@/components/landing/LandingFooter'
 import CompeteSection from '@/components/landing/CompeteSection'
 
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: { code?: string; error?: string }
-}) {
+export default async function HomePage(
+  props: {
+    searchParams: Promise<{ code?: string; error?: string }>
+  }
+) {
+  const searchParams = await props.searchParams;
   // Supabase password reset emails land here with ?code= — forward to reset page
   if (searchParams.code) {
     redirect(`/reset-password?code=${searchParams.code}`)

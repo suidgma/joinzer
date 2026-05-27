@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 
-type Params = { params: { sessionId: string } }
+type Params = { params: Promise<{ sessionId: string }> }
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(_req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

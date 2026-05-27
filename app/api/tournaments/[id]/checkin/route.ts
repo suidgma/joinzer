@@ -5,7 +5,8 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 // POST /api/tournaments/[id]/checkin
 // Body: { division_id: string }
 // Marks the calling player as checked in for their registration in that division.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

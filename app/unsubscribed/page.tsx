@@ -1,6 +1,7 @@
-type Props = { searchParams: { error?: string } }
+type Props = { searchParams: Promise<{ error?: string }> }
 
-export default function UnsubscribedPage({ searchParams }: Props) {
+export default async function UnsubscribedPage(props: Props) {
+  const searchParams = await props.searchParams;
   const isError = searchParams.error === '1'
 
   return (

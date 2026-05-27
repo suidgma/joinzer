@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import TournamentRosterManager from './TournamentRosterManager'
 
-export default async function TournamentRosterPage({ params }: { params: { id: string } }) {
+export default async function TournamentRosterPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

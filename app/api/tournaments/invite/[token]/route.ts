@@ -3,10 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 // GET — return invitation details (for the acceptance page to display)
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { token: string } }
-) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const service = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -49,10 +47,8 @@ export async function GET(
 }
 
 // POST — accept or decline
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { token: string } }
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

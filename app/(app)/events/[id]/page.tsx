@@ -18,7 +18,8 @@ type ChatMessage = {
   profile: { name: string } | null
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data } = await supabase
     .from('events')
@@ -49,11 +50,12 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
   }
 }
 
-export default async function EventDetailPage({
-  params,
-}: {
-  params: { id: string }
-}) {
+export default async function EventDetailPage(
+  props: {
+    params: Promise<{ id: string }>
+  }
+) {
+  const params = await props.params;
   const supabase = createClient()
 
   const [{ data }, { data: authData }, { data: messagesData }, { data: existingRatings }] =

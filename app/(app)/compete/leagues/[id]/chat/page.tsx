@@ -3,7 +3,8 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import GroupChat from '@/components/features/GroupChat'
 
-export default async function LeagueChatPage({ params }: { params: { id: string } }) {
+export default async function LeagueChatPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

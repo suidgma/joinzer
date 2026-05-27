@@ -3,13 +3,14 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { generateNextRound, type CompletedRound, type CompletedMatch, type SessionPlayer } from '@/lib/scheduling/leagueScheduler'
 
-type Params = { params: { sessionId: string } }
+type Params = { params: Promise<{ sessionId: string }> }
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { session: authSession } } = await supabase.auth.getSession()
   const user = authSession?.user ?? null

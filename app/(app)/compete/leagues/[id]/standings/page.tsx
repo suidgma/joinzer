@@ -55,7 +55,8 @@ function StreakBadge({ streak }: { streak: { type: 'W' | 'L'; count: number } | 
   )
 }
 
-export default async function LeagueStandingsPage({ params }: { params: { id: string } }) {
+export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

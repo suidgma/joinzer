@@ -25,11 +25,12 @@ type SearchParams = {
   q?: string
 }
 
-export default async function EventsPage({
-  searchParams,
-}: {
-  searchParams: SearchParams
-}) {
+export default async function EventsPage(
+  props: {
+    searchParams: Promise<SearchParams>
+  }
+) {
+  const searchParams = await props.searchParams;
   const supabase = createClient()
 
   const view = searchParams.view ?? 'list'

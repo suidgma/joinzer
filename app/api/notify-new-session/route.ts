@@ -6,7 +6,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
 
   // Verify the caller is an authenticated user
   const authClient = createServerClient(

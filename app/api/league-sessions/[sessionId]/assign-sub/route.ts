@@ -10,7 +10,8 @@ function admin() {
 // Body: { subUserId: string, absentPlayerId: string }
 //   subUserId      — profiles.id of the player who will sub
 //   absentPlayerId — league_session_players.id of the absent roster player
-export async function POST(req: NextRequest, { params }: { params: { sessionId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

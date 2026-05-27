@@ -27,7 +27,8 @@ const SKILL_LABELS: Record<string, string> = {
   advanced: 'Advanced',
 }
 
-export default async function LeagueDetailPage({ params }: { params: { id: string } }) {
+export default async function LeagueDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

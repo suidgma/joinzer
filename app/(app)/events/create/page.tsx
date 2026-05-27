@@ -17,11 +17,12 @@ export type EventDefaults = {
   priceCents: number
 }
 
-export default async function CreateEventPage({
-  searchParams,
-}: {
-  searchParams: { from?: string }
-}) {
+export default async function CreateEventPage(
+  props: {
+    searchParams: Promise<{ from?: string }>
+  }
+) {
+  const searchParams = await props.searchParams;
   const supabase = createClient()
 
   const [{ data: locationsData }, sourceResult] = await Promise.all([
