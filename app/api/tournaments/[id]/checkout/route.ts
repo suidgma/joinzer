@@ -217,6 +217,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       ...(connectAccountId ? {
         payment_intent_data: {
           application_fee_amount: applicationFeeAmount,
+          // on_behalf_of makes the connected account the merchant of record:
+          //   • their statement descriptor shows on the customer's card statement
+          //   • their EIN is on the 1099-K (not Joinzer's)
+          //   • their dashboard owns the charge
+          // Must match transfer_data.destination.
+          on_behalf_of: connectAccountId,
           transfer_data: { destination: connectAccountId },
         },
       } : {}),

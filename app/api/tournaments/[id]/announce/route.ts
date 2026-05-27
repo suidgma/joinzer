@@ -70,13 +70,15 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
 
   const userIds = Array.from(new Set(filteredRegs.map(r => r.user_id).filter(Boolean)))
 
-  const emailMap: Record<string, string> = {}
-  for (const uid of userIds) {
-    const { data } = await db.auth.admin.getUserById(uid)
-    if (data?.user?.email) emailMap[uid] = data.user.email
-  }
-
-  const emails = Object.values(emailMap).filter(Boolean)
+  // Fetch emails in parallel. The previous sequential loop did one admin
+  // round-trip per user (~200ms each), which at an 80-player tournament
+  // pushed the request past 15 seconds and risked hitting Supabase's
+  // admin-API rate limits. Promise.all collapses that to a single
+  // wall-clock round-trip.
+  const results = await Promise.all(
+    userIds.map(uid => db.auth.admin.getUserById(uid).then(r => r.data?.user?.email ?? null))
+  )
+  const emails = results.filter((e): e is string => !!e)
   if (emails.length === 0) {
     return NextResponse.json({ error: 'Could not resolve any player emails' }, { status: 500 })
   }
