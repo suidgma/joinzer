@@ -39,10 +39,33 @@ export async function POST(_req: NextRequest, props: Params) {
   if (reg.payment_status !== 'paid') return NextResponse.json({ error: 'Registration is not in paid status' }, { status: 400 })
   if (!reg.stripe_payment_intent_id) return NextResponse.json({ error: 'No Stripe payment on record — refund manually in Stripe dashboard' }, { status: 400 })
 
-  // Issue refund via Stripe
+  // Issue refund via Stripe.
+  //
+  // For destination charges (Connect-routed payments), we MUST also reverse
+  // the transfer and refund the application fee — otherwise the connected
+  // account keeps the organizer's share and Joinzer eats the customer
+  // refund from its own balance.
+  //
+  // We branch by inspecting the original PaymentIntent: if transfer_data
+  // is set, it was a destination charge.
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+  const reverseFlags: { reverse_transfer?: boolean; refund_application_fee?: boolean } = {}
   try {
-    await stripe.refunds.create({ payment_intent: reg.stripe_payment_intent_id })
+    const pi = await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id)
+    if (pi.transfer_data?.destination) {
+      reverseFlags.reverse_transfer = true
+      reverseFlags.refund_application_fee = true
+    }
+  } catch {
+    // If retrieval fails, fall through to a plain refund. Better that Joinzer
+    // occasionally eats a refund than that a player can't get their money back.
+  }
+
+  try {
+    await stripe.refunds.create({
+      payment_intent: reg.stripe_payment_intent_id,
+      ...reverseFlags,
+    })
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? 'Stripe refund failed' }, { status: 500 })
   }
