@@ -3,10 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
+import { promoteFromWaitlist } from '@/lib/tournament/waitlist'
 
-type Params = { params: { id: string; regId: string } }
+type Params = { params: Promise<{ id: string; regId: string }> }
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(_req: NextRequest, props: Params) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -46,11 +48,18 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: err?.message ?? 'Stripe refund failed' }, { status: 500 })
   }
 
-  // Update registration status
+  // Update registration status — cancel the registration so the slot is freed
   await service
     .from('tournament_registrations')
-    .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
+    .update({
+      payment_status: 'refunded',
+      refunded_at: new Date().toISOString(),
+      status: 'cancelled',
+    })
     .eq('id', params.regId)
+
+  // Promote oldest waitlisted player into the freed slot
+  await promoteFromWaitlist(service, reg.division_id)
 
   // Email the player
   const [{ data: profile }, { data: division }] = await Promise.all([

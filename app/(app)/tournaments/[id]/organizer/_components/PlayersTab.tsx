@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { Download, CheckCircle, Circle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Download, CheckCircle, Circle, ArrowUpCircle, UserMinus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
 import { Toast, useToast } from './Toast'
@@ -30,13 +31,18 @@ function escapeCsv(val: string | null | undefined): string {
 }
 
 type Props = {
+  tournamentId: string
   matches: OrgMatch[]
   registrations: OrgRegistration[]
   divisions: OrgDivision[]
   tournamentName?: string
 }
 
-export default function PlayersTab({ matches, registrations, divisions, tournamentName }: Props) {
+export default function PlayersTab({
+  tournamentId, matches, registrations, divisions, tournamentName,
+}: Props) {
+  const router = useRouter()
+  const [busyRegId, setBusyRegId] = useState<string | null>(null)
   const [checkedIn, setCheckedIn] = useState<Record<string, boolean>>(
     () => Object.fromEntries(registrations.map(r => [r.id, r.checked_in]))
   )
@@ -45,12 +51,39 @@ export default function PlayersTab({ matches, registrations, divisions, tourname
   const divisionMap = Object.fromEntries(divisions.map(d => [d.id, d.name]))
 
   const registered = registrations.filter(r => r.status === 'registered')
+  const waitlisted = registrations
+    .filter(r => r.status === 'waitlisted')
+    .sort((a, b) => a.id.localeCompare(b.id))
   const seen = new Set<string>()
   const players = registered.filter(r => {
     if (seen.has(r.user_id)) return false
     seen.add(r.user_id)
     return true
   })
+
+  async function handleWithdraw(regId: string) {
+    setBusyRegId(regId)
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}/withdraw`, {
+        method: 'POST',
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        showToast(json.error ?? 'Withdraw failed')
+        return
+      }
+      showToast(
+        json.promoted
+          ? 'Withdrawn — next waitlisted player promoted'
+          : 'Withdrawn'
+      )
+      router.refresh()
+    } catch {
+      showToast('Network error')
+    } finally {
+      setBusyRegId(null)
+    }
+  }
 
   // A player is checked in if ANY of their registrations is checked in
   function isCheckedIn(userId: string): boolean {
@@ -176,6 +209,47 @@ export default function PlayersTab({ matches, registrations, divisions, tourname
       </div>
 
       <p className="text-xs text-brand-muted text-center">Tap the circle to check a player in or out.</p>
+
+      {waitlisted.length > 0 && (
+        <section className="space-y-2 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">
+              Waitlist
+            </h3>
+            <span className="text-xs text-brand-muted">{waitlisted.length} waiting</span>
+          </div>
+          <div className="bg-white rounded-xl border border-brand-border divide-y divide-brand-border">
+            {waitlisted.map(r => (
+              <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="shrink-0 text-[10px] font-bold text-brand-muted bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                  Wait
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-brand-dark truncate">
+                    {r.player_name ?? r.team_name ?? '—'}
+                  </p>
+                  <p className="text-[10px] text-brand-muted truncate">
+                    {divisionMap[r.division_id] ?? r.division_id}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleWithdraw(r.id)}
+                  disabled={busyRegId === r.id}
+                  aria-label="Remove from waitlist"
+                  className="shrink-0 p-1.5 rounded-md text-brand-muted hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  title="Remove from waitlist"
+                >
+                  <UserMinus size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-brand-muted text-center">
+            <ArrowUpCircle size={12} className="inline mb-0.5 mr-1" />
+            Auto-promoted when a paid spot opens.
+          </p>
+        </section>
+      )}
 
       <Toast message={toastMsg} />
     </div>
