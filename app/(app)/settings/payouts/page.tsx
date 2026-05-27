@@ -12,19 +12,48 @@ export default function PayoutsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/stripe/connect/status')
-      .then(r => r.json())
-      .then(j => { setStatus(j); setLoading(false) })
-      .catch(() => setLoading(false))
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/stripe/connect/status')
+        const j = await res.json().catch(() => ({} as Status))
+        if (cancelled) return
+        if (!res.ok) {
+          setError(((j as { error?: string })?.error) ?? `Couldn't load Stripe status (HTTP ${res.status})`)
+          setStatus({ connected: false, chargesEnabled: false })
+        } else {
+          setStatus(j as Status)
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Network error loading Stripe status')
+          setStatus({ connected: false, chargesEnabled: false })
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   async function handleConnect() {
     setConnecting(true)
     setError(null)
-    const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' })
-    const json = await res.json()
-    if (!res.ok) { setError(json.error ?? 'Failed'); setConnecting(false); return }
-    window.location.href = json.url
+    try {
+      const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' })
+      // res.json() throws SyntaxError on a non-JSON body (e.g. Vercel's default 500 page)
+      // which previously left the button stuck on "Redirecting…" with no error shown.
+      const json = await res.json().catch(() => ({} as { url?: string; error?: string }))
+      if (!res.ok || !json.url) {
+        setError(json.error ?? `Stripe onboarding failed (HTTP ${res.status})`)
+        return
+      }
+      window.location.href = json.url
+    } catch {
+      setError('Network error — please try again')
+    } finally {
+      setConnecting(false)
+    }
   }
 
   const dot = (active: boolean) => (
