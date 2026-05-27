@@ -2,51 +2,59 @@ import { Resend } from 'resend'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { canManageTournament } from '@/lib/tournament/access'
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  // Verify caller is the organizer
   const { data: tournament } = await db
     .from('tournaments')
     .select('id, name, organizer_id')
     .eq('id', params.id)
     .single()
+  if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
-  if (!tournament || tournament.organizer_id !== user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const allowed = await canManageTournament(db, params.id, user.id)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { subject, body, division_ids } = await request.json() as {
+    subject?: string; body?: string; division_ids?: string[]
   }
-
-  const { subject, body } = await request.json()
   if (!subject?.trim() || !body?.trim()) {
     return NextResponse.json({ error: 'Subject and body are required' }, { status: 400 })
   }
 
-  // Get all registered player user_ids
-  const { data: regs } = await db
+  // Get registered player user_ids, optionally filtered by division
+  let regQuery = db
     .from('tournament_registrations')
-    .select('user_id')
+    .select('user_id, partner_user_id, division_id')
     .eq('tournament_id', params.id)
     .eq('status', 'registered')
+
+  if (Array.isArray(division_ids) && division_ids.length > 0) {
+    regQuery = regQuery.in('division_id', division_ids)
+  }
+
+  const { data: regs } = await regQuery
 
   if (!regs || regs.length === 0) {
     return NextResponse.json({ error: 'No registered players to email' }, { status: 400 })
   }
 
-  const userIds = Array.from(new Set(regs.map(r => r.user_id).filter(Boolean)))
+  const userIds = Array.from(new Set(
+    regs.flatMap(r => [r.user_id, r.partner_user_id]).filter((id): id is string => !!id)
+  ))
 
-  // Fetch emails from auth.users via admin API
-  const emailMap: Record<string, string> = {}
-  for (const uid of userIds) {
-    const { data } = await db.auth.admin.getUserById(uid)
-    if (data?.user?.email) emailMap[uid] = data.user.email
-  }
-
-  const emails = Object.values(emailMap).filter(Boolean)
+  // Fetch emails in parallel (was N+1 sequential — slow at 80+ players)
+  const results = await Promise.all(
+    userIds.map(uid => db.auth.admin.getUserById(uid).then(r => r.data?.user?.email ?? null))
+  )
+  const emails = results.filter((e): e is string => !!e)
   if (emails.length === 0) {
     return NextResponse.json({ error: 'Could not resolve any player emails' }, { status: 500 })
   }

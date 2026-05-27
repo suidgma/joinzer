@@ -91,11 +91,13 @@ export default function TournamentOrganizerView({
             tournamentId={tournamentId}
             matches={matches}
             registrations={registrations}
+            divisions={divisions}
             onMatchUpdate={handleMatchUpdate}
           />
         )}
         {activeTab === 'Schedule' && (
           <ScheduleTab
+            tournamentId={tournamentId}
             matches={matches}
             registrations={registrations}
             divisions={divisions}
@@ -111,6 +113,7 @@ export default function TournamentOrganizerView({
         )}
         {activeTab === 'Players' && (
           <PlayersTab
+            tournamentId={tournamentId}
             matches={matches}
             registrations={registrations}
             divisions={divisions}

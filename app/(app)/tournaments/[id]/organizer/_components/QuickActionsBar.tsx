@@ -1,18 +1,14 @@
 'use client'
-import { Megaphone, Clock, Download } from 'lucide-react'
+import { Megaphone } from 'lucide-react'
 
 type Props = {
   onAnnounce: () => void
-  onReschedule: () => void
-  onExport: () => void
 }
 
-export default function QuickActionsBar({ onAnnounce, onReschedule, onExport }: Props) {
+export default function QuickActionsBar({ onAnnounce }: Props) {
   return (
     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
       <Chip icon={<Megaphone size={14} />} label="Announce" onClick={onAnnounce} primary />
-      <Chip icon={<Clock size={14} />} label="Reschedule" onClick={onReschedule} />
-      <Chip icon={<Download size={14} />} label="Export" onClick={onExport} />
     </div>
   )
 }

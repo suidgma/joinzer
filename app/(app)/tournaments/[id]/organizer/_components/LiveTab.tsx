@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import type { OrgMatch, OrgRegistration } from './types'
+import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
 import QuickActionsBar from './QuickActionsBar'
 import OpsHealthStrip from './OpsHealthStrip'
 import CourtCard from './CourtCard'
@@ -13,10 +13,13 @@ type Props = {
   tournamentId: string
   matches: OrgMatch[]
   registrations: OrgRegistration[]
+  divisions: OrgDivision[]
   onMatchUpdate: (updated: OrgMatch) => void
 }
 
-export default function LiveTab({ tournamentId, matches, registrations, onMatchUpdate }: Props) {
+export default function LiveTab({
+  tournamentId, matches, registrations, divisions, onMatchUpdate,
+}: Props) {
   const [scoringMatch, setScoringMatch] = useState<OrgMatch | null>(null)
   const [showAnnounce, setShowAnnounce] = useState(false)
   const { message: toastMsg, show: showToast } = useToast()
@@ -43,24 +46,11 @@ export default function LiveTab({ tournamentId, matches, registrations, onMatchU
     .slice(0, 5)
 
   const completed = matches.filter(m => m.status === 'completed')
-  const playerCount = Array.from(
-    new Set(registrations.filter(r => r.status === 'registered').map(r => r.user_id))
-  ).length
   const pct = Math.round((completed.length / Math.max(matches.length, 1)) * 100)
 
   return (
     <div className="space-y-5">
-      <QuickActionsBar
-        onAnnounce={() => setShowAnnounce(true)}
-        onReschedule={() => {
-          // TODO: implement reschedule flow (reschedule_match RPC)
-          showToast('Reschedule coming soon')
-        }}
-        onExport={() => {
-          // TODO: implement CSV/PDF export
-          showToast('Export coming soon')
-        }}
-      />
+      <QuickActionsBar onAnnounce={() => setShowAnnounce(true)} />
 
       <OpsHealthStrip matches={matches} />
 
@@ -123,7 +113,9 @@ export default function LiveTab({ tournamentId, matches, registrations, onMatchU
 
       {showAnnounce && (
         <AnnounceModal
-          playerCount={playerCount}
+          tournamentId={tournamentId}
+          divisions={divisions}
+          registrations={registrations}
           onClose={() => setShowAnnounce(false)}
           onSent={() => showToast('Announcement sent')}
         />
