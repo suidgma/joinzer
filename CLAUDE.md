@@ -45,38 +45,45 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 
 | Layer | Choice |
 |---|---|
-| Frontend | Next.js 14+ (App Router), TypeScript strict |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript strict |
 | Styling | Tailwind CSS only (no shadcn/ui, no Radix) |
 | Icons | lucide-react |
 | Backend | Supabase (Postgres + Auth + RLS) |
 | Auth | Production: email/password + Google OAuth |
 | Hosting | Vercel (frontend) + Supabase (backend) |
-| Notifications | Not yet implemented |
-| Payments | Not yet implemented |
+| Transactional email | Resend (registration / payment / refund / partner-match / sub-request / session-reminder / organizer announce) |
+| In-app notifications | Not yet implemented — no `notifications` table, no push, no deep links, no preferences |
+| Payments | Stripe Checkout for tournaments / leagues / events; Stripe Connect Express for organizer payouts; refunds with reverse-transfer; tournament discount codes |
 
 **Do not introduce:** shadcn/ui, Radix, Redux, tRPC, Prisma, custom ORMs, Docker, CI pipelines beyond Vercel default.
 
 ---
 
-## 5. Current State — Verified May 11, 2026
+## 5. Current State — Verified May 27, 2026
 
 For specific schema details, check Supabase Table Editor. For specific route details, check the codebase. This section captures **what's shipped vs. not** at the phase level — not column-level detail.
 
 ### Shipped
 
 - **Coordination MVP** — working in production
-- **Tournaments product** — basic functionality, parallel domain to coordination
-- **Leagues product** — basic functionality, parallel domain to coordination
+- **Tournaments product** — divisions, registration (solo + team), partner invites, brackets, live scoring, check-in (incl. QR), match reschedule, waitlist with auto-promote
+- **Leagues product** — registration, rosters, weekly sessions, attendance, substitute pool + sub-request flow, scoring, standings, group chat
+- **Payments** — Stripe Checkout end-to-end; Stripe Connect Express onboarding for organizers; destination charges route fees to the organizer's account with `on_behalf_of`; refunds reverse the transfer and refund the application fee; tournament-level discount codes
+- **Tournament organizer tools** — co-organizer + volunteer roles via `tournament_staff`, CSV team import, organizer-driven match reschedule, organizer-driven withdrawals with waitlist promotion
+- **Transactional email** — Resend integration covering registration confirmation, payment confirmation, refund notice, solo partner-match notification, sub-request flow, daily session reminders (cron), and organizer-to-bracket announce
 - **Two-form-factor refactor Slices 0–2** — primitives, `/tournaments/create`, `/tournaments/[id]`
 
 ### Not yet built
 
 - **Unified `competitions` schema** — designed in @docs/architecture-target.md, not migrated
-- **Notifications system** (`notifications` table, push, deep links)
+- **In-app notification center** — no `notifications` table, no push, no deep links, no preferences. Transactional email exists via Resend but there is no in-app inbox.
+- **SMS** — no Twilio / equivalent
+- **DUPR integration** — no API connection, no per-division min/max rating
 - **Audit log** (`audit_log` table)
 - **Platform stats** (`platform_stats_mv` materialized view)
 - **Players directory** beyond basic profiles
 - **Public marketing site overhaul** (per-court SEO pages, public browse, etc.)
+- **Organization / business layer** — every tournament + league is owned by a single individual organizer; no `organizations` table, no multi-tournament business accounts, no business public pages
 
 ### In progress
 
@@ -89,7 +96,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 These are the actual unresolved decisions blocking informed choices:
 
 - **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in @docs/architecture-target.md.
-- **Second tournament create route.** `/compete/tournaments/create` exists alongside `/tournaments/create`. Dead code, feature branch, or intentional? Audit before next slice.
+- **Second tournament create route.** `/leagues/tournaments/create` exists alongside `/tournaments/create` (the former renamed from `/compete/tournaments/create` during the late-May route refactor). Dead code, feature branch, or intentional? Audit before next slice.
 - **Auth model docs.** Production = email/password + Google OAuth. Original spec said magic-link. Production is canonical; spec is stale. Reconcile any leftover doc references.
 - **First committed event.** None. No organizer has seen the product yet.
 - **Organizer conversation.** Not yet booked. Blocking informed product decisions on Path A vs. B.
@@ -129,4 +136,4 @@ Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 
 ---
 
-*Last verified against repo: May 11, 2026*
+*Last verified against repo: May 27, 2026*
