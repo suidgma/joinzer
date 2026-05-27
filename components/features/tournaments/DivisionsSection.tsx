@@ -333,7 +333,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
           ...(isDoublesFormat(div.format) && regType === 'team' ? { partner_email: partnerEmail.trim() } : {}),
         }) }
     )
-    const json = await res.json()
+    const json = await res.json().catch(() => ({}))
 
     if (!res.ok) {
       const msg = json.error === 'partner_email_required' ? "Partner's email is required."
