@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { canManageTournament } from '@/lib/tournament/access'
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; matchId: string } }
+  props: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -30,13 +32,9 @@ export async function PATCH(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Verify organizer
-  const { data: tournament } = await service
-    .from('tournaments')
-    .select('organizer_id')
-    .eq('id', params.id)
-    .single()
-  if (!tournament || tournament.organizer_id !== user.id) {
+  // Volunteers can enter scores too — they need this for courtside score entry.
+  const allowed = await canManageTournament(service, params.id, user.id, ['co_organizer', 'volunteer'])
+  if (!allowed) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
