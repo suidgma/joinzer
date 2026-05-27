@@ -1,7 +1,10 @@
 'use client'
 import { useState } from 'react'
+import { Clock } from 'lucide-react'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
 import { teamLabel } from './ScoreEntryModal'
+import RescheduleModal from './RescheduleModal'
+import { Toast, useToast } from './Toast'
 
 function fmtTime(scheduled: string | null): string {
   if (!scheduled) return '—'
@@ -40,20 +43,23 @@ function buildGroups(matches: OrgMatch[], divisions: OrgDivision[]): Group[] {
 }
 
 type Props = {
+  tournamentId: string
   matches: OrgMatch[]
   registrations: OrgRegistration[]
   divisions: OrgDivision[]
 }
 
-export default function ScheduleTab({ matches, registrations, divisions }: Props) {
+export default function ScheduleTab({ tournamentId, matches, registrations, divisions }: Props) {
   const [playerView, setPlayerView] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [rescheduling, setRescheduling] = useState<OrgMatch | null>(null)
+  const { message: toastMsg, show: showToast } = useToast()
   const groups = buildGroups(matches, divisions)
 
   function toggle(key: string) {
     setCollapsed(prev => {
       const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
+      if (next.has(key)) next.delete(key); else next.add(key)
       return next
     })
   }
@@ -100,7 +106,13 @@ export default function ScheduleTab({ matches, registrations, divisions }: Props
             {!isCollapsed && (
               <div className="divide-y divide-brand-border border-t border-brand-border">
                 {group.matches.map(m => (
-                  <MatchRow key={m.id} match={m} registrations={registrations} playerView={playerView} />
+                  <MatchRow
+                    key={m.id}
+                    match={m}
+                    registrations={registrations}
+                    playerView={playerView}
+                    onReschedule={() => setRescheduling(m)}
+                  />
                 ))}
               </div>
             )}
@@ -111,17 +123,35 @@ export default function ScheduleTab({ matches, registrations, divisions }: Props
       {groups.length === 0 && (
         <p className="text-sm text-brand-muted text-center py-10">No matches scheduled yet.</p>
       )}
+
+      {rescheduling && (
+        <RescheduleModal
+          tournamentId={tournamentId}
+          match={rescheduling}
+          onClose={() => setRescheduling(null)}
+          onSaved={() => showToast('Match rescheduled')}
+          onError={showToast}
+        />
+      )}
+
+      <Toast message={toastMsg} />
     </div>
   )
 }
 
 function MatchRow({
-  match, registrations, playerView,
-}: { match: OrgMatch; registrations: OrgRegistration[]; playerView: boolean }) {
+  match, registrations, playerView, onReschedule,
+}: {
+  match: OrgMatch
+  registrations: OrgRegistration[]
+  playerView: boolean
+  onReschedule: () => void
+}) {
   const t1 = teamLabel(match.team_1_registration_id, registrations)
   const t2 = teamLabel(match.team_2_registration_id, registrations)
   const badgeClass = STATUS_BADGE[match.status] ?? 'bg-gray-100 text-gray-500'
   const statusLabel = match.status === 'in_progress' ? 'Live' : match.status
+  const canReschedule = !playerView && match.status !== 'completed'
 
   return (
     <div className="flex items-center gap-2.5 px-4 py-2.5">
@@ -143,6 +173,15 @@ function MatchRow({
       <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${badgeClass}`}>
         {statusLabel}
       </span>
+      {canReschedule && (
+        <button
+          onClick={onReschedule}
+          aria-label="Reschedule match"
+          className="shrink-0 p-1.5 rounded-md text-brand-muted hover:text-brand-active hover:bg-brand-soft transition-colors"
+        >
+          <Clock size={14} />
+        </button>
+      )}
     </div>
   )
 }
