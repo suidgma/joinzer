@@ -3,10 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -36,14 +34,19 @@ export async function POST(
       return NextResponse.json({ error: 'Already paid' }, { status: 409 })
     }
 
-    // Fetch tournament for price + name
+    // Fetch tournament + organizer's Stripe Connect status
     const { data: tournament } = await service
       .from('tournaments')
-      .select('name, cost_cents')
+      .select('name, cost_cents, organizer_id, organizer:profiles!organizer_id(stripe_account_id, stripe_charges_enabled)')
       .eq('id', params.id)
       .single()
 
     if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+
+    type OrgEmbed = { stripe_account_id: string | null; stripe_charges_enabled: boolean }
+    const rawOrg = (tournament as unknown as { organizer: OrgEmbed | OrgEmbed[] | null }).organizer
+    const organizer: OrgEmbed | null = Array.isArray(rawOrg) ? (rawOrg[0] ?? null) : rawOrg
+    const useConnect = !!(organizer?.stripe_account_id && organizer.stripe_charges_enabled)
 
     // Division-level cost takes precedence over tournament-level cost
     const { data: divisionForCost } = await service
@@ -101,7 +104,12 @@ export async function POST(
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
 
-    const session = await stripe.checkout.sessions.create({
+    // Application fee: configurable platform cut when payments route to the organizer.
+    // Fixed cents per registration line item, defaulting to $0.99.
+    const feePerItemCents = Number(process.env.JOINZER_APPLICATION_FEE_CENTS ?? '99')
+    const applicationFeeAmount = useConnect ? feePerItemCents * quantity : 0
+
+    const checkoutPayload: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       line_items: [
         {
@@ -120,7 +128,16 @@ export async function POST(
       },
       success_url: `${siteUrl}/tournaments/${params.id}?payment=success`,
       cancel_url: `${siteUrl}/tournaments/${params.id}?payment=cancelled`,
-    })
+    }
+
+    if (useConnect && organizer?.stripe_account_id) {
+      checkoutPayload.payment_intent_data = {
+        application_fee_amount: applicationFeeAmount,
+        transfer_data: { destination: organizer.stripe_account_id },
+      }
+    }
+
+    const session = await stripe.checkout.sessions.create(checkoutPayload)
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
