@@ -53,6 +53,9 @@ type Division = {
   id: string
   name: string
   format: string
+  category: string
+  team_type: string
+  skill_level: string | null
   skill_min: number | null
   skill_max: number | null
   max_entries: number
@@ -61,6 +64,9 @@ type Division = {
   bracket_type: BracketType
   format_settings_json: FormatSettings
   cost_cents: number | null
+  min_age: number | null
+  max_age: number | null
+  start_time: string | null
   tournament_registrations: Registration[]
 }
 
@@ -167,10 +173,21 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [deleteDivLoading, setDeleteDivLoading] = useState(false)
   const [deleteDivError, setDeleteDivError] = useState<string | null>(null)
 
-  // Inline format edit state (per division)
+  // Inline division edit state (per division) — mirrors the add-division form
+  // so an organizer can change any field after creation, not just format.
+  const [editName, setEditName] = useState('')
+  const [editCategory, setEditCategory] = useState('mixed_doubles')
+  const [editSkill, setEditSkill] = useState('')
+  const [editTeamType, setEditTeamType] = useState('doubles')
+  const [editMax, setEditMax] = useState(16)
+  const [editWaitlist, setEditWaitlist] = useState(false)
   const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
   const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
   const [editCostDollars, setEditCostDollars] = useState('')
+  const [editMinAge, setEditMinAge] = useState('')
+  const [editMaxAge, setEditMaxAge] = useState('')
+  const [editStartTime, setEditStartTime] = useState('08:00')
+  const [editStartTimeEnabled, setEditStartTimeEnabled] = useState(false)
   const [editFormatLoading, setEditFormatLoading] = useState(false)
   const [editFormatError, setEditFormatError] = useState<string | null>(null)
 
@@ -254,7 +271,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         max_age: fMaxAge ? parseInt(fMaxAge) : null,
         start_time: fStartTimeEnabled ? fStartTime : null,
       })
-      .select('id, name, format, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents')
+      .select('id, name, format, category, team_type, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -268,16 +285,27 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setFLoading(false)
   }
 
-  // ── Open format editor for a division ────────────────────────────
+  // ── Open division editor (full form) ─────────────────────────────
   function openFormatEdit(div: Division) {
+    // Populate every field from the existing row so the organizer sees current values.
+    setEditName(div.name ?? '')
+    setEditCategory(div.category ?? div.format ?? 'mixed_doubles')
+    setEditTeamType(div.team_type ?? 'doubles')
+    setEditSkill(div.skill_level ?? '')
+    setEditMax(div.max_entries)
+    setEditWaitlist(!!div.waitlist_enabled)
     setEditBracketType(div.bracket_type)
     setEditFormatSettings(div.format_settings_json ?? FORMAT_DEFAULTS[div.bracket_type])
     setEditCostDollars(div.cost_cents != null ? String(div.cost_cents / 100) : '')
+    setEditMinAge(div.min_age != null ? String(div.min_age) : '')
+    setEditMaxAge(div.max_age != null ? String(div.max_age) : '')
+    setEditStartTime(div.start_time ? div.start_time.slice(0, 5) : '08:00')
+    setEditStartTimeEnabled(!!div.start_time)
     setEditFormatError(null)
     setEditingFormatId(div.id)
   }
 
-  // ── Save format edits ─────────────────────────────────────────────
+  // ── Save all division edits ──────────────────────────────────────
   async function handleSaveFormat(divisionId: string) {
     const validErr = validateFormatSettings(editBracketType, editFormatSettings)
     if (validErr) { setEditFormatError(validErr); return }
@@ -286,18 +314,35 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditFormatError(null)
 
     const newCostCents = editCostDollars !== '' ? Math.round(parseFloat(editCostDollars) * 100) : null
+    const autoName = editName.trim() ||
+      [FORMAT_LABELS[editCategory] ?? LEGACY_CATEGORY_LABELS[editCategory], editSkill].filter(Boolean).join(' — ')
+
+    const updatePayload = {
+      name: autoName,
+      ...prepareDivisionWrite({ category: editCategory, team_type: editTeamType, skill_level: editSkill || null }),
+      max_entries: editMax,
+      waitlist_enabled: editWaitlist,
+      bracket_type: editBracketType,
+      format_settings_json: editFormatSettings,
+      cost_cents: newCostCents,
+      min_age: editMinAge ? parseInt(editMinAge) : null,
+      max_age: editMaxAge ? parseInt(editMaxAge) : null,
+      start_time: editStartTimeEnabled ? editStartTime : null,
+    }
 
     const supabase = createClient()
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('tournament_divisions')
-      .update({ bracket_type: editBracketType, format_settings_json: editFormatSettings, cost_cents: newCostCents })
+      .update(updatePayload)
       .eq('id', divisionId)
+      .select('id, name, format, category, team_type, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
+      .single()
 
-    if (error) { setEditFormatError(error.message); setEditFormatLoading(false); return }
+    if (error || !updated) { setEditFormatError(error?.message ?? 'Save failed'); setEditFormatLoading(false); return }
 
     setDivisions(prev => prev.map(d =>
       d.id === divisionId
-        ? { ...d, bracket_type: editBracketType, format_settings_json: editFormatSettings, cost_cents: newCostCents }
+        ? { ...d, ...updated }
         : d
     ))
     setEditingFormatId(null)
@@ -941,7 +986,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         onClick={() => openFormatEdit(div)}
                         className="text-xs text-brand-active hover:underline mt-0.5"
                       >
-                        Edit Format
+                        Edit Division
                       </button>
                     )}
                   </div>
@@ -954,20 +999,77 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   </span>
                 </div>
 
-                {/* Inline format editor */}
+                {/* Inline division editor — full form, mirrors "Add Division" */}
                 {isOrganizer && isEditingFormat && (
                   <div className="border border-brand-border rounded-xl p-3 space-y-3 bg-white">
                     {hasRegistrants && (
                       <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
-                        This division has registrants. Changing the format may affect match generation.
+                        This division has registrants. Changes to category, team type, or format may affect existing registrations and match generation.
                       </p>
                     )}
-                    <FormatSettingsFields
-                      bracketType={editBracketType}
-                      formatSettings={editFormatSettings}
-                      onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(FORMAT_DEFAULTS[t]) }}
-                      onSettingsChange={setEditFormatSettings}
-                    />
+
+                    <div>
+                      <label className="block text-xs font-medium text-brand-muted mb-1">Division Name</label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        placeholder="Auto-generated if blank"
+                        className="w-full input"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
+                        <select value={editCategory} onChange={e => setEditCategory(e.target.value)} className="w-full input">
+                          <option value="mixed_doubles">Mixed</option>
+                          <option value="mens_doubles">Men</option>
+                          <option value="womens_doubles">Women</option>
+                          <option value="singles">Singles</option>
+                          <option value="open">Open</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Team Type</label>
+                        <select value={editTeamType} onChange={e => setEditTeamType(e.target.value)} className="w-full input">
+                          <option value="doubles">Doubles</option>
+                          <option value="singles">Singles</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Skill Level</label>
+                        <select value={editSkill} onChange={e => setEditSkill(e.target.value)} className="w-full input">
+                          <option value="">Any</option>
+                          {SKILL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Max Entries</label>
+                        <input
+                          type="number"
+                          value={editMax}
+                          onChange={e => setEditMax(Math.max(2, Number(e.target.value)))}
+                          min={2}
+                          max={256}
+                          className="w-full input"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editWaitlist}
+                        onChange={e => setEditWaitlist(e.target.checked)}
+                        className="w-4 h-4 accent-brand"
+                      />
+                      <span className="text-sm text-brand-dark">Enable waitlist when full</span>
+                    </label>
+
                     <div>
                       <label className="block text-xs font-medium text-brand-muted mb-1">Entry Fee <span className="font-normal">(leave blank to use tournament fee)</span></label>
                       <div className="relative">
@@ -983,6 +1085,60 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         />
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Start Time <span className="font-normal">(optional)</span></label>
+                        <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editStartTimeEnabled}
+                            onChange={e => setEditStartTimeEnabled(e.target.checked)}
+                            className="rounded"
+                          />
+                          <span className="text-xs text-brand-muted">Set a start time</span>
+                        </label>
+                        {editStartTimeEnabled && <TimeSelect value={editStartTime} onChange={setEditStartTime} />}
+                      </div>
+                      <div />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Min Age</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={editMinAge}
+                          onChange={e => setEditMinAge(e.target.value)}
+                          placeholder="Any"
+                          className="w-full input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Max Age</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={editMaxAge}
+                          onChange={e => setEditMaxAge(e.target.value)}
+                          placeholder="Any"
+                          className="w-full input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-brand-border pt-3">
+                      <FormatSettingsFields
+                        bracketType={editBracketType}
+                        formatSettings={editFormatSettings}
+                        onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(FORMAT_DEFAULTS[t]) }}
+                        onSettingsChange={setEditFormatSettings}
+                      />
+                    </div>
+
                     {editFormatError && <p className="text-xs text-red-600">{editFormatError}</p>}
                     <div className="flex gap-2 pt-1">
                       <button
@@ -990,7 +1146,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         disabled={editFormatLoading}
                         className="flex-1 py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
                       >
-                        {editFormatLoading ? 'Saving…' : 'Save Format'}
+                        {editFormatLoading ? 'Saving…' : 'Save Division'}
                       </button>
                       <button
                         onClick={() => { setEditingFormatId(null); setEditFormatError(null) }}
