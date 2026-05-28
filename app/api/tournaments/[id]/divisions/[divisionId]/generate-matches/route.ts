@@ -6,6 +6,7 @@ import {
   doubleEliminationBracket,
   poolPlayMatches,
 } from '@/lib/tournament/bracketBuilder'
+import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 
 export async function POST(
   _req: NextRequest,
@@ -49,16 +50,18 @@ export async function POST(
     .single()
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
 
-  // Fetch settled registered teams (paid, waived, comped) — unpaid rows (abandoned checkouts) must not get bracket slots
+  // Fetch settled registered teams (paid, waived, comped) — unpaid rows (abandoned checkouts) must not get bracket slots.
+  // We pull partner_registration_id so we can dedupe doubles pairs to one row per team
+  // (the register_doubles_pair RPC inserts two cross-linked rows per team).
   const { data: registrations } = await service
     .from('tournament_registrations')
-    .select('id')
+    .select('id, partner_registration_id')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
     .in('payment_status', ['paid', 'waived', 'comped'])
     .order('created_at', { ascending: true })
 
-  const teams = (registrations ?? []).map(r => r.id)
+  const teams = dedupeRegistrationsToTeams(registrations ?? [])
   if (teams.length < 2) {
     return NextResponse.json({
       error: `Need at least 2 settled registrations to generate matches. This division has ${teams.length} settled registration${teams.length === 1 ? '' : 's'}.`,

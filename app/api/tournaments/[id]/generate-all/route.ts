@@ -6,6 +6,7 @@ import {
   doubleEliminationBracket,
   poolPlayMatches,
 } from '@/lib/tournament/bracketBuilder'
+import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 
 // POST /api/tournaments/[id]/generate-all
 // Generates brackets for every division that doesn't have matches yet.
@@ -57,13 +58,13 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: registrations } = await service
       .from('tournament_registrations')
-      .select('id')
+      .select('id, partner_registration_id')
       .eq('division_id', division.id)
       .eq('status', 'registered')
       .in('payment_status', ['paid', 'waived', 'comped'])
       .order('created_at', { ascending: true })
 
-    const teams = (registrations ?? []).map(r => r.id)
+    const teams = dedupeRegistrationsToTeams(registrations ?? [])
     if (teams.length < 2) {
       results.push({ divisionId: division.id, name: division.name, matchCount: 0, skipped: `fewer than 2 settled registrations (${teams.length} found)` })
       continue
