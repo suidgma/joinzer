@@ -332,13 +332,18 @@ export default function ImportPage() {
           <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-1">
             <p className="text-sm font-semibold text-green-700">
               ✓ {result.registered} registration{result.registered !== 1 ? 's' : ''} added
-              {result.stubs > 0 && ` · ${result.stubs} invite${result.stubs !== 1 ? 's' : ''} sent`}
+              {result.stubs > 0 && ` · ${result.stubs} new account${result.stubs !== 1 ? 's' : ''} created`}
             </p>
+            {result.stubs > 0 && (
+              <p className="text-[11px] text-green-700">
+                Each new account gets a magic-link invite (skipped automatically on dummy tournaments).
+              </p>
+            )}
             {Object.entries(result.byDivision).length > 0 && (
               <ul className="text-[11px] text-green-700 mt-1 space-y-0.5">
                 {Object.entries(result.byDivision).map(([id, d]) => (
                   <li key={id}>
-                    {d.name}: {d.registered} added{d.stubs > 0 && `, ${d.stubs} invited`}
+                    {d.name}: {d.registered} added{d.stubs > 0 && `, ${d.stubs} new`}
                   </li>
                 ))}
               </ul>
@@ -352,7 +357,7 @@ export default function ImportPage() {
             <p className="text-sm font-medium text-brand-dark">
               {okCount > 0 && `${okCount} existing player${okCount !== 1 ? 's' : ''} will be registered`}
               {okCount > 0 && newCount > 0 && ', '}
-              {newCount > 0 && `${newCount} new account${newCount !== 1 ? 's' : ''} will be created and invited`}
+              {newCount > 0 && `${newCount} new account${newCount !== 1 ? 's' : ''} will be created (invites sent to non-dummy tournaments only)`}
               .
             </p>
             {needsTypedConfirm && (

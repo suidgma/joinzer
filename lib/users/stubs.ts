@@ -19,6 +19,22 @@ export type StubExtras = {
   dupr_rating?: number | null
 }
 
+/**
+ * Map common CSV gender spellings to the values the profiles.gender CHECK
+ * constraint accepts. Anything we can't confidently classify returns null —
+ * better to leave gender unset than to break the insert with a CHECK violation
+ * (which is the exact bug this normaliser was added to fix on 2026-05-28).
+ *
+ * Constraint at time of writing: `gender IN ('male', 'female')`.
+ */
+function normalizeGender(raw: string | null | undefined): 'male' | 'female' | null {
+  if (!raw) return null
+  const v = raw.trim().toLowerCase()
+  if (v === 'm' || v === 'male' || v === 'man') return 'male'
+  if (v === 'f' || v === 'female' || v === 'woman' || v === 'w') return 'female'
+  return null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createStub(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,17 +81,32 @@ export async function createStub(
     notify_new_sessions: false,
   }
   if (extras.phone?.trim()) profileRow.phone = extras.phone.trim()
-  if (extras.gender?.trim()) profileRow.gender = extras.gender.trim()
+
+  const normalizedGender = normalizeGender(extras.gender)
+  if (normalizedGender) profileRow.gender = normalizedGender
+
   if (extras.dupr_rating != null && !Number.isNaN(extras.dupr_rating)) {
     profileRow.dupr_rating = extras.dupr_rating
-    profileRow.rating_source = 'organizer_import'
+    // rating_source CHECK constraint accepts: 'dupr_known' | 'estimated' | 'skipped'.
+    // Organizer-supplied ratings are not verified DUPR scores — use 'estimated'.
+    profileRow.rating_source = 'estimated'
   }
 
-  // No auto-creation trigger — explicit insert. ignoreDuplicates makes retries safe.
-  await service.from('profiles').upsert(
+  // CRITICAL: surface errors. Previously this upsert silently swallowed failures —
+  // a CHECK-constraint violation (e.g. gender = 'M' before normalisation) would
+  // leave the auth.users row in place with NO matching profile row, breaking
+  // every downstream join on tournament_registrations -> profiles.
+  // See: 2026-05-28 demo-import incident, 34 orphaned auth users.
+  const { error: profileErr } = await service.from('profiles').upsert(
     profileRow,
     { onConflict: 'id', ignoreDuplicates: true }
   )
+  if (profileErr) {
+    throw new Error(
+      `Profile creation failed for ${email}: ${profileErr.message}` +
+      ` (auth user ${userId} was created and now orphaned — manual cleanup needed)`
+    )
+  }
 
   return { userId, isNew: true }
 }
