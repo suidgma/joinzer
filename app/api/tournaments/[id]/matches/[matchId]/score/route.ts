@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { logAudit } from '@/lib/audit/log'
 
 // POST /api/tournaments/[id]/matches/[matchId]/score
 // Organizer-only score write path for the tournament day view.
@@ -42,9 +43,10 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Pull the pre-update state for the audit "before" snapshot.
   const { data: match } = await service
     .from('tournament_matches')
-    .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number')
+    .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number, team_1_score, team_2_score, winner_registration_id, status')
     .eq('id', params.matchId)
     .eq('tournament_id', params.id)
     .single()
@@ -65,8 +67,25 @@ export async function POST(
     return NextResponse.json({ error: error?.message ?? 'Update failed' }, { status: 500 })
   }
 
-  // TODO: write to audit_log once competition audit_log table is migrated (CLAUDE.md Section 6)
-  console.log('[audit] score saved:', { matchId: params.matchId, team_1_score, team_2_score, actor: user.id })
+  // Audit the score write. Non-blocking — logAudit swallows + logs errors.
+  await logAudit({
+    actorId:    user.id,
+    entityType: 'tournament_match',
+    entityId:   params.matchId,
+    action:     'score_updated',
+    before: {
+      team_1_score:           match.team_1_score,
+      team_2_score:           match.team_2_score,
+      winner_registration_id: match.winner_registration_id,
+      status:                 match.status,
+    },
+    after: {
+      team_1_score,
+      team_2_score,
+      winner_registration_id,
+      status: 'completed',
+    },
+  })
 
   // Advance winner to next bracket slot if applicable
   const { data: divisionMatches } = await service
