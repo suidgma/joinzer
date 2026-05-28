@@ -408,10 +408,16 @@ The trigger to re-evaluate is "first real paid customer beyond Marty's test acco
 ---
 
 ## 2026-05-13 — Login flow
-**Status:** Active
+**Status:** Superseded by 2026-05-28 entry below
 **Affects:** Ticket 5.3; authentication
 **Decision:** Migrate from email+password to Google OAuth + magic link. Remove the password field from the login form. Existing password accounts can log in via magic link to the same email on next visit.
 **Reasoning:** Recreational pickleball app doesn't justify password friction. Magic link + Google is faster, more secure (no reused passwords), and reduces "forgot password" support volume to zero.
+
+## 2026-05-28 — Login flow (reversal)
+**Status:** Active
+**Affects:** Ticket 5.3; authentication
+**Decision:** Keep email/password + Google OAuth as the production auth model. The magic-link-only plan never shipped — the login form still has the email/password field and the Forgot Password flow is intact. Magic link remains in use, but as a side channel for *transactional* onboarding (CSV import invites, partner-invite emails) via `supabase.auth.admin.generateLink({ type: 'magiclink' })`, not as the primary login.
+**Reasoning:** Magic link as the primary login created enough friction in practice (people not seeing the email, expired links, multi-device handoffs) that keeping passwords as an option was the pragmatic choice. Google OAuth covers most users; password is the fallback for anyone who prefers it. The transactional magic-link flow is a different problem and still useful — that's how a new account created via CSV import gets one-click access without setting a password first.
 
 ---
 
