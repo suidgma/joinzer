@@ -233,15 +233,57 @@ export function doubleEliminationBracket(
 // ── Round Robin ───────────────────────────────────────────────────────────────
 
 /**
+ * Circle-method (Berger tables) pairing generator. Pure helper — does not
+ * stamp match_stage / pool_number / match_number / row metadata; just returns
+ * the [team1, team2] pairs grouped by round.
+ *
+ *  - Even N → N-1 rounds, N/2 pairs per round.
+ *  - Odd  N → N rounds, (N-1)/2 pairs per round (one team gets a bye each round,
+ *    which is silently dropped from the output — no "bye match" row produced).
+ *
+ * Caller controls whether the input order is shuffled first. Round robin
+ * (whole-division) shuffles for variety; pool play uses the deterministic
+ * snake-distributed pool composition as the seed.
+ */
+function circleMethodPairs(teams: string[]): Array<Array<[string, string]>> {
+  if (teams.length < 2) return []
+
+  const working: (string | null)[] = [...teams]
+  if (working.length % 2 === 1) working.push(null) // bye sentinel
+
+  const n = working.length
+  const rounds = n - 1
+  const half = n / 2
+
+  // Position 0 stays fixed; positions 1..n-1 rotate one step clockwise each round.
+  const slots: (string | null)[] = [...working]
+  const out: Array<Array<[string, string]>> = []
+
+  for (let round = 0; round < rounds; round++) {
+    const pairs: Array<[string, string]> = []
+    for (let i = 0; i < half; i++) {
+      const t1 = slots[i]
+      const t2 = slots[n - 1 - i]
+      if (t1 === null || t2 === null) continue // skip the bye pairing
+      pairs.push([t1, t2])
+    }
+    out.push(pairs)
+
+    // Rotate: [a, b, c, d, e, f] → [a, f, b, c, d, e].
+    const last = slots.pop() as string | null
+    slots.splice(1, 0, last)
+  }
+
+  return out
+}
+
+/**
  * Generates a round-robin schedule using the circle method (Berger tables).
  *
  * Every team plays every other team exactly once, distributed across rounds
  * where no team appears more than once per round. This is what makes a true
  * round-robin tournament schedulable on a fixed court count — each round can
  * run in parallel because the matches share no players.
- *
- * - Even N: N - 1 rounds, N/2 matches per round.
- * - Odd  N: N rounds, (N-1)/2 matches per round (one team gets a bye each round).
  *
  * The `teams` order is shuffled first so the same registration set doesn't
  * always produce the same matchups in round 1.
@@ -254,27 +296,14 @@ export function roundRobinMatches(
   if (teams.length < 2) return { rows: [], nextMatchNum: startMatchNum }
 
   // Shuffle so round 1 isn't always the same pairings for the same input set.
-  const working: (string | null)[] = shuffle([...teams])
-  // Odd team counts get a null "bye" slot so the circle method works cleanly.
-  if (working.length % 2 === 1) working.push(null)
-
-  const n = working.length
-  const rounds = n - 1
-  const half = n / 2
-
-  // Slots rotate each round. Position 0 is fixed; positions 1..n-1 rotate
-  // one step clockwise after each round.
-  const slots: (string | null)[] = [...working]
+  const pairsByRound = circleMethodPairs(shuffle([...teams]))
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum
 
-  for (let round = 1; round <= rounds; round++) {
-    for (let i = 0; i < half; i++) {
-      const t1 = slots[i]
-      const t2 = slots[n - 1 - i]
-      // Skip the bye pairing entirely (no row in the DB for a "didn't play this round").
-      if (t1 === null || t2 === null) continue
+  pairsByRound.forEach((pairs, idx) => {
+    const round = idx + 1
+    for (const [t1, t2] of pairs) {
       rows.push({
         ...base,
         team_1_registration_id: t1,
@@ -284,18 +313,22 @@ export function roundRobinMatches(
         match_number: matchNum++,
       })
     }
-
-    // Rotate: [a, b, c, d, e, f] → [a, f, b, c, d, e].
-    // Keep slots[0] in place; move the last slot into position 1.
-    const last = slots.pop() as string | null
-    slots.splice(1, 0, last)
-  }
+  })
 
   return { rows, nextMatchNum: matchNum }
 }
 
 // ── Pool Play ─────────────────────────────────────────────────────────────────
 
+/**
+ * Generates pool play matches with proper round numbering inside each pool.
+ *
+ * Teams are snake-distributed across pools (registration order seeds pool
+ * composition). Within each pool, the circle method produces rounds where
+ * no team plays twice. Pools share the same `round_number` so the schedule
+ * packer can place pool 1's round 1 alongside pool 2's round 1 in the same
+ * wave (different pools never share players).
+ */
 export function poolPlayMatches(
   teams: string[],
   numPools: number,
@@ -309,19 +342,22 @@ export function poolPlayMatches(
   let matchNum = startMatchNum
 
   pools.forEach((pool, pi) => {
-    for (let i = 0; i < pool.length; i++) {
-      for (let j = i + 1; j < pool.length; j++) {
+    // Pool composition is the deterministic seed — no shuffle inside the pool.
+    const pairsByRound = circleMethodPairs(pool)
+    pairsByRound.forEach((pairs, idx) => {
+      const round = idx + 1
+      for (const [t1, t2] of pairs) {
         rows.push({
           ...base,
-          team_1_registration_id: pool[i],
-          team_2_registration_id: pool[j],
+          team_1_registration_id: t1,
+          team_2_registration_id: t2,
           match_stage: 'pool_play',
           pool_number: pi + 1,
-          round_number: null,
+          round_number: round,
           match_number: matchNum++,
         })
       }
-    }
+    })
   })
 
   return { rows, nextMatchNum: matchNum }
