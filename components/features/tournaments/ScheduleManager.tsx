@@ -227,10 +227,31 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
   const estimatedEndTime = fromMinutes(estimatedEndMin)
   const overrun = estimatedEndMin > toMinutes(genEndTime)
 
-  // Step 1: generate all brackets, then immediately schedule
+  // Commit a batch of schedule updates straight to the DB. Used by the
+  // one-click Generate / Reschedule flows so the operator doesn't have to
+  // click a second time after seeing the preview.
+  async function persistScheduleUpdates(
+    updates: { id: string; court_number: number; scheduled_time: string }[]
+  ): Promise<boolean> {
+    if (updates.length === 0) return true
+    const res = await fetch(`/api/tournaments/${tournamentId}/schedule`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setSaveError(data.error ?? 'Failed to save generated schedule')
+      return false
+    }
+    return true
+  }
+
+  // Step 1: generate all brackets, then immediately schedule and save.
   async function handleGenerateTournament() {
     setGenerating(true)
     setGenerateError(null)
+    setSaveError(null)
     setGenerateResult(null)
 
     // Generate brackets for all divisions without matches
@@ -266,23 +287,27 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
       return { ...m, court_number: g.court_number, scheduled_time: g.scheduled_time }
     }))
 
-    const newEdits: Record<string, { court_number: string; date: string; time: string }> = {}
-    for (const g of generated) {
-      newEdits[g.id] = {
-        court_number: String(g.court_number),
-        date: genDate,
-        time: scheduledHHMM(g.scheduled_time),
-      }
+    // Commit immediately so the operator's "Generate Tournament" click is the
+    // single action that produces a fully saved schedule. Pending per-match
+    // edits are cleared because everything is now in sync with the DB.
+    const ok = await persistScheduleUpdates(generated)
+    if (ok) {
+      setEdits({})
+      setSaveSuccess(true)
     }
-    setEdits(newEdits)
+
     setShowGenerator(false)
-    setSaveSuccess(false)
     setGenerating(false)
     router.refresh()
   }
 
-  // Re-schedule only (brackets already exist)
-  function handleReschedule() {
+  // Re-schedule only (brackets already exist).
+  // Same one-click semantics as handleGenerateTournament — preview + save in
+  // a single action.
+  async function handleReschedule() {
+    setGenerating(true)
+    setSaveError(null)
+
     const generated = generateSchedule(playableMatches, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
     const genMap = new Map(generated.map(g => [g.id, g]))
     setMatches(prev => prev.map(m => {
@@ -290,17 +315,16 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
       if (!g) return m
       return { ...m, court_number: g.court_number, scheduled_time: g.scheduled_time }
     }))
-    const newEdits: Record<string, { court_number: string; date: string; time: string }> = {}
-    for (const g of generated) {
-      newEdits[g.id] = {
-        court_number: String(g.court_number),
-        date: genDate,
-        time: scheduledHHMM(g.scheduled_time),
-      }
+
+    const ok = await persistScheduleUpdates(generated)
+    if (ok) {
+      setEdits({})
+      setSaveSuccess(true)
     }
-    setEdits(newEdits)
+
     setShowGenerator(false)
-    setSaveSuccess(false)
+    setGenerating(false)
+    router.refresh()
   }
 
   function startEdit(m: Match) {
@@ -473,7 +497,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                 : 'Generate Full Tournament'}
           </button>
           <p className="text-xs text-brand-muted text-center">
-            Review the schedule below, make any edits, then save.
+            Saves automatically. You can still edit individual matches afterwards.
           </p>
         </div>
       )}

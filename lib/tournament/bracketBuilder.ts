@@ -230,6 +230,70 @@ export function doubleEliminationBracket(
   return rows
 }
 
+// ── Round Robin ───────────────────────────────────────────────────────────────
+
+/**
+ * Generates a round-robin schedule using the circle method (Berger tables).
+ *
+ * Every team plays every other team exactly once, distributed across rounds
+ * where no team appears more than once per round. This is what makes a true
+ * round-robin tournament schedulable on a fixed court count — each round can
+ * run in parallel because the matches share no players.
+ *
+ * - Even N: N - 1 rounds, N/2 matches per round.
+ * - Odd  N: N rounds, (N-1)/2 matches per round (one team gets a bye each round).
+ *
+ * The `teams` order is shuffled first so the same registration set doesn't
+ * always produce the same matchups in round 1.
+ */
+export function roundRobinMatches(
+  teams: string[],
+  base: BaseMatch,
+  startMatchNum = 1
+): { rows: BaseMatch[]; nextMatchNum: number } {
+  if (teams.length < 2) return { rows: [], nextMatchNum: startMatchNum }
+
+  // Shuffle so round 1 isn't always the same pairings for the same input set.
+  const working: (string | null)[] = shuffle([...teams])
+  // Odd team counts get a null "bye" slot so the circle method works cleanly.
+  if (working.length % 2 === 1) working.push(null)
+
+  const n = working.length
+  const rounds = n - 1
+  const half = n / 2
+
+  // Slots rotate each round. Position 0 is fixed; positions 1..n-1 rotate
+  // one step clockwise after each round.
+  const slots: (string | null)[] = [...working]
+
+  const rows: BaseMatch[] = []
+  let matchNum = startMatchNum
+
+  for (let round = 1; round <= rounds; round++) {
+    for (let i = 0; i < half; i++) {
+      const t1 = slots[i]
+      const t2 = slots[n - 1 - i]
+      // Skip the bye pairing entirely (no row in the DB for a "didn't play this round").
+      if (t1 === null || t2 === null) continue
+      rows.push({
+        ...base,
+        team_1_registration_id: t1,
+        team_2_registration_id: t2,
+        match_stage: 'round_robin',
+        round_number: round,
+        match_number: matchNum++,
+      })
+    }
+
+    // Rotate: [a, b, c, d, e, f] → [a, f, b, c, d, e].
+    // Keep slots[0] in place; move the last slot into position 1.
+    const last = slots.pop() as string | null
+    slots.splice(1, 0, last)
+  }
+
+  return { rows, nextMatchNum: matchNum }
+}
+
 // ── Pool Play ─────────────────────────────────────────────────────────────────
 
 export function poolPlayMatches(
