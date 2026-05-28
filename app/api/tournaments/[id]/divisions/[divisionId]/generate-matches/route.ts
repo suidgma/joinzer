@@ -5,6 +5,7 @@ import {
   singleEliminationBracket,
   doubleEliminationBracket,
   poolPlayMatches,
+  roundRobinMatches,
 } from '@/lib/tournament/bracketBuilder'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 
@@ -81,22 +82,11 @@ export async function POST(
     const numPools = (fs.number_of_pools as number) ?? 2
     matchRows = poolPlayMatches(teams, numPools, base).rows
   } else {
-    // round_robin: all vs all in a single pool
-    const rows: object[] = []
-    let matchNum = 1
-    for (let i = 0; i < teams.length; i++) {
-      for (let j = i + 1; j < teams.length; j++) {
-        rows.push({
-          ...base,
-          team_1_registration_id: teams[i],
-          team_2_registration_id: teams[j],
-          match_stage: 'round_robin',
-          round_number: 1,
-          match_number: matchNum++,
-        })
-      }
-    }
-    matchRows = rows
+    // round_robin: circle-method scheduling so every team plays every other
+    // exactly once, with no team appearing twice in the same round_number.
+    // This is what lets the schedule packer place a whole round in parallel
+    // across courts instead of dumping every match into "Round 1".
+    matchRows = roundRobinMatches(teams, base).rows
   }
 
   const { data: inserted, error } = await service
