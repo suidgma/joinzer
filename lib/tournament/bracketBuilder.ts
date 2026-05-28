@@ -318,6 +318,102 @@ export function roundRobinMatches(
   return { rows, nextMatchNum: matchNum }
 }
 
+// ── Rotating Doubles Round Robin ──────────────────────────────────────────────
+
+/**
+ * Generates a round-robin schedule where players rotate partners every round.
+ *
+ * Used by tournament divisions where partner_mode='rotating'. Players sign up
+ * solo (one registration per player). Each round, players are reshuffled
+ * into 4-person matches with new partner/opponent combinations, preferring
+ * unique partnerships across the tournament.
+ *
+ * Inputs:
+ *   - playerIds: solo registration IDs (one per player)
+ *   - rounds: how many rounds to generate. Defaults to playerIds.length - 1
+ *     for even counts (one round per teammate slot), playerIds.length for odd.
+ *   - courts: max parallel matches per round. Default unlimited.
+ *
+ * Each generated match row uses:
+ *   team_1_registration_id          → side A player 1
+ *   team_1_partner_registration_id  → side A player 2
+ *   team_2_registration_id          → side B player 1
+ *   team_2_partner_registration_id  → side B player 2
+ *
+ * The algorithm is a simplified greedy: shuffle players, pair them into
+ * 4-player groups, optionally re-roll the round if it has too many repeat
+ * partners vs prior rounds. Not optimal — but fast and produces good variety
+ * for typical 8-16 player divisions.
+ */
+export function rotatingDoublesMatches(
+  playerIds: string[],
+  base: BaseMatch,
+  options: { rounds?: number; courts?: number; startMatchNum?: number } = {}
+): { rows: BaseMatch[]; nextMatchNum: number } {
+  const startMatchNum = options.startMatchNum ?? 1
+  if (playerIds.length < 4) return { rows: [], nextMatchNum: startMatchNum }
+
+  // Doubles needs multiples of 4. With N not divisible by 4, the remainder
+  // sits out each round (they get reshuffled in via the per-round shuffle).
+  const playersPerRound = Math.floor(playerIds.length / 4) * 4
+  if (playersPerRound < 4) return { rows: [], nextMatchNum: startMatchNum }
+
+  const matchesPerRound = playersPerRound / 4
+  const maxCourts = options.courts ?? matchesPerRound
+  const actualMatchesPerRound = Math.min(matchesPerRound, maxCourts)
+
+  const totalRounds = options.rounds ?? (playerIds.length % 2 === 0 ? playerIds.length - 1 : playerIds.length)
+
+  // Track partner frequency to discourage repeats round-over-round.
+  const partnerCount = new Map<string, number>()
+  const partnerKey = (a: string, b: string) => a < b ? `${a}|${b}` : `${b}|${a}`
+
+  const rows: BaseMatch[] = []
+  let matchNum = startMatchNum
+
+  for (let round = 1; round <= totalRounds; round++) {
+    // Try a handful of shuffles and pick the one with the fewest repeat partnerships.
+    let bestShuffle: string[] | null = null
+    let bestRepeats = Infinity
+
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const shuffled = shuffle([...playerIds])
+      let repeats = 0
+      for (let i = 0; i < actualMatchesPerRound * 4; i += 4) {
+        const [p1, p2, p3, p4] = shuffled.slice(i, i + 4)
+        repeats += partnerCount.get(partnerKey(p1, p2)) ?? 0
+        repeats += partnerCount.get(partnerKey(p3, p4)) ?? 0
+      }
+      if (repeats < bestRepeats) {
+        bestRepeats = repeats
+        bestShuffle = shuffled
+        if (repeats === 0) break // perfect round, stop searching
+      }
+    }
+
+    const chosen = bestShuffle ?? shuffle([...playerIds])
+
+    for (let i = 0; i < actualMatchesPerRound; i++) {
+      const [p1, p2, p3, p4] = chosen.slice(i * 4, i * 4 + 4)
+      rows.push({
+        ...base,
+        team_1_registration_id:         p1,
+        team_1_partner_registration_id: p2,
+        team_2_registration_id:         p3,
+        team_2_partner_registration_id: p4,
+        match_stage: 'round_robin',
+        round_number: round,
+        match_number: matchNum++,
+      })
+      // Record the partnerships used so the next round's shuffles can avoid them.
+      partnerCount.set(partnerKey(p1, p2), (partnerCount.get(partnerKey(p1, p2)) ?? 0) + 1)
+      partnerCount.set(partnerKey(p3, p4), (partnerCount.get(partnerKey(p3, p4)) ?? 0) + 1)
+    }
+  }
+
+  return { rows, nextMatchNum: matchNum }
+}
+
 // ── Pool Play ─────────────────────────────────────────────────────────────────
 
 /**

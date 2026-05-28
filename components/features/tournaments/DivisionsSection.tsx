@@ -68,6 +68,7 @@ type Division = {
   format: string
   category: string
   team_type: string
+  partner_mode?: string
   skill_level: string | null
   skill_min: number | null
   skill_max: number | null
@@ -169,6 +170,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fCategory, setFCategory] = useState('mixed')
   const [fSkill, setFSkill] = useState('')
   const [fTeamType, setFTeamType] = useState('doubles')
+  const [fPartnerMode, setFPartnerMode] = useState<'fixed' | 'rotating'>('fixed')
   const [fMax, setFMax] = useState(16)
   const [fWaitlist, setFWaitlist] = useState(false)
   const [fBracketType, setFBracketType] = useState<BracketType>('round_robin')
@@ -192,6 +194,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [editCategory, setEditCategory] = useState('mixed')
   const [editSkill, setEditSkill] = useState('')
   const [editTeamType, setEditTeamType] = useState('doubles')
+  const [editPartnerMode, setEditPartnerMode] = useState<'fixed' | 'rotating'>('fixed')
   const [editMax, setEditMax] = useState(16)
   const [editWaitlist, setEditWaitlist] = useState(false)
   const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
@@ -267,6 +270,11 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     const autoName = fName.trim() ||
       [CATEGORY_LABELS[fCategory], fTeamType === 'singles' ? 'Singles' : 'Doubles', fSkill].filter(Boolean).join(' — ')
 
+    // partner_mode is only meaningful for doubles + round_robin; force 'fixed'
+    // otherwise so we never store a value that the match generator would reject.
+    const supportsRotating = fTeamType === 'doubles' && fBracketType === 'round_robin'
+    const effectivePartnerMode = supportsRotating ? fPartnerMode : 'fixed'
+
     const supabase = createClient()
     const { data, error } = await supabase
       .from('tournament_divisions')
@@ -274,6 +282,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         tournament_id: tournamentId,
         name: autoName,
         ...prepareDivisionWrite({ category: fCategory, team_type: fTeamType, skill_level: fSkill || null }),
+        partner_mode: effectivePartnerMode,
         max_entries: fMax,
         waitlist_enabled: fWaitlist,
         status: 'active',
@@ -284,7 +293,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         max_age: fMaxAge ? parseInt(fMaxAge) : null,
         start_time: fStartTimeEnabled ? fStartTime : null,
       })
-      .select('id, name, format, category, team_type, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
+      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -304,6 +313,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditName(div.name ?? '')
     setEditCategory(div.category ?? 'mixed')
     setEditTeamType(div.team_type ?? 'doubles')
+    setEditPartnerMode((div.partner_mode === 'rotating' ? 'rotating' : 'fixed'))
     setEditSkill(div.skill_level ?? '')
     setEditMax(div.max_entries)
     setEditWaitlist(!!div.waitlist_enabled)
@@ -333,6 +343,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     const updatePayload = {
       name: autoName,
       ...prepareDivisionWrite({ category: editCategory, team_type: editTeamType, skill_level: editSkill || null }),
+      partner_mode: (editTeamType === 'doubles' && editBracketType === 'round_robin') ? editPartnerMode : 'fixed',
       max_entries: editMax,
       waitlist_enabled: editWaitlist,
       bracket_type: editBracketType,
@@ -348,7 +359,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .from('tournament_divisions')
       .update(updatePayload)
       .eq('id', divisionId)
-      .select('id, name, format, category, team_type, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
+      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
       .single()
 
     if (error || !updated) { setEditFormatError(error?.message ?? 'Save failed'); setEditFormatLoading(false); return }
@@ -819,6 +830,30 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             </div>
           </div>
 
+          {fTeamType === 'doubles' && fBracketType === 'round_robin' && (
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Partner Mode</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFPartnerMode('fixed')}
+                  className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'fixed' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                >
+                  <div className="text-sm font-semibold text-brand-dark">Fixed</div>
+                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Captains pick partner at registration. Teams stay together every match.</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFPartnerMode('rotating')}
+                  className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                >
+                  <div className="text-sm font-semibold text-brand-dark">Rotating</div>
+                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Players register solo. New partner every round across the bracket.</div>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Skill Level</label>
@@ -1047,6 +1082,30 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         </select>
                       </div>
                     </div>
+
+                    {editTeamType === 'doubles' && editBracketType === 'round_robin' && (
+                      <div>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">Partner Mode</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditPartnerMode('fixed')}
+                            className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'fixed' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                          >
+                            <div className="text-sm font-semibold text-brand-dark">Fixed</div>
+                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Captains pick partner at registration. Teams stay together every match.</div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditPartnerMode('rotating')}
+                            className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                          >
+                            <div className="text-sm font-semibold text-brand-dark">Rotating</div>
+                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Players register solo. New partner every round across the bracket.</div>
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
