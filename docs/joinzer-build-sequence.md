@@ -383,10 +383,11 @@ Once the product works, unlock growth. Don't ship before Batch 1–3 land.
 - **Prompt:** *"Generate /courts/[slug] dynamic pages — one per location in the seed data. Each page shows: court name, address, parking notes, indoor/outdoor, court count, and a list of upcoming sessions/leagues/tournaments at that location. Generate slugs from location names. Add to sitemap.xml. SEO meta tags per page."*
 - **Verify:** Visit `/courts/sunset-park-pickleball-complex` (or whatever slug pattern) and see upcoming events there.
 
-### [ ] 5.3 Kill the password field on login
-- **What:** Recreational pickleball app does not need passwords. Google + magic link only.
-- **Prompt:** *"On the login page, remove the email+password form entirely. Keep Google OAuth and add a magic-link option using Supabase Auth's signInWithOtp method. Remove the Forgot Password flow. Migrate any existing password-only users via a one-time magic-link prompt on next login."*
-- **Verify:** Login page only shows Google + magic link. Existing accounts can still log in.
+### [~] 5.3 Kill the password field on login — **superseded**
+- **Status:** Will not ship. Production auth model is email/password + Google OAuth. See `docs/decisions.md` 2026-05-28 "Login flow (reversal)".
+- **Original plan:** Remove email+password form entirely. Keep Google OAuth and add a magic-link option using Supabase Auth's signInWithOtp method. Remove the Forgot Password flow.
+- **Why reversed:** Magic-link-only login created friction (deliverability, expired links, multi-device). Passwords stay as the fallback for users who prefer them.
+- **What we kept:** Magic link is still used transactionally for CSV-import invites and partner-invite emails via `supabase.auth.admin.generateLink({ type: 'magiclink' })`. That's a different problem from primary login.
 
 ### [ ] 5.4 Organizer-facing copy on the homepage
 - **What:** Marketing site is entirely player-facing. Add a section that speaks to organizers.
@@ -669,9 +670,11 @@ Blocks: 3.5
 - **Option B:** Change the copy to honest manual fallback.
 - **Recommendation:** B first (ships in an hour), A later when there's enough solo traffic to make it worth building.
 
-### [ ] Login flow
-Blocks: 5.3
-- **Decided:** Move to Google + magic link, kill password. ✅ (Implied earlier.)
+### [x] Login flow — **reversed 2026-05-28**
+Blocks: 5.3 (superseded)
+- **Originally decided (2026-05-13):** Move to Google + magic link, kill password.
+- **Actually shipped:** Email/password + Google OAuth. Magic link kept as a transactional invite channel only.
+- **See:** `docs/decisions.md` 2026-05-28 "Login flow (reversal)".
 
 ---
 
