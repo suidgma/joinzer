@@ -97,7 +97,6 @@ For specific schema details, check Supabase Table Editor. For specific route det
 These are the actual unresolved decisions blocking informed choices:
 
 - **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in @docs/architecture-target.md.
-- **Second tournament create route.** `/leagues/tournaments/create` exists alongside `/tournaments/create` (the former renamed from `/compete/tournaments/create` during the late-May route refactor). Dead code, feature branch, or intentional? Audit before next slice.
 - **First committed event.** None. No organizer has seen the product yet.
 - **Organizer conversation.** Not yet booked. Blocking informed product decisions on Path A vs. B.
 
