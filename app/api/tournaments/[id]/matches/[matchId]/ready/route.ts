@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { logAudit } from '@/lib/audit/log'
 
 // POST /api/tournaments/[id]/matches/[matchId]/ready
 // Marks a match as in_progress (ready to play).
@@ -29,6 +30,14 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Snapshot the prior status so the audit row records the transition.
+  const { data: priorMatch } = await service
+    .from('tournament_matches')
+    .select('status')
+    .eq('id', params.matchId)
+    .eq('tournament_id', params.id)
+    .single()
+
   const { error } = await service
     .from('tournament_matches')
     .update({ status: 'in_progress' })
@@ -37,8 +46,15 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // TODO: write to audit_log once migrated (CLAUDE.md Section 6)
-  console.log('[audit] match marked ready:', { matchId: params.matchId, actor: user.id })
+  // Audit the readiness transition. Non-blocking — logAudit swallows errors.
+  await logAudit({
+    actorId:    user.id,
+    entityType: 'tournament_match',
+    entityId:   params.matchId,
+    action:     'match_marked_ready',
+    before:     { status: priorMatch?.status ?? null },
+    after:      { status: 'in_progress' },
+  })
 
   return NextResponse.json({ ok: true })
 }

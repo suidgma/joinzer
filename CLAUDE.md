@@ -72,6 +72,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Tournament organizer tools** — co-organizer + volunteer roles via `tournament_staff`, CSV team import, organizer-driven match reschedule, organizer-driven withdrawals with waitlist promotion
 - **Transactional email** — Resend integration covering registration confirmation, payment confirmation, refund notice, solo partner-match notification, sub-request flow, daily session reminders (cron), and organizer-to-bracket announce
 - **Two-form-factor refactor Slices 0–2** — primitives, `/tournaments/create`, `/tournaments/[id]`
+- **Audit log scaffold** — `audit_log` table + `lib/audit/log.ts` helper. Wired into the match score and match ready routes; other state transitions still TODO.
 
 ### Not yet built
 
@@ -79,7 +80,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **In-app notification center** — no `notifications` table, no push, no deep links, no preferences. Transactional email exists via Resend but there is no in-app inbox.
 - **SMS** — no Twilio / equivalent
 - **DUPR integration** — no API connection, no per-division min/max rating
-- **Audit log** (`audit_log` table)
+- **Audit log on every state change** — table + helper exist; only the match score and ready routes are wired so far. Remaining: tournament create, registrations, refunds, division edits, withdrawals, league transitions.
 - **Platform stats** (`platform_stats_mv` materialized view)
 - **Players directory** beyond basic profiles
 - **Public marketing site overhaul** (per-court SEO pages, public browse, etc.)
@@ -136,4 +137,4 @@ Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 
 ---
 
-*Last verified against repo: May 27, 2026*
+*Last verified against repo: May 28, 2026*
