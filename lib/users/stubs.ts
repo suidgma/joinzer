@@ -7,12 +7,25 @@ export function normalizeEmail(raw: string): string {
   return lower.slice(0, at).replace(/\+.*$/, '') + lower.slice(at)
 }
 
+/**
+ * Optional player attributes an organizer may provide when bulk-importing.
+ * These are only written when CREATING a stub — existing profiles are never
+ * overridden (the player's own data wins).
+ */
+export type StubExtras = {
+  name?: string | null
+  phone?: string | null
+  gender?: string | null
+  dupr_rating?: number | null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createStub(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   service: any,
   email: string,
-  userByNormEmail: Map<string, User>
+  userByNormEmail: Map<string, User>,
+  extras: StubExtras = {}
 ): Promise<{ userId: string; isNew: boolean }> {
   const norm = normalizeEmail(email)
 
@@ -39,9 +52,28 @@ export async function createStub(
 
   const userId = newUser.user.id
 
+  // Build the profile row. Required defaults: name, email, is_stub, joinzer_rating, notify_new_sessions.
+  // Optional extras only added if provided — keeps the row narrow for the singles import path
+  // that doesn't pass extras at all.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const profileRow: Record<string, any> = {
+    id: userId,
+    name: extras.name?.trim() || email,
+    email,
+    is_stub: true,
+    joinzer_rating: 1000,
+    notify_new_sessions: false,
+  }
+  if (extras.phone?.trim()) profileRow.phone = extras.phone.trim()
+  if (extras.gender?.trim()) profileRow.gender = extras.gender.trim()
+  if (extras.dupr_rating != null && !Number.isNaN(extras.dupr_rating)) {
+    profileRow.dupr_rating = extras.dupr_rating
+    profileRow.rating_source = 'organizer_import'
+  }
+
   // No auto-creation trigger — explicit insert. ignoreDuplicates makes retries safe.
   await service.from('profiles').upsert(
-    { id: userId, name: email, email, is_stub: true, joinzer_rating: 1000, notify_new_sessions: false },
+    profileRow,
     { onConflict: 'id', ignoreDuplicates: true }
   )
 

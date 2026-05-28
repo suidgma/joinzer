@@ -3,7 +3,13 @@
     "allow": [
       "mcp__claude_ai_Supabase__apply_migration",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__781602e1-b40f-4cb7-b063-a17436eff9b9__create_draft",
+      "mcp__Claude_in_Chrome__read_network_requests",
+      "mcp__f89b57dd-656d-48e1-b53c-017bcb63ac57__get_runtime_logs",
+      "Bash(git fetch *)"
     ]
   }
 }
