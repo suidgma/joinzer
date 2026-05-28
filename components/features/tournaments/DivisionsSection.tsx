@@ -28,11 +28,24 @@ const FORMAT_LABELS: Record<string, string> = {
   custom:                 'Custom',
 }
 
-// Legacy category → label fallback for auto-name builder (form state still holds legacy values)
-const LEGACY_CATEGORY_LABELS: Record<string, string> = {
-  singles: 'Singles',
-  open:    'Open',
+// Category is the cleaned-up gender slice (see migration
+// 20260528000001_tournament_division_category_clean). The auto-name builder
+// uses these labels when the organizer didn't type a name.
+const CATEGORY_LABELS: Record<string, string> = {
+  men:   'Men',
+  women: 'Women',
+  mixed: 'Mixed',
+  coed:  'Coed',
+  open:  'Open',
 }
+
+const CATEGORY_OPTIONS = [
+  { value: 'men',   label: 'Men' },
+  { value: 'women', label: 'Women' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'coed',  label: 'Coed' },
+  { value: 'open',  label: 'Open' },
+] as const
 
 const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediate Plus', 'Advanced']
 
@@ -153,7 +166,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
   // Add-division form state
   const [fName, setFName] = useState('')
-  const [fCategory, setFCategory] = useState('mixed_doubles')
+  const [fCategory, setFCategory] = useState('mixed')
   const [fSkill, setFSkill] = useState('')
   const [fTeamType, setFTeamType] = useState('doubles')
   const [fMax, setFMax] = useState(16)
@@ -176,7 +189,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // Inline division edit state (per division) — mirrors the add-division form
   // so an organizer can change any field after creation, not just format.
   const [editName, setEditName] = useState('')
-  const [editCategory, setEditCategory] = useState('mixed_doubles')
+  const [editCategory, setEditCategory] = useState('mixed')
   const [editSkill, setEditSkill] = useState('')
   const [editTeamType, setEditTeamType] = useState('doubles')
   const [editMax, setEditMax] = useState(16)
@@ -252,7 +265,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setFError(null)
 
     const autoName = fName.trim() ||
-      [FORMAT_LABELS[fCategory] ?? LEGACY_CATEGORY_LABELS[fCategory], fSkill].filter(Boolean).join(' — ')
+      [CATEGORY_LABELS[fCategory], fTeamType === 'singles' ? 'Singles' : 'Doubles', fSkill].filter(Boolean).join(' — ')
 
     const supabase = createClient()
     const { data, error } = await supabase
@@ -278,7 +291,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
     setDivisions(prev => [...prev, { ...data, tournament_registrations: [] }])
     setShowAddForm(false)
-    setFName(''); setFCategory('mixed_doubles'); setFSkill('')
+    setFName(''); setFCategory('mixed'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFBracketType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
     setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('08:00')
@@ -289,7 +302,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   function openFormatEdit(div: Division) {
     // Populate every field from the existing row so the organizer sees current values.
     setEditName(div.name ?? '')
-    setEditCategory(div.category ?? div.format ?? 'mixed_doubles')
+    setEditCategory(div.category ?? 'mixed')
     setEditTeamType(div.team_type ?? 'doubles')
     setEditSkill(div.skill_level ?? '')
     setEditMax(div.max_entries)
@@ -315,7 +328,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
     const newCostCents = editCostDollars !== '' ? Math.round(parseFloat(editCostDollars) * 100) : null
     const autoName = editName.trim() ||
-      [FORMAT_LABELS[editCategory] ?? LEGACY_CATEGORY_LABELS[editCategory], editSkill].filter(Boolean).join(' — ')
+      [CATEGORY_LABELS[editCategory], editTeamType === 'singles' ? 'Singles' : 'Doubles', editSkill].filter(Boolean).join(' — ')
 
     const updatePayload = {
       name: autoName,
@@ -792,11 +805,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
               <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
-                <option value="mixed_doubles">Mixed</option>
-                <option value="mens_doubles">Men</option>
-                <option value="womens_doubles">Women</option>
-                <option value="singles">Singles</option>
-                <option value="open">Open</option>
+                {CATEGORY_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -1023,11 +1034,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       <div>
                         <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
                         <select value={editCategory} onChange={e => setEditCategory(e.target.value)} className="w-full input">
-                          <option value="mixed_doubles">Mixed</option>
-                          <option value="mens_doubles">Men</option>
-                          <option value="womens_doubles">Women</option>
-                          <option value="singles">Singles</option>
-                          <option value="open">Open</option>
+                          {CATEGORY_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
