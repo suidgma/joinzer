@@ -42,29 +42,41 @@ describe('prepareLeagueWrite', () => {
 // ── prepareDivisionWrite ──────────────────────────────────────────────────────
 
 describe('prepareDivisionWrite', () => {
-  it('maps all 8 Phase 1 category+team_type pairs to the correct format', () => {
-    const cases: Array<[string, string, string]> = [
-      ['mens_doubles',   'doubles', 'mens_doubles'],
-      ['womens_doubles', 'doubles', 'womens_doubles'],
-      ['mixed_doubles',  'doubles', 'mixed_doubles'],
-      ['singles',        'singles', 'mens_singles'],
-      ['open',           'singles', 'open_singles'],
-      ['mens_doubles',   'singles', 'mens_singles'],
-      ['womens_doubles', 'singles', 'womens_singles'],
-      ['mixed_doubles',  'singles', 'open_singles'],
+  it('maps every (category, team_type) pair to the correct format', () => {
+    // Doubles variants — one row per category in the cleaned-up vocabulary.
+    const doublesCases: Array<[string, string]> = [
+      ['men',   'mens_doubles'],
+      ['women', 'womens_doubles'],
+      ['mixed', 'mixed_doubles'],
+      ['coed',  'coed_doubles'],
+      ['open',  'open_doubles'],
     ]
-    for (const [category, team_type, expected] of cases) {
-      const result = prepareDivisionWrite({ category, team_type, skill_level: null })
+    for (const [category, expected] of doublesCases) {
+      const result = prepareDivisionWrite({ category, team_type: 'doubles', skill_level: null })
+      expect(result.format).toBe(expected)
+    }
+
+    // Singles variants — men/women get their own format; everything else
+    // collapses to open_singles (mixed/coed/unknown have no singles concept).
+    const singlesCases: Array<[string, string]> = [
+      ['men',   'mens_singles'],
+      ['women', 'womens_singles'],
+      ['mixed', 'open_singles'],
+      ['coed',  'open_singles'],
+      ['open',  'open_singles'],
+    ]
+    for (const [category, expected] of singlesCases) {
+      const result = prepareDivisionWrite({ category, team_type: 'singles', skill_level: null })
       expect(result.format).toBe(expected)
     }
   })
 
-  it('generic fallback: unknown category + doubles → mixed_doubles', () => {
-    const result = prepareDivisionWrite({ category: 'open', team_type: 'doubles', skill_level: null })
+  it('doubles fallback: unknown category + doubles → mixed_doubles', () => {
+    const result = prepareDivisionWrite({ category: 'unknown', team_type: 'doubles', skill_level: null })
     expect(result.format).toBe('mixed_doubles')
   })
 
-  it('generic fallback: unknown category + singles → open_singles', () => {
+  it('singles fallback: unknown category + singles → open_singles', () => {
     const result = prepareDivisionWrite({ category: 'unknown', team_type: 'singles', skill_level: null })
     expect(result.format).toBe('open_singles')
   })
@@ -81,27 +93,27 @@ describe('prepareDivisionWrite', () => {
       ['Advanced',     4.0, 4.5],
     ]
     for (const [skill_level, min, max] of cases) {
-      const result = prepareDivisionWrite({ category: 'mixed_doubles', team_type: 'doubles', skill_level })
+      const result = prepareDivisionWrite({ category: 'mixed', team_type: 'doubles', skill_level })
       expect(result.skill_min).toBe(min)
       expect(result.skill_max).toBe(max)
     }
   })
 
   it('lowercase skill_level returns null range (proves Title-Case-keyed table)', () => {
-    const result = prepareDivisionWrite({ category: 'mixed_doubles', team_type: 'doubles', skill_level: 'beginner' })
+    const result = prepareDivisionWrite({ category: 'mixed', team_type: 'doubles', skill_level: 'beginner' })
     expect(result.skill_min).toBeNull()
     expect(result.skill_max).toBeNull()
   })
 
   it('null skill_level returns null range', () => {
-    const result = prepareDivisionWrite({ category: 'mixed_doubles', team_type: 'doubles', skill_level: null })
+    const result = prepareDivisionWrite({ category: 'mixed', team_type: 'doubles', skill_level: null })
     expect(result.skill_min).toBeNull()
     expect(result.skill_max).toBeNull()
   })
 
-  it('passes legacy fields through unchanged', () => {
-    const result = prepareDivisionWrite({ category: 'mens_doubles', team_type: 'doubles', skill_level: 'Advanced' })
-    expect(result.category).toBe('mens_doubles')
+  it('passes category, team_type, skill_level through unchanged', () => {
+    const result = prepareDivisionWrite({ category: 'men', team_type: 'doubles', skill_level: 'Advanced' })
+    expect(result.category).toBe('men')
     expect(result.team_type).toBe('doubles')
     expect(result.skill_level).toBe('Advanced')
   })

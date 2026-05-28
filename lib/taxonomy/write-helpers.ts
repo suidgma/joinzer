@@ -15,20 +15,26 @@ const DIVISION_SKILL_TO_RANGE: Record<string, { skill_min: number; skill_max: nu
   Advanced:     { skill_min: 4.0, skill_max: 4.5 },
 }
 
-// TypeScript port of Phase 1 migration Section 4 CASE block.
-// Same 8 mapped pairs + generic fallback. Do not change without updating the migration comment.
+// Combines the gender slice (category) and the format slice (team_type) into
+// the single `format` value the rest of the app uses. The cleaned-up category
+// vocabulary is ['men','women','mixed','coed','open']; team_type is
+// ['singles','doubles']. See migration 20260528000001 for the DB shape.
 function mapDivisionFormat(category: string, team_type: string): string {
-  if (category === 'mens_doubles'   && team_type === 'doubles') return 'mens_doubles'
-  if (category === 'womens_doubles' && team_type === 'doubles') return 'womens_doubles'
-  if (category === 'mixed_doubles'  && team_type === 'doubles') return 'mixed_doubles'
-  if (category === 'singles'        && team_type === 'singles') return 'mens_singles'
-  if (category === 'open'           && team_type === 'singles') return 'open_singles'
-  if (category === 'mens_doubles'   && team_type === 'singles') return 'mens_singles'
-  if (category === 'womens_doubles' && team_type === 'singles') return 'womens_singles'
-  if (category === 'mixed_doubles'  && team_type === 'singles') return 'open_singles'
-  if (team_type === 'doubles') return 'mixed_doubles'
-  if (team_type === 'singles') return 'open_singles'
-  return 'mixed_doubles'
+  if (team_type === 'doubles') {
+    if (category === 'men')   return 'mens_doubles'
+    if (category === 'women') return 'womens_doubles'
+    if (category === 'mixed') return 'mixed_doubles'
+    if (category === 'coed')  return 'coed_doubles'
+    if (category === 'open')  return 'open_doubles'
+    return 'mixed_doubles' // safe doubles fallback
+  }
+  if (team_type === 'singles') {
+    if (category === 'men')   return 'mens_singles'
+    if (category === 'women') return 'womens_singles'
+    // Mixed/coed don't have a singles concept; open_singles is the neutral choice.
+    return 'open_singles'
+  }
+  return 'mixed_doubles' // very-defensive fallback for unrecognised team_type
 }
 
 export function prepareLeagueWrite(input: {

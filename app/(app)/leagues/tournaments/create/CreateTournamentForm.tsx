@@ -5,12 +5,16 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { LocationOption } from '@/lib/types'
 
+// Category options mirror the gender slice used by tournament_divisions
+// (Men / Women / Mixed / Coed / Open). This form writes to the legacy
+// tournament_events table which has no CHECK constraint on `category`, so
+// we store the same five values directly.
 const CATEGORY_OPTIONS = [
-  { value: 'mens_singles', label: "Men's Singles" },
-  { value: 'womens_singles', label: "Women's Singles" },
-  { value: 'mens_doubles', label: "Men's Doubles" },
-  { value: 'womens_doubles', label: "Women's Doubles" },
-  { value: 'mixed_doubles', label: 'Mixed Doubles' },
+  { value: 'men',   label: 'Men' },
+  { value: 'women', label: 'Women' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'coed',  label: 'Coed' },
+  { value: 'open',  label: 'Open' },
 ]
 
 const BRACKET_OPTIONS = [
@@ -31,7 +35,7 @@ type EventDraft = {
 }
 
 function blankEvent(): EventDraft {
-  return { name: '', category: 'mixed_doubles', skill_level: '', age_division: '', max_teams: '', event_date: '', bracket_type: 'single_elimination' }
+  return { name: '', category: 'mixed', skill_level: '', age_division: '', max_teams: '', event_date: '', bracket_type: 'single_elimination' }
 }
 
 export default function CreateTournamentForm({ locations }: { locations: LocationOption[] }) {
