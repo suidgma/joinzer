@@ -247,6 +247,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
         {(league as any).creator?.name && <Row label="Organizer" value={(league as any).creator.name} />}
         <Row label="Format" value={FORMAT_LABELS[league.format]} />
+        {isDoublesLeague && (
+          <Row label="Partners" value="Rotating each match" />
+        )}
         {formatSkillRange((league as any).skill_min, (league as any).skill_max) && (
           <Row label="Skill Level" value={formatSkillRange((league as any).skill_min, (league as any).skill_max)!} />
         )}

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { LocationOption } from '@/lib/types'
 import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
 import { formatSessionDate } from '@/lib/utils/date'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import TimeSelect from '@/components/features/events/TimeSelect'
 
 const FORMAT_OPTIONS = [
@@ -199,6 +200,13 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         <select value={format} onChange={(e) => setFormat(e.target.value)} className="w-full input">
           {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        {isDoublesFormat(format) && (
+          <p className="mt-2 text-[11px] text-brand-muted leading-relaxed">
+            <strong className="text-brand-dark">Partners rotate each match.</strong>{' '}
+            The scheduler pairs players with a different partner every round to maximize variety.
+            Fixed-team mode (same partner all season) is on the roadmap — let us know if your players want it.
+          </p>
+        )}
       </Field>
 
       <Field label="Skill Level *">
