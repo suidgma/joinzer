@@ -175,6 +175,54 @@ export function determineRoundFormat(presentCount: number, courts: number): Roun
   return { doublesCount, singlesCount, byeCount, activePlayers: presentCount, warning }
 }
 
+/**
+ * Round format for fixed-partner mode.
+ *
+ * Constraints in fixed mode:
+ *   - Every doubles match uses two whole pairs (4 players from 2 known pairs).
+ *   - A pair whose other half is absent becomes one "orphan" (present partner
+ *     of an absent player). Orphans can fill singles slots or take byes, but
+ *     are never re-paired into doubles.
+ *   - A pair that doesn't fit in a doubles court has both members byed.
+ */
+export function determineRoundFormatFixed(
+  presentPairCount: number,
+  orphanCount: number,
+  courts: number,
+): RoundFormat {
+  const c = Math.max(1, courts)
+  const presentCount = presentPairCount * 2 + orphanCount
+
+  if (presentCount < 2) {
+    return { doublesCount: 0, singlesCount: 0, byeCount: 0, activePlayers: 0, warning: 'Not enough players for any match.' }
+  }
+
+  // Whole pairs feeding doubles courts.
+  const maxDoublesByPairs  = Math.floor(presentPairCount / 2)
+  const maxDoublesByCourts = c
+  const doublesCount       = Math.min(maxDoublesByPairs, maxDoublesByCourts)
+  const courtsLeft         = c - doublesCount
+
+  // Pairs that didn't get a doubles court → both members take a bye together.
+  const leftoverPairs = presentPairCount - doublesCount * 2
+  let byeCount        = leftoverPairs * 2
+
+  // Orphans (one half of a pair, partner absent) can fill a singles court if free.
+  let singlesCount = 0
+  let unplacedOrphans = orphanCount
+  if (courtsLeft >= 1 && unplacedOrphans >= 2) {
+    singlesCount = 1
+    unplacedOrphans -= 2
+  }
+  byeCount += unplacedOrphans
+
+  const warning = presentCount < 8
+    ? `Only ${presentCount} players present — may not be enough for standard league play.`
+    : undefined
+
+  return { doublesCount, singlesCount, byeCount, activePlayers: presentCount, warning }
+}
+
 // ─── Candidate generation ────────────────────────────────────────────────────
 
 function shuffle<T>(arr: T[]): T[] {
@@ -259,6 +307,130 @@ function generateCandidate(
       singlesPlayer1Id: null,
       singlesPlayer2Id: null,
       byePlayerId:     p.id,
+    })
+  }
+
+  return matches
+}
+
+// ─── Fixed-partner candidate generation ──────────────────────────────────────
+
+/**
+ * Resolves the input pair map to (presentPairs, orphans) given which session
+ * players are actually present today. A "pair" here is the canonical pair from
+ * registration (Alice + Bob). If both are present, they go to presentPairs. If
+ * only one is present, that one is an "orphan" (still plays, just not as
+ * doubles).
+ *
+ * Pairs are deduped by canonical ordering (smaller id first) so the same pair
+ * isn't returned twice.
+ */
+export function resolvePresentPairs(
+  present: SessionPlayer[],
+  fixedPairs: ReadonlyMap<string, string>,
+): { presentPairs: Array<[string, string]>; orphans: string[] } {
+  const presentIds = new Set(present.map(p => p.id))
+  const seen       = new Set<string>()
+  const presentPairs: Array<[string, string]> = []
+  const orphans: string[] = []
+
+  for (const player of present) {
+    const partnerId = fixedPairs.get(player.id) ?? null
+
+    if (!partnerId) {
+      orphans.push(player.id)
+      continue
+    }
+
+    const canonical = player.id < partnerId ? `${player.id}|${partnerId}` : `${partnerId}|${player.id}`
+    if (seen.has(canonical)) continue
+    seen.add(canonical)
+
+    if (presentIds.has(partnerId)) {
+      presentPairs.push([player.id, partnerId])
+    } else {
+      // Partner absent → present partner plays as an orphan this round.
+      orphans.push(player.id)
+    }
+  }
+
+  return { presentPairs, orphans }
+}
+
+/**
+ * Builds one round candidate honoring fixed pairs.
+ *
+ * Doubles matches always combine two whole pairs. Orphans (players whose
+ * fixed partner is absent) take singles or byes. Pairs that don't fit on a
+ * doubles court both bye together.
+ */
+function generateFixedCandidate(
+  presentPairs: ReadonlyArray<readonly [string, string]>,
+  orphans: ReadonlyArray<string>,
+  format: RoundFormat,
+): GeneratedMatch[] {
+  const shuffledPairs   = shuffle([...presentPairs])
+  const shuffledOrphans = shuffle([...orphans])
+
+  const matches: GeneratedMatch[] = []
+  let court = 1
+
+  // Doubles: two pairs per court.
+  for (let i = 0; i < format.doublesCount; i++) {
+    const pairA = shuffledPairs[i * 2]
+    const pairB = shuffledPairs[i * 2 + 1]
+    if (!pairA || !pairB) continue
+    matches.push({
+      courtNumber:      court++,
+      matchType:        'doubles',
+      team1Player1Id:   pairA[0],
+      team1Player2Id:   pairA[1],
+      team2Player1Id:   pairB[0],
+      team2Player2Id:   pairB[1],
+      singlesPlayer1Id: null,
+      singlesPlayer2Id: null,
+      byePlayerId:      null,
+    })
+  }
+
+  // Leftover whole pairs (no court for them this round) → both members bye.
+  for (let i = format.doublesCount * 2; i < shuffledPairs.length; i++) {
+    const [a, b] = shuffledPairs[i]
+    matches.push({
+      courtNumber: null, matchType: 'bye',
+      team1Player1Id: null, team1Player2Id: null, team2Player1Id: null, team2Player2Id: null,
+      singlesPlayer1Id: null, singlesPlayer2Id: null,
+      byePlayerId: a,
+    })
+    matches.push({
+      courtNumber: null, matchType: 'bye',
+      team1Player1Id: null, team1Player2Id: null, team2Player1Id: null, team2Player2Id: null,
+      singlesPlayer1Id: null, singlesPlayer2Id: null,
+      byePlayerId: b,
+    })
+  }
+
+  // Orphans: fill singles court if format reserved one + we have 2+ orphans.
+  let orphanIdx = 0
+  if (format.singlesCount > 0 && shuffledOrphans.length >= 2) {
+    matches.push({
+      courtNumber:      court++,
+      matchType:        'singles',
+      team1Player1Id:   null, team1Player2Id: null, team2Player1Id: null, team2Player2Id: null,
+      singlesPlayer1Id: shuffledOrphans[0],
+      singlesPlayer2Id: shuffledOrphans[1],
+      byePlayerId:      null,
+    })
+    orphanIdx = 2
+  }
+
+  // Remaining orphans → bye.
+  for (let i = orphanIdx; i < shuffledOrphans.length; i++) {
+    matches.push({
+      courtNumber: null, matchType: 'bye',
+      team1Player1Id: null, team1Player2Id: null, team2Player1Id: null, team2Player2Id: null,
+      singlesPlayer1Id: null, singlesPlayer2Id: null,
+      byePlayerId: shuffledOrphans[i],
     })
   }
 
@@ -391,12 +563,43 @@ export function generateNextRound(
   courts: number,
   roundNumber: number,
   candidateCount = 1000,
+  fixedPairs?: ReadonlyMap<string, string>,
 ): GeneratedRound | null {
   const present = players.filter(p => p.actualStatus === 'present')
   if (present.length < 2) return null
 
-  const format  = determineRoundFormat(present.length, courts)
-  const history = deriveHistory(completedRounds)
+  const isFixedMode = fixedPairs != null && fixedPairs.size > 0
+  const history     = deriveHistory(completedRounds)
+
+  // Fixed mode: format and candidate generation are constrained by which
+  // pairs are present today, not by raw player count.
+  if (isFixedMode) {
+    const { presentPairs, orphans } = resolvePresentPairs(present, fixedPairs)
+    const format = determineRoundFormatFixed(presentPairs.length, orphans.length, courts)
+
+    let bestMatches: GeneratedMatch[] | null = null
+    let bestScore = -Infinity
+
+    for (let i = 0; i < candidateCount; i++) {
+      const matches = generateFixedCandidate(presentPairs, orphans, format)
+      const score   = scoreCandidate(matches, history, present)
+      if (score > bestScore || (score === bestScore && Math.random() < 0.5)) {
+        bestScore = score; bestMatches = matches
+      }
+    }
+
+    if (!bestMatches) return null
+
+    return {
+      matches: bestMatches,
+      notes:   buildNotes(bestMatches, history, present, format),
+      score:   bestScore,
+      format,
+    }
+  }
+
+  // Rotating mode (default, original behavior).
+  const format = determineRoundFormat(present.length, courts)
 
   let bestMatches: GeneratedMatch[] | null = null
   let bestScore = -Infinity

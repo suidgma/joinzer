@@ -43,6 +43,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [format, setFormat] = useState('mixed_doubles')
   const [skillMin, setSkillMin] = useState('')
   const [skillMax, setSkillMax] = useState('')
+  const [partnerMode, setPartnerMode] = useState<'rotating' | 'fixed'>('rotating')
   const [locationId, setLocationId] = useState('')
   const [startTime, setStartTime] = useState('08:00')
   const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
@@ -135,6 +136,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
+    // Partner mode is only meaningful for doubles formats; force rotating
+    // for singles / round-robin to avoid storing a confusing value.
+    const effectivePartnerMode = isDoublesFormat(format) ? partnerMode : 'rotating'
+
     const { data: league, error: leagueErr } = await supabase
       .from('leagues')
       .insert({
@@ -144,6 +149,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
+        partner_mode: effectivePartnerMode,
         location_name: selectedLocation?.name ?? null,
         location_id: locationId || null,
         start_time: startTime || null,
@@ -205,14 +211,40 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
           <select id="format" value={format} onChange={(e) => setFormat(e.target.value)} className="w-full input">
             {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          {isDoublesFormat(format) && (
-            <p className="mt-2 text-[11px] text-brand-muted leading-relaxed">
-              <strong className="text-brand-dark">Partners rotate each match.</strong>{' '}
-              The scheduler pairs players with a different partner every round to maximize variety.
-              Fixed-team mode (same partner all season) is on the roadmap.
-            </p>
-          )}
         </FormRow>
+        {isDoublesFormat(format) && (
+          <FormRow
+            label="Partner mode"
+            helpText="Rotating: scheduler picks a new partner each round. Fixed: captain picks partner at registration; same pair plays every match."
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPartnerMode('rotating')}
+                className={`p-2.5 rounded-lg border text-left ${
+                  partnerMode === 'rotating'
+                    ? 'border-brand bg-brand-soft'
+                    : 'border-brand-border bg-white'
+                }`}
+              >
+                <div className="text-sm font-semibold text-brand-dark">Rotating</div>
+                <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">New partner every round.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPartnerMode('fixed')}
+                className={`p-2.5 rounded-lg border text-left ${
+                  partnerMode === 'fixed'
+                    ? 'border-brand bg-brand-soft'
+                    : 'border-brand-border bg-white'
+                }`}
+              >
+                <div className="text-sm font-semibold text-brand-dark">Fixed</div>
+                <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Same partner all season.</div>
+              </button>
+            </div>
+          </FormRow>
+        )}
         <FormRow label="Skill range" helpText="Leave blank to open to all skill levels.">
           <div className="flex items-center gap-3">
             <select value={skillMin} onChange={(e) => setSkillMin(e.target.value)} className="flex-1 input">
