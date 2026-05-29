@@ -74,19 +74,13 @@ export default function OrganizersSection() {
         </div>
 
         {/* CTA */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+        <div className="flex justify-center">
           <Link
             href="/login"
             className="w-full sm:w-auto text-center bg-brand text-brand-dark font-semibold px-7 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm"
           >
             Run your event on Joinzer
           </Link>
-          <a
-            href="mailto:martyfit50@gmail.com?subject=Running%20an%20event%20on%20Joinzer"
-            className="w-full sm:w-auto text-center text-brand-dark font-semibold px-7 py-4 rounded-xl border border-brand-border hover:bg-brand-soft transition-colors text-sm"
-          >
-            Talk to the founder
-          </a>
         </div>
 
       </div>
