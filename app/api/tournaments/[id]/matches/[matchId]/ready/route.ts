@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { logAudit } from '@/lib/audit/log'
+import { createNotifications } from '@/lib/notifications/create'
 
 // POST /api/tournaments/[id]/matches/[matchId]/ready
 // Marks a match as in_progress (ready to play).
@@ -30,10 +31,10 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Snapshot the prior status so the audit row records the transition.
+  // Snapshot the prior status + registration IDs for audit and notifications.
   const { data: priorMatch } = await service
     .from('tournament_matches')
-    .select('status')
+    .select('status, team_1_registration_id, team_2_registration_id')
     .eq('id', params.matchId)
     .eq('tournament_id', params.id)
     .single()
@@ -55,6 +56,37 @@ export async function POST(
     before:     { status: priorMatch?.status ?? null },
     after:      { status: 'in_progress' },
   })
+
+  // Notify all players in this match. Resolve registration IDs → user_ids.
+  const regIds = [priorMatch?.team_1_registration_id, priorMatch?.team_2_registration_id].filter(Boolean)
+  if (regIds.length > 0) {
+    const { data: regs } = await service
+      .from('tournament_registrations')
+      .select('user_id, partner_user_id')
+      .in('id', regIds)
+
+    const recipientIds = [...new Set(
+      (regs ?? []).flatMap(r => [r.user_id, r.partner_user_id].filter(Boolean))
+    )]
+
+    const { data: tourney } = await service
+      .from('tournaments')
+      .select('name')
+      .eq('id', params.id)
+      .single()
+
+    await createNotifications(
+      recipientIds.map(uid => ({
+        recipientId: uid,
+        surface: 'tournament' as const,
+        surfaceId: params.id,
+        kind: 'tournament_match_ready',
+        title: `Your match is ready — ${tourney?.name ?? 'Tournament'}`,
+        body: 'Head to your assigned court and mark ready to start.',
+        url: `/tournaments/${params.id}/live`,
+      }))
+    )
+  }
 
   return NextResponse.json({ ok: true })
 }

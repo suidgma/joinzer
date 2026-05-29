@@ -7,6 +7,7 @@ import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify, voidCaptainHold } from '@/lib/leagues/partner'
 import { icsFilename } from '@/lib/utils/slug'
 import { formatSkillRange } from '@/lib/taxonomy/formats'
+import { createNotification } from '@/lib/notifications/create'
 
 export const dynamic = 'force-dynamic'
 
@@ -184,6 +185,19 @@ export async function POST(req: NextRequest) {
               footerNote: 'Keep this email as your payment receipt.',
             }),
             ...(attachments.length > 0 ? { attachments } : {}),
+          })
+        }
+
+        // In-app notification for the registrant
+        if (reg?.user_id) {
+          await createNotification({
+            recipientId: reg.user_id,
+            surface: 'tournament',
+            surfaceId: meta.tournament_id,
+            kind: 'tournament_registration_confirmed',
+            title: `Registered — ${tournament.name}`,
+            body: 'Payment confirmed. See you on the court.',
+            url: `/tournaments/${meta.tournament_id}`,
           })
         }
 
@@ -410,6 +424,17 @@ export async function POST(req: NextRequest) {
               footerNote: 'Keep this email as your payment receipt.',
             }),
             ...(attachments.length > 0 ? { attachments } : {}),
+          })
+
+          // In-app notification for the registrant
+          await createNotification({
+            recipientId: meta.user_id,
+            surface: 'league',
+            surfaceId: meta.league_id,
+            kind: 'league_registration_confirmed',
+            title: `${isWaitlist ? 'Waitlisted' : 'Registered'} — ${league.name}`,
+            body: isWaitlist ? "You're on the waitlist. We'll notify you if a spot opens." : 'Payment confirmed. See you on the court.',
+            url: `/leagues/${meta.league_id}`,
           })
         }
       }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { joinzerRatingLabel } from '@/lib/utils/date'
 import PlayerInviteModal from '@/components/features/players/PlayerInviteModal'
 import RatingBadge from '@/components/features/RatingBadge'
@@ -154,12 +155,13 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
             const canInvite = player.availableToday && !isMe
 
             return (
-              <div
+              <Link
                 key={player.id}
-                onClick={() => canInvite && setInviteTarget(player)}
+                href={`/players/${player.id}`}
+                onClick={(e) => { if (canInvite) { e.preventDefault(); setInviteTarget(player) } }}
                 className={`relative flex flex-col items-center gap-1.5 bg-brand-surface border rounded-2xl p-3 transition-colors ${
                   player.availableToday ? 'border-brand' : 'border-brand-border'
-                } ${canInvite ? 'cursor-pointer hover:bg-brand-soft' : ''}`}
+                } hover:bg-brand-soft`}
               >
                 {player.availableToday && (
                   <span className="absolute top-2 right-2 bg-brand text-brand-dark text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
@@ -192,7 +194,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                 {canInvite && (
                   <p className="text-[10px] text-brand-active font-medium">Tap to invite</p>
                 )}
-              </div>
+              </Link>
             )
           })}
         </div>

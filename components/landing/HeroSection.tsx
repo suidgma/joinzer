@@ -3,8 +3,8 @@ import Image from 'next/image'
 
 const trustItems = [
   { label: '65+ courts listed' },
+  { label: 'Leagues & tournaments' },
   { label: 'Free to join' },
-  { label: '1 tap to join a session' },
 ]
 
 export default function HeroSection() {
@@ -16,16 +16,16 @@ export default function HeroSection() {
           {/* Left: text + CTAs */}
           <div className="flex-1 text-center md:text-left order-1">
             <p className="text-brand-active text-xs font-semibold uppercase tracking-widest mb-3">
-              Local pickleball made easier
+              Las Vegas pickleball — all in one place
             </p>
 
             <h1 className="font-heading text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-brand-dark leading-tight mb-4">
-              Find and join<br />Vegas area<br />
-              <span className="text-brand text-2xl sm:text-3xl md:text-4xl lg:text-5xl">pickleball sessions</span>
+              Play. Compete.<br />
+              <span className="text-brand text-2xl sm:text-3xl md:text-4xl lg:text-5xl">Find your game.</span>
             </h1>
 
             <p className="text-brand-muted text-base md:text-lg leading-relaxed max-w-lg mx-auto md:mx-0 mb-6">
-              Joinzer helps you discover nearby pickleball games, connect with players, and get on the court faster.
+              Joinzer is where Vegas-area pickleball players find open sessions, join leagues, enter tournaments, and connect with the community.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
@@ -36,10 +36,10 @@ export default function HeroSection() {
                 Create Free Account
               </Link>
               <Link
-                href="/play"
+                href="/login"
                 className="w-full sm:w-auto text-brand-dark font-semibold px-7 py-4 rounded-xl border border-brand-border hover:bg-brand-soft transition-colors text-sm text-center"
               >
-                Find Local Games
+                Browse Leagues &amp; Tournaments
               </Link>
             </div>
 

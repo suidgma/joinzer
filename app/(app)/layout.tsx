@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import BottomNav from '@/components/features/BottomNav'
 import DesktopNav from '@/components/features/DesktopNav'
+import NotificationBell from '@/components/features/NotificationBell'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -39,6 +40,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <div className="pointer-events-auto">
               <DesktopNav />
             </div>
+          </div>
+          {/* Notification bell — right-anchored */}
+          <div className="ml-auto shrink-0 z-10">
+            <NotificationBell />
           </div>
         </div>
       </header>

@@ -100,7 +100,7 @@ export default function LoginPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Joinzer" className="w-48 h-48 object-contain mx-auto" />
           <h1 className="font-heading text-2xl font-bold text-brand-dark">Joinzer</h1>
-          <p className="text-sm text-brand-muted">Find and join local pickleball sessions</p>
+          <p className="text-sm text-brand-muted">Sessions, leagues, and tournaments — Las Vegas pickleball</p>
         </div>
 
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-4">

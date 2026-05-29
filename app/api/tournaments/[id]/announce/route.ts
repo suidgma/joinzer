@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { createNotifications } from '@/lib/notifications/create'
 
 export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -110,6 +111,19 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
     console.error('Resend error:', error)
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
   }
+
+  // In-app notifications for all recipients (fire-and-forget — errors are swallowed)
+  await createNotifications(
+    userIds.map(uid => ({
+      recipientId: uid,
+      surface: 'tournament' as const,
+      surfaceId: params.id,
+      kind: 'tournament_announcement',
+      title: `${tournament.name}: ${subject.trim()}`,
+      body: body.trim().slice(0, 160),
+      url: `/tournaments/${params.id}`,
+    }))
+  )
 
   return NextResponse.json({ ok: true, sent: emails.length })
 }

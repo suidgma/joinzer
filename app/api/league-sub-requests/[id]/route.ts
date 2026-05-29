@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { createNotification, createNotifications } from '@/lib/notifications/create'
+import { logAudit } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -76,6 +78,15 @@ export async function PATCH(req: NextRequest, props: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  await logAudit({
+    actorId: user.id,
+    entityType: 'league_registration',
+    entityId: params.id,
+    action: `sub_request_${action}d`,
+    before: { status: sr.status },
+    after: { status: updated.status },
+  })
+
   // Send notifications (fire-and-forget)
   sendClaimNotification(sr, updated, action, user.id).catch(console.error)
 
@@ -129,6 +140,17 @@ async function sendClaimNotification(
       })
     }
     if (emails.length) await resend.batch.send(emails).catch(console.error)
+
+    // In-app: notify the requester their sub request was claimed
+    await createNotification({
+      recipientId: sr.requesting_player_id as string,
+      surface: 'league',
+      surfaceId: sr.league_id as string,
+      kind: 'league_sub_claimed',
+      title: `${claimerName} can cover your spot`,
+      body: `${league.name}${dateStr ? ` — ${dateStr}` : ''}. Waiting for organizer approval.`,
+      url: `/leagues/${sr.league_id}`,
+    })
   }
 
   if (action === 'approve') {
@@ -155,6 +177,30 @@ async function sendClaimNotification(
       })
     }
     if (emails.length) await resend.batch.send(emails).catch(console.error)
+
+    // In-app: notify claimer they're approved + notify requester their sub is set
+    const inAppNotifications = []
+    if (updated.claimed_by_user_id) {
+      inAppNotifications.push({
+        recipientId: updated.claimed_by_user_id as string,
+        surface: 'league' as const,
+        surfaceId: sr.league_id as string,
+        kind: 'league_sub_approved',
+        title: `You're confirmed to sub — ${league.name}`,
+        body: dateStr || undefined,
+        url: `/leagues/${sr.league_id}`,
+      })
+    }
+    inAppNotifications.push({
+      recipientId: sr.requesting_player_id as string,
+      surface: 'league' as const,
+      surfaceId: sr.league_id as string,
+      kind: 'league_sub_confirmed',
+      title: `Sub confirmed — ${league.name}`,
+      body: `Your absence${dateStr ? ` on ${dateStr}` : ''} is covered.`,
+      url: `/leagues/${sr.league_id}`,
+    })
+    await createNotifications(inAppNotifications)
   }
 }
 

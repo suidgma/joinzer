@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
+import { createNotification } from '@/lib/notifications/create'
+import { logAudit } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string; regId: string }> }
 
@@ -112,6 +114,26 @@ export async function POST(_req: NextRequest, props: Params) {
       `,
     }).catch(() => {})
   }
+
+  await logAudit({
+    actorId: user.id,
+    entityType: 'payment',
+    entityId: params.regId,
+    action: 'registration_refunded',
+    before: { payment_status: 'paid' },
+    after: { payment_status: 'refunded' },
+  })
+
+  // In-app notification alongside the email
+  await createNotification({
+    recipientId: reg.user_id,
+    surface: 'tournament',
+    surfaceId: params.id,
+    kind: 'tournament_refunded',
+    title: `Refund issued — ${tournament.name}`,
+    body: 'Your registration refund has been processed. Expect 5–10 business days.',
+    url: `/tournaments/${params.id}`,
+  })
 
   return NextResponse.json({ ok: true })
 }

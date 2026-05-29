@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { createNotification } from '@/lib/notifications/create'
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -118,6 +119,19 @@ export async function POST(
       </div>
     `,
   })
+
+  // In-app notification only if the invitee already has a Joinzer account
+  if (inviteeProfile?.id) {
+    await createNotification({
+      recipientId: inviteeProfile.id,
+      surface: 'tournament',
+      surfaceId: params.id,
+      kind: 'tournament_partner_invite',
+      title: `${inviterName} invited you as their partner`,
+      body: `${tournamentName} — ${divisionName}`,
+      url: `/tournaments/invite/${invitation.token}`,
+    })
+  }
 
   return NextResponse.json({ ok: true, invitation_id: invitation.id })
 }

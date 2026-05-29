@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { createNotification } from '@/lib/notifications/create'
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -91,8 +92,21 @@ export async function POST(req: NextRequest) {
 
   if (error || !subReq) return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 })
 
-  // Notify organizer (fire-and-forget)
+  // Notify organizer via email and in-app (both fire-and-forget)
   sendOrganizerNotification(league_id, subReq.id, user.email ?? '').catch(console.error)
+
+  const { data: league } = await db.from('leagues').select('name, created_by').eq('id', league_id).single()
+  if (league?.created_by) {
+    await createNotification({
+      recipientId: league.created_by,
+      surface: 'league',
+      surfaceId: league_id,
+      kind: 'league_sub_request',
+      title: `Sub needed — ${league.name}`,
+      body: 'A player has requested a substitute for an upcoming session.',
+      url: `/leagues/${league_id}`,
+    })
+  }
 
   return NextResponse.json(subReq, { status: 201 })
 }

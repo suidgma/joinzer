@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { maybePromoteWaitlisted } from '@/lib/tournament/waitlist'
 import { canManage } from '@/lib/tournament/access'
+import { createNotification } from '@/lib/notifications/create'
+import { logAudit } from '@/lib/audit/log'
 
 export async function POST(
   req: NextRequest,
@@ -43,10 +45,38 @@ export async function POST(
     .update({ status: 'cancelled' })
     .eq('id', params.regId)
 
+  await logAudit({
+    actorId: user.id,
+    entityType: 'tournament_registration',
+    entityId: params.regId,
+    action: 'registration_withdrawn',
+    before: { status: reg.status },
+    after: { status: 'cancelled' },
+  })
+
   // Auto-promote if a waitlisted player can now be moved up
   let promoted = null
   if (reg.status === 'registered') {
     promoted = await maybePromoteWaitlisted(params.id, reg.division_id)
+  }
+
+  // Notify the player only when the organizer withdrew them (not self-withdrawal)
+  if (!isOwner) {
+    const { data: tourney } = await service
+      .from('tournaments')
+      .select('name')
+      .eq('id', params.id)
+      .single()
+
+    await createNotification({
+      recipientId: reg.user_id,
+      surface: 'tournament',
+      surfaceId: params.id,
+      kind: 'tournament_withdrawn',
+      title: `Withdrawn from ${tourney?.name ?? 'Tournament'}`,
+      body: 'The organizer has withdrawn your registration.',
+      url: `/tournaments/${params.id}`,
+    })
   }
 
   return NextResponse.json({ ok: true, promoted })

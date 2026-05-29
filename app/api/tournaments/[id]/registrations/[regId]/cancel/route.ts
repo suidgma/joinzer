@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
+import { logAudit } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string; regId: string }> }
 
@@ -219,6 +220,15 @@ export async function POST(_req: NextRequest, props: Params) {
       `,
     }).catch(() => {})
   }
+
+  await logAudit({
+    actorId: user.id,
+    entityType: 'tournament_registration',
+    entityId: params.regId,
+    action: refunded ? 'registration_cancelled_refunded' : pastDeadline ? 'registration_cancelled_no_refund' : 'registration_cancelled',
+    before: { status: reg.status, payment_status: reg.payment_status },
+    after: { status: 'cancelled', payment_status: refunded ? 'refunded' : reg.payment_status },
+  })
 
   return NextResponse.json({ ok: true, refunded, promoted: !!nextUp })
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { createNotification } from '@/lib/notifications/create'
 
 export async function POST(
   _req: NextRequest,
@@ -135,6 +136,25 @@ export async function POST(
       }).eq('id', partnerReg.id),
       service.from('league_partner_invitations').update({ status: 'accepted' }).eq('id', inv.id),
     ])
+
+    // Notify the captain that their partner accepted
+    if (captainReg?.user_id) {
+      const { data: acceptingProfile } = await service
+        .from('profiles')
+        .select('name')
+        .eq('id', user.id)
+        .single()
+
+      await createNotification({
+        recipientId: captainReg.user_id,
+        surface: 'league',
+        surfaceId: inv.league_id,
+        kind: 'league_partner_accepted',
+        title: `${acceptingProfile?.name ?? 'Your partner'} accepted your invite`,
+        body: `${league.name} — you're registered as a team.`,
+        url: `/leagues/${inv.league_id}`,
+      })
+    }
   }
 
   return NextResponse.json({ ok: true })

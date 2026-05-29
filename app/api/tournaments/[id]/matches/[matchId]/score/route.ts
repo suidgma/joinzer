@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
 import { logAudit } from '@/lib/audit/log'
+import { createNotifications } from '@/lib/notifications/create'
 
 // POST /api/tournaments/[id]/matches/[matchId]/score
 // Organizer-only score write path for the tournament day view.
@@ -86,6 +87,37 @@ export async function POST(
       status: 'completed',
     },
   })
+
+  // Notify all players in the match that the score was recorded.
+  const regIds = [match.team_1_registration_id, match.team_2_registration_id].filter(Boolean)
+  if (regIds.length > 0) {
+    const { data: regs } = await service
+      .from('tournament_registrations')
+      .select('user_id, partner_user_id')
+      .in('id', regIds)
+
+    const recipientIds = [...new Set(
+      (regs ?? []).flatMap(r => [r.user_id, r.partner_user_id].filter(Boolean))
+    )]
+
+    const { data: tourney } = await service
+      .from('tournaments')
+      .select('name')
+      .eq('id', params.id)
+      .single()
+
+    await createNotifications(
+      recipientIds.map(uid => ({
+        recipientId: uid,
+        surface: 'tournament' as const,
+        surfaceId: params.id,
+        kind: 'tournament_score_submitted',
+        title: `Match complete — ${team_1_score}–${team_2_score}`,
+        body: `${tourney?.name ?? 'Tournament'} match result has been recorded.`,
+        url: `/tournaments/${params.id}/live`,
+      }))
+    )
+  }
 
   // Advance winner to next bracket slot if applicable
   const { data: divisionMatches } = await service

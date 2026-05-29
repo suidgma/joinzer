@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { createNotifications } from '@/lib/notifications/create'
 
 // Vercel calls this daily at 8 AM Pacific.
 // Protected by CRON_SECRET — set this in Vercel env vars and add it
@@ -154,6 +155,19 @@ export async function GET(req: NextRequest) {
     const { error } = await resend.batch.send(emailBatch)
     if (error) errors.push(`league session ${session.id}: ${error.message}`)
     else totalSent += emailBatch.length
+
+    // In-app notification for all league session participants
+    await createNotifications(
+      userIds.map(uid => ({
+        recipientId: uid,
+        surface: 'league' as const,
+        surfaceId: session.league_id as string,
+        kind: 'league_session_reminder',
+        title: `${leagueName} — Session ${session.session_number as number} is tomorrow`,
+        body: locationName || undefined,
+        url: `/leagues/${session.league_id}/sessions/${session.id}/live`,
+      }))
+    )
   }
 
   return NextResponse.json({
