@@ -15,6 +15,12 @@ type Match = {
   scheduled_time: string | null
   team_1_registration_id: string | null
   team_2_registration_id: string | null
+  // Rotating-doubles divisions populate the partner columns so a single match
+  // row carries 4 distinct player registrations (2 per side). Fixed-mode and
+  // singles matches leave these null and side display falls back to the
+  // existing single-reg lookup.
+  team_1_partner_registration_id?: string | null
+  team_2_partner_registration_id?: string | null
   status: string
 }
 
@@ -49,8 +55,17 @@ function lastName(name: string | null | undefined): string {
   return parts[parts.length - 1]
 }
 
-function TeamNameDisplay({ regId, regs, isDoubles }: {
+function regToLastName(regId: string | null, regs: Registration[]): string {
+  if (!regId) return ''
+  const r = regs.find(x => x.id === regId)
+  if (!r) return regId.slice(0, 8)
+  return lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+}
+
+function TeamNameDisplay({ regId, partnerRegId, regs, isDoubles }: {
   regId: string | null
+  /** Set only on rotating-doubles matches; overrides the cross-link lookup. */
+  partnerRegId?: string | null
   regs: Registration[]
   isDoubles: boolean
 }) {
@@ -58,6 +73,16 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
   if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || regId.slice(0, 8)}</span>
+
+  // Rotating doubles: the partner is a separate registration on the match row,
+  // not a cross-linked partner_profile on this registration.
+  if (partnerRegId) {
+    const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+    const p2 = regToLastName(partnerRegId, regs)
+    return <span>{p1} / {p2}</span>
+  }
+
+  // Fixed doubles: partner comes from the cross-linked registration.
   const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
     return <span>{p1} / {lastName(r.partner_profile.name)}</span>
@@ -617,9 +642,9 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                               <span className="text-[10px] text-brand-muted capitalize">{m.match_stage?.replace(/_/g, ' ')}</span>
                             </div>
                             <p className="text-sm font-medium text-brand-dark">
-                              <TeamNameDisplay regId={m.team_1_registration_id} regs={allRegs} isDoubles={isDoubles} />
+                              <TeamNameDisplay regId={m.team_1_registration_id} partnerRegId={m.team_1_partner_registration_id} regs={allRegs} isDoubles={isDoubles} />
                               {' '}<span className="text-brand-muted font-normal">vs</span>{' '}
-                              <TeamNameDisplay regId={m.team_2_registration_id} regs={allRegs} isDoubles={isDoubles} />
+                              <TeamNameDisplay regId={m.team_2_registration_id} partnerRegId={m.team_2_partner_registration_id} regs={allRegs} isDoubles={isDoubles} />
                             </p>
                           </div>
                           <button
@@ -681,9 +706,9 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                         <span className="text-[10px] text-brand-muted capitalize">{m.match_stage?.replace(/_/g, ' ')}</span>
                       </div>
                       <p className="text-sm font-medium text-brand-dark">
-                        <TeamNameDisplay regId={m.team_1_registration_id} regs={allRegs} isDoubles={isDoubles} />
+                        <TeamNameDisplay regId={m.team_1_registration_id} partnerRegId={m.team_1_partner_registration_id} regs={allRegs} isDoubles={isDoubles} />
                         {' '}<span className="text-brand-muted font-normal">vs</span>{' '}
-                        <TeamNameDisplay regId={m.team_2_registration_id} regs={allRegs} isDoubles={isDoubles} />
+                        <TeamNameDisplay regId={m.team_2_registration_id} partnerRegId={m.team_2_partner_registration_id} regs={allRegs} isDoubles={isDoubles} />
                       </p>
                     </div>
                     <button onClick={() => startEdit(m)} className="shrink-0 text-xs text-brand-active hover:underline">

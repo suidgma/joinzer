@@ -6,6 +6,7 @@ import {
   doubleEliminationBracket,
   poolPlayMatches,
   roundRobinMatches,
+  rotatingDoublesMatches,
 } from '@/lib/tournament/bracketBuilder'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 
@@ -45,7 +46,7 @@ export async function POST(
   // Fetch division format
   const { data: division } = await service
     .from('tournament_divisions')
-    .select('id, bracket_type, format_settings_json')
+    .select('id, bracket_type, format_settings_json, partner_mode')
     .eq('id', params.divisionId)
     .eq('tournament_id', params.id)
     .single()
@@ -62,31 +63,51 @@ export async function POST(
     .in('payment_status', ['paid', 'waived', 'comped'])
     .order('created_at', { ascending: true })
 
-  const teams = dedupeRegistrationsToTeams(registrations ?? [])
-  if (teams.length < 2) {
-    return NextResponse.json({
-      error: `Need at least 2 settled registrations to generate matches. This division has ${teams.length} settled registration${teams.length === 1 ? '' : 's'}.`,
-    }, { status: 400 })
-  }
-
   const ft = division.bracket_type as string
   const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
   const base = { tournament_id: params.id, division_id: params.divisionId, status: 'scheduled' }
+  const isRotating = division.partner_mode === 'rotating'
+
+  // Rotating mode is round-robin only (UI gates this). Other bracket types
+  // would need their own rotating designs; reject here for safety.
+  if (isRotating && ft !== 'round_robin') {
+    return NextResponse.json({
+      error: `Rotating partner mode is only supported with round_robin bracket type (this division uses ${ft}).`,
+    }, { status: 400 })
+  }
 
   let matchRows: object[]
-  if (ft === 'single_elimination') {
-    matchRows = singleEliminationBracket(teams, 'single_elimination', base).rows
-  } else if (ft === 'double_elimination') {
-    matchRows = doubleEliminationBracket(teams, base)
-  } else if (ft === 'pool_play_playoffs') {
-    const numPools = (fs.number_of_pools as number) ?? 2
-    matchRows = poolPlayMatches(teams, numPools, base).rows
+
+  if (isRotating) {
+    // Rotating: each registration is a solo player. Don't dedupe — every
+    // registration row is one individual. Need at least 4 players for doubles.
+    const playerIds = (registrations ?? []).map(r => r.id)
+    if (playerIds.length < 4) {
+      return NextResponse.json({
+        error: `Rotating doubles needs at least 4 solo registrations. This division has ${playerIds.length}.`,
+      }, { status: 400 })
+    }
+    matchRows = rotatingDoublesMatches(playerIds, base).rows
   } else {
-    // round_robin: circle-method scheduling so every team plays every other
-    // exactly once, with no team appearing twice in the same round_number.
-    // This is what lets the schedule packer place a whole round in parallel
-    // across courts instead of dumping every match into "Round 1".
-    matchRows = roundRobinMatches(teams, base).rows
+    // Fixed mode: existing dedupe-and-bracket flow.
+    const teams = dedupeRegistrationsToTeams(registrations ?? [])
+    if (teams.length < 2) {
+      return NextResponse.json({
+        error: `Need at least 2 settled registrations to generate matches. This division has ${teams.length} settled registration${teams.length === 1 ? '' : 's'}.`,
+      }, { status: 400 })
+    }
+
+    if (ft === 'single_elimination') {
+      matchRows = singleEliminationBracket(teams, 'single_elimination', base).rows
+    } else if (ft === 'double_elimination') {
+      matchRows = doubleEliminationBracket(teams, base)
+    } else if (ft === 'pool_play_playoffs') {
+      const numPools = (fs.number_of_pools as number) ?? 2
+      matchRows = poolPlayMatches(teams, numPools, base).rows
+    } else {
+      // round_robin: circle-method scheduling — see roundRobinMatches() for why.
+      matchRows = roundRobinMatches(teams, base).rows
+    }
   }
 
   const { data: inserted, error } = await service
