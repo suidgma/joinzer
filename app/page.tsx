@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import LandingNav from '@/components/landing/LandingNav'
 import HeroSection from '@/components/landing/HeroSection'
-import StatsSection from '@/components/landing/StatsSection'
 import HowItWorks from '@/components/landing/HowItWorks'
 import FeaturesSection from '@/components/landing/FeaturesSection'
 import TrustSection from '@/components/landing/TrustSection'
@@ -33,7 +32,6 @@ export default async function HomePage(
       <LandingNav />
       <main>
         <HeroSection />
-        <StatsSection />
         <HowItWorks />
         <FeaturesSection />
         <CompeteSection />
