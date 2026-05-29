@@ -263,7 +263,12 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         {(league as any).creator?.name && <Row label="Organizer" value={(league as any).creator.name} />}
         <Row label="Format" value={FORMAT_LABELS[league.format]} />
         {isDoublesLeague && (
-          <Row label="Partners" value="Rotating each match" />
+          <Row
+            label="Partners"
+            value={(league as { partner_mode?: string }).partner_mode === 'fixed'
+              ? 'Fixed all season'
+              : 'Rotating each match'}
+          />
         )}
         {formatSkillRange((league as any).skill_min, (league as any).skill_max) && (
           <Row label="Skill Level" value={formatSkillRange((league as any).skill_min, (league as any).skill_max)!} />

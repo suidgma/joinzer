@@ -29,12 +29,13 @@ export async function POST(req: NextRequest, props: Params) {
     .single()
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
-  const { data: league } = await db.from('leagues').select('created_by').eq('id', session.league_id).single()
+  const { data: league } = await db.from('leagues').select('created_by, partner_mode').eq('id', session.league_id).single()
   if (!league || league.created_by !== user.id) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
 
   const courts = session.number_of_courts ?? 4
+  const isFixedPartnerMode = league.partner_mode === 'fixed'
 
   // --- Fetch present players ---
   const { data: rawPlayers } = await db
@@ -112,8 +113,36 @@ export async function POST(req: NextRequest, props: Params) {
     await db.from('league_rounds').delete().eq('id', existingDraft.id)
   }
 
+  // --- Fixed-partner mode: resolve registration pairs to session-player IDs ---
+  // In fixed mode, the scheduler honors the partner_user_id cross-links from
+  // league_registrations. We translate user-id pairs → session-player-id pairs
+  // because the scheduler operates on session_player.id (not user_id).
+  let fixedPairs: Map<string, string> | undefined
+  if (isFixedPartnerMode) {
+    const { data: regs } = await db
+      .from('league_registrations')
+      .select('user_id, partner_user_id')
+      .eq('league_id', session.league_id)
+      .not('partner_user_id', 'is', null)
+
+    if (regs && regs.length > 0) {
+      // Build user_id → session_player_id lookup from this session's players.
+      const userToSessionPlayer = new Map<string, string>()
+      for (const p of players) {
+        if (p.userId) userToSessionPlayer.set(p.userId, p.id)
+      }
+
+      fixedPairs = new Map()
+      for (const reg of regs) {
+        const a = userToSessionPlayer.get(reg.user_id as string)
+        const b = userToSessionPlayer.get(reg.partner_user_id as string)
+        if (a && b) fixedPairs.set(a, b)
+      }
+    }
+  }
+
   // --- Generate schedule ---
-  const result = generateNextRound(players, completedRounds, courts, nextRoundNumber)
+  const result = generateNextRound(players, completedRounds, courts, nextRoundNumber, 1000, fixedPairs)
   if (!result) {
     return NextResponse.json({ error: 'Could not generate a valid schedule. Check player count.' }, { status: 422 })
   }
