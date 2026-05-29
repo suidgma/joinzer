@@ -9,6 +9,7 @@ import MidPageCTA from '@/components/landing/MidPageCTA'
 import FinalCTA from '@/components/landing/FinalCTA'
 import LandingFooter from '@/components/landing/LandingFooter'
 import CompeteSection from '@/components/landing/CompeteSection'
+import OrganizersSection from '@/components/landing/OrganizersSection'
 
 export default async function HomePage(
   props: {
@@ -34,6 +35,7 @@ export default async function HomePage(
         <HowItWorks />
         <FeaturesSection />
         <CompeteSection />
+        <OrganizersSection />
         <TrustSection />
         <MidPageCTA />
         <FinalCTA />
