@@ -59,7 +59,7 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 
 ---
 
-## 5. Current State — Verified May 27, 2026
+## 5. Current State — Verified May 29, 2026
 
 For specific schema details, check Supabase Table Editor. For specific route details, check the codebase. This section captures **what's shipped vs. not** at the phase level — not column-level detail.
 
@@ -73,6 +73,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Transactional email** — Resend integration covering registration confirmation, payment confirmation, refund notice, solo partner-match notification, sub-request flow, daily session reminders (cron), and organizer-to-bracket announce
 - **Two-form-factor refactor Slices 0–6** — all desktop-canonical routes shipped: primitives, tournament create/manage/sub-routes, league create/manage/sub-routes (standings/roster/edit)
 - **Audit log scaffold** — `audit_log` table + `lib/audit/log.ts` helper. Wired into the match score and match ready routes; other state transitions still TODO.
+- **Partner mode setting (Fixed vs Rotating)** — tournaments + leagues both expose an organizer toggle on doubles divisions/formats. Leagues: `leagues.partner_mode` enum; scheduler honors `partner_user_id` cross-links in fixed mode. Tournaments: support rotating for `round_robin` bracket type only (`tournament_divisions.partner_mode`; `tournament_matches.team_*_partner_registration_id` columns hold the 4-player layout).
 
 ### Not yet built
 
@@ -97,8 +98,6 @@ For specific schema details, check Supabase Table Editor. For specific route det
 These are the actual unresolved decisions blocking informed choices:
 
 - **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in @docs/architecture-target.md.
-- **Second tournament create route.** ~~Resolved May 29, 2026~~ `/leagues/tournaments/` tree was dead code with no external callers — deleted. `/tournaments/create` is the canonical route.
-- **Auth model docs.** Production = email/password + Google OAuth. Original spec said magic-link. Production is canonical; spec is stale. Reconcile any leftover doc references.
 - **First committed event.** None. No organizer has seen the product yet.
 - **Organizer conversation.** Not yet booked. Blocking informed product decisions on Path A vs. B.
 
