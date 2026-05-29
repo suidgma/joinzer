@@ -4,38 +4,33 @@ import { prepareLeagueWrite, prepareDivisionWrite, prepareEventWrite } from '../
 // ── prepareLeagueWrite ────────────────────────────────────────────────────────
 
 describe('prepareLeagueWrite', () => {
-  it('maps every LEAGUE_SKILL_TO_RANGE entry correctly', () => {
-    const cases: Array<[string, number, number]> = [
-      ['beginner',          2.0, 2.5],
-      ['beginner_plus',     2.5, 3.0],
-      ['intermediate',      3.0, 3.5],
-      ['intermediate_plus', 3.5, 4.0],
-      ['advanced',          4.0, 4.5],
-      ['advanced_plus',     4.5, 5.0],
+  it('passes skill_min and skill_max through unchanged', () => {
+    const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_min: 3.0, skill_max: 3.5 })
+    expect(result.skill_min).toBe(3.0)
+    expect(result.skill_max).toBe(3.5)
+    expect(result.format).toBe('mixed_doubles')
+  })
+
+  it('derives skill_level from skill_min for backward-compat (Phase 4 will drop this)', () => {
+    const cases: Array<[number, number, string]> = [
+      [2.0, 2.5, 'beginner'],
+      [2.5, 3.0, 'beginner_plus'],
+      [3.0, 3.5, 'intermediate'],
+      [3.5, 4.0, 'intermediate_plus'],
+      [4.0, 4.5, 'advanced'],
+      [4.5, 5.0, 'advanced'],
     ]
-    for (const [skill_level, min, max] of cases) {
-      const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_level })
-      expect(result.skill_min).toBe(min)
-      expect(result.skill_max).toBe(max)
+    for (const [min, max, expectedLevel] of cases) {
+      const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_min: min, skill_max: max })
+      expect(result.skill_level).toBe(expectedLevel)
     }
   })
 
-  it('returns null range for unknown skill_level', () => {
-    const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_level: 'expert' })
+  it('null inputs produce null skill_min, skill_max, and skill_level', () => {
+    const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_min: null, skill_max: null })
     expect(result.skill_min).toBeNull()
     expect(result.skill_max).toBeNull()
-  })
-
-  it('returns null range for empty string skill_level', () => {
-    const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_level: '' })
-    expect(result.skill_min).toBeNull()
-    expect(result.skill_max).toBeNull()
-  })
-
-  it('passes format and skill_level through unchanged', () => {
-    const result = prepareLeagueWrite({ format: 'mens_doubles', skill_level: 'advanced' })
-    expect(result.format).toBe('mens_doubles')
-    expect(result.skill_level).toBe('advanced')
+    expect(result.skill_level).toBeNull()
   })
 })
 

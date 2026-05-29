@@ -6,6 +6,7 @@ import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify } from '@/lib/leagues/partner'
 import { icsFilename } from '@/lib/utils/slug'
+import { formatSkillRange } from '@/lib/taxonomy/formats'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -19,13 +20,6 @@ const FORMAT_LABELS: Record<string, string> = {
   custom: 'Custom',
 }
 
-const SKILL_LABELS: Record<string, string> = {
-  beginner: 'Beginner',
-  beginner_plus: 'Beginner Plus',
-  intermediate: 'Intermediate',
-  intermediate_plus: 'Intermediate Plus',
-  advanced: 'Advanced',
-}
 
 function fmtDate(d: string | null) {
   if (!d) return null
@@ -49,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   const { data: league, error: leagueErr } = await admin
     .from('leagues')
-    .select('name, format, skill_level, location_name, start_date, end_date, max_players, registration_status, registration_closes_at, cost_cents, schedule_description')
+    .select('name, format, skill_min, skill_max, location_name, start_date, end_date, max_players, registration_status, registration_closes_at, cost_cents, schedule_description')
     .eq('id', leagueId)
     .single()
 
@@ -294,7 +288,7 @@ export async function POST(request: NextRequest) {
           ? [['Dates', `${startFmt} — ${endFmt}`] as EmailRow]
           : startFmt ? [['Starts', startFmt] as EmailRow] : []),
         ...(FORMAT_LABELS[league.format] ? [['Format', FORMAT_LABELS[league.format]] as EmailRow] : []),
-        ...(SKILL_LABELS[league.skill_level] ? [['Skill level', SKILL_LABELS[league.skill_level]] as EmailRow] : []),
+        ...(formatSkillRange(league.skill_min, league.skill_max) ? [['Skill level', formatSkillRange(league.skill_min, league.skill_max)!] as EmailRow] : []),
         ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
         ...(!isWaitlist ? [['Fee', effectiveCostCents > 0 ? `$${(effectiveCostCents / 100).toFixed(2)} — payment required` : 'Free'] as EmailRow] : []),
         ...(isSolo && partnerName

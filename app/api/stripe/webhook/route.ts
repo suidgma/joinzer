@@ -6,6 +6,7 @@ import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify, voidCaptainHold } from '@/lib/leagues/partner'
 import { icsFilename } from '@/lib/utils/slug'
+import { formatSkillRange } from '@/lib/taxonomy/formats'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,13 +20,6 @@ const FORMAT_LABELS: Record<string, string> = {
   custom: 'Custom',
 }
 
-const SKILL_LABELS: Record<string, string> = {
-  beginner: 'Beginner',
-  beginner_plus: 'Beginner Plus',
-  intermediate: 'Intermediate',
-  intermediate_plus: 'Intermediate Plus',
-  advanced: 'Advanced',
-}
 
 export async function POST(req: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
@@ -351,7 +345,7 @@ export async function POST(req: NextRequest) {
         // Confirmation email for standard path
         const [{ data: league }, { data: profile }] = await Promise.all([
           service.from('leagues')
-            .select('name, format, skill_level, location_name, start_date, end_date, schedule_description, cost_cents')
+            .select('name, format, skill_min, skill_max, location_name, start_date, end_date, schedule_description, cost_cents')
             .eq('id', meta.league_id)
             .single(),
           service.from('profiles').select('name, email').eq('id', meta.user_id).single(),
@@ -378,7 +372,7 @@ export async function POST(req: NextRequest) {
               ? [['Dates', `${startFmt} — ${endFmt}`] as EmailRow]
               : startFmt ? [['Starts', startFmt] as EmailRow] : []),
             ...(FORMAT_LABELS[league.format] ? [['Format', FORMAT_LABELS[league.format]] as EmailRow] : []),
-            ...(SKILL_LABELS[league.skill_level] ? [['Skill level', SKILL_LABELS[league.skill_level]] as EmailRow] : []),
+            ...(formatSkillRange(league.skill_min, league.skill_max) ? [['Skill level', formatSkillRange(league.skill_min, league.skill_max)!] as EmailRow] : []),
             ['Status', isWaitlist ? "Waitlisted — you'll be notified if a spot opens" : 'Registered'],
             ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
           ]
@@ -945,7 +939,7 @@ export async function POST(req: NextRequest) {
 
       // Both payments succeeded — register partner, finalize captain, link both
       const { data: league } = await service.from('leagues')
-        .select('name, format, skill_level, location_name, start_date, end_date, schedule_description')
+        .select('name, format, skill_min, skill_max, location_name, start_date, end_date, schedule_description')
         .eq('id', inv.league_id).single()
 
       const { data: partnerReg } = await service
