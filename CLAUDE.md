@@ -71,7 +71,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Payments** — Stripe Checkout end-to-end; Stripe Connect Express onboarding for organizers; destination charges route fees to the organizer's account with `on_behalf_of`; refunds reverse the transfer and refund the application fee; tournament-level discount codes
 - **Tournament organizer tools** — co-organizer + volunteer roles via `tournament_staff`, CSV team import, organizer-driven match reschedule, organizer-driven withdrawals with waitlist promotion
 - **Transactional email** — Resend integration covering registration confirmation, payment confirmation, refund notice, solo partner-match notification, sub-request flow, daily session reminders (cron), and organizer-to-bracket announce
-- **Two-form-factor refactor Slices 0–2** — primitives, `/tournaments/create`, `/tournaments/[id]`
+- **Two-form-factor refactor Slices 0–6** — all desktop-canonical routes shipped: primitives, tournament create/manage/sub-routes, league create/manage/sub-routes (standings/roster/edit)
 - **Audit log scaffold** — `audit_log` table + `lib/audit/log.ts` helper. Wired into the match score and match ready routes; other state transitions still TODO.
 
 ### Not yet built
@@ -88,7 +88,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 
 ### In progress
 
-- **Two-form-factor refactor Slice 3** — tournament sub-routes (next)
+- **Two-form-factor refactor** — code complete. QA pass at 375 / 768 / 1280px pending (Marty).
 
 ---
 
@@ -97,7 +97,8 @@ For specific schema details, check Supabase Table Editor. For specific route det
 These are the actual unresolved decisions blocking informed choices:
 
 - **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in @docs/architecture-target.md.
-- **Second tournament create route.** `/leagues/tournaments/create` exists alongside `/tournaments/create` (the former renamed from `/compete/tournaments/create` during the late-May route refactor). Dead code, feature branch, or intentional? Audit before next slice.
+- **Second tournament create route.** ~~Resolved May 29, 2026~~ `/leagues/tournaments/` tree was dead code with no external callers — deleted. `/tournaments/create` is the canonical route.
+- **Auth model docs.** Production = email/password + Google OAuth. Original spec said magic-link. Production is canonical; spec is stale. Reconcile any leftover doc references.
 - **First committed event.** None. No organizer has seen the product yet.
 - **Organizer conversation.** Not yet booked. Blocking informed product decisions on Path A vs. B.
 
@@ -136,4 +137,4 @@ Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 
 ---
 
-*Last verified against repo: May 28, 2026*
+*Last verified against repo: May 29, 2026*

@@ -1,12 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { LocationOption } from '@/lib/types'
-import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
 import { formatSessionDate } from '@/lib/utils/date'
-import { isDoublesFormat } from '@/lib/taxonomy/formats'
+import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
@@ -20,15 +18,46 @@ const FORMAT_OPTIONS = [
   { value: 'open_singles', label: 'Singles' },
   { value: 'custom', label: 'Custom' },
 ]
-
 const SKILL_STEPS = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
-
 const REG_OPTIONS = [
   { value: 'upcoming', label: 'Coming Soon' },
   { value: 'open', label: 'Open' },
   { value: 'waitlist_only', label: 'Waitlist Only' },
   { value: 'closed', label: 'Closed' },
 ]
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function generateDates(start: string, count: number): string[] {
+  if (!start || !count || count < 1) return []
+  const dates: string[] = []
+  const base = new Date(start + 'T00:00:00')
+  for (let i = 0; i < count; i++) {
+    const d = new Date(base)
+    d.setDate(base.getDate() + i * 7)
+    dates.push(d.toISOString().slice(0, 10))
+  }
+  return dates
+}
+
+// Convert ISO timestamptz to YYYY-MM-DDTHH:mm in PT for datetime-local inputs
+function isoToPtLocal(iso: string): string {
+  const d = new Date(iso)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+  const parts = Object.fromEntries(
+    formatter.formatToParts(d).map(({ type, value }) => [type, value])
+  )
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
 
 // Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
 function ptLocalToIso(local: string): string {
@@ -37,47 +66,61 @@ function ptLocalToIso(local: string): string {
   return `${local}:00${ptOffset}`
 }
 
-export default function CreateLeagueForm({ locations }: { locations: LocationOption[] }) {
+type InitialData = Record<string, any>
+
+type Props = {
+  leagueId: string
+  initialData: InitialData
+  existingSessionDates: string[]
+  existingSessionCount: number
+  registrantCount: number
+}
+
+export default function EditLeagueForm({
+  leagueId,
+  initialData: d,
+  existingSessionDates,
+  existingSessionCount,
+  registrantCount,
+}: Props) {
   const router = useRouter()
-  const [name, setName] = useState('')
-  const [format, setFormat] = useState('mixed_doubles')
-  const [skillMin, setSkillMin] = useState('')
-  const [skillMax, setSkillMax] = useState('')
-  const [locationId, setLocationId] = useState('')
-  const [startTime, setStartTime] = useState('08:00')
-  const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
-  const [startDate, setStartDate] = useState('')
-  const [registrationClosesAt, setRegistrationClosesAt] = useState('')
-  const [deadlineTouched, setDeadlineTouched] = useState(false)
-  const [playDays, setPlayDays] = useState('7')
-  const [gamesPerSession, setGamesPerSession] = useState('')
-  const [maxPlayers, setMaxPlayers] = useState('')
-  const [registrationStatus, setRegistrationStatus] = useState('upcoming')
-  const [description, setDescription] = useState('')
-  const [pointsToWin, setPointsToWin] = useState('11')
-  const [winBy, setWinBy] = useState<1 | 2>(1)
-  const [subCreditCap, setSubCreditCap] = useState('7')
-  const [costDollars, setCostDollars] = useState('')
-  const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('win_loss')
-  const [noPlayDates, setNoPlayDates] = useState<string[]>([])
+
+  const [name, setName] = useState(d.name ?? '')
+  const [format, setFormat] = useState(d.format ?? 'mixed_doubles')
+  const [skillMin, setSkillMin] = useState(d.skill_min?.toString() ?? '')
+  const [skillMax, setSkillMax] = useState(d.skill_max?.toString() ?? '')
+  const [locationName, setLocationName] = useState(d.location_name ?? '')
+  const [startTime, setStartTime] = useState(d.start_time ?? '08:00')
+  const [estimatedEndTime, setEstimatedEndTime] = useState(d.estimated_end_time ?? '17:00')
+  const [startDate, setStartDate] = useState(d.start_date ?? '')
+  const [registrationClosesAt, setRegistrationClosesAt] = useState(
+    d.registration_closes_at ? isoToPtLocal(d.registration_closes_at) : ''
+  )
+  const [playDays, setPlayDays] = useState(d.play_days?.toString() ?? '')
+  const [gamesPerSession, setGamesPerSession] = useState(d.games_per_session?.toString() ?? '')
+  const [maxPlayers, setMaxPlayers] = useState(d.max_players?.toString() ?? '')
+  const [registrationStatus, setRegistrationStatus] = useState(d.registration_status ?? 'upcoming')
+  const [status, setStatus] = useState(d.status ?? 'active')
+  const [description, setDescription] = useState(d.description ?? '')
+  const [costDollars, setCostDollars] = useState(d.cost_cents ? String(d.cost_cents / 100) : '')
+  const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>(
+    (d.standings_method as 'win_loss' | 'total_points') ?? 'win_loss'
+  )
+  const [pointsToWin, setPointsToWin] = useState(d.points_to_win?.toString() ?? '11')
+  const [winBy, setWinBy] = useState<1 | 2>((d.win_by as 1 | 2) ?? 1)
+  const [subCreditCap, setSubCreditCap] = useState(d.sub_credit_cap?.toString() ?? '7')
+  const [noPlayDates, setNoPlayDates] = useState<string[]>(d.no_play_dates ?? [])
   const [noPlayInput, setNoPlayInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const selectedLocation = locations.find((l) => l.id === locationId)
   const pointsToWinNum = parseInt(pointsToWin) || 11
-
-  // Auto-set deadline to 7 days before league start date at 23:59 PT when startDate changes
-  useEffect(() => {
-    if (!deadlineTouched && startDate) {
-      const d = new Date(startDate + 'T00:00:00')
-      d.setDate(d.getDate() - 7)
-      const yyyy = d.getFullYear()
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const dd = String(d.getDate()).padStart(2, '0')
-      setRegistrationClosesAt(`${yyyy}-${mm}-${dd}T23:59`)
-    }
-  }, [startDate, deadlineTouched])
+  const formatAndSkillLocked = registrantCount > 0
+  const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
+  const lastDate = generatedDates[generatedDates.length - 1] ?? ''
+  const dayLabel = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
+  const hasNoSessions = existingSessionCount === 0
+  const willGenerateSessions = hasNoSessions && generatedDates.length > 0
 
   function handlePointsToWinChange(val: string) {
     setPointsToWin(val)
@@ -85,98 +128,49 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     if (parseInt(subCreditCap) > max) setSubCreditCap(String(max))
   }
 
-  // Cursor-based weekly date generator. Advances one week at a time; dates in
-  // skipDates are bypassed without consuming a session slot, so the season end
-  // extends by the number of skipped weeks. Cap prevents infinite loop if the
-  // skip list somehow covers every candidate week.
-  function generateDates(start: string, count: number, skipDates: Set<string> = new Set()): string[] {
-    if (!start || !count || count < 1) return []
-    const dates: string[] = []
-    const cursor = new Date(start + 'T00:00:00')
-    const maxWeeks = count * 3
-    let weeksAdvanced = 0
-    while (dates.length < count && weeksAdvanced < maxWeeks) {
-      const dateStr = cursor.toISOString().slice(0, 10)
-      if (!skipDates.has(dateStr)) dates.push(dateStr)
-      cursor.setDate(cursor.getDate() + 7)
-      weeksAdvanced++
-    }
-    return dates
-  }
-
-  function addNoPlayDate() {
-    if (!noPlayInput || noPlayDates.includes(noPlayInput)) return
-    setNoPlayDates(prev => [...prev, noPlayInput].sort())
-    setNoPlayInput('')
-  }
-
-  function removeNoPlayDate(date: string) {
-    setNoPlayDates(prev => prev.filter(d => d !== date))
-  }
-
-  const generatedDates = generateDates(startDate, parseInt(playDays) || 0, new Set(noPlayDates))
-  const lastDate = generatedDates[generatedDates.length - 1] ?? ''
-
-  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  const dayLabel = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    // Commit any date sitting in the input that the organizer forgot to Add.
-    // Derive synchronously — setNoPlayDates won't flush before the INSERT reads noPlayDates.
-    const finalNoPlayDates = noPlayInput && !noPlayDates.includes(noPlayInput)
-      ? [...noPlayDates, noPlayInput].sort()
-      : noPlayDates
-    const submitDates = generateDates(startDate, parseInt(playDays) || 0, new Set(finalNoPlayDates))
 
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
-
-    const { data: league, error: leagueErr } = await supabase
+    const { error: updateErr } = await supabase
       .from('leagues')
-      .insert({
+      .update({
         name: name.trim(),
         ...prepareLeagueWrite({
             format,
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
-        location_name: selectedLocation?.name ?? null,
-        location_id: locationId || null,
+        location_name: locationName.trim() || null,
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
-        end_date: submitDates[submitDates.length - 1] ?? lastDate ?? null,
+        end_date: lastDate || null,
         play_days: playDays ? parseInt(playDays) : null,
         games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
+        status,
         description: description.trim() || null,
+        cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        standings_method: standingsMethod,
         points_to_win: pointsToWinNum,
         win_by: winBy,
         sub_credit_cap: parseInt(subCreditCap) || 7,
-        cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
-        standings_method: standingsMethod,
-        no_play_dates: finalNoPlayDates,
-        created_by: user.id,
+        no_play_dates: noPlayDates,
       })
-      .select('id')
-      .single()
+      .eq('id', leagueId)
 
-    if (leagueErr || !league) {
-      setError(leagueErr?.message ?? 'Failed to create league')
-      setLoading(false)
-      return
-    }
+    if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
-    if (submitDates.length > 0) {
+    // Generate sessions only if none exist yet
+    if (willGenerateSessions) {
       const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
-      const rows = submitDates.map((d, i) => ({
-        league_id: league.id,
+      const rows = generatedDates.map((d, i) => ({
+        league_id: leagueId,
         session_date: d,
         session_number: i + 1,
         rounds_planned: roundsPerSession,
@@ -184,8 +178,12 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       await supabase.from('league_sessions').insert(rows)
     }
 
-    router.push(`/leagues/${league.id}`)
+    router.push(`/leagues/${leagueId}`)
   }
+
+  const lockHint = formatAndSkillLocked
+    ? `Locked — ${registrantCount} player${registrantCount !== 1 ? 's' : ''} registered`
+    : undefined
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -197,30 +195,38 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Wednesday Night Mixed Doubles"
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Format" htmlFor="format" required>
-          <select id="format" value={format} onChange={(e) => setFormat(e.target.value)} className="w-full input">
+        <FormRow label="Format" htmlFor="format" helpText={lockHint}>
+          <select
+            id="format"
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+            disabled={formatAndSkillLocked}
+            className="w-full input disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          {isDoublesFormat(format) && (
-            <p className="mt-2 text-[11px] text-brand-muted leading-relaxed">
-              <strong className="text-brand-dark">Partners rotate each match.</strong>{' '}
-              The scheduler pairs players with a different partner every round to maximize variety.
-              Fixed-team mode (same partner all season) is on the roadmap.
-            </p>
-          )}
         </FormRow>
-        <FormRow label="Skill range" helpText="Leave blank to open to all skill levels.">
+        <FormRow label="Skill range" helpText={lockHint ?? 'Leave blank to open to all skill levels.'}>
           <div className="flex items-center gap-3">
-            <select value={skillMin} onChange={(e) => setSkillMin(e.target.value)} className="flex-1 input">
+            <select
+              value={skillMin}
+              onChange={(e) => setSkillMin(e.target.value)}
+              disabled={formatAndSkillLocked}
+              className="flex-1 input disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <option value="">No min</option>
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
             <span className="text-sm text-brand-muted shrink-0">to</span>
-            <select value={skillMax} onChange={(e) => setSkillMax(e.target.value)} className="flex-1 input">
+            <select
+              value={skillMax}
+              onChange={(e) => setSkillMax(e.target.value)}
+              disabled={formatAndSkillLocked}
+              className="flex-1 input disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <option value="">No max</option>
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
@@ -232,7 +238,6 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            placeholder="Additional details about the league…"
             className="w-full input resize-none"
           />
         </FormRow>
@@ -240,14 +245,12 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
 
       <FormSection title="Schedule" description="Location, dates, and session cadence." defaultOpen>
         <FormRow label="Location" htmlFor="location">
-          <select id="location" value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-full input">
-            <option value="">— Select a location —</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}{l.subarea ? ` (${l.subarea})` : ''} · {l.court_count} courts
-              </option>
-            ))}
-          </select>
+          <input
+            id="location"
+            value={locationName}
+            onChange={(e) => setLocationName(e.target.value)}
+            className="w-full input"
+          />
         </FormRow>
         <FormRow label="Start date" htmlFor="start-date">
           <input
@@ -277,31 +280,17 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="block text-xs font-medium text-brand-muted mb-1">Play days</label>
-              <input
-                type="number"
-                min="1"
-                value={playDays}
-                onChange={(e) => setPlayDays(e.target.value)}
-                placeholder="8"
-                className="w-full input"
-              />
+              <input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} className="w-full input" />
             </div>
             <div className="flex-1">
               <label className="block text-xs font-medium text-brand-muted mb-1">Games / session</label>
-              <input
-                type="number"
-                min="1"
-                value={gamesPerSession}
-                onChange={(e) => setGamesPerSession(e.target.value)}
-                placeholder="7"
-                className="w-full input"
-              />
+              <input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} className="w-full input" />
             </div>
           </div>
         </FormRow>
         <FormRow
           label="No-play dates"
-          helpText="Sessions on these dates shift one week forward. Season end extends by the number of skips."
+          helpText="Skip weeks — sessions on these dates won't be scheduled. Existing sessions are not removed automatically."
         >
           <div className="space-y-2">
             <div className="flex gap-2">
@@ -313,43 +302,71 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               />
               <button
                 type="button"
-                onClick={addNoPlayDate}
-                disabled={!noPlayInput || noPlayDates.includes(noPlayInput)}
-                className="px-3 py-2 rounded-xl bg-brand text-brand-dark text-sm font-medium hover:bg-brand-hover disabled:opacity-40 transition-colors"
+                onClick={() => {
+                  if (!noPlayInput || noPlayDates.includes(noPlayInput)) return
+                  setNoPlayDates(prev => [...prev, noPlayInput].sort())
+                  setNoPlayInput('')
+                }}
+                className="px-3 py-1.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
               >
                 Add
               </button>
             </div>
             {noPlayDates.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {noPlayDates.map(d => (
-                  <span key={d} className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800">
-                    {formatSessionDate(d)}
-                    <button type="button" onClick={() => removeNoPlayDate(d)} className="text-amber-600 hover:text-amber-900 leading-none ml-0.5">×</button>
-                  </span>
-                ))}
+                {noPlayDates.map(d => {
+                  const conflictsWithSession = existingSessionDates.includes(d)
+                  return (
+                    <span
+                      key={d}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                        conflictsWithSession
+                          ? 'bg-red-50 border border-red-200 text-red-700'
+                          : 'bg-amber-50 border border-amber-200 text-amber-800'
+                      }`}
+                    >
+                      {conflictsWithSession && '⚠ '}
+                      {formatSessionDate(d)}
+                      <button
+                        type="button"
+                        onClick={() => setNoPlayDates(prev => prev.filter(x => x !== d))}
+                        className="ml-0.5 opacity-60 hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )
+                })}
               </div>
+            )}
+            {noPlayDates.some(d => existingSessionDates.includes(d)) && (
+              <p className="text-xs text-red-600">
+                ⚠ One or more skip dates overlap with existing sessions. Those sessions won't be removed automatically — delete them from the Session Manager if needed.
+              </p>
             )}
           </div>
         </FormRow>
-        <FormRow label="Session preview">
-          {generatedDates.length > 0 ? (
-            <div className="bg-brand-soft border border-brand-border rounded-xl p-3 space-y-1.5">
-              <p className="text-xs font-semibold text-brand-dark">
-                {generatedDates.length} sessions · every {dayLabel}
-              </p>
-              <div className="space-y-0.5 max-h-40 overflow-y-auto">
-                {generatedDates.map((d, i) => (
-                  <p key={d} className="text-xs text-brand-muted">
-                    Play {i + 1} — {formatSessionDate(d)}
-                  </p>
-                ))}
+        {hasNoSessions && (
+          <FormRow label="Session preview">
+            {generatedDates.length > 0 ? (
+              <div className="bg-brand-soft border border-brand-border rounded-xl p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-brand-dark">
+                  {generatedDates.length} sessions · every {dayLabel}
+                </p>
+                <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                  {generatedDates.map((d, i) => (
+                    <p key={d} className="text-xs text-brand-muted">
+                      Play {i + 1} — {formatSessionDate(d)}
+                    </p>
+                  ))}
+                </div>
+                <p className="text-xs text-brand-active font-medium">These sessions will be created when you save.</p>
               </div>
-            </div>
-          ) : (
-            <p className="text-sm text-brand-muted">Set a start date and play days to preview the session schedule.</p>
-          )}
-        </FormRow>
+            ) : (
+              <p className="text-sm text-brand-muted">Set a start date and play days to preview the session schedule.</p>
+            )}
+          </FormRow>
+        )}
       </FormSection>
 
       <FormSection title="Format & rules" description="How games are scored and standings calculated." defaultOpen>
@@ -410,24 +427,23 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             min="2"
             value={maxPlayers}
             onChange={(e) => setMaxPlayers(e.target.value)}
-            placeholder="16"
             className="w-full input"
           />
         </FormRow>
         <FormRow
           label="Registration deadline"
           htmlFor="reg-closes"
-          helpText="Closes automatically at this time (Pacific). Auto-set to 7 days before start. Leave blank to manage manually."
+          helpText="Closes automatically at this time (Pacific). Leave blank to manage manually."
         >
           <input
             id="reg-closes"
             type="datetime-local"
             value={registrationClosesAt}
-            onChange={(e) => { setRegistrationClosesAt(e.target.value); setDeadlineTouched(true) }}
+            onChange={(e) => setRegistrationClosesAt(e.target.value)}
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Entry fee" htmlFor="cost" helpText="Leave blank for a free league. Players pay via Stripe at registration.">
+        <FormRow label="Entry fee" htmlFor="cost" helpText="Leave blank for a free league.">
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
             <input
@@ -444,6 +460,14 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         </FormRow>
       </FormSection>
 
+      <FormSection title="Publishing" defaultOpen>
+        <FormRow label="League status">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full input">
+            {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </FormRow>
+      </FormSection>
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
@@ -451,7 +475,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         disabled={loading || !name.trim()}
         className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
       >
-        {loading ? 'Creating…' : 'Create League'}
+        {loading ? 'Saving…' : 'Save Changes'}
       </button>
     </form>
   )

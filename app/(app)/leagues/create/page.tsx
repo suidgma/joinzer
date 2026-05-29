@@ -1,10 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
-import type { LocationOption } from '@/lib/types'
-import CreateLeagueForm from './CreateLeagueForm'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import CreateLeagueForm from './CreateLeagueForm'
+import DesktopShell from '@/components/ui/desktop-shell'
+import WizardOutline from '@/components/ui/wizard-outline'
+import type { LocationOption } from '@/lib/types'
+import type { WizardStep } from '@/components/ui/wizard-outline'
+
+const STEPS: WizardStep[] = [
+  { id: 'basics',       label: 'Basics',         status: 'current'  },
+  { id: 'schedule',     label: 'Schedule',        status: 'upcoming' },
+  { id: 'format',       label: 'Format & rules',  status: 'upcoming' },
+  { id: 'registration', label: 'Registration',    status: 'upcoming' },
+]
 
 export default async function CreateLeaguePage() {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data } = await supabase
     .from('locations')
@@ -15,12 +28,17 @@ export default async function CreateLeaguePage() {
   const locations = (data ?? []) as LocationOption[]
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <Link href="/leagues" className="text-brand-muted text-sm">← Compete</Link>
-      </div>
-      <h1 className="font-heading text-xl font-bold text-brand-dark">Create League</h1>
+    <DesktopShell
+      header={
+        <div className="flex items-center gap-3">
+          <Link href="/leagues" className="text-brand-muted text-sm">← Leagues</Link>
+          <span className="text-brand-muted text-sm">/</span>
+          <span className="text-sm font-medium text-brand-dark">Create League</span>
+        </div>
+      }
+      rail={<WizardOutline steps={STEPS} title="Create League" />}
+    >
       <CreateLeagueForm locations={locations} />
-    </main>
+    </DesktopShell>
   )
 }

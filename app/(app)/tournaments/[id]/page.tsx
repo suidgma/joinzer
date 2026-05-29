@@ -108,10 +108,14 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
   const isCoOrganizer = staffRow?.role === 'co_organizer'
   const canEdit = isOrganizer || isCoOrganizer
 
-  // Slice 3 will add schedule/standings/players/comms sub-routes; add them here then.
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/tournaments/${params.id}` },
-    ...(canEdit ? [{ label: 'Edit', href: `/tournaments/${params.id}/edit` }] : []),
+    ...(canEdit ? [
+      { label: 'Schedule', href: `/tournaments/${params.id}/schedule` },
+      { label: 'Standings', href: `/tournaments/${params.id}/standings` },
+      { label: 'Players', href: `/tournaments/${params.id}/players` },
+      { label: 'Edit', href: `/tournaments/${params.id}/edit` },
+    ] : []),
   ]
   const deadlinePassed = tournament.registration_closes_at != null && new Date() > new Date(tournament.registration_closes_at)
   const regOpen = tournament.registration_status === 'open' && !deadlinePassed

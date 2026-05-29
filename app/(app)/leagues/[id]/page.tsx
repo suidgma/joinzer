@@ -2,13 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
-import { formatSkillRange } from '@/lib/taxonomy/formats'
+import { formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 import LeagueActions from './LeagueActions'
 import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
 import LeagueRosterPanel from './LeagueRosterPanel'
+import DesktopShell from '@/components/ui/desktop-shell'
+import ManageNav from '@/components/ui/manage-nav'
+import type { ManageNavItem } from '@/components/ui/manage-nav'
 
 // Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
 function fmtTime(t: string | null): string | null {
@@ -226,21 +229,33 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     ? `${calStartDate}T${rawEndTime.slice(0, 5)}:00`
     : undefined
 
+  const navItems: ManageNavItem[] = [
+    { label: 'Overview', href: `/leagues/${params.id}` },
+    { label: 'Standings', href: `/leagues/${params.id}/standings` },
+    ...(isAdmin ? [
+      { label: 'Roster', href: `/leagues/${params.id}/roster` },
+      { label: 'Edit', href: `/leagues/${params.id}/edit` },
+    ] : []),
+  ]
+
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <Link href="/leagues" className="text-brand-muted text-sm">← Back</Link>
-      </div>
+    <DesktopShell
+      header={
+        <div className="flex items-center gap-3">
+          <Link href="/leagues" className="text-brand-muted text-sm">← Leagues</Link>
+          <span className="text-brand-muted text-sm">/</span>
+          <span className="text-sm font-medium text-brand-dark">{league.name}</span>
+        </div>
+      }
+      sidebar={<ManageNav items={navItems} />}
+    >
+      <ManageNav items={navItems} mobileOnly />
+      <div className="space-y-4 pb-8">
 
       {/* Header */}
       <div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">{league.name}</h1>
         {orgName && <p className="text-sm text-brand-muted">{orgName}</p>}
-        {isManager && (
-          <Link href={`/leagues/${league.id}/edit`} className="text-xs text-brand-active underline underline-offset-2">
-            Edit league
-          </Link>
-        )}
       </div>
 
       {/* Details card */}
@@ -377,7 +392,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
                     leagueId={league.id}
                     initialStatus={myStatus}
                     showSubRequest={false}
-                    leagueSkillLevel={league.skill_level ?? null}
+                    leagueSkillLevel={skillRangeToLevel((league as any).skill_min, (league as any).skill_max)}
                   />
                 </div>
               )
@@ -473,7 +488,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
                         sessionId={s.id}
                         leagueId={league.id}
                         initialStatus={myStatus}
-                        leagueSkillLevel={league.skill_level ?? null}
+                        leagueSkillLevel={skillRangeToLevel((league as any).skill_min, (league as any).skill_max)}
                       />
                     )}
                   </div>
@@ -529,9 +544,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           <h2 className="font-heading text-base font-bold text-brand-dark">Court Monitor</h2>
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
             <p className="text-sm text-brand-body">{registeredCount} registered · {waitlistCount} waitlisted</p>
-            <Link href={`/leagues/${league.id}/roster`} className="block text-sm text-brand-active underline underline-offset-2">
-              Manage League →
-            </Link>
             {isManager && (
               <div className="pt-2 border-t border-brand-border">
                 <DeleteLeagueButton leagueId={league.id} />
@@ -541,7 +553,8 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         </section>
       )}
 
-    </main>
+      </div>
+    </DesktopShell>
   )
 }
 

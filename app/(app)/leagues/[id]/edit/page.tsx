@@ -1,444 +1,86 @@
-'use client'
+export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/server'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { formatSessionDate } from '@/lib/utils/date'
-import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
-import TimeSelect from '@/components/features/events/TimeSelect'
+import DesktopShell from '@/components/ui/desktop-shell'
+import ManageNav from '@/components/ui/manage-nav'
+import WizardOutline from '@/components/ui/wizard-outline'
+import type { ManageNavItem } from '@/components/ui/manage-nav'
+import type { WizardStep } from '@/components/ui/wizard-outline'
+import EditLeagueForm from './EditLeagueForm'
 
-const FORMAT_OPTIONS = [
-  { value: 'individual_round_robin', label: 'Individual Round Robin' },
-  { value: 'mens_doubles', label: "Men's Doubles" },
-  { value: 'womens_doubles', label: "Women's Doubles" },
-  { value: 'mixed_doubles', label: 'Mixed Doubles' },
-  { value: 'coed_doubles', label: 'Coed Doubles' },
-  { value: 'open_singles', label: 'Singles' },
-  { value: 'custom', label: 'Custom' },
-]
-const SKILL_OPTIONS = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'beginner_plus', label: 'Beginner+' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'intermediate_plus', label: 'Intermediate+' },
-  { value: 'advanced', label: 'Advanced' },
-]
-const REG_OPTIONS = [
-  { value: 'upcoming', label: 'Coming Soon' },
-  { value: 'open', label: 'Open' },
-  { value: 'waitlist_only', label: 'Waitlist Only' },
-  { value: 'closed', label: 'Closed' },
-]
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
+const STEPS: WizardStep[] = [
+  { id: 'basics',       label: 'Basics',         status: 'current'  },
+  { id: 'schedule',     label: 'Schedule',        status: 'upcoming' },
+  { id: 'format',       label: 'Format & rules',  status: 'upcoming' },
+  { id: 'registration', label: 'Registration',    status: 'upcoming' },
+  { id: 'publishing',   label: 'Publishing',      status: 'upcoming' },
 ]
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+export default async function EditLeaguePage(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-function generateDates(start: string, count: number): string[] {
-  if (!start || !count || count < 1) return []
-  const dates: string[] = []
-  const base = new Date(start + 'T00:00:00')
-  for (let i = 0; i < count; i++) {
-    const d = new Date(base)
-    d.setDate(base.getDate() + i * 7)
-    dates.push(d.toISOString().slice(0, 10))
-  }
-  return dates
-}
+  const { data: league } = await supabase
+    .from('leagues')
+    .select('*')
+    .eq('id', id)
+    .single()
 
-// Convert ISO timestamptz to YYYY-MM-DDTHH:mm in PT for datetime-local inputs
-function isoToPtLocal(iso: string): string {
-  const d = new Date(iso)
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-  const parts = Object.fromEntries(
-    formatter.formatToParts(d).map(({ type, value }) => [type, value])
-  )
-  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
-}
+  if (!league) notFound()
 
-// Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
-function ptLocalToIso(local: string): string {
-  const month = parseInt(local.slice(5, 7), 10)
-  const ptOffset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
-  return `${local}:00${ptOffset}`
-}
+  const { data: myReg } = await supabase
+    .from('league_registrations')
+    .select('is_co_admin')
+    .eq('league_id', id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const isCoAdmin = myReg?.is_co_admin === true
+  if (league.created_by !== user.id && !isCoAdmin) redirect(`/leagues/${id}`)
 
-export default function EditLeaguePage(props: { params: Promise<{ id: string }> }) {
-  const params = use(props.params);
-  const router = useRouter()
-  const [name, setName] = useState('')
-  const [format, setFormat] = useState('mixed_doubles')
-  const [skillLevel, setSkillLevel] = useState('intermediate')
-  const [locationName, setLocationName] = useState('')
-  const [startTime, setStartTime] = useState('08:00')
-  const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
-  const [startDate, setStartDate] = useState('')
-  const [registrationClosesAt, setRegistrationClosesAt] = useState('')
-  const [playDays, setPlayDays] = useState('')
-  const [gamesPerSession, setGamesPerSession] = useState('')
-  const [maxPlayers, setMaxPlayers] = useState('')
-  const [registrationStatus, setRegistrationStatus] = useState('upcoming')
-  const [status, setStatus] = useState('active')
-  const [description, setDescription] = useState('')
-  const [costDollars, setCostDollars] = useState('')
-  const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('win_loss')
-  const [pointsToWin, setPointsToWin] = useState('11')
-  const [winBy, setWinBy] = useState<1 | 2>(1)
-  const [subCreditCap, setSubCreditCap] = useState('7')
-  const [noPlayDates, setNoPlayDates] = useState<string[]>([])
-  const [noPlayInput, setNoPlayInput] = useState('')
-  const [existingSessionDates, setExistingSessionDates] = useState<string[]>([])
-  const [registrantCount, setRegistrantCount] = useState(0)
-  const [existingSessionCount, setExistingSessionCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [{ data: sessionRows, count: sessionCount }, { count: regCount }] = await Promise.all([
+    supabase
+      .from('league_sessions')
+      .select('session_date', { count: 'exact' })
+      .eq('league_id', id)
+      .order('session_date', { ascending: true }),
+    supabase
+      .from('league_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('league_id', id)
+      .neq('status', 'cancelled'),
+  ])
 
-  useEffect(() => {
-    const supabase = createClient()
-    Promise.all([
-      supabase.from('leagues').select('*').eq('id', params.id).single(),
-      supabase.from('league_sessions').select('id, session_date', { count: 'exact' }).eq('league_id', params.id).order('session_date', { ascending: true }),
-      supabase.from('league_registrations').select('id', { count: 'exact', head: true }).eq('league_id', params.id).neq('status', 'cancelled'),
-    ]).then(([{ data }, { data: sessionRows, count: sessionCount }, { count: regCount }]) => {
-      if (!data) return
-      setNoPlayDates(data.no_play_dates ?? [])
-      setExistingSessionDates((sessionRows ?? []).map((s: any) => s.session_date as string))
-      setName(data.name ?? '')
-      setFormat(data.format ?? 'mixed_doubles')
-      setSkillLevel(data.skill_level ?? 'intermediate')
-      setLocationName(data.location_name ?? '')
-      setStartTime(data.start_time ?? '08:00')
-      setEstimatedEndTime(data.estimated_end_time ?? '17:00')
-      setStartDate(data.start_date ?? '')
-      setRegistrationClosesAt(data.registration_closes_at ? isoToPtLocal(data.registration_closes_at) : '')
-      setPlayDays(data.play_days?.toString() ?? '')
-      setGamesPerSession(data.games_per_session?.toString() ?? '')
-      setMaxPlayers(data.max_players?.toString() ?? '')
-      setRegistrationStatus(data.registration_status ?? 'upcoming')
-      setStatus(data.status ?? 'active')
-      setDescription(data.description ?? '')
-      setCostDollars(data.cost_cents ? String(data.cost_cents / 100) : '')
-      setStandingsMethod((data.standings_method as 'win_loss' | 'total_points') ?? 'win_loss')
-      setPointsToWin(data.points_to_win?.toString() ?? '11')
-      setWinBy((data.win_by as 1 | 2) ?? 1)
-      setSubCreditCap(data.sub_credit_cap?.toString() ?? '7')
-      setExistingSessionCount(sessionCount ?? 0)
-      setRegistrantCount(regCount ?? 0)
-      setFetching(false)
-    })
-  }, [params.id])
-
-  const pointsToWinNum = parseInt(pointsToWin) || 11
-
-  function handlePointsToWinChange(val: string) {
-    setPointsToWin(val)
-    const max = parseInt(val) || 11
-    if (parseInt(subCreditCap) > max) setSubCreditCap(String(max))
-  }
-
-  const formatAndSkillLocked = registrantCount > 0
-
-  const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
-  const lastDate = generatedDates[generatedDates.length - 1] ?? ''
-  const dayLabel = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
-  const hasNoSessions = existingSessionCount === 0
-  const willGenerateSessions = hasNoSessions && generatedDates.length > 0
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    const supabase = createClient()
-    const { error: updateErr } = await supabase
-      .from('leagues')
-      .update({
-        name: name.trim(),
-        ...prepareLeagueWrite({ format, skill_level: skillLevel }),
-        location_name: locationName.trim() || null,
-        start_time: startTime || null,
-        estimated_end_time: estimatedEndTime || null,
-        start_date: startDate || null,
-        end_date: lastDate || null,
-        play_days: playDays ? parseInt(playDays) : null,
-        games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
-        max_players: maxPlayers ? parseInt(maxPlayers) : null,
-        registration_status: registrationStatus,
-        registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
-        status,
-        description: description.trim() || null,
-        cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
-        standings_method: standingsMethod,
-        points_to_win: pointsToWinNum,
-        win_by: winBy,
-        sub_credit_cap: parseInt(subCreditCap) || 7,
-        no_play_dates: noPlayDates,
-      })
-      .eq('id', params.id)
-
-    if (updateErr) { setError(updateErr.message); setLoading(false); return }
-
-    // Generate sessions only if none exist yet
-    if (willGenerateSessions) {
-      const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
-      const rows = generatedDates.map((d, i) => ({
-        league_id: params.id,
-        session_date: d,
-        session_number: i + 1,
-        rounds_planned: roundsPerSession,
-      }))
-      await supabase.from('league_sessions').insert(rows)
-    }
-
-    window.location.href = `/leagues/${params.id}`
-  }
-
-  if (fetching) return <main className="max-w-lg mx-auto p-4"><p className="text-sm text-brand-muted">Loading…</p></main>
+  const navItems: ManageNavItem[] = [
+    { label: 'Overview', href: `/leagues/${id}` },
+    { label: 'Standings', href: `/leagues/${id}/standings` },
+    { label: 'Roster', href: `/leagues/${id}/roster` },
+    { label: 'Edit', href: `/leagues/${id}/edit` },
+  ]
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← Back</Link>
-      </div>
-      <h1 className="font-heading text-xl font-bold text-brand-dark">Edit League</h1>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="League Name *">
-          <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full input" />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Format" hint={formatAndSkillLocked ? `Locked — ${registrantCount} player${registrantCount !== 1 ? 's' : ''} registered` : undefined}>
-            <select value={format} onChange={(e) => setFormat(e.target.value)} disabled={formatAndSkillLocked} className="w-full input disabled:opacity-50 disabled:cursor-not-allowed">
-              {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </Field>
-          <Field label="Skill Level" hint={formatAndSkillLocked ? `Locked — ${registrantCount} player${registrantCount !== 1 ? 's' : ''} registered` : undefined}>
-            <select value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)} disabled={formatAndSkillLocked} className="w-full input disabled:opacity-50 disabled:cursor-not-allowed">
-              {SKILL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </Field>
-          <Field label="Registration">
-            <select value={registrationStatus} onChange={(e) => setRegistrationStatus(e.target.value)} className="w-full input">
-              {REG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </Field>
-          <Field label="Status">
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full input">
-              {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </Field>
+    <DesktopShell
+      header={
+        <div className="flex items-center gap-3">
+          <Link href={`/leagues/${id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+          <span className="text-brand-muted text-sm">/</span>
+          <span className="text-sm font-medium text-brand-dark">Edit League</span>
         </div>
-        <Field label="Location">
-          <input value={locationName} onChange={(e) => setLocationName(e.target.value)} className="w-full input" />
-        </Field>
-        <Field label="Start Date">
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full input" />
-        </Field>
-        <Field label="Times">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
-              <TimeSelect value={startTime} onChange={setStartTime} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
-              <TimeSelect value={estimatedEndTime} onChange={setEstimatedEndTime} />
-            </div>
-          </div>
-        </Field>
-        <Field label="No-play dates" hint="Skip weeks — sessions on these dates won't be scheduled. Existing sessions are not removed automatically.">
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={noPlayInput}
-                onChange={(e) => setNoPlayInput(e.target.value)}
-                className="flex-1 input"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (!noPlayInput || noPlayDates.includes(noPlayInput)) return
-                  setNoPlayDates(prev => [...prev, noPlayInput].sort())
-                  setNoPlayInput('')
-                }}
-                className="px-3 py-1.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
-              >
-                Add
-              </button>
-            </div>
-            {noPlayDates.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {noPlayDates.map(d => {
-                  const conflictsWithSession = existingSessionDates.includes(d)
-                  return (
-                    <span
-                      key={d}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                        conflictsWithSession
-                          ? 'bg-red-50 border border-red-200 text-red-700'
-                          : 'bg-amber-50 border border-amber-200 text-amber-800'
-                      }`}
-                    >
-                      {conflictsWithSession && '⚠ '}
-                      {formatSessionDate(d)}
-                      <button
-                        type="button"
-                        onClick={() => setNoPlayDates(prev => prev.filter(x => x !== d))}
-                        className="ml-0.5 opacity-60 hover:opacity-100"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-            {noPlayDates.some(d => existingSessionDates.includes(d)) && (
-              <p className="text-xs text-red-600">
-                ⚠ One or more skip dates overlap with existing sessions. Those sessions won't be removed automatically — delete them from the Session Manager if needed.
-              </p>
-            )}
-          </div>
-        </Field>
-
-        <Field label="Registration deadline" hint="Closes automatically at this time (Pacific). Leave blank to manage manually.">
-          <input
-            type="datetime-local"
-            value={registrationClosesAt}
-            onChange={(e) => setRegistrationClosesAt(e.target.value)}
-            className="w-full input"
-          />
-        </Field>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Play Days"><input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} className="w-full input" /></Field>
-          <Field label="Games/Play"><input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} className="w-full input" /></Field>
-          <Field label="Max Players"><input type="number" min="2" value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} className="w-full input" /></Field>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Points to Win">
-            <input
-              type="number"
-              min="1"
-              value={pointsToWin}
-              onChange={(e) => handlePointsToWinChange(e.target.value)}
-              placeholder="11"
-              className="w-full input"
-            />
-          </Field>
-          <Field label="Win By">
-            <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
-              <button
-                type="button"
-                onClick={() => setWinBy(1)}
-                className={`flex-1 text-sm font-medium transition-colors ${winBy === 1 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
-              >
-                Win by 1
-              </button>
-              <button
-                type="button"
-                onClick={() => setWinBy(2)}
-                className={`flex-1 text-sm font-medium transition-colors ${winBy === 2 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
-              >
-                Win by 2
-              </button>
-            </div>
-          </Field>
-        </div>
-
-        <Field label="Sub Credit Cap" hint="Max points credited to an absent player when a sub plays in their place.">
-          <select value={subCreditCap} onChange={(e) => setSubCreditCap(e.target.value)} className="w-full input">
-            {Array.from({ length: pointsToWinNum }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
-            ))}
-          </select>
-        </Field>
-
-        {/* Session preview — only shown when no sessions exist yet */}
-        {hasNoSessions && (
-          generatedDates.length > 0 ? (
-            <div className="bg-brand-soft border border-brand-border rounded-xl p-3 space-y-1.5">
-              <p className="text-xs font-semibold text-brand-dark">
-                {generatedDates.length} sessions · every {dayLabel}
-              </p>
-              <div className="space-y-0.5 max-h-40 overflow-y-auto">
-                {generatedDates.map((d, i) => (
-                  <p key={d} className="text-xs text-brand-muted">
-                    Play {i + 1} — {formatSessionDate(d)}
-                  </p>
-                ))}
-              </div>
-              <p className="text-xs text-brand-active font-medium">These sessions will be created when you save.</p>
-            </div>
-          ) : (
-            <p className="text-xs text-brand-muted">Set a start date and number of play days to auto-generate the session schedule.</p>
-          )
-        )}
-
-        <Field label="Standings Method">
-          <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
-            <button
-              type="button"
-              onClick={() => setStandingsMethod('win_loss')}
-              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'win_loss' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
-            >
-              Win-Loss
-            </button>
-            <button
-              type="button"
-              onClick={() => setStandingsMethod('total_points')}
-              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'total_points' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}
-            >
-              Total Points
-            </button>
-          </div>
-        </Field>
-
-        <Field label="Registration Fee (optional)">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={costDollars}
-              onChange={(e) => setCostDollars(e.target.value)}
-              placeholder="0"
-              className="w-full input pl-7"
-            />
-          </div>
-        </Field>
-
-        <Field label="Description">
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full input resize-none" />
-        </Field>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <button type="submit" disabled={loading || !name.trim()} className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors">
-          {loading ? 'Saving…' : 'Save Changes'}
-        </button>
-      </form>
-    </main>
-  )
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-brand-dark mb-1">{label}</label>
-      {hint && <p className="text-xs text-brand-muted mb-1">{hint}</p>}
-      {children}
-    </div>
+      }
+      sidebar={<ManageNav items={navItems} />}
+      rail={<WizardOutline steps={STEPS} title="Edit League" />}
+    >
+      <ManageNav items={navItems} mobileOnly />
+      <EditLeagueForm
+        leagueId={id}
+        initialData={league as any}
+        existingSessionDates={(sessionRows ?? []).map((s: any) => s.session_date as string)}
+        existingSessionCount={sessionCount ?? 0}
+        registrantCount={regCount ?? 0}
+      />
+    </DesktopShell>
   )
 }

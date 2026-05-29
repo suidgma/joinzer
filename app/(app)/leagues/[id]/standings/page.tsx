@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import DesktopShell from '@/components/ui/desktop-shell'
+import ManageNav from '@/components/ui/manage-nav'
+import type { ManageNavItem } from '@/components/ui/manage-nav'
 
 function Sparkline({ values }: { values: number[] }) {
   if (values.length === 0) return <span className="text-xs text-brand-muted">—</span>
@@ -205,11 +208,28 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
     (matches ?? []).some(m => m.session_id === s.id)
   )
 
+  const navItems: ManageNavItem[] = [
+    { label: 'Overview', href: `/leagues/${params.id}` },
+    { label: 'Standings', href: `/leagues/${params.id}/standings` },
+    ...(isManager ? [
+      { label: 'Roster', href: `/leagues/${params.id}/roster` },
+      { label: 'Edit', href: `/leagues/${params.id}/edit` },
+    ] : []),
+  ]
+
   return (
-    <main className="max-w-2xl mx-auto p-4 space-y-6">
-      <div className="flex items-center gap-2">
-        <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← Back</Link>
-      </div>
+    <DesktopShell
+      header={
+        <div className="flex items-center gap-3">
+          <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+          <span className="text-brand-muted text-sm">/</span>
+          <span className="text-sm font-medium text-brand-dark">Standings</span>
+        </div>
+      }
+      sidebar={<ManageNav items={navItems} />}
+    >
+      <ManageNav items={navItems} mobileOnly />
+      <div className="space-y-6 pb-8">
 
       <div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
@@ -327,6 +347,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           </table>
         </div>
       )}
-    </main>
+      </div>
+    </DesktopShell>
   )
 }
