@@ -816,14 +816,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
               <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
-                {CATEGORY_OPTIONS.map(opt => (
+                {CATEGORY_OPTIONS.filter(o => fTeamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Team Type</label>
-              <select value={fTeamType} onChange={e => setFTeamType(e.target.value)} className="w-full input">
+              <select
+                value={fTeamType}
+                onChange={e => { setFTeamType(e.target.value); if (e.target.value === 'singles' && ['mixed', 'coed'].includes(fCategory)) setFCategory('open') }}
+                className="w-full input"
+              >
                 <option value="doubles">Doubles</option>
                 <option value="singles">Singles</option>
               </select>
@@ -1069,14 +1073,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       <div>
                         <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
                         <select value={editCategory} onChange={e => setEditCategory(e.target.value)} className="w-full input">
-                          {CATEGORY_OPTIONS.map(opt => (
+                          {CATEGORY_OPTIONS.filter(o => editTeamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map(opt => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
                         </select>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-brand-muted mb-1">Team Type</label>
-                        <select value={editTeamType} onChange={e => setEditTeamType(e.target.value)} className="w-full input">
+                        <select
+                          value={editTeamType}
+                          onChange={e => { setEditTeamType(e.target.value); if (e.target.value === 'singles' && ['mixed', 'coed'].includes(editCategory)) setEditCategory('open') }}
+                          className="w-full input"
+                        >
                           <option value="doubles">Doubles</option>
                           <option value="singles">Singles</option>
                         </select>
