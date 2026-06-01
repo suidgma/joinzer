@@ -33,6 +33,7 @@ type Props = {
   waitlistPosition: number | null
   waitlistTotal: number
   pendingInvite?: { token: string; expiresAt: string } | null
+  partnerMode?: string | null
   calendarStart?: string
   calendarEnd?: string
   calendarTimezone?: string
@@ -42,6 +43,7 @@ type Props = {
 export default function LeagueActions({
   leagueId, leagueName, registrationStatus, myReg, mySubInterest, isFull, costCents, format,
   partnerUserName, pendingPartnerEmail, pendingPartnerExpiresAt, pendingInvite = null,
+  partnerMode,
   sessions, mySubSessionIds, waitlistPosition, waitlistTotal,
   calendarStart, calendarEnd, calendarTimezone, calendarLocation,
 }: Props) {
@@ -59,6 +61,7 @@ export default function LeagueActions({
   const [showFallback, setShowFallback] = useState(false)
 
   const isDoubles = DOUBLES_FORMATS.includes(format)
+  const isRotating = partnerMode === 'rotating'
   const canRegister = registrationStatus === 'open' || registrationStatus === 'waitlist_only'
   const isPaid = costCents > 0
 
@@ -257,7 +260,7 @@ export default function LeagueActions({
       {/* Registration form */}
       {(localReg === null || localReg === 'cancelled') && canRegister && (!pendingInvite || showFallback) && (
         <div className="space-y-2">
-          {isDoubles && (
+          {isDoubles && !isRotating && (
             <div className="flex rounded-xl overflow-hidden border border-brand-border">
               <button
                 type="button"
@@ -290,7 +293,7 @@ export default function LeagueActions({
               </p>
             </div>
           )}
-          {isDoubles && regType === 'solo' && (
+          {isDoubles && !isRotating && regType === 'solo' && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
               You&apos;ll be automatically matched with another solo player. Both of you will be notified by email.
             </p>

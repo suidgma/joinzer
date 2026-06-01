@@ -355,6 +355,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             isFull={isFull}
             costCents={(league as any).cost_cents ?? 0}
             format={league.format}
+            partnerMode={(league as any).partner_mode ?? null}
             partnerUserName={partnerUserName}
             pendingPartnerEmail={pendingPartnerEmail}
             pendingPartnerExpiresAt={pendingPartnerExpiresAt}
