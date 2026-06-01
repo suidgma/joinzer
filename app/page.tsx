@@ -33,9 +33,9 @@ export default async function HomePage(
       <main>
         <HeroSection />
         <HowItWorks />
+        <OrganizersSection />
         <FeaturesSection />
         <CompeteSection />
-        <OrganizersSection />
         <TrustSection />
         <MidPageCTA />
         <FinalCTA />

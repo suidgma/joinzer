@@ -371,22 +371,63 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ── Role-aware CTA — shown when schedule is sparse or empty ── */}
-      {(scheduleIsSparse || !hasSchedule) && (
+      {/* ── First-event onboarding — shown only on a completely empty home screen ── */}
+      {!hasSchedule && (
+        <section className="bg-brand-soft border border-brand-border rounded-2xl p-5 space-y-3">
+          <p className="text-sm font-semibold text-brand-dark">What do you want to do?</p>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Player path */}
+            <div className="bg-brand-surface border border-brand-border rounded-xl p-4 flex flex-col gap-2">
+              <span className="text-xl">🏓</span>
+              <p className="text-sm font-semibold text-brand-dark">Play</p>
+              <p className="text-xs text-brand-muted leading-relaxed">Find open sessions, join leagues and tournaments.</p>
+              <Link
+                href="/play"
+                className="mt-auto block text-center text-xs font-semibold py-2 rounded-lg bg-brand text-brand-dark hover:bg-brand-hover transition-colors"
+              >
+                Find Games
+              </Link>
+            </div>
+            {/* Organizer path */}
+            <div className="bg-brand-surface border border-brand-border rounded-xl p-4 flex flex-col gap-2">
+              <span className="text-xl">📋</span>
+              <p className="text-sm font-semibold text-brand-dark">Organize</p>
+              <p className="text-xs text-brand-muted leading-relaxed">Run a league or tournament on Joinzer.</p>
+              <div className="mt-auto space-y-1.5">
+                <Link
+                  href="/leagues/create"
+                  className="block text-center text-xs font-semibold py-1.5 rounded-lg border border-brand-border text-brand-dark hover:bg-brand-soft transition-colors"
+                >
+                  Create League
+                </Link>
+                <Link
+                  href="/tournaments/create"
+                  className="block text-center text-xs font-semibold py-1.5 rounded-lg border border-brand-border text-brand-dark hover:bg-brand-soft transition-colors"
+                >
+                  Create Tournament
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Role-aware CTA — shown when schedule is sparse but not empty ── */}
+      {scheduleIsSparse && hasSchedule && (
         <section className="flex gap-3">
           {isOrganizer ? (
             <>
               <Link
-                href="/tournaments/create"
+                href="/leagues/create"
                 className="flex-1 text-center py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
               >
-                Create Tournament
+                Create League
               </Link>
               <Link
-                href="/leagues"
+                href="/tournaments/create"
                 className="flex-1 text-center py-2.5 rounded-xl border border-brand-border text-brand-dark text-sm font-semibold hover:border-brand-active transition-colors"
               >
-                Browse Leagues
+                Create Tournament
               </Link>
             </>
           ) : (
@@ -398,10 +439,10 @@ export default async function HomePage() {
                 Browse Leagues
               </Link>
               <Link
-                href="/tournaments/create"
+                href="/play"
                 className="flex-1 text-center py-2.5 rounded-xl border border-brand-border text-brand-dark text-sm font-semibold hover:border-brand-active transition-colors"
               >
-                Start Organizing
+                Find Games
               </Link>
             </>
           )}
