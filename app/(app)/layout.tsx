@@ -11,7 +11,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  const pathname = (await headers()).get('x-pathname') ?? ''
+  const hdrs = await headers()
+  const pathname = hdrs.get('x-pathname') ?? ''
+  const search = hdrs.get('x-search') ?? ''
 
   // Skip profile check on setup page to avoid infinite redirect loop.
   // Stubs (is_stub=true) are treated the same as missing profiles — must complete setup.
@@ -22,7 +24,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .eq('id', user.id)
       .single()
 
-    if (!profile || profile.is_stub) redirect('/profile/setup')
+    if (!profile || profile.is_stub) {
+      // Preserve where the user was headed (e.g. a partner-invite accept link
+      // with ?token=) so they land there after completing setup instead of /home.
+      const dest = pathname + search
+      const setupUrl = dest && dest !== '/home'
+        ? `/profile/setup?next=${encodeURIComponent(dest)}`
+        : '/profile/setup'
+      redirect(setupUrl)
+    }
   }
 
   return (

@@ -65,8 +65,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/home', request.url))
   }
 
-  // Forward pathname so server layouts can read it via headers()
+  // Forward pathname + search so server layouts can read them via headers()
+  // (the search string carries things like ?token= for partner-invite deep links)
   supabaseResponse.headers.set('x-pathname', request.nextUrl.pathname)
+  supabaseResponse.headers.set('x-search', request.nextUrl.search)
 
   return supabaseResponse
 }
