@@ -49,13 +49,13 @@ export default function CompeteSection() {
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
-            href="/login"
+            href="/browse/leagues"
             className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-brand text-brand-dark font-semibold text-sm hover:bg-brand-hover transition-colors"
           >
             Browse Leagues
           </Link>
           <Link
-            href="/login"
+            href="/browse/tournaments"
             className="inline-flex items-center justify-center px-6 py-3 rounded-xl border border-white/20 text-white font-semibold text-sm hover:bg-white/10 transition-colors"
           >
             Browse Tournaments
