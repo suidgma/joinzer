@@ -3,6 +3,8 @@ import Stripe from 'stripe'
 import { Resend } from 'resend'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { createStub } from '@/lib/users/stubs'
+import { createNotification } from '@/lib/notifications/create'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ServiceClient = any
@@ -61,7 +63,7 @@ export async function voidCaptainHold(
     ])
 
     if (profile?.email && league) {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+      const siteUrl = getSiteUrl()
       const resend = new Resend(process.env.RESEND_API_KEY)
       const isDeclined = reason === 'declined'
 
@@ -146,6 +148,28 @@ export async function createInviteAndNotify(
     .eq('id', invitationId)
 
   if (emailAlreadySent) return
+
+  // In-app notification for the invitee with a direct deep link to the accept
+  // page. This is the resilient path: the emailed magic link can drop its `next`
+  // redirect (Supabase allowlist / flow quirks), leaving the invitee stranded on
+  // /home. The bell notification + the league page's pendingInvite surface both
+  // give them a way to find and accept the invite from inside the app.
+  {
+    const { data: invLeague } = await db
+      .from('leagues')
+      .select('name')
+      .eq('id', leagueId)
+      .single()
+    await createNotification({
+      recipientId: userId,
+      surface: 'league',
+      surfaceId: leagueId,
+      kind: 'league_partner_invite',
+      title: 'You have a partner invitation',
+      body: `Accept to join ${invLeague?.name ?? 'the league'} as a team.`,
+      url: `/leagues/${leagueId}/partner-accept?token=${token}`,
+    })
+  }
 
   const shouldSend = process.env.NODE_ENV === 'production'
   if (!shouldSend) {

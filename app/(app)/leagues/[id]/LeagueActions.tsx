@@ -180,7 +180,9 @@ export default function LeagueActions({
             {expiresLabel ? ` · expires ${expiresLabel} PT` : ''}
           </p>
           <p className="text-xs text-amber-700 mt-1">
-            Your payment is on hold and will be captured when your partner accepts.
+            {isPaid
+              ? 'Your payment is on hold and will be captured when your partner accepts.'
+              : "You'll be registered as a team once your partner accepts."}
           </p>
         </div>
       )}
