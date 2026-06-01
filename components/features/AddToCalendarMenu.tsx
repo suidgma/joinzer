@@ -79,14 +79,13 @@ export default function AddToCalendarMenu({ title, startIso, endIso, location, i
     ...(timezone ? { tz: timezone } : {}),
   })
 
-  // Multi-session events (leagues with weekly sessions) can't use the Google/Yahoo
-  // URL scheme — it only creates a single event. Route all options through the ICS
-  // download so every session appears correctly in any calendar app.
+  // Multi-session: Google Calendar gets a direct link (adds the first/next session).
+  // Apple and Outlook use the ICS download so all sessions import at once.
   const options = multiSession
     ? [
-        { label: 'Google Calendar (.ics import)', href: icsUrl, external: false },
-        { label: 'Apple Calendar',                href: icsUrl, external: false },
-        { label: 'Outlook / Other',               href: icsUrl, external: false },
+        { label: 'Google Calendar', href: googleUrl, external: true },
+        { label: 'Apple Calendar',  href: icsUrl,    external: false },
+        { label: 'Outlook / Other', href: icsUrl,    external: false },
       ]
     : [
         { label: 'Google Calendar', href: googleUrl, external: true },
