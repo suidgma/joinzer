@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { generateIcs } from '@/lib/email/ics'
 import { icsFilename } from '@/lib/utils/slug'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function GET(
   _req: NextRequest,
@@ -22,7 +23,7 @@ export async function GET(
 
   // Layer 2: organizer OR active registration
   const [{ data: tournament }, { data: reg }] = await Promise.all([
-    service.from('tournaments').select('name, start_date, location_id, organizer_id').eq('id', id).single(),
+    service.from('tournaments').select('name, start_date, end_date, start_time, estimated_end_time, location_id, organizer_id').eq('id', id).single(),
     service.from('tournament_registrations')
       .select('id')
       .eq('tournament_id', id)
@@ -42,16 +43,43 @@ export async function GET(
     : { data: null }
   const locationName = locationResult.data?.name ?? null
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+  const siteUrl = getSiteUrl()
   const tournamentUrl = `${siteUrl}/tournaments/${id}`
 
-  const ics = generateIcs([{
-    uid: id,
-    title: tournament.name,
-    startDate: tournament.start_date,
+  // Build one VEVENT per tournament day so multi-day events appear on each day
+  function daysBetween(start: string, end: string): string[] {
+    const dates: string[] = []
+    const cursor = new Date(start + 'T00:00:00Z')
+    const last = new Date(end + 'T00:00:00Z')
+    while (cursor <= last) {
+      dates.push(cursor.toISOString().slice(0, 10))
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    }
+    return dates
+  }
+
+  const startDate = tournament.start_date
+  const endDate = (tournament as any).end_date ?? startDate
+  const days = daysBetween(startDate, endDate)
+
+  // Attach start/end times if available
+  const startTime: string | null = (tournament as any).start_time ?? null
+  const endTime: string | null = (tournament as any).estimated_end_time ?? null
+
+  function ptIso(date: string, time: string): string {
+    const month = parseInt(date.slice(5, 7), 10)
+    const offset = month >= 4 && month <= 10 ? '-07:00' : '-08:00'
+    return `${date}T${time}:00${offset}`
+  }
+
+  const ics = generateIcs(days.map((day, i) => ({
+    uid: i === 0 ? id : `${id}-day${i + 1}`,
+    title: days.length > 1 ? `${tournament.name} — Day ${i + 1}` : tournament.name,
+    startDate: startTime ? ptIso(day, startTime) : day,
+    ...(endTime ? { endDate: ptIso(day, endTime) } : {}),
     ...(locationName ? { location: locationName } : {}),
     url: tournamentUrl,
-  }])
+  })))
 
   return new NextResponse(ics, {
     headers: {

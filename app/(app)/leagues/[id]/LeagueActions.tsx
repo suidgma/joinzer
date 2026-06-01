@@ -206,6 +206,7 @@ export default function LeagueActions({
                   timezone={calendarTimezone}
                   location={calendarLocation}
                   icsUrl={`/api/leagues/${leagueId}/ics`}
+                  multiSession
                 />
               </div>
             )}

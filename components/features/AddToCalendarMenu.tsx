@@ -10,6 +10,8 @@ type Props = {
   location?: string
   icsUrl: string
   timezone?: string   // e.g. 'America/Los_Angeles' — used when startIso is a local datetime
+  /** When true, all options use the ICS download so every session appears in the calendar */
+  multiSession?: boolean
 }
 
 // Returns calendar date string. Local datetimes (no Z/offset) stay unqualified so
@@ -36,7 +38,7 @@ function addHours(localIso: string, hours: number): string {
   return `${datePart}T${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export default function AddToCalendarMenu({ title, startIso, endIso, location, icsUrl, timezone }: Props) {
+export default function AddToCalendarMenu({ title, startIso, endIso, location, icsUrl, timezone, multiSession }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -77,12 +79,21 @@ export default function AddToCalendarMenu({ title, startIso, endIso, location, i
     ...(timezone ? { tz: timezone } : {}),
   })
 
-  const options = [
-    { label: 'Google Calendar', href: googleUrl, external: true },
-    { label: 'Yahoo Calendar',  href: yahooUrl,  external: true },
-    { label: 'Apple Calendar',  href: icsUrl,    external: false },
-    { label: 'Outlook / Other', href: icsUrl,    external: false },
-  ]
+  // Multi-session events (leagues with weekly sessions) can't use the Google/Yahoo
+  // URL scheme — it only creates a single event. Route all options through the ICS
+  // download so every session appears correctly in any calendar app.
+  const options = multiSession
+    ? [
+        { label: 'Google Calendar (.ics import)', href: icsUrl, external: false },
+        { label: 'Apple Calendar',                href: icsUrl, external: false },
+        { label: 'Outlook / Other',               href: icsUrl, external: false },
+      ]
+    : [
+        { label: 'Google Calendar', href: googleUrl, external: true },
+        { label: 'Yahoo Calendar',  href: yahooUrl,  external: true },
+        { label: 'Apple Calendar',  href: icsUrl,    external: false },
+        { label: 'Outlook / Other', href: icsUrl,    external: false },
+      ]
 
   return (
     <div ref={ref} className="relative inline-block">
