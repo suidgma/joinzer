@@ -127,7 +127,7 @@ export default function EditLeagueForm({
   const [error, setError] = useState<string | null>(null)
 
   const pointsToWinNum = parseInt(pointsToWin) || 11
-  const formatAndSkillLocked = registrantCount > 0
+  const hasRegistrants = registrantCount > 0
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
   const dayLabel = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
@@ -193,8 +193,8 @@ export default function EditLeagueForm({
     router.push(`/leagues/${leagueId}`)
   }
 
-  const lockHint = formatAndSkillLocked
-    ? `Locked — ${registrantCount} player${registrantCount !== 1 ? 's' : ''} registered`
+  const lockHint = hasRegistrants
+    ? `Heads up — ${registrantCount} player${registrantCount !== 1 ? 's' : ''} already registered. Changing these may affect their eligibility.`
     : undefined
 
   return (
@@ -216,9 +216,8 @@ export default function EditLeagueForm({
               <button
                 key={t}
                 type="button"
-                disabled={formatAndSkillLocked}
                 onClick={() => { setTeamType(t); if (t === 'singles' && (category === 'mixed' || category === 'coed')) setCategory('open') }}
-                className={`p-2.5 rounded-lg border text-left disabled:opacity-50 disabled:cursor-not-allowed ${teamType === t ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                className={`p-2.5 rounded-lg border text-left ${teamType === t ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
               >
                 <div className="text-sm font-semibold text-brand-dark capitalize">{t}</div>
               </button>
@@ -230,8 +229,7 @@ export default function EditLeagueForm({
             id="category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            disabled={formatAndSkillLocked}
-            className="w-full input disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full input"
           >
             {CATEGORY_OPTIONS.filter(o => teamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -243,8 +241,7 @@ export default function EditLeagueForm({
             <select
               value={skillMin}
               onChange={(e) => setSkillMin(e.target.value)}
-              disabled={formatAndSkillLocked}
-              className="flex-1 input disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 input"
             >
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
@@ -252,8 +249,7 @@ export default function EditLeagueForm({
             <select
               value={skillMax}
               onChange={(e) => setSkillMax(e.target.value)}
-              disabled={formatAndSkillLocked}
-              className="flex-1 input disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 input"
             >
               <option value="">No max</option>
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
