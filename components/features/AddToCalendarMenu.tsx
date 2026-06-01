@@ -10,8 +10,38 @@ type Props = {
   location?: string
   icsUrl: string
   timezone?: string   // e.g. 'America/Los_Angeles' — used when startIso is a local datetime
-  /** When true, all options use the ICS download so every session appears in the calendar */
+  /** When true, the menu represents a multi-session series (e.g. a league season) */
   multiSession?: boolean
+  /** All session dates (YYYY-MM-DD) for a multi-session series. Used to build a
+   *  Google recurrence so every session lands on the calendar in one click. */
+  sessionDates?: string[]
+}
+
+// Build a Google/iCal RRULE from explicit session dates. Only regular cadences
+// (evenly spaced days) can be expressed as a single rule — returns null for
+// irregular schedules (e.g. a mid-season gap), where the ICS download is the
+// only way to capture every date.
+function buildRRule(dates: string[]): string | null {
+  const sorted = [...new Set(dates.filter(Boolean))].sort()
+  if (sorted.length < 2) return null
+  const DAY = 86_400_000
+  const gaps: number[] = []
+  for (let i = 1; i < sorted.length; i++) {
+    gaps.push(Math.round((Date.parse(sorted[i] + 'T00:00:00Z') - Date.parse(sorted[i - 1] + 'T00:00:00Z')) / DAY))
+  }
+  const uniform = gaps.every(g => g === gaps[0] && g > 0)
+  if (!uniform) return null
+  const count = sorted.length
+  return gaps[0] % 7 === 0
+    ? `RRULE:FREQ=WEEKLY;INTERVAL=${gaps[0] / 7};COUNT=${count}`
+    : `RRULE:FREQ=DAILY;INTERVAL=${gaps[0]};COUNT=${count}`
+}
+
+// Combine a date (YYYY-MM-DD) with the time-of-day carried by a reference ISO
+// string, so the recurrence can be anchored to the first session.
+function withTimeOf(date: string, refIso: string): string {
+  const m = refIso.match(/T(\d{2}:\d{2}(?::\d{2})?)/)
+  return m ? `${date}T${m[1]}` : date
 }
 
 // Returns calendar date string. Local datetimes (no Z/offset) stay unqualified so
@@ -38,7 +68,7 @@ function addHours(localIso: string, hours: number): string {
   return `${datePart}T${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export default function AddToCalendarMenu({ title, startIso, endIso, location, icsUrl, timezone, multiSession }: Props) {
+export default function AddToCalendarMenu({ title, startIso, endIso, location, icsUrl, timezone, multiSession, sessionDates }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -70,6 +100,35 @@ export default function AddToCalendarMenu({ title, startIso, endIso, location, i
     ...(timezone ? { ctz: timezone } : {}),
   })
 
+  // Multi-session: try to express the full schedule as a single recurring Google
+  // event so every session lands on the calendar in one click. Only works for
+  // regular cadences (e.g. weekly) — irregular schedules fall back to the .ics
+  // download, the only way to capture every individual date.
+  const sortedDates = [...new Set((sessionDates ?? []).filter(Boolean))].sort()
+  const rrule = multiSession ? buildRRule(sortedDates) : null
+  const recurringGoogleUrl = rrule
+    ? (() => {
+        const firstIso = withTimeOf(sortedDates[0], startIso)
+        const firstStart = toCalDate(firstIso)
+        const firstEnd = endIso
+          ? toCalDate(withTimeOf(sortedDates[0], endIso))
+          : /^\d{4}-\d{2}-\d{2}$/.test(firstIso)
+            ? nextDay(sortedDates[0])
+            : toCalDate(addHours(firstIso, 2))
+        const params = new URLSearchParams({
+          action: 'TEMPLATE',
+          text: title,
+          dates: `${firstStart}/${firstEnd}`,
+          ...(location ? { location } : {}),
+          ...(timezone ? { ctz: timezone } : {}),
+        })
+        // Append RRULE raw — Google's `recur` parser expects literal `RRULE:FREQ=...`
+        // and silently ignores the recurrence if URLSearchParams percent-encodes
+        // the colons/semicolons/equals (%3A/%3B/%3D).
+        return `https://calendar.google.com/calendar/render?${params}&recur=${rrule}`
+      })()
+    : null
+
   const yahooUrl = 'https://calendar.yahoo.com/?' + new URLSearchParams({
     v: '60',
     title,
@@ -79,13 +138,22 @@ export default function AddToCalendarMenu({ title, startIso, endIso, location, i
     ...(timezone ? { tz: timezone } : {}),
   })
 
-  // Multi-session: Google Calendar gets a direct link (adds the first/next session).
-  // Apple and Outlook use the ICS download so all sessions import at once.
+  // Multi-session Google option:
+  //  - regular cadence  → one-click recurring event covering every session
+  //  - irregular schedule → .ics import (only way to capture all dates)
+  //  - no session dates  → single event spanning the first/next session
+  const googleMulti = recurringGoogleUrl
+    ? { label: 'Google Calendar', href: recurringGoogleUrl, external: true }
+    : sortedDates.length > 1
+      ? { label: 'Google Calendar (.ics import)', href: icsUrl, external: false }
+      : { label: 'Google Calendar', href: googleUrl, external: true }
+
+  // Multi-session: Apple and Outlook use the ICS download so all sessions import at once.
   const options = multiSession
     ? [
-        { label: 'Google Calendar', href: googleUrl, external: true },
-        { label: 'Apple Calendar',  href: icsUrl,    external: false },
-        { label: 'Outlook / Other', href: icsUrl,    external: false },
+        googleMulti,
+        { label: 'Apple Calendar',  href: icsUrl, external: false },
+        { label: 'Outlook / Other', href: icsUrl, external: false },
       ]
     : [
         { label: 'Google Calendar', href: googleUrl, external: true },

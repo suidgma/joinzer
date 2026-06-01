@@ -209,6 +209,9 @@ export default function LeagueActions({
                   location={calendarLocation}
                   icsUrl={`/api/leagues/${leagueId}/ics`}
                   multiSession
+                  sessionDates={sessions
+                    .filter(s => s.status !== 'cancelled')
+                    .map(s => s.session_date)}
                 />
               </div>
             )}
