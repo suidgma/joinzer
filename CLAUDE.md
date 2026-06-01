@@ -139,6 +139,7 @@ Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 - Two-form-factor refactor plan: `/docs/phases/two-form-factor.md`
 - Target architecture (aspirational): @docs/architecture-target.md
 - Security rules: @docs/security.md
+- Partner invite flow + required Supabase Auth config: `/docs/partner-invite-flow.md`
 
 ---
 

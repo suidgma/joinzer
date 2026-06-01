@@ -194,12 +194,19 @@ export async function createInviteAndNotify(
 
   const acceptUrl = `${siteUrl}/auth/callback?next=${encodeURIComponent(`/leagues/${leagueId}/partner-accept?token=${token}`)}`
 
-  const { data: linkData } = await db.auth.admin.generateLink({
+  const { data: linkData, error: linkErr } = await db.auth.admin.generateLink({
     type: 'magiclink',
     email: partnerEmail,
     options: { redirectTo: acceptUrl },
   })
-  const claimUrl = linkData?.properties?.action_link ?? `${siteUrl}/login`
+  // Fallback to the accept page itself (not bare /login) so the token survives:
+  // an unauthenticated visit bounces through middleware → /login?next=<accept>,
+  // and every auth method now carries `next` back to the invite.
+  const acceptPageUrl = `${siteUrl}/leagues/${leagueId}/partner-accept?token=${token}`
+  if (linkErr || !linkData?.properties?.action_link) {
+    console.error('[partner-invite] generateLink failed; emailing accept-page fallback URL:', linkErr)
+  }
+  const claimUrl = linkData?.properties?.action_link ?? acceptPageUrl
 
   const localPart = partnerEmail.split('@')[0].replace(/[^a-zA-Z]/g, '')
   const firstName = localPart ? localPart.charAt(0).toUpperCase() + localPart.slice(1) : 'there'

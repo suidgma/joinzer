@@ -42,7 +42,10 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        // Carry `next` through OAuth so deep links (e.g. a partner-invite accept
+        // page) survive the round-trip. Without this, OAuth sign-in silently
+        // dumps the user on /home and the invite token is lost.
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
       },
     })
     if (error) {
@@ -81,7 +84,9 @@ function LoginForm() {
         return
       }
       if (data.session) {
-        router.push('/profile/setup')
+        // Preserve the deep link through setup so a new account created from an
+        // invite link lands on the invite after completing their profile.
+        router.push(nextPath !== '/home' ? `/profile/setup?next=${encodeURIComponent(nextPath)}` : '/profile/setup')
         router.refresh()
       } else {
         setError('Check your email to confirm your account, then sign in.')
