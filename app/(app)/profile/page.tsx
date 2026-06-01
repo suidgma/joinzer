@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { joinzerRatingLabel } from '@/lib/utils/date'
 import DeleteAccountButton from '@/components/features/DeleteAccountButton'
 import RatingBadge from '@/components/features/RatingBadge'
+import PushSubscribeButton from '@/components/features/PushSubscribeButton'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -134,6 +135,11 @@ export default async function ProfilePage() {
         <span className="text-sm font-medium text-brand-dark">Payouts (Stripe Connect)</span>
         <span className="text-brand-muted text-sm">→</span>
       </Link>
+
+      {/* Push notifications toggle */}
+      <div className="bg-brand-surface border border-brand-border rounded-2xl px-4 py-3">
+        <PushSubscribeButton />
+      </div>
 
       <SignOutButton />
       <DeleteAccountButton />

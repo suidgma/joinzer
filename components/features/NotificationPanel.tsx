@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { X, Bell, Trophy, BarChart2, Zap } from 'lucide-react'
+import PushSubscribeButton from './PushSubscribeButton'
 
 interface Notification {
   id: string
@@ -169,6 +170,11 @@ export default function NotificationPanel({ onClose, onMarkAllRead }: Props) {
             ))
           )}
         </div>
+      </div>
+
+      {/* Push toggle footer */}
+      <div className="px-4 py-2.5 border-t border-brand-border flex justify-center shrink-0">
+        <PushSubscribeButton compact />
       </div>
     </>
   )

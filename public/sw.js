@@ -1,4 +1,42 @@
-// Joinzer service worker — app shell caching for offline resilience
+// Joinzer service worker — app shell caching + push notifications
+
+// ── Push notifications ────────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  const data = event.data?.json() ?? {}
+  event.waitUntil(
+    self.registration.showNotification(data.title ?? 'Joinzer', {
+      body: data.body ?? '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: data.url ?? '/home' },
+      // tag deduplicates — same tag replaces previous notification of same kind
+      tag: data.tag ?? 'joinzer',
+    })
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = event.notification.data?.url ?? '/home'
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Focus an existing open window and navigate it to the deep link
+        for (const client of clientList) {
+          if ('navigate' in client && 'focus' in client) {
+            client.navigate(url)
+            return client.focus()
+          }
+        }
+        // No open window — open a new one
+        if (self.clients.openWindow) return self.clients.openWindow(url)
+      })
+  )
+})
+
+// ── App shell caching for offline resilience ─────────────────────────────────
 // Strategy:
 //   Navigation requests  → network-first, cache on success, serve cache on failure
 //   Static assets (JS/CSS/fonts/images) → cache-first, fetch and cache on miss
