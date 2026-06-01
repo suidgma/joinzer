@@ -11,7 +11,7 @@ const DIVISION_SKILL_TO_RANGE: Record<string, { skill_min: number; skill_max: nu
 // the single `format` value the rest of the app uses. The cleaned-up category
 // vocabulary is ['men','women','mixed','coed','open']; team_type is
 // ['singles','doubles']. See migration 20260528000001 for the DB shape.
-function mapDivisionFormat(category: string, team_type: string): string {
+export function mapDivisionFormat(category: string, team_type: string): string {
   if (team_type === 'doubles') {
     if (category === 'men')   return 'mens_doubles'
     if (category === 'women') return 'womens_doubles'

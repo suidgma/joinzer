@@ -4,20 +4,30 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatSessionDate } from '@/lib/utils/date'
-import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
+import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-helpers'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
 
-const FORMAT_OPTIONS = [
-  { value: 'individual_round_robin', label: 'Individual Round Robin' },
-  { value: 'mens_doubles', label: "Men's Doubles" },
-  { value: 'womens_doubles', label: "Women's Doubles" },
-  { value: 'mixed_doubles', label: 'Mixed Doubles' },
-  { value: 'coed_doubles', label: 'Coed Doubles' },
-  { value: 'open_singles', label: 'Singles' },
-  { value: 'custom', label: 'Custom' },
+const CATEGORY_OPTIONS = [
+  { value: 'men',   label: 'Men' },
+  { value: 'women', label: 'Women' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'coed',  label: 'Coed' },
+  { value: 'open',  label: 'Open' },
 ]
+
+function parseFormat(fmt: string): { teamType: 'doubles' | 'singles'; category: string } {
+  if (fmt.endsWith('_singles') || fmt === 'open_singles') {
+    const cat = fmt.replace('_singles', '')
+    return { teamType: 'singles', category: ['men', 'women'].includes(cat) ? cat : 'open' }
+  }
+  if (fmt.endsWith('_doubles')) {
+    const cat = fmt.replace('_doubles', '')
+    return { teamType: 'doubles', category: ['men', 'women', 'mixed', 'coed', 'open'].includes(cat) ? cat : 'mixed' }
+  }
+  return { teamType: 'doubles', category: 'mixed' }
+}
 const SKILL_STEPS = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
 const REG_OPTIONS = [
   { value: 'upcoming', label: 'Coming Soon' },
@@ -86,7 +96,9 @@ export default function EditLeagueForm({
   const router = useRouter()
 
   const [name, setName] = useState(d.name ?? '')
-  const [format, setFormat] = useState(d.format ?? 'mixed_doubles')
+  const { teamType: initTeamType, category: initCategory } = parseFormat(d.format ?? 'mixed_doubles')
+  const [teamType, setTeamType] = useState<'doubles' | 'singles'>(initTeamType)
+  const [category, setCategory] = useState(initCategory)
   const [skillMin, setSkillMin] = useState(d.skill_min?.toString() ?? '')
   const [skillMax, setSkillMax] = useState(d.skill_max?.toString() ?? '')
   const [locationName, setLocationName] = useState(d.location_name ?? '')
@@ -139,7 +151,7 @@ export default function EditLeagueForm({
       .update({
         name: name.trim(),
         ...prepareLeagueWrite({
-            format,
+            format: mapDivisionFormat(category, teamType),
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
@@ -198,15 +210,32 @@ export default function EditLeagueForm({
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Format" htmlFor="format" helpText={lockHint}>
+        <FormRow label="Team type" helpText={lockHint}>
+          <div className="grid grid-cols-2 gap-2">
+            {(['doubles', 'singles'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                disabled={formatAndSkillLocked}
+                onClick={() => { setTeamType(t); if (t === 'singles' && (category === 'mixed' || category === 'coed')) setCategory('open') }}
+                className={`p-2.5 rounded-lg border text-left disabled:opacity-50 disabled:cursor-not-allowed ${teamType === t ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+              >
+                <div className="text-sm font-semibold text-brand-dark capitalize">{t}</div>
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Category" htmlFor="category" helpText={lockHint}>
           <select
-            id="format"
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
+            id="category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
             disabled={formatAndSkillLocked}
             className="w-full input disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {CATEGORY_OPTIONS.filter(o => teamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
         </FormRow>
         <FormRow label="Skill range" helpText={lockHint ?? 'Leave blank to open to all skill levels.'}>

@@ -4,21 +4,18 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { LocationOption } from '@/lib/types'
-import { prepareLeagueWrite } from '@/lib/taxonomy/write-helpers'
+import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-helpers'
 import { formatSessionDate } from '@/lib/utils/date'
-import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
 
-const FORMAT_OPTIONS = [
-  { value: 'individual_round_robin', label: 'Individual Round Robin' },
-  { value: 'mens_doubles', label: "Men's Doubles" },
-  { value: 'womens_doubles', label: "Women's Doubles" },
-  { value: 'mixed_doubles', label: 'Mixed Doubles' },
-  { value: 'coed_doubles', label: 'Coed Doubles' },
-  { value: 'open_singles', label: 'Singles' },
-  { value: 'custom', label: 'Custom' },
+const CATEGORY_OPTIONS = [
+  { value: 'men',   label: 'Men' },
+  { value: 'women', label: 'Women' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'coed',  label: 'Coed' },
+  { value: 'open',  label: 'Open' },
 ]
 
 const SKILL_STEPS = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
@@ -40,7 +37,8 @@ function ptLocalToIso(local: string): string {
 export default function CreateLeagueForm({ locations }: { locations: LocationOption[] }) {
   const router = useRouter()
   const [name, setName] = useState('')
-  const [format, setFormat] = useState('mixed_doubles')
+  const [teamType, setTeamType] = useState<'doubles' | 'singles'>('doubles')
+  const [category, setCategory] = useState('mixed')
   const [skillMin, setSkillMin] = useState('')
   const [skillMax, setSkillMax] = useState('')
   const [partnerMode, setPartnerMode] = useState<'rotating' | 'fixed'>('rotating')
@@ -138,14 +136,14 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
 
     // Partner mode is only meaningful for doubles formats; force rotating
     // for singles / round-robin to avoid storing a confusing value.
-    const effectivePartnerMode = isDoublesFormat(format) ? partnerMode : 'rotating'
+    const effectivePartnerMode = teamType === 'doubles' ? partnerMode : 'rotating'
 
     const { data: league, error: leagueErr } = await supabase
       .from('leagues')
       .insert({
         name: name.trim(),
         ...prepareLeagueWrite({
-            format,
+            format: mapDivisionFormat(category, teamType),
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
@@ -207,12 +205,33 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Format" htmlFor="format" required>
-          <select id="format" value={format} onChange={(e) => setFormat(e.target.value)} className="w-full input">
-            {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <FormRow label="Team type" required>
+          <div className="grid grid-cols-2 gap-2">
+            {(['doubles', 'singles'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => { setTeamType(t); if (t === 'singles' && (category === 'mixed' || category === 'coed')) setCategory('open') }}
+                className={`p-2.5 rounded-lg border text-left ${teamType === t ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+              >
+                <div className="text-sm font-semibold text-brand-dark capitalize">{t}</div>
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Category" htmlFor="category" required>
+          <select
+            id="category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full input"
+          >
+            {CATEGORY_OPTIONS.filter(o => teamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
         </FormRow>
-        {isDoublesFormat(format) && (
+        {teamType === 'doubles' && (
           <FormRow
             label="Partner mode"
             helpText="Rotating: scheduler picks a new partner each round. Fixed: captain picks partner at registration; same pair plays every match."
