@@ -39,7 +39,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [name, setName] = useState('')
   const [teamType, setTeamType] = useState<'doubles' | 'singles'>('doubles')
   const [category, setCategory] = useState('mixed')
-  const [skillMin, setSkillMin] = useState('')
+  const [skillMin, setSkillMin] = useState('2.0')
   const [skillMax, setSkillMax] = useState('')
   const [partnerMode, setPartnerMode] = useState<'rotating' | 'fixed'>('rotating')
   const [locationId, setLocationId] = useState('')
@@ -264,10 +264,9 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             </div>
           </FormRow>
         )}
-        <FormRow label="Skill range" helpText="Leave blank to open to all skill levels.">
+        <FormRow label="Skill range" helpText="Leave blank max to open to all skill levels.">
           <div className="flex items-center gap-3">
             <select value={skillMin} onChange={(e) => setSkillMin(e.target.value)} className="flex-1 input">
-              <option value="">No min</option>
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
             <span className="text-sm text-brand-muted shrink-0">to</span>

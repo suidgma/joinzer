@@ -99,7 +99,7 @@ export default function EditLeagueForm({
   const { teamType: initTeamType, category: initCategory } = parseFormat(d.format ?? 'mixed_doubles')
   const [teamType, setTeamType] = useState<'doubles' | 'singles'>(initTeamType)
   const [category, setCategory] = useState(initCategory)
-  const [skillMin, setSkillMin] = useState(d.skill_min?.toString() ?? '')
+  const [skillMin, setSkillMin] = useState(d.skill_min?.toString() ?? '2.0')
   const [skillMax, setSkillMax] = useState(d.skill_max?.toString() ?? '')
   const [locationName, setLocationName] = useState(d.location_name ?? '')
   const [startTime, setStartTime] = useState(d.start_time ?? '08:00')
@@ -246,7 +246,6 @@ export default function EditLeagueForm({
               disabled={formatAndSkillLocked}
               className="flex-1 input disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="">No min</option>
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
             <span className="text-sm text-brand-muted shrink-0">to</span>
