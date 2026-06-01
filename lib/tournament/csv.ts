@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { normalizeEmail, createStub } from '@/lib/users/stubs'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 const db = () => createAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -378,7 +379,7 @@ export async function commitCsvRows(
   isDummy: boolean
 ): Promise<{ registered: number; stubs: number }> {
   const service = db()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+  const siteUrl = getSiteUrl()
 
   const committable = rows.filter(r => r.status === 'ok' || r.status === 'no_account')
   if (committable.length === 0) return { registered: 0, stubs: 0 }

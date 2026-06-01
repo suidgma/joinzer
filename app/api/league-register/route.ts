@@ -7,6 +7,7 @@ import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify } from '@/lib/leagues/partner'
 import { icsFilename } from '@/lib/utils/slug'
 import { formatSkillRange } from '@/lib/taxonomy/formats'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (captainReg?.id) {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+      const siteUrl = getSiteUrl()
       await createInviteAndNotify(admin, captainReg.id, leagueId, partnerEmail, siteUrl)
     }
 
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest) {
 
         if (myProfile && partnerProfile) {
           const resend = new Resend(process.env.RESEND_API_KEY)
-          const leagueUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'}/leagues/${leagueId}`
+          const leagueUrl = `${getSiteUrl()}/leagues/${leagueId}`
 
           const emailHtml = (recipientName: string, partnerName: string) => `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
@@ -260,7 +261,7 @@ export async function POST(request: NextRequest) {
   ;(async () => {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+      const siteUrl = getSiteUrl()
       const leagueUrl = `${siteUrl}/leagues/${leagueId}`
 
       const { data: profile } = await admin.from('profiles').select('name, email').eq('id', user.id).single()

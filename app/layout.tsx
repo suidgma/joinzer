@@ -3,12 +3,13 @@ import { Inter, Manrope } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import PwaInstallButton from '@/components/PwaInstallButton'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'),
+  metadataBase: new URL(getSiteUrl()),
   title: 'Joinzer',
   description: 'Find and join local pickleball sessions in Las Vegas.',
   openGraph: {

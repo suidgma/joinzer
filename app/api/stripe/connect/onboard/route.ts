@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function POST(_req: NextRequest) {
   const supabase = createClient()
@@ -34,7 +35,7 @@ export async function POST(_req: NextRequest) {
     await service.from('profiles').update({ stripe_connect_account_id: accountId }).eq('id', user.id)
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+  const siteUrl = getSiteUrl()
   const link = await stripe.accountLinks.create({
     account: accountId,
     refresh_url: `${siteUrl}/settings/payouts?refresh=1`,

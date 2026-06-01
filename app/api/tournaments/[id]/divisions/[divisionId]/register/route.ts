@@ -7,6 +7,7 @@ import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { icsFilename } from '@/lib/utils/slug'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -221,7 +222,7 @@ export async function POST(
     ;(async () => {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY)
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const siteUrl = getSiteUrl()
         const acceptUrl = `${siteUrl}/tournaments/invite/${rpc.invitation_token}`
         const [{ data: inviterProf }, { data: tourn }, { data: div }] = await Promise.all([
           service.from('profiles').select('name').eq('id', targetUserId).single(),
@@ -264,7 +265,7 @@ export async function POST(
     ;(async () => {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY)
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const siteUrl = getSiteUrl()
         const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
         const [{ data: tourn }, { data: profile }] = await Promise.all([
           service.from('tournaments').select('name, start_date, location_id').eq('id', params.id).single(),
@@ -366,7 +367,7 @@ export async function POST(
 
       if (unitAmount > 0) {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+        const siteUrl = getSiteUrl()
         const label = `${tournamentForPay.name} — ${division.name ?? 'Entry Fee'}`
         const applicationFeeAmount = connectAccountId ? Math.round(unitAmount * 0.05) : undefined
 
@@ -466,7 +467,7 @@ export async function POST(
     ;(async () => {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY)
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const siteUrl = getSiteUrl()
         const acceptUrl = `${siteUrl}/tournaments/invite/${invitation.token}`
         const [{ data: inviterProf }, { data: tourn }, { data: div }] = await Promise.all([
           service.from('profiles').select('name').eq('id', targetUserId).single(),
@@ -555,7 +556,7 @@ export async function POST(
       // Send match notification emails (fire-and-forget)
       if (myProfile && partnerProfile) {
         const resend = new Resend(process.env.RESEND_API_KEY)
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+        const siteUrl = getSiteUrl()
         const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
 
         const emailHtml = (recipientName: string, partnerName: string) => `
@@ -608,7 +609,7 @@ export async function POST(
   ;(async () => {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+      const siteUrl = getSiteUrl()
       const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
 
       const [{ data: tournament }, { data: profile }] = await Promise.all([

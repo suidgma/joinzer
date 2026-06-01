@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -58,7 +59,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     const isFull = (count ?? 0) >= event.max_players
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+    const siteUrl = getSiteUrl()
 
     const sessionDate = new Date(event.starts_at).toLocaleDateString('en-US', {
       timeZone: 'America/Los_Angeles',

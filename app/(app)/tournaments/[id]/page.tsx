@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
+import { getSiteUrl } from '@/lib/utils/site-url'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -147,7 +148,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         <Link href="/tournaments" className="text-brand-muted text-sm">← Back</Link>
         <ShareButton
           title={tournament.name}
-          url={`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'}/tournaments/${tournament.id}`}
+          url={`${getSiteUrl()}/tournaments/${tournament.id}`}
         />
       </div>
 

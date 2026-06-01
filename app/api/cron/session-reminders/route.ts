@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { createNotifications } from '@/lib/notifications/create'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 // Vercel calls this daily at 8 AM Pacific.
 // Protected by CRON_SECRET — set this in Vercel env vars and add it
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+  const siteUrl = getSiteUrl()
 
   // "Tomorrow" in Pacific time
   const now = new Date()

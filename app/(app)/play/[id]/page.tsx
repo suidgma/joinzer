@@ -9,6 +9,7 @@ import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
 import ShareButton from '@/components/features/ShareButton'
 import PaymentTracker from '@/components/features/events/PaymentTracker'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 type ChatMessage = {
   id: string
@@ -136,7 +137,7 @@ export default async function EventDetailPage(
         <div className="flex items-center gap-3">
           <ShareButton
             title={event.title}
-            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'}/play/${event.id}`}
+            url={`${getSiteUrl()}/play/${event.id}`}
           />
           {isCaptain && (
             <>

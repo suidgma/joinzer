@@ -5,6 +5,7 @@ import Stripe from 'stripe'
 import { Resend } from 'resend'
 import { createNotification } from '@/lib/notifications/create'
 import { logAudit } from '@/lib/audit/log'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 type Params = { params: Promise<{ id: string; regId: string }> }
 
@@ -86,7 +87,7 @@ export async function POST(_req: NextRequest, props: Params) {
 
   if (profile?.email) {
     const firstName = profile.name?.split(' ')[0] ?? 'there'
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+    const siteUrl = getSiteUrl()
     const resend = new Resend(process.env.RESEND_API_KEY)
     resend.emails.send({
       from: 'Joinzer <support@joinzer.com>',

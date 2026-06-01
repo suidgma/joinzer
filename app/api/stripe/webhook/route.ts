@@ -8,6 +8,7 @@ import { createInviteAndNotify, voidCaptainHold } from '@/lib/leagues/partner'
 import { icsFilename } from '@/lib/utils/slug'
 import { formatSkillRange } from '@/lib/taxonomy/formats'
 import { createNotification } from '@/lib/notifications/create'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+    const siteUrl = getSiteUrl()
 
     // ── Tournament registration ────────────────────────────────────────────────
     if (meta.registration_id) {

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { createNotification } from '@/lib/notifications/create'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function POST(
   _req: NextRequest,
@@ -45,7 +46,7 @@ export async function POST(
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
   const costCents = (league as any).cost_cents ?? 0
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+  const siteUrl = getSiteUrl()
 
   if (costCents > 0) {
     // Guard: block if user already has any non-cancelled registration in this league.

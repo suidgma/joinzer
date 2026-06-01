@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -55,7 +56,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     hour: 'numeric', minute: '2-digit',
   })
   const loc = (event as any).location
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+  const siteUrl = getSiteUrl()
 
   const emails = participants
     .map((p) => {

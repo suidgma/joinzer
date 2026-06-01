@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 // GET — return invitation details (for the acceptance page to display)
 export async function GET(_req: NextRequest, props: { params: Promise<{ token: string }> }) {
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ token: s
         ? (organizerProfile as any)?.stripe_connect_account_id
         : null
 
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+      const siteUrl = getSiteUrl()
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
       const stripeSession = await stripe.checkout.sessions.create({
         mode: 'payment',

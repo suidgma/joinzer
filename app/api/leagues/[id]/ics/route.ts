@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { generateIcs } from '@/lib/email/ics'
 import { icsFilename } from '@/lib/utils/slug'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 type ParsedTime = { startHour: number; startMin: number; endHour: number; endMin: number }
 
@@ -71,7 +72,7 @@ export async function GET(
 
   if (!league || !sessions) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+  const siteUrl = getSiteUrl()
   const leagueUrl = `${siteUrl}/leagues/${id}`
 
   // Prefer structured time columns; fall back to parsing freeform schedule_description for legacy leagues

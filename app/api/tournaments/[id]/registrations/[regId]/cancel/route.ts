@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
 import { logAudit } from '@/lib/audit/log'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 type Params = { params: Promise<{ id: string; regId: string }> }
 
@@ -155,7 +156,7 @@ export async function POST(_req: NextRequest, props: Params) {
       .single()
 
     if (promotedProfile?.email) {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+      const siteUrl = getSiteUrl()
       const firstName = promotedProfile.name?.split(' ')[0] ?? 'there'
       const resend = new Resend(process.env.RESEND_API_KEY)
       resend.emails.send({
@@ -188,7 +189,7 @@ export async function POST(_req: NextRequest, props: Params) {
   ])
 
   if (cancellerProfile?.email) {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+    const siteUrl = getSiteUrl()
     const firstName = cancellerProfile.name?.split(' ')[0] ?? 'there'
     const refundLine = refunded
       ? '<p style="margin:0 0 16px;font-size:14px;color:#6b7280">Your registration fee has been refunded. It typically appears within 5–10 business days depending on your bank.</p>'

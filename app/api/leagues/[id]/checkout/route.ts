@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const joinAs = isFull ? 'waitlist' : 'registered'
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+    const siteUrl = getSiteUrl()
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',

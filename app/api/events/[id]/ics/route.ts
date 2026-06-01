@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { generateIcs } from '@/lib/email/ics'
 import { icsFilename } from '@/lib/utils/slug'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function GET(
   _req: NextRequest,
@@ -49,7 +50,7 @@ export async function GET(
   const startMs = new Date(event.starts_at).getTime()
   const endDate = new Date(startMs + event.duration_minutes * 60_000).toISOString()
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+  const siteUrl = getSiteUrl()
   const eventUrl = `${siteUrl}/play/${id}`
 
   const ics = generateIcs([{

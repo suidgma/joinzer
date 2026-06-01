@@ -1,5 +1,6 @@
 'use client'
 import { X, ExternalLink } from 'lucide-react'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 type Props = {
   tournamentId: string
@@ -9,7 +10,7 @@ type Props = {
 }
 
 export default function QrCheckinModal({ tournamentId, divisionId, divisionName, onClose }: Props) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+  const siteUrl = getSiteUrl()
   const checkinUrl = `${siteUrl}/tournaments/${tournamentId}/checkin?div=${divisionId}`
 
   // QR code image via api.qrserver.com — encodes only public UUIDs, no PII

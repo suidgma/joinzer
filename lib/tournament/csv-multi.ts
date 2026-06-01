@@ -18,6 +18,7 @@ import { Resend } from 'resend'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { normalizeEmail, createStub, type StubExtras } from '@/lib/users/stubs'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 const db = () => createAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -369,7 +370,7 @@ export async function commitMultiDivisionRows(
   isDummy: boolean
 ): Promise<CommitResult> {
   const service = db()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'
+  const siteUrl = getSiteUrl()
 
   const committable = rows.filter(r => (r.status === 'ok' || r.status === 'no_account') && r.divisionId)
   if (committable.length === 0) {

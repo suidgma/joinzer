@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { createNotification } from '@/lib/notifications/create'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -83,7 +84,7 @@ export async function POST(
     service.from('tournament_divisions').select('name').eq('id', params.divisionId).single(),
   ])
 
-  const acceptUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://joinzer.com'}/tournaments/invite/${invitation.token}`
+  const acceptUrl = `${getSiteUrl()}/tournaments/invite/${invitation.token}`
   const inviterName = inviterProfile?.name ?? 'A player'
   const tournamentName = tournament?.name ?? 'a tournament'
   const divisionName = division?.name ?? 'a division'

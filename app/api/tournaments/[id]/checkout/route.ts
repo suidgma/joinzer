@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -191,7 +192,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       ? `${tournament.name} — ${division?.name ?? 'Entry Fee'} (2 players)`
       : `${tournament.name} — ${division?.name ?? 'Entry Fee'}`
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.joinzer.com'
+    const siteUrl = getSiteUrl()
 
     // 5% platform fee when routing through Connect
     const applicationFeeAmount = connectAccountId
