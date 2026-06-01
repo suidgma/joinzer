@@ -52,14 +52,14 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 | Auth | Production: email/password + Google OAuth |
 | Hosting | Vercel (frontend) + Supabase (backend) |
 | Transactional email | Resend (registration / payment / refund / partner-match / sub-request / session-reminder / organizer announce) |
-| In-app notifications | Not yet implemented — no `notifications` table, no push, no deep links, no preferences |
+| In-app notifications | Implemented — `notifications` table, bell + panel in app header, deep links, 12+ triggers wired. No browser push yet. |
 | Payments | Stripe Checkout for tournaments / leagues / events; Stripe Connect Express for organizer payouts; refunds with reverse-transfer; tournament discount codes |
 
 **Do not introduce:** shadcn/ui, Radix, Redux, tRPC, Prisma, custom ORMs, Docker, CI pipelines beyond Vercel default.
 
 ---
 
-## 5. Current State — Verified May 29, 2026
+## 5. Current State — Verified June 1, 2026
 
 For specific schema details, check Supabase Table Editor. For specific route details, check the codebase. This section captures **what's shipped vs. not** at the phase level — not column-level detail.
 
@@ -72,24 +72,30 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Tournament organizer tools** — co-organizer + volunteer roles via `tournament_staff`, CSV team import, organizer-driven match reschedule, organizer-driven withdrawals with waitlist promotion
 - **Transactional email** — Resend integration covering registration confirmation, payment confirmation, refund notice, solo partner-match notification, sub-request flow, daily session reminders (cron), and organizer-to-bracket announce
 - **Two-form-factor refactor Slices 0–6** — all desktop-canonical routes shipped: primitives, tournament create/manage/sub-routes, league create/manage/sub-routes (standings/roster/edit)
-- **Audit log scaffold** — `audit_log` table + `lib/audit/log.ts` helper. Wired into the match score and match ready routes; other state transitions still TODO.
+- **Audit log** — `audit_log` table + `lib/audit/log.ts` helper. Wired into: match score, match ready, match reschedule, registration cancel/withdraw/refund, league sub request claim/approve/cancel. Still unwired: tournament/league create, division edits.
 - **Partner mode setting (Fixed vs Rotating)** — tournaments + leagues both expose an organizer toggle on doubles divisions/formats. Leagues: `leagues.partner_mode` enum; scheduler honors `partner_user_id` cross-links in fixed mode. Tournaments: support rotating for `round_robin` bracket type only (`tournament_divisions.partner_mode`; `tournament_matches.team_*_partner_registration_id` columns hold the 4-player layout).
+
+- **In-app notification center** — `notifications` table + RLS + indexes. Bell + panel in app header (all breakpoints). Deep links per notification. 12+ triggers wired across tournaments, leagues, Stripe webhook, cron. No browser push.
+- **Players directory** — `/players` with search, skill/gender filters, availability. `/players/[id]` individual profile page. Cards link to profiles; invite-tap still works when player is available.
+- **Public browse pages** — `/browse/leagues` and `/browse/tournaments` accessible without auth. LandingNav/Footer shell. Middleware allowlisted. CTAs on landing page link directly to browse.
+- **Marketing site** — updated hero ("Play. Compete. Find your game."), trust strip, CompeteSection CTAs, login tagline. OrganizersSection added (PR #39).
 
 ### Not yet built
 
 - **Unified `competitions` schema** — designed in @docs/architecture-target.md, not migrated
-- **In-app notification center** — no `notifications` table, no push, no deep links, no preferences. Transactional email exists via Resend but there is no in-app inbox.
+- **Organizer onboarding flow** — no guided path from landing page → create first league/tournament. First organizer conversion is manual.
 - **SMS** — no Twilio / equivalent
 - **DUPR integration** — no API connection, no per-division min/max rating
-- **Audit log on every state change** — table + helper exist; only the match score and ready routes are wired so far. Remaining: tournament create, registrations, refunds, division edits, withdrawals, league transitions.
-- **Platform stats** (`platform_stats_mv` materialized view)
-- **Players directory** beyond basic profiles
-- **Public marketing site overhaul** (per-court SEO pages, public browse, etc.)
-- **Organization / business layer** — every tournament + league is owned by a single individual organizer; no `organizations` table, no multi-tournament business accounts, no business public pages
+- **Audit log on every state change** — table + helper exist; tournament/league create and division edits still unwired.
+- **Platform stats** (`platform_stats_mv` materialized view) — `StatsSection` component exists but removed from homepage (showed 0s with no real data)
+- **Per-court SEO pages** — ~65 courts in DB, no public `/courts/[slug]` pages yet
+- **Public browse** — full-featured (per-court pages, deep filtering, map view) is future; basic `/browse/leagues` and `/browse/tournaments` are shipped
+- **Organization / business layer** — every tournament + league is owned by a single individual organizer; no `organizations` table, no multi-tournament business accounts
+- **Browser push notifications** — in-app inbox is built; `profiles.push_subscription` column doesn't exist yet
 
 ### In progress
 
-- **Two-form-factor refactor** — code complete. QA pass at 375 / 768 / 1280px pending (Marty).
+- **Two-form-factor QA** — code complete and deployed. Public routes QA'd via Playwright. Authenticated desktop routes (tournaments/create, leagues/create, standings, roster) still need eyes with a real logged-in session at 375/768/1280px.
 
 ---
 
@@ -98,8 +104,8 @@ For specific schema details, check Supabase Table Editor. For specific route det
 These are the actual unresolved decisions blocking informed choices:
 
 - **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in @docs/architecture-target.md.
-- **First committed event.** None. No organizer has seen the product yet.
-- **Organizer conversation.** Not yet booked. Blocking informed product decisions on Path A vs. B.
+- **First committed event.** None. No organizer has seen the product yet. Product is shippable for a demo.
+- **Organizer conversation.** Not yet booked. This is the #1 blocker — it unblocks Path A vs. B, pricing, and the onboarding flow design.
 
 ---
 
@@ -136,4 +142,4 @@ Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 
 ---
 
-*Last verified against repo: May 29, 2026*
+*Last verified against repo: June 1, 2026*
