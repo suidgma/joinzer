@@ -55,7 +55,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/cron/')
 
   if (!user && !isPublicPath) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const loginUrl = new URL('/login', request.url)
+    const destination = request.nextUrl.pathname + request.nextUrl.search
+    if (destination !== '/login') loginUrl.searchParams.set('next', destination)
+    return NextResponse.redirect(loginUrl)
   }
 
   if (user && pathname === '/login') {

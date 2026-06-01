@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
@@ -30,6 +30,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Only honour same-origin relative paths to prevent open-redirect attacks
+  const rawNext = searchParams.get('next') ?? ''
+  const nextPath = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/home'
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true)
@@ -67,7 +71,7 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push('/home')
+      router.push(nextPath)
       router.refresh()
     } else {
       const { data, error } = await supabase.auth.signUp({ email, password })
