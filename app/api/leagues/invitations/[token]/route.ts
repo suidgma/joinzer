@@ -14,7 +14,7 @@ export async function GET(
 
   const { data: inv } = await service
     .from('league_partner_invitations')
-    .select('id, league_id, invitee_email, expires_at, status, captain_registration_id')
+    .select('id, league_id, expires_at, status, captain_registration_id')
     .eq('token', token)
     .single()
 
@@ -31,11 +31,13 @@ export async function GET(
     captainName = profile?.name ?? null
   }
 
+  // Note: invitee_email is deliberately NOT returned. This route is unauthenticated
+  // (token-gated), and per security.md PII must never be returned by public APIs.
+  // The accept page does not render the email, so nothing depends on it.
   return NextResponse.json({
     league_name: league?.name ?? null,
     league_id: inv.league_id,
     captain_name: captainName,
-    invitee_email: inv.invitee_email,
     expires_at: inv.expires_at,
     status: inv.status,
   })

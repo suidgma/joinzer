@@ -9,7 +9,6 @@ type InvitationData = {
   league_name: string | null
   league_id: string
   captain_name: string | null
-  invitee_email: string
   expires_at: string
   status: string
 }

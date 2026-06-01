@@ -90,33 +90,35 @@ export async function POST(
     return NextResponse.json({ url: stripeSession.url })
   }
 
-  // Free league — accept inline
-  const { data: existing } = await service
+  // Free league — accept inline.
+  // Exclude cancelled rows (mirrors the paid path) so a prior cancelled
+  // registration isn't silently reused as the partner row, and so a stale
+  // duplicate can't 500 the lookup. Use .limit(1) array select, not .single().
+  const { data: activeRegs } = await service
     .from('league_registrations')
     .select('id')
     .eq('league_id', inv.league_id)
     .eq('user_id', user.id)
-    .maybeSingle()
+    .neq('status', 'cancelled')
+    .limit(1)
 
-  if (!existing) {
+  let partnerRegId: string | null = activeRegs?.[0]?.id ?? null
+
+  if (!partnerRegId) {
     // Free-only branch — paid partners are created by the Stripe webhook as 'paid'.
-    const { error } = await service.from('league_registrations').insert({
+    const { data: inserted, error } = await service.from('league_registrations').insert({
       league_id: inv.league_id,
       user_id: user.id,
       status: 'registered',
       payment_status: 'waived',
       registration_type: 'team',
       registered_at: new Date().toISOString(),
-    })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    }).select('id').single()
+    if (error || !inserted) {
+      return NextResponse.json({ error: error?.message ?? 'Failed to create registration' }, { status: 500 })
+    }
+    partnerRegId = inserted.id
   }
-
-  const { data: partnerReg } = await service
-    .from('league_registrations')
-    .select('id')
-    .eq('league_id', inv.league_id)
-    .eq('user_id', user.id)
-    .single()
 
   const { data: captainReg } = await service
     .from('league_registrations')
@@ -124,17 +126,18 @@ export async function POST(
     .eq('id', inv.captain_registration_id)
     .single()
 
-  if (partnerReg?.id) {
+  if (partnerRegId) {
     await Promise.all([
       service.from('league_registrations').update({
         status: 'registered',
         partner_user_id: user.id,
-        partner_registration_id: partnerReg.id,
+        partner_registration_id: partnerRegId,
       }).eq('id', inv.captain_registration_id),
       service.from('league_registrations').update({
+        status: 'registered',
         partner_user_id: captainReg?.user_id ?? null,
         partner_registration_id: inv.captain_registration_id,
-      }).eq('id', partnerReg.id),
+      }).eq('id', partnerRegId),
       service.from('league_partner_invitations').update({ status: 'accepted' }).eq('id', inv.id),
     ])
 
