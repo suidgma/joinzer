@@ -1,9 +1,19 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function RoleSelectorSection() {
   return (
-    <section className="flex-1 flex items-center justify-center px-4 py-16 md:py-24 bg-white">
+    <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-white">
       <div className="w-full max-w-4xl mx-auto">
+
+        {/* Minimal logo — replaces the full nav */}
+        <div className="flex justify-center mb-10 md:mb-12">
+          <Link href="/" className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Joinzer" width={36} height={36} className="object-contain" />
+            <span className="font-heading font-bold text-brand-dark text-xl">Joinzer</span>
+          </Link>
+        </div>
+
         <div className="text-center mb-10 md:mb-12">
           <h1 className="font-heading text-3xl md:text-4xl font-extrabold text-brand-dark leading-tight">
             Las Vegas pickleball, all in one place
@@ -90,6 +100,7 @@ export default function RoleSelectorSection() {
             Sign in
           </Link>
         </p>
+
       </div>
     </section>
   )

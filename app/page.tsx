@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import LandingNav from '@/components/landing/LandingNav'
 import RoleSelectorSection from '@/components/landing/RoleSelectorSection'
-import LandingFooter from '@/components/landing/LandingFooter'
 
 export const metadata: Metadata = {
   title: 'Joinzer — Las Vegas Pickleball',
@@ -32,12 +30,8 @@ export default async function HomePage(
   if (user) redirect('/home')
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <LandingNav />
-      <main className="flex-1 flex">
-        <RoleSelectorSection />
-      </main>
-      <LandingFooter />
+    <div className="min-h-screen bg-white">
+      <RoleSelectorSection />
     </div>
   )
 }
