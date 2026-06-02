@@ -1,5 +1,4 @@
 import Image from 'next/image'
-import Link from 'next/link'
 
 const DEMO_MAILTO = 'mailto:support@joinzer.com?subject=Organizer%20Demo%20Request'
 
@@ -22,19 +21,13 @@ export default function OrganizerFinalCTA() {
           We&apos;re working with early organizers in Las Vegas. Request a demo and we&apos;ll walk you through the platform for your specific format.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <div className="flex justify-center">
           <a
             href={DEMO_MAILTO}
             className="w-full sm:w-auto bg-brand text-brand-dark font-semibold px-8 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm text-center"
           >
             Request a Demo
           </a>
-          <Link
-            href="/browse/leagues"
-            className="w-full sm:w-auto text-white font-semibold px-8 py-4 rounded-xl border border-white/20 hover:bg-white/10 transition-colors text-sm text-center"
-          >
-            Browse Active Leagues
-          </Link>
         </div>
       </div>
     </section>
