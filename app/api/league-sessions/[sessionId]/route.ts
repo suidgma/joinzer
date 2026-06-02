@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest, props: Params) {
   const body = await req.json()
   const updates: Record<string, unknown> = {}
   if (body.session_date !== undefined) updates.session_date = body.session_date
+  if (body.session_time !== undefined) updates.session_time = body.session_time
   if (body.notes !== undefined) updates.notes = body.notes
   if (body.status !== undefined) updates.status = body.status
 

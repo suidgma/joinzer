@@ -59,6 +59,13 @@ export function formatEventTime(startsAt: string): string {
   }).format(new Date(startsAt))
 }
 
+// Format a Postgres `time` value (e.g. "18:00:00") as "6:00 PM"
+export function formatTimeValue(timeStr: string): string {
+  const [h, m] = timeStr.split(':').map(Number)
+  const date = new Date(2000, 0, 1, h, m)
+  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date)
+}
+
 export function formatEventDate(startsAt: string): string {
   return new Intl.DateTimeFormat('en-US', {
     timeZone: VEGAS_TZ,

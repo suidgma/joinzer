@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { formatSessionDate } from '@/lib/utils/date'
+import { formatSessionDate, formatTimeValue } from '@/lib/utils/date'
 import RatingBadge from '@/components/features/RatingBadge'
 
 type PlayerReg = {
@@ -29,6 +29,7 @@ type SessionRow = {
   id: string
   session_number: number
   session_date: string
+  session_time: string | null
   league_session_subs: { user_id: string; profile: { id: string; name: string } }[]
 }
 
@@ -70,6 +71,7 @@ export default function LeagueRosterManager({
   const isFull = maxPlayers != null && registered.length >= maxPlayers
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingDate, setEditingDate] = useState('')
+  const [editingTime, setEditingTime] = useState('')
   const [savingSessionId, setSavingSessionId] = useState<string | null>(null)
 
   async function handleRemove(userId: string) {
@@ -158,6 +160,8 @@ export default function LeagueRosterManager({
   function startEditSession(session: SessionRow) {
     setEditingSessionId(session.id)
     setEditingDate(session.session_date)
+    // Postgres returns "HH:MM:SS" — strip seconds for the time input
+    setEditingTime(session.session_time ? session.session_time.slice(0, 5) : '')
   }
 
   async function handleSaveSession(sessionId: string) {
@@ -166,15 +170,18 @@ export default function LeagueRosterManager({
       const res = await fetch(`/api/league-sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_date: editingDate }),
+        body: JSON.stringify({
+          session_date: editingDate,
+          session_time: editingTime || null,
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
-        alert(err.error ?? 'Failed to save session date')
+        alert(err.error ?? 'Failed to save session')
         return
       }
       setSessions((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, session_date: editingDate } : s))
+        prev.map((s) => (s.id === sessionId ? { ...s, session_date: editingDate, session_time: editingTime || null } : s))
       )
       setEditingSessionId(null)
     } finally {
@@ -341,6 +348,7 @@ export default function LeagueRosterManager({
           {sessions.map((s) => {
             const subs = s.league_session_subs ?? []
             const dateStr = formatSessionDate(s.session_date)
+            const timeStr = s.session_time ? formatTimeValue(s.session_time) : null
             const isOpen = editingSessionId === s.id
 
             return (
@@ -351,7 +359,7 @@ export default function LeagueRosterManager({
                   className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-brand-soft transition-colors"
                 >
                   <p className="text-sm font-medium text-brand-dark">
-                    Session {s.session_number} · {dateStr}
+                    Session {s.session_number} · {dateStr}{timeStr ? ` · ${timeStr}` : ''}
                   </p>
                   <span className="text-xs text-brand-muted">{isOpen ? '▲' : '▼'}</span>
                 </button>
@@ -367,15 +375,22 @@ export default function LeagueRosterManager({
                       Open Play →
                     </Link>
 
-                    {/* Date editor */}
+                    {/* Date & time editor */}
                     <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Edit Date</p>
+                      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Date &amp; Time</p>
                       <div className="flex gap-2">
                         <input
                           type="date"
                           value={editingDate}
                           onChange={(e) => setEditingDate(e.target.value)}
                           className="flex-1 text-sm border border-brand-border rounded-lg px-2 py-1.5 text-brand-dark focus:outline-none focus:ring-1 focus:ring-brand-active"
+                        />
+                        <input
+                          type="time"
+                          value={editingTime}
+                          onChange={(e) => setEditingTime(e.target.value)}
+                          className="w-28 text-sm border border-brand-border rounded-lg px-2 py-1.5 text-brand-dark focus:outline-none focus:ring-1 focus:ring-brand-active"
+                          placeholder="Time"
                         />
                         <button
                           onClick={() => handleSaveSession(s.id)}

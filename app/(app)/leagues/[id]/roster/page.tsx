@@ -45,7 +45,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         .order('created_at', { ascending: true }),
       supabase
         .from('league_sessions')
-        .select('id, session_number, session_date, league_session_subs(user_id, profile:profiles(id, name))')
+        .select('id, session_number, session_date, session_time, league_session_subs(user_id, profile:profiles(id, name))')
         .eq('league_id', params.id)
         .order('session_date', { ascending: true }),
       // Fetch all profiles then exclude registered ones — Supabase JS client doesn't support subqueries
