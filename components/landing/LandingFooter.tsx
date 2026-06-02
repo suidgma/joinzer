@@ -16,7 +16,7 @@ export default function LandingFooter() {
               <span className="font-heading font-bold text-brand-dark">Joinzer</span>
             </Link>
             <p className="text-sm text-brand-muted leading-relaxed">
-              Find and join local pickleball sessions.
+              Everything Las Vegas pickleball, in one place.
             </p>
           </div>
 
