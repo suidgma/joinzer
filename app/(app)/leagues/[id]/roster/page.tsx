@@ -30,7 +30,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   const isCoAdmin = myReg?.is_co_admin === true
   if (league.created_by !== user.id && !isCoAdmin) redirect(`/leagues/${params.id}`)
 
-  const [{ data: registrations }, { data: subInterest }, { data: sessions }, { data: allProfiles }] =
+  const [{ data: registrations }, { data: subInterest }, { data: allProfiles }] =
     await Promise.all([
       supabase
         .from('league_registrations')
@@ -43,11 +43,6 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         .select('created_at, profile:profiles(id, name, profile_photo_url)')
         .eq('league_id', params.id)
         .order('created_at', { ascending: true }),
-      supabase
-        .from('league_sessions')
-        .select('id, session_number, session_date, session_time, league_session_subs(user_id, profile:profiles(id, name))')
-        .eq('league_id', params.id)
-        .order('session_date', { ascending: true }),
       // Fetch all profiles then exclude registered ones — Supabase JS client doesn't support subqueries
       supabase.from('profiles').select('id, name').order('name', { ascending: true }).limit(200),
     ])
@@ -87,7 +82,6 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         registered={registered}
         waitlisted={waitlisted}
         subInterest={(subInterest ?? []) as any[]}
-        sessions={(sessions ?? []) as any[]}
         availablePlayers={availablePlayers}
         isPrimaryOrganizer={league.created_by === user.id}
       />

@@ -9,6 +9,7 @@ import WizardOutline from '@/components/ui/wizard-outline'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import type { WizardStep } from '@/components/ui/wizard-outline'
 import EditLeagueForm from './EditLeagueForm'
+import SessionManager from './SessionManager'
 
 const STEPS: WizardStep[] = [
   { id: 'basics',       label: 'Basics',         status: 'current'  },
@@ -44,7 +45,7 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
   const [{ data: sessionRows, count: sessionCount }, { count: regCount }] = await Promise.all([
     supabase
       .from('league_sessions')
-      .select('session_date', { count: 'exact' })
+      .select('id, session_number, session_date, session_time, league_session_subs(user_id, profile:profiles(id, name))', { count: 'exact' })
       .eq('league_id', id)
       .order('session_date', { ascending: true }),
     supabase
@@ -81,6 +82,7 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
         existingSessionCount={sessionCount ?? 0}
         registrantCount={regCount ?? 0}
       />
+      <SessionManager leagueId={id} sessions={(sessionRows ?? []) as any[]} />
     </DesktopShell>
   )
 }
