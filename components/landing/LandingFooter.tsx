@@ -5,7 +5,7 @@ export default function LandingFooter() {
   const year = new Date().getFullYear()
 
   return (
-    <footer id="about" className="bg-white border-t border-brand-border">
+    <footer className="bg-white border-t border-brand-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-12">
         {/* Top grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
@@ -45,7 +45,7 @@ export default function LandingFooter() {
             <h4 className="text-xs font-semibold text-brand-dark uppercase tracking-widest mb-4">Account</h4>
             <ul className="space-y-3">
               <li><Link href="/login" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Sign In</Link></li>
-              <li><Link href="/login" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Create Account</Link></li>
+              <li><Link href="/login?mode=signup" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Create Account</Link></li>
             </ul>
           </div>
         </div>

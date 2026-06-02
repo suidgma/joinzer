@@ -34,7 +34,7 @@ export default function LandingNav() {
               Sign In
             </Link>
             <Link
-              href="/login"
+              href="/login?mode=signup"
               className="text-sm font-semibold bg-brand text-brand-dark px-4 py-2 rounded-xl hover:bg-brand-hover transition-colors"
             >
               Create Free Account
@@ -67,7 +67,7 @@ export default function LandingNav() {
           <Link href="/about" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">About</Link>
           <div className="pt-2 space-y-2">
             <Link href="/login" className="block w-full text-center text-sm font-medium text-brand-dark border border-brand-border py-2.5 rounded-xl hover:bg-brand-soft transition-colors">Sign In</Link>
-            <Link href="/login" className="block w-full text-center text-sm font-semibold bg-brand text-brand-dark py-2.5 rounded-xl hover:bg-brand-hover transition-colors">Create Free Account</Link>
+            <Link href="/login?mode=signup" className="block w-full text-center text-sm font-semibold bg-brand text-brand-dark py-2.5 rounded-xl hover:bg-brand-hover transition-colors">Create Free Account</Link>
           </div>
         </div>
       )}

@@ -22,15 +22,16 @@ function GoogleIcon() {
 }
 
 function LoginForm() {
-  const [mode, setMode] = useState<Mode>('signin')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  // Let landing-page "Create Free Account" CTAs deep-link straight into signup.
+  const [mode, setMode] = useState<Mode>(searchParams.get('mode') === 'signup' ? 'signup' : 'signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const router = useRouter()
-  const searchParams = useSearchParams()
   // Only honour same-origin relative paths to prevent open-redirect attacks
   const rawNext = searchParams.get('next') ?? ''
   const nextPath = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/home'

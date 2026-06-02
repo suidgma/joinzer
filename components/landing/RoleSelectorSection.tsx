@@ -4,9 +4,17 @@ export default function RoleSelectorSection() {
   return (
     <section className="flex-1 flex items-center justify-center px-4 py-16 md:py-24 bg-white">
       <div className="w-full max-w-4xl mx-auto">
-        <p className="text-center text-brand-active text-xs font-semibold uppercase tracking-widest mb-10 md:mb-12">
-          Las Vegas pickleball — who are you here as?
-        </p>
+        <div className="text-center mb-10 md:mb-12">
+          <h1 className="font-heading text-3xl md:text-4xl font-extrabold text-brand-dark leading-tight">
+            Las Vegas pickleball, all in one place
+          </h1>
+          <p className="text-brand-muted text-sm md:text-base mt-3 max-w-xl mx-auto leading-relaxed">
+            Open play, leagues, and tournaments — find a game or run your own.
+          </p>
+          <p className="text-brand-active text-xs font-semibold uppercase tracking-widest mt-6">
+            Who are you here as?
+          </p>
+        </div>
 
         {/* Organizer card is first in DOM = left on desktop, top on mobile (supply side priority) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
