@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: 'Tools for running pickleball leagues, tournaments, clinics, and open play events in Las Vegas. Brackets, payments, registrations, and day-of management.',
 }
 
-const DEMO_MAILTO = 'mailto:support@joinzer.com?subject=Organizer%20Demo%20Request'
+const DEMO_URL = 'https://calendly.com/martysuidgeest/30-minute-zoom-with-marty'
 
 export default function OrganizersPage() {
   return (
@@ -20,7 +20,7 @@ export default function OrganizersPage() {
       <LandingNav />
       <main>
         <OrganizerHero />
-        <OrganizersSection cta={{ href: DEMO_MAILTO, label: 'Request a Demo', isExternal: true }} />
+        <OrganizersSection cta={{ href: DEMO_URL, label: 'Request a Demo', isExternal: true }} />
         <OrganizerUseCases />
         <OrganizerHowItWorks />
         <OrganizerFinalCTA />

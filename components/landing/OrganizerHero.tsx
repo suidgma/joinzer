@@ -1,4 +1,4 @@
-const DEMO_MAILTO = 'mailto:support@joinzer.com?subject=Organizer%20Demo%20Request'
+const DEMO_URL = 'https://calendly.com/martysuidgeest/30-minute-zoom-with-marty'
 
 export default function OrganizerHero() {
   return (
@@ -19,7 +19,7 @@ export default function OrganizerHero() {
 
         <div className="flex justify-center mb-6">
           <a
-            href={DEMO_MAILTO}
+            href={DEMO_URL}
             className="w-full sm:w-auto bg-brand-dark text-white font-semibold px-8 py-4 rounded-xl hover:bg-brand-dark/90 transition-colors text-sm text-center shadow-sm"
           >
             Request a Demo
