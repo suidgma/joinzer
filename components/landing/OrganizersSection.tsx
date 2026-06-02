@@ -1,16 +1,12 @@
 import Link from 'next/link'
 
-// Marketing-page section that pitches Joinzer to organizers (league owners,
-// tournament directors). The rest of the homepage is player-facing; this is
-// the only place organizers see a story written for them.
-//
-// Placement: after CompeteSection (which markets leagues/tournaments to
-// players) and before TrustSection. Light bg to contrast the dark
-// CompeteSection above.
-//
+// Feature grid for the organizer pitch. Used on /organizers (with a demo CTA)
+// and can appear as a cross-sell on player-facing pages (with the default login CTA).
 // Feature bullets reflect what's actually shipped — not aspirational. Keep
 // it accurate; an organizer that books a call and finds gaps drops faster
 // than one who never books at all.
+
+type CTAConfig = { href: string; label: string; isExternal?: boolean }
 
 const features = [
   {
@@ -39,7 +35,8 @@ const features = [
   },
 ]
 
-export default function OrganizersSection() {
+export default function OrganizersSection({ cta }: { cta?: CTAConfig }) {
+  const activeCta = cta ?? { href: '/login', label: 'Run your event on Joinzer' }
   return (
     <section id="for-organizers" className="py-14 md:py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -75,12 +72,21 @@ export default function OrganizersSection() {
 
         {/* CTA */}
         <div className="flex justify-center">
-          <Link
-            href="/login"
-            className="w-full sm:w-auto text-center bg-brand text-brand-dark font-semibold px-7 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm"
-          >
-            Run your event on Joinzer
-          </Link>
+          {activeCta.isExternal ? (
+            <a
+              href={activeCta.href}
+              className="w-full sm:w-auto text-center bg-brand text-brand-dark font-semibold px-7 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm"
+            >
+              {activeCta.label}
+            </a>
+          ) : (
+            <Link
+              href={activeCta.href}
+              className="w-full sm:w-auto text-center bg-brand text-brand-dark font-semibold px-7 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm"
+            >
+              {activeCta.label}
+            </Link>
+          )}
         </div>
 
       </div>

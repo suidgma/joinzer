@@ -38,6 +38,8 @@ export async function middleware(request: NextRequest) {
 
   const isPublicPath =
     pathname === '/' ||
+    pathname === '/for-players' ||
+    pathname === '/organizers' ||
     pathname === '/login' ||
     pathname === '/about' ||
     pathname === '/contact' ||

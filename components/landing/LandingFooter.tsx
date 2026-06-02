@@ -24,9 +24,10 @@ export default function LandingFooter() {
           <div>
             <h4 className="text-xs font-semibold text-brand-dark uppercase tracking-widest mb-4">Product</h4>
             <ul className="space-y-3">
-              <li><a href="#how-it-works" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">How It Works</a></li>
-              <li><Link href="/play" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Find Games</Link></li>
-              <li><a href="#community" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Courts</a></li>
+              <li><Link href="/for-players" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">For Players</Link></li>
+              <li><Link href="/organizers" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">For Organizers</Link></li>
+              <li><Link href="/browse/leagues" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Browse Leagues</Link></li>
+              <li><Link href="/browse/tournaments" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Browse Tournaments</Link></li>
             </ul>
           </div>
 
