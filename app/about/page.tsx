@@ -35,13 +35,16 @@ export default function AboutPage() {
         {/* Body */}
         <div className="space-y-5 text-brand-body text-base leading-relaxed">
           <p>
-            Marty Suidgeest created Joinzer after running into a frustrating problem familiar to many pickleball players: sometimes you&apos;re ready to play, but you can&apos;t find three other available players — especially players around your same skill level.
+            Marty Suidgeest created Joinzer after running into a frustrating problem familiar to many pickleball players: sometimes you&apos;re ready to play, but you can&apos;t find the right mix of available players — especially people around your same skill level.
           </p>
           <p>
-            Instead of relying on scattered group texts, Facebook posts, and last-minute messages, Marty built Joinzer to give local pickleballers a simpler way to find games, connect with compatible players, and organize sessions with ease.
+            What started as a better way to help players find games quickly soon revealed a bigger need. Local pickleball was often being coordinated through scattered group texts, Facebook posts, spreadsheets, and last-minute messages — not just for players, but also for the organizers trying to run sessions, leagues, and tournaments smoothly.
           </p>
           <p>
-            Starting in Las Vegas, Joinzer was designed to bring everything into one place: upcoming sessions, easy joining, automatic waitlists, built-in group chat, and useful tools for session organizers.
+            Joinzer was built to bring local pickleball into one place. For players, that means discovering games, joining sessions, and connecting more easily. For organizers, it means better tools to publish events, manage participation, and run local play with less friction.
+          </p>
+          <p>
+            Starting in Las Vegas, Joinzer is designed to support the full local pickleball ecosystem — from casual games to organized leagues and tournaments.
           </p>
           <p className="font-medium text-brand-dark">
             It&apos;s free to use. No app download required. Just pickleball.
