@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 const DEMO_MAILTO = 'mailto:support@joinzer.com?subject=Organizer%20Demo%20Request'
 
 export default function OrganizerHero() {
@@ -19,19 +17,13 @@ export default function OrganizerHero() {
           Joinzer is built end-to-end for the people running events — not just the players showing up. Replace spreadsheets, group texts, and manual tracking with tools designed for tournament day.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
+        <div className="flex justify-center mb-6">
           <a
             href={DEMO_MAILTO}
             className="w-full sm:w-auto bg-brand-dark text-white font-semibold px-8 py-4 rounded-xl hover:bg-brand-dark/90 transition-colors text-sm text-center shadow-sm"
           >
             Request a Demo
           </a>
-          <Link
-            href="/browse/leagues"
-            className="w-full sm:w-auto text-brand-dark font-semibold px-8 py-4 rounded-xl border border-brand-border hover:bg-brand-soft transition-colors text-sm text-center"
-          >
-            Browse Active Leagues
-          </Link>
         </div>
 
         <p className="text-xs text-brand-muted">
