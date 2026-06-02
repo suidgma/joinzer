@@ -14,20 +14,20 @@ export default function OrganizerHero() {
         </h1>
 
         <p className="text-brand-muted text-base md:text-lg leading-relaxed max-w-2xl mx-auto mb-8">
-          Joinzer is built end-to-end for the people running events — not just the players showing up. Replace spreadsheets, group texts, and manual tracking with tools designed for tournament day.
+          Joinzer is built for the people running pickleball — from weekly leagues to tournament day. Replace spreadsheets, scattered communication, and manual coordination with one organized system.
         </p>
 
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-4">
           <a
             href={DEMO_URL}
             className="w-full sm:w-auto bg-brand-dark text-white font-semibold px-8 py-4 rounded-xl hover:bg-brand-dark/90 transition-colors text-sm text-center shadow-sm"
           >
-            Request a Demo
+            Schedule a Demo
           </a>
         </div>
 
         <p className="text-xs text-brand-muted">
-          No commitment. We&apos;ll follow up within 24 hours.
+          Choose a time on Calendly for a quick Zoom walkthrough.
         </p>
       </div>
     </section>

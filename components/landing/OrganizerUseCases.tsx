@@ -2,48 +2,48 @@ const useCases = [
   {
     icon: '🎾',
     title: 'Open Play',
-    description: 'Recurring drop-in sessions with cap management, automated waitlists, and one-tap player joins.',
+    description: 'Recurring drop-in sessions with caps, waitlists, and one-tap player joins.',
   },
   {
     icon: '🔄',
     title: 'Round Robins',
-    description: 'Automated court rotation and match scheduling. Keeps casual events competitive without manual tracking.',
+    description: 'Automated court rotation and match scheduling for organized, repeatable competitive play.',
   },
   {
     icon: '🏅',
     title: 'Leagues',
-    description: 'Seasonal play with persistent rosters, weekly sessions, standings, and a sub pool for absent players.',
+    description: 'Season-long play with persistent rosters, weekly matchups, standings, and sub management.',
   },
   {
     icon: '📋',
     title: 'Clinics',
-    description: 'Structured instruction events with registration limits, skill-range targeting, and player communication.',
+    description: 'Structured sessions with registration limits, skill targeting, and player communication.',
   },
   {
     icon: '🏆',
     title: 'Tournaments',
-    description: 'Full tournament management: divisions, registrations, brackets, QR check-in, and live scoring.',
+    description: 'Divisions, brackets, registrations, check-in, live scoring, and event-day control.',
   },
   {
     icon: '🏟️',
     title: 'Facilities',
-    description: 'Court operators running multiple formats across multiple programs — all under one organizer account.',
+    description: 'One organizer account for operators running multiple formats, programs, and events.',
   },
 ]
 
 export default function OrganizerUseCases() {
   return (
-    <section className="py-14 md:py-24 bg-brand-page">
+    <section className="py-14 md:py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 md:mb-14">
           <p className="text-brand-active text-xs font-semibold uppercase tracking-widest mb-3">
-            What you can run
+            Organizer types
           </p>
           <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark">
-            Built for every format
+            Built for every type of organizer
           </h2>
-          <p className="mt-3 text-brand-muted text-sm sm:text-base max-w-xl mx-auto">
-            Whether you run a casual weekly drill or a full tournament bracket, Joinzer has the tooling for it.
+          <p className="mt-3 text-brand-muted text-sm sm:text-base max-w-2xl mx-auto">
+            Whether you run weekly open play, seasonal leagues, clinics, or full tournament brackets, Joinzer is built around your workflow.
           </p>
         </div>
 
@@ -51,7 +51,7 @@ export default function OrganizerUseCases() {
           {useCases.map((uc) => (
             <div
               key={uc.title}
-              className="bg-white rounded-2xl border border-brand-border p-6 flex flex-col gap-3"
+              className="bg-brand-page rounded-2xl border border-brand-border p-6 flex flex-col gap-3"
             >
               <span className="text-2xl">{uc.icon}</span>
               <h3 className="font-heading font-bold text-brand-dark text-base">{uc.title}</h3>

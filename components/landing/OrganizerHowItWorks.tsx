@@ -2,30 +2,30 @@ const steps = [
   {
     number: 1,
     title: 'Create your event',
-    description: 'Set up divisions, registration fee, skill requirements, and schedule. Takes minutes, not hours.',
+    description: 'Set up format, divisions, pricing, skill requirements, and schedule in minutes.',
   },
   {
     number: 2,
     title: 'Open registrations',
-    description: 'Players register and pay through Joinzer. Partner invites, waitlists, and capacity limits are handled automatically.',
+    description: 'Players sign up, pay, join with partners, and move through waitlists automatically.',
   },
   {
     number: 3,
-    title: 'Manage it live',
-    description: 'On the day: QR check-in, live scoring, court assignment, and match reschedule — all from your phone.',
+    title: 'Run it live',
+    description: 'Check in players, update scores, assign courts, and handle last-minute changes from your phone.',
   },
 ]
 
 export default function OrganizerHowItWorks() {
   return (
-    <section className="py-14 md:py-24 bg-white">
+    <section className="py-14 md:py-24 bg-brand-page">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 md:mb-14">
           <p className="text-brand-active text-xs font-semibold uppercase tracking-widest mb-3">
             How it works
           </p>
           <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark">
-            From setup to tournament day
+            From setup to game day
           </h2>
           <p className="mt-3 text-brand-muted text-sm sm:text-base max-w-xl mx-auto">
             Joinzer handles the coordination so you can focus on running a great event.
@@ -36,7 +36,7 @@ export default function OrganizerHowItWorks() {
           {steps.map((step) => (
             <div
               key={step.number}
-              className="bg-brand-page rounded-2xl border border-brand-border p-6 flex flex-col gap-4"
+              className="bg-white rounded-2xl border border-brand-border p-6 flex flex-col gap-4"
             >
               <div className="w-10 h-10 rounded-full bg-brand-dark flex items-center justify-center shrink-0">
                 <span className="font-heading font-extrabold text-white text-sm">{step.number}</span>
