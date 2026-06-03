@@ -39,7 +39,7 @@ export default function RoleSelectorSection() {
                 Organizer
               </span>
               <h2 className="font-heading text-2xl md:text-3xl font-extrabold text-white leading-tight mb-4">
-                Run leagues, tournaments &amp; events
+                Run leagues, events, &amp; tournaments
               </h2>
               <p className="text-white/70 text-sm leading-relaxed mb-6">
                 Brackets, registrations, payments, and day-of tools — all in one place. Built for club operators, coaches, and tournament directors.
