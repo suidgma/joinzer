@@ -8,6 +8,7 @@ import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-help
 import TimeSelect from '@/components/features/events/TimeSelect'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
+import SessionManager from './SessionManager'
 
 const CATEGORY_OPTIONS = [
   { value: 'men',   label: 'Men' },
@@ -78,12 +79,21 @@ function ptLocalToIso(local: string): string {
 
 type InitialData = Record<string, any>
 
+type SessionRow = {
+  id: string
+  session_number: number
+  session_date: string
+  session_time: string | null
+  league_session_subs: { user_id: string; profile: { id: string; name: string } }[]
+}
+
 type Props = {
   leagueId: string
   initialData: InitialData
   existingSessionDates: string[]
   existingSessionCount: number
   registrantCount: number
+  sessions: SessionRow[]
 }
 
 export default function EditLeagueForm({
@@ -92,6 +102,7 @@ export default function EditLeagueForm({
   existingSessionDates,
   existingSessionCount,
   registrantCount,
+  sessions,
 }: Props) {
   const router = useRouter()
 
@@ -391,6 +402,7 @@ export default function EditLeagueForm({
             )}
           </FormRow>
         )}
+        <SessionManager leagueId={leagueId} sessions={sessions} />
       </FormSection>
 
       <FormSection title="Format & rules" description="How games are scored and standings calculated." defaultOpen>

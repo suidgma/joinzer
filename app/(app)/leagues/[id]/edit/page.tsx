@@ -9,7 +9,6 @@ import WizardOutline from '@/components/ui/wizard-outline'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import type { WizardStep } from '@/components/ui/wizard-outline'
 import EditLeagueForm from './EditLeagueForm'
-import SessionManager from './SessionManager'
 
 const STEPS: WizardStep[] = [
   { id: 'basics',       label: 'Basics',         status: 'current'  },
@@ -81,8 +80,8 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
         existingSessionDates={(sessionRows ?? []).map((s: any) => s.session_date as string)}
         existingSessionCount={sessionCount ?? 0}
         registrantCount={regCount ?? 0}
+        sessions={(sessionRows ?? []) as any[]}
       />
-      <SessionManager leagueId={id} sessions={(sessionRows ?? []) as any[]} />
     </DesktopShell>
   )
 }
