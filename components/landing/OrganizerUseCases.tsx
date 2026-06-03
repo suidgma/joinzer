@@ -36,9 +36,6 @@ export default function OrganizerUseCases() {
     <section className="py-14 md:py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 md:mb-14">
-          <p className="text-brand-active text-xs font-semibold uppercase tracking-widest mb-3">
-            Organizer types
-          </p>
           <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark">
             Built for every type of organizer
           </h2>
