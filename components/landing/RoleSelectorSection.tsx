@@ -42,7 +42,7 @@ export default function RoleSelectorSection() {
                 Run leagues, events, and tournaments
               </h2>
               <p className="text-white/70 text-sm leading-relaxed mb-6">
-                Brackets, registrations, payments, and day-of tools — all in one place. Built for club operators, coaches, and tournament directors.
+                Brackets, registrations, payments, and day-of tools in one place. Built for leagues, clinics, tournaments, and organized play.
               </p>
               <div className="flex flex-wrap gap-2">
                 {['Open Play', 'Leagues', 'Tournaments', 'Clinics'].map((tag) => (
