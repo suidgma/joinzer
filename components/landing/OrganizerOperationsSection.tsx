@@ -19,7 +19,7 @@ export default function OrganizerOperationsSection() {
     <section className="py-14 md:py-24 bg-brand-page">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        <div className="text-center mb-10 md:mb-14">
+        <div className="text-center mb-6 md:mb-8">
           <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark">
             From scattered tools to one organized system
           </h2>
