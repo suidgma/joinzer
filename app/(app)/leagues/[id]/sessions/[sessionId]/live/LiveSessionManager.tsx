@@ -634,7 +634,7 @@ export default function LiveSessionManager({
       const byes = eligibleCount - maxS * 2
       const parts = [`${maxS} singles`]
       if (byes > 0) parts.push(`${byes} bye${byes > 1 ? 's' : ''}`)
-      return `${eligibleCount} players eligible — ${parts.join(', ')} across ${courts} courts.`
+      return `${eligibleCount} players eligible — ${parts.join(', ')} across ${maxS} court${maxS !== 1 ? 's' : ''}.`
     }
 
     const maxD = Math.min(Math.floor(eligibleCount / 4), courts)
@@ -642,10 +642,11 @@ export default function LiveSessionManager({
     const courtsLeft = courts - maxD
     const singles = rem >= 2 && courtsLeft >= 1 ? 1 : 0
     const byes = rem - (singles > 0 ? 2 : 0)
+    const courtsInUse = maxD + singles
     const parts = [`${maxD} doubles`]
     if (singles) parts.push('1 singles')
     if (byes > 0) parts.push(`${byes} bye${byes > 1 ? 's' : ''}`)
-    return `${eligibleCount} players eligible — ${parts.join(', ')} across ${courts} courts.`
+    return `${eligibleCount} players eligible — ${parts.join(', ')} across ${courtsInUse} court${courtsInUse !== 1 ? 's' : ''}.`
   }
 
   // --- Status update (offline-safe) ---
