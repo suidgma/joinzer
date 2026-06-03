@@ -66,6 +66,7 @@ type Props = {
   initialStandings: StandingRow[]
   sessionsWithData: SessionInfo[]
   sessionPts: Record<string, Record<string, number>>
+  sessionWL: Record<string, Record<string, { wins: number; losses: number }>>
   standingsMethod: 'win_loss' | 'total_points'
 }
 
@@ -112,6 +113,7 @@ export default function StandingsTable({
   initialStandings,
   sessionsWithData,
   sessionPts,
+  sessionWL,
   standingsMethod,
 }: Props) {
   // Default: sort by points scored descending
@@ -234,13 +236,18 @@ export default function StandingsTable({
                   <StreakBadge streak={p.streak} />
                 </td>
                 {sessionsWithData.map((s) => {
-                  const val = bySession[s.id]
+                  const pts = bySession[s.id]
+                  const wl  = sessionWL[p.userId]?.[s.id]
                   return (
-                    <td key={s.id} className={`px-3 py-2.5 text-center border-b border-l border-brand-border ${rowBg}`}>
-                      {val != null
-                        ? <span className="text-sm text-brand-dark">{val}</span>
-                        : <span className="text-xs text-brand-muted">—</span>
-                      }
+                    <td key={s.id} className={`px-3 py-2 text-center border-b border-l border-brand-border ${rowBg}`}>
+                      {pts != null ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          {wl && <span className="text-[10px] text-brand-muted leading-none">{wl.wins}–{wl.losses}</span>}
+                          <span className="text-sm font-medium text-brand-dark leading-none">{pts}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-brand-muted">—</span>
+                      )}
                     </td>
                   )
                 })}

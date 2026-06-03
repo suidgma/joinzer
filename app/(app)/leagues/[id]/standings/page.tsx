@@ -83,6 +83,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   }
   const statsMap = new Map<string, Stats>()
   const sessionPts = new Map<string, Map<string, number>>()
+  const sessionWL  = new Map<string, Map<string, { wins: number; losses: number }>>()
 
   for (const reg of registrations ?? []) {
     statsMap.set(reg.user_id, { points: 0, pointsAgainst: 0, games: 0, wins: 0, losses: 0, matchResults: [] })
@@ -115,6 +116,11 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       if (!sessionPts.has(effectivePid)) sessionPts.set(effectivePid, new Map())
       const bySession = sessionPts.get(effectivePid)!
       bySession.set(m.session_id, (bySession.get(m.session_id) ?? 0) + effectivePts)
+
+      if (!sessionWL.has(effectivePid)) sessionWL.set(effectivePid, new Map())
+      const byWL = sessionWL.get(effectivePid)!
+      const cur = byWL.get(m.session_id) ?? { wins: 0, losses: 0 }
+      byWL.set(m.session_id, { wins: cur.wins + (won ? 1 : 0), losses: cur.losses + (won ? 0 : 1) })
     }
 
     for (const pid of team1Players) { if (pid) apply(pid, m.team1_score, m.team2_score, team1Won) }
@@ -209,10 +215,10 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           initialStandings={standings}
           sessionsWithData={sessionsWithData}
           sessionPts={Object.fromEntries(
-            Array.from(sessionPts.entries()).map(([uid, bySession]) => [
-              uid,
-              Object.fromEntries(bySession.entries()),
-            ])
+            Array.from(sessionPts.entries()).map(([uid, bySession]) => [uid, Object.fromEntries(bySession.entries())])
+          )}
+          sessionWL={Object.fromEntries(
+            Array.from(sessionWL.entries()).map(([uid, bySession]) => [uid, Object.fromEntries(bySession.entries())])
           )}
           standingsMethod={standingsMethod}
         />
