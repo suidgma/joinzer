@@ -25,12 +25,16 @@ function fmtTime(t: string | null): string | null {
 
 const FORMAT_LABELS: Record<string, string> = {
   individual_round_robin: 'Individual Round Robin',
-  mens_doubles: "Men's Doubles",
+  mens_doubles:   "Men's Doubles",
   womens_doubles: "Women's Doubles",
-  mixed_doubles: 'Mixed Doubles',
-  coed_doubles: 'Coed Doubles',
-  singles: 'Singles',
-  custom: 'Custom',
+  mixed_doubles:  'Mixed Doubles',
+  coed_doubles:   'Coed Doubles',
+  open_doubles:   'Open Doubles',
+  mens_singles:   "Men's Singles",
+  womens_singles: "Women's Singles",
+  open_singles:   'Open Singles',
+  singles:        'Singles',
+  custom:         'Custom',
 }
 
 
