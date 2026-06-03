@@ -299,10 +299,11 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             ))}
           </select>
         </FormRow>
-        <FormRow label="Start date" htmlFor="start-date">
+        <FormRow label="Start date" htmlFor="start-date" required>
           <input
             id="start-date"
             type="date"
+            required
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             className="w-full input"
@@ -498,7 +499,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
 
       <button
         type="submit"
-        disabled={loading || !name.trim()}
+        disabled={loading || !name.trim() || !startDate}
         className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
       >
         {loading ? 'Creating…' : 'Create League'}
