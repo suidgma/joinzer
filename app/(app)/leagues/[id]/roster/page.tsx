@@ -45,7 +45,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         .order('created_at', { ascending: true }),
       // Fetch profiles for the add-player dropdown; filter by gender for gender-specific formats
       (() => {
-        const genderFilter: Record<string, string> = { mens_doubles: 'male', womens_doubles: 'female' }
+        const genderFilter: Record<string, string> = { mens_doubles: 'male', womens_doubles: 'female', mens_singles: 'male', womens_singles: 'female' }
         const requiredGender = league ? genderFilter[(league as any).format] : undefined
         let q = supabase.from('profiles').select('id, name').order('name', { ascending: true }).limit(200)
         if (requiredGender) q = q.eq('gender', requiredGender)
