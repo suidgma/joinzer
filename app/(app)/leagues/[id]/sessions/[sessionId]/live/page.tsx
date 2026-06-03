@@ -21,7 +21,7 @@ export default async function LiveSessionPage(
   )
 
   const [{ data: league }, { data: session }] = await Promise.all([
-    db.from('leagues').select('id, name, created_by').eq('id', params.id).single(),
+    db.from('leagues').select('id, name, created_by, format').eq('id', params.id).single(),
     db.from('league_sessions').select('id, session_number, session_date, status, number_of_courts, rounds_planned').eq('id', params.sessionId).single(),
   ])
 
@@ -217,6 +217,7 @@ export default async function LiveSessionPage(
         availableSubs={(availableProfiles ?? []).map(p => ({ id: p.id, name: p.name }))}
         attendanceByUserId={attendanceByUserId}
         subRequests={(subRequests ?? []) as any[]}
+        format={(league as any).format ?? 'mixed_doubles'}
       />
 
     </main>

@@ -79,6 +79,7 @@ type Props = {
   availableSubs: { id: string; name: string }[]
   attendanceByUserId: Record<string, string>
   subRequests: SubRequest[]
+  format: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -520,6 +521,7 @@ export default function LiveSessionManager({
   availableSubs,
   attendanceByUserId,
   subRequests,
+  format,
 }: Props) {
   const router = useRouter()
   const currentRoundRef = useRef<HTMLElement>(null)
@@ -625,6 +627,16 @@ export default function LiveSessionManager({
   function courtsPreview() {
     if (eligibleCount < 2) return 'No players present yet.'
     const courts = numberOfCourts
+    const isSingles = format.includes('singles')
+
+    if (isSingles) {
+      const maxS = Math.min(Math.floor(eligibleCount / 2), courts)
+      const byes = eligibleCount - maxS * 2
+      const parts = [`${maxS} singles`]
+      if (byes > 0) parts.push(`${byes} bye${byes > 1 ? 's' : ''}`)
+      return `${eligibleCount} players eligible — ${parts.join(', ')} across ${courts} courts.`
+    }
+
     const maxD = Math.min(Math.floor(eligibleCount / 4), courts)
     const rem = eligibleCount - maxD * 4
     const courtsLeft = courts - maxD
