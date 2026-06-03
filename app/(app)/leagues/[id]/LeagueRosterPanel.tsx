@@ -108,11 +108,6 @@ function PlayerRow({
             ✓ can sub
           </span>
         )}
-        {isSoloAwaiting && (
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 leading-none whitespace-nowrap">
-            Solo — awaiting partner
-          </span>
-        )}
       </div>
       <div className="flex-shrink-0">
         <RatingBadge

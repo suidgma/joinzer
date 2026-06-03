@@ -300,11 +300,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         {league.max_players != null && (
           <Row
             label="Players"
-            value={
-              isDoublesLeague
-                ? `${effectiveTeams}${league.max_players ? `/${Math.floor(league.max_players / 2)}` : ''} teams${unmatchedSoloCount > 0 ? ` (+${unmatchedSoloCount} solo${unmatchedSoloCount > 1 ? 's' : ''} seeking partner)` : ''}${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''}`
-                : `${registeredCount} registered${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''} / ${league.max_players} max`
-            }
+            value={`${registeredForCapacity}/${league.max_players} players${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''}`}
           />
         )}
       </div>
