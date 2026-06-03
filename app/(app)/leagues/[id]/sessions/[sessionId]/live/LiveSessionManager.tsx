@@ -696,6 +696,10 @@ export default function LiveSessionManager({
     }
   }, [sessionId, players, rounds, isOnline])
 
+  const handleSetAllStatus = useCallback(async (playerIds: string[], status: ActualStatus) => {
+    await Promise.all(playerIds.map(id => handleStatusChange(id, status)))
+  }, [handleStatusChange])
+
   // --- Generate round ---
   async function handleGenerate(replaceExisting = false) {
     setGenerating(true)
@@ -956,13 +960,19 @@ export default function LiveSessionManager({
           <div>
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1.5">Roster Players</p>
             <div className="rounded-xl border border-brand-border overflow-hidden">
-              {/* Header */}
+              {/* Header — click a column label to mark all players with that status */}
               <div className="grid grid-cols-[1fr_repeat(6,36px)] items-end bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
                 <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
                 {ROSTER_STATUSES.map(s => (
-                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">
+                  <button
+                    key={s.key}
+                    onClick={() => handleSetAllStatus(rosterPlayers.map(p => p.id), s.key)}
+                    disabled={loading || generating || rosterPlayers.length === 0}
+                    title={`Mark all as ${s.label}${s.sublabel ? ' ' + s.sublabel : ''}`}
+                    className="text-[9px] font-bold text-brand-muted text-center leading-tight hover:text-brand-active disabled:opacity-50 transition-colors"
+                  >
                     {s.label}{s.sublabel && <><br />{s.sublabel}</>}
-                  </span>
+                  </button>
                 ))}
               </div>
               {rosterPlayers.map((p, idx) => {
@@ -1023,13 +1033,19 @@ export default function LiveSessionManager({
           <div>
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1.5">Subs & Guests</p>
             <div className="rounded-xl border border-brand-border overflow-hidden">
-              {/* Header */}
+              {/* Header — click a column label to mark all subs with that status */}
               <div className="grid grid-cols-[1fr_repeat(5,36px)] items-end bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
                 <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
                 {SUB_STATUSES.map(s => (
-                  <span key={s.key} className="text-[9px] font-bold text-brand-muted text-center leading-tight">
+                  <button
+                    key={s.key}
+                    onClick={() => handleSetAllStatus(subPlayers.map(p => p.id), s.key)}
+                    disabled={loading || generating || subPlayers.length === 0}
+                    title={`Mark all as ${s.label}${s.sublabel ? ' ' + s.sublabel : ''}`}
+                    className="text-[9px] font-bold text-brand-muted text-center leading-tight hover:text-brand-active disabled:opacity-50 transition-colors"
+                  >
                     {s.label}{s.sublabel && <><br />{s.sublabel}</>}
-                  </span>
+                  </button>
                 ))}
               </div>
               {subPlayers.map((p, idx) => {
