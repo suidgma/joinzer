@@ -73,7 +73,7 @@ export default function RoleSelectorSection() {
                 Find and join local pickleball
               </h2>
               <p className="text-brand-muted text-sm leading-relaxed mb-6">
-                Discover open sessions, sign up for leagues, enter tournaments, and connect with players near you. Free to join.
+                Discover open sessions, join local play, and connect with players near you. Free to join.
               </p>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {['65+ courts listed', 'Free to join', 'No app download'].map((item) => (
