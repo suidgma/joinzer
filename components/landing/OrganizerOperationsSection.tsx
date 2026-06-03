@@ -30,7 +30,7 @@ export default function OrganizerOperationsSection() {
           {/* NOW — problem state */}
           <div className="bg-white rounded-2xl border border-brand-border p-7 flex flex-col gap-5">
             <div>
-              <p className="text-xs font-bold text-brand-muted uppercase tracking-widest mb-3">Now</p>
+              <p className="text-sm font-bold text-brand-muted uppercase tracking-widest mb-3">Now</p>
               <p className="text-sm text-brand-body leading-relaxed">
                 Most organizers still piece events together across spreadsheets, texts, payment tools, and group chats.
               </p>
@@ -50,7 +50,7 @@ export default function OrganizerOperationsSection() {
           {/* WITH JOINZER — solution state */}
           <div className="bg-brand-dark rounded-2xl p-7 flex flex-col gap-5">
             <div>
-              <p className="text-xs font-bold text-brand/80 uppercase tracking-widest mb-3">With Joinzer</p>
+              <p className="text-sm font-bold text-brand uppercase tracking-widest mb-3">With Joinzer</p>
               <p className="text-sm text-white/70 leading-relaxed">
                 One place for the tools organizers need.
               </p>
