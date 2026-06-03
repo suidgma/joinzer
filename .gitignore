@@ -53,3 +53,6 @@ next-env.d.ts
 Thumbs.db
 .vscode/settings.json
 .idea/
+
+# Playwright MCP scratch output (console logs, page snapshots)
+.playwright-mcp/
