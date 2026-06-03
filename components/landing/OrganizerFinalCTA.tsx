@@ -4,7 +4,7 @@ export default function OrganizerFinalCTA() {
   return (
     <section className="py-14 md:py-24 bg-brand-dark">
       <div className="max-w-2xl mx-auto px-4 text-center">
-        <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white mb-4">
+        <h2 className="font-heading text-xl sm:text-2xl font-extrabold text-white mb-4">
           Ready to run your next event with less chaos?
         </h2>
 
