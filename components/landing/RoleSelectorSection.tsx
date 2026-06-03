@@ -75,12 +75,11 @@ export default function RoleSelectorSection() {
               <p className="text-brand-muted text-sm leading-relaxed mb-6">
                 Discover open sessions, join local play, and connect with players near you. Free to join.
               </p>
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <div className="flex flex-wrap gap-2">
                 {['60+ venues', 'Free to join', 'No app download'].map((item) => (
-                  <div key={item} className="flex items-center gap-1.5 text-xs text-brand-muted">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand inline-block shrink-0" />
+                  <span key={item} className="text-xs font-medium text-brand-muted bg-brand-soft border border-brand-border rounded-full px-3 py-1">
                     {item}
-                  </div>
+                  </span>
                 ))}
               </div>
             </div>
