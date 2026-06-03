@@ -207,7 +207,7 @@ export async function POST(
       const msg = rpcErr.message ?? ''
       const knownCodes = [
         'division_not_found', 'division_closed', 'not_doubles_format',
-        'already_registered', 'division_full',
+        'already_registered', 'gender_mismatch', 'division_full',
       ]
       const code = knownCodes.find(c => msg.includes(c)) ?? 'registration_failed'
       const httpStatus = code === 'division_not_found' ? 404 : code === 'registration_failed' ? 500 : 400
@@ -414,6 +414,19 @@ export async function POST(
   // Free division (cost_cents null or 0) → always waived, regardless of registration_type.
   // Paid division, solo self-service that reached this point → also waived (discount brought cost to $0).
   // Paid division, team or organizer-add → leave unset so the DB default 'unpaid' applies.
+  // Gender check for gender-specific formats (solo, organizer-add singles, paid team fallthrough)
+  const GENDER_REQUIRED: Record<string, string> = {
+    mens_doubles: 'male', womens_doubles: 'female',
+    mens_singles: 'male', womens_singles: 'female',
+  }
+  const requiredGender = GENDER_REQUIRED[division.format]
+  if (requiredGender) {
+    const { data: targetProfile } = await service.from('profiles').select('gender').eq('id', targetUserId).single()
+    if (!targetProfile || targetProfile.gender !== requiredGender) {
+      return NextResponse.json({ error: 'gender_mismatch' }, { status: 400 })
+    }
+  }
+
   const isFree = effectiveCostCents === 0
   const insertPaymentStatus: 'waived' | undefined = (
     isFree || (!isOrganizerAdd && registration_type === 'solo' && status === 'registered')
@@ -511,8 +524,15 @@ export async function POST(
   let matchedWith: { userId: string; name: string; email: string | null } | null = null
 
   if (registration_type === 'solo' && status === 'registered' && unmatchedSolos > 0) {
-    // Find the oldest unmatched solo. Filter paid/waived to avoid linking against Pattern A unpaid ghosts.
-    const { data: soloPartner } = await service
+    // For gender-specific formats, only pair with players of the matching gender.
+    let eligiblePartnerIds: string[] | null = null
+    if (requiredGender) {
+      const { data: genderProfiles } = await service.from('profiles').select('id').eq('gender', requiredGender)
+      eligiblePartnerIds = (genderProfiles ?? []).map(p => p.id)
+      if (eligiblePartnerIds.length === 0) eligiblePartnerIds = ['__none__']
+    }
+
+    let soloQuery = service
       .from('tournament_registrations')
       .select('id, user_id')
       .eq('division_id', params.divisionId)
@@ -523,7 +543,8 @@ export async function POST(
       .neq('user_id', targetUserId)
       .order('created_at', { ascending: true })
       .limit(1)
-      .maybeSingle()
+    if (eligiblePartnerIds) soloQuery = soloQuery.in('user_id', eligiblePartnerIds)
+    const { data: soloPartner } = await soloQuery.maybeSingle()
 
     if (soloPartner) {
       // Link both registrations to each other
