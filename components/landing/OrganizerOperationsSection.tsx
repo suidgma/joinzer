@@ -7,7 +7,7 @@ const nowPoints = [
 ]
 
 const joinzerPoints = [
-  'Registrations, payments, scheduling, and communication in one place',
+  'A single system for registrations, payments, scheduling, and communication',
   'One organizer dashboard',
   'Built-in registrations and payments',
   'Brackets, scheduling, and updates in one workflow',
