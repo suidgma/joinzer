@@ -8,8 +8,20 @@ export const DOUBLES_FORMATS = [
 
 export type DoublesFormat = (typeof DOUBLES_FORMATS)[number]
 
+export const SINGLES_FORMATS = [
+  'mens_singles',
+  'womens_singles',
+  'open_singles',
+] as const
+
+export type SinglesFormat = (typeof SINGLES_FORMATS)[number]
+
 export function isDoublesFormat(format: string | null | undefined): boolean {
   return format != null && (DOUBLES_FORMATS as readonly string[]).includes(format)
+}
+
+export function isSinglesFormat(format: string | null | undefined): boolean {
+  return format != null && (SINGLES_FORMATS as readonly string[]).includes(format)
 }
 
 export function formatSkillRange(min: number | null, max: number | null): string | null {

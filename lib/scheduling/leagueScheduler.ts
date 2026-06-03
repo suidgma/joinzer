@@ -135,6 +135,23 @@ export function deriveHistory(completedRounds: CompletedRound[]): History {
 // ─── Round format ─────────────────────────────────────────────────────────────
 
 /**
+ * Determines how many singles / bye slots a round should have for a singles-format league.
+ * All matches are singles; doublesCount is always 0.
+ */
+export function determineRoundFormatSingles(presentCount: number, courts: number): RoundFormat {
+  const c = Math.max(1, courts)
+  if (presentCount < 2) {
+    return { doublesCount: 0, singlesCount: 0, byeCount: 0, activePlayers: 0, warning: 'Not enough players for any match.' }
+  }
+  const singlesCount = Math.min(Math.floor(presentCount / 2), c)
+  const byeCount = presentCount - singlesCount * 2
+  const warning = presentCount < 4
+    ? `Only ${presentCount} players present — may not be enough for standard league play.`
+    : undefined
+  return { doublesCount: 0, singlesCount, byeCount, activePlayers: presentCount, warning }
+}
+
+/**
  * Determines how many doubles / singles / bye slots a round should have.
  *
  * Rule: maximise doubles within court limit; use leftover players for
@@ -307,6 +324,55 @@ function generateCandidate(
       singlesPlayer1Id: null,
       singlesPlayer2Id: null,
       byePlayerId:     p.id,
+    })
+  }
+
+  return matches
+}
+
+// ─── Singles-only candidate generation ───────────────────────────────────────
+
+/**
+ * Builds one round candidate for a singles-only league: assign byes first,
+ * then pair the rest into 1v1 singles matches across the available courts.
+ */
+function generateSinglesCandidate(
+  present: SessionPlayer[],
+  format: RoundFormat,
+): GeneratedMatch[] {
+  const shuffled   = shuffle(present)
+  const byePlayers = shuffled.slice(0, format.byeCount)
+  const playing    = shuffled.slice(format.byeCount)
+
+  const matches: GeneratedMatch[] = []
+  let court = 1
+
+  for (let i = 0; i < format.singlesCount; i++) {
+    const b = i * 2
+    matches.push({
+      courtNumber:      court++,
+      matchType:        'singles',
+      team1Player1Id:   null,
+      team1Player2Id:   null,
+      team2Player1Id:   null,
+      team2Player2Id:   null,
+      singlesPlayer1Id: playing[b]?.id     ?? null,
+      singlesPlayer2Id: playing[b + 1]?.id ?? null,
+      byePlayerId:      null,
+    })
+  }
+
+  for (const p of byePlayers) {
+    matches.push({
+      courtNumber:      null,
+      matchType:        'bye',
+      team1Player1Id:   null,
+      team1Player2Id:   null,
+      team2Player1Id:   null,
+      team2Player2Id:   null,
+      singlesPlayer1Id: null,
+      singlesPlayer2Id: null,
+      byePlayerId:      p.id,
     })
   }
 
@@ -513,6 +579,7 @@ function buildNotes(
   const byId = Object.fromEntries(present.map(p => [p.id, p]))
   const notes: string[] = []
 
+  let hasDoubles = false
   let repeatPartner = false
   let repeatOpponent = false
   let subInSingles = false
@@ -521,6 +588,7 @@ function buildNotes(
 
   for (const m of matches) {
     if (m.matchType === 'doubles') {
+      hasDoubles = true
       const { team1Player1Id: p1, team1Player2Id: p2, team2Player1Id: p3, team2Player2Id: p4 } = m
       if (p1 && p2 && (history[p1]?.partners[p2] ?? 0) > 0) repeatPartner = true
       if (p3 && p4 && (history[p3]?.partners[p4] ?? 0) > 0) repeatPartner = true
@@ -533,8 +601,12 @@ function buildNotes(
 
     if (m.matchType === 'singles') {
       const { singlesPlayer1Id: p1, singlesPlayer2Id: p2 } = m
+      if (p1 && p2 && (history[p1]?.opponents[p2] ?? 0) > 0) repeatOpponent = true
       if (p1 && byId[p1]?.playerType === 'sub') subInSingles = true
       if (p2 && byId[p2]?.playerType === 'sub') subInSingles = true
+      for (const id of [p1, p2]) {
+        if (id && byId[id]?.arrivedAfterRound != null) lateScheduled = true
+      }
     }
 
     if (m.matchType === 'bye') {
@@ -543,8 +615,11 @@ function buildNotes(
     }
   }
 
-  if (!repeatPartner)  notes.push('No repeated partners.')
-  else                 notes.push('One or more repeated partners — unavoidable with current roster.')
+  // Partner note only makes sense for doubles rounds.
+  if (hasDoubles) {
+    if (!repeatPartner)  notes.push('No repeated partners.')
+    else                 notes.push('One or more repeated partners — unavoidable with current roster.')
+  }
 
   if (repeatOpponent)  notes.push('Some repeated opponents — unavoidable with this roster size.')
   if (subInSingles)    notes.push('Sub player(s) assigned to singles match.')
@@ -564,12 +639,39 @@ export function generateNextRound(
   roundNumber: number,
   candidateCount = 1000,
   fixedPairs?: ReadonlyMap<string, string>,
+  singlesOnly = false,
 ): GeneratedRound | null {
   const present = players.filter(p => p.actualStatus === 'present')
   if (present.length < 2) return null
 
   const isFixedMode = fixedPairs != null && fixedPairs.size > 0
   const history     = deriveHistory(completedRounds)
+
+  // Singles-only league: every match is 1v1. Partner concepts (and therefore
+  // fixed-partner mode) don't apply, so this branch takes precedence.
+  if (singlesOnly) {
+    const format = determineRoundFormatSingles(present.length, courts)
+
+    let bestMatches: GeneratedMatch[] | null = null
+    let bestScore = -Infinity
+
+    for (let i = 0; i < candidateCount; i++) {
+      const matches = generateSinglesCandidate(present, format)
+      const score   = scoreCandidate(matches, history, present)
+      if (score > bestScore || (score === bestScore && Math.random() < 0.5)) {
+        bestScore = score; bestMatches = matches
+      }
+    }
+
+    if (!bestMatches) return null
+
+    return {
+      matches: bestMatches,
+      notes:   buildNotes(bestMatches, history, present, format),
+      score:   bestScore,
+      format,
+    }
+  }
 
   // Fixed mode: format and candidate generation are constrained by which
   // pairs are present today, not by raw player count.

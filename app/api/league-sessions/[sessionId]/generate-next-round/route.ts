@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { generateNextRound, type CompletedRound, type CompletedMatch, type SessionPlayer } from '@/lib/scheduling/leagueScheduler'
+import { isSinglesFormat } from '@/lib/taxonomy/formats'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -29,13 +30,15 @@ export async function POST(req: NextRequest, props: Params) {
     .single()
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
-  const { data: league } = await db.from('leagues').select('created_by, partner_mode').eq('id', session.league_id).single()
+  const { data: league } = await db.from('leagues').select('created_by, partner_mode, format').eq('id', session.league_id).single()
   if (!league || league.created_by !== user.id) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
 
   const courts = session.number_of_courts ?? 4
-  const isFixedPartnerMode = league.partner_mode === 'fixed'
+  const singlesOnly = isSinglesFormat(league.format)
+  // Singles leagues have no partners; fixed-partner mode only applies to doubles.
+  const isFixedPartnerMode = !singlesOnly && league.partner_mode === 'fixed'
 
   // --- Fetch present players ---
   const { data: rawPlayers } = await db
@@ -142,7 +145,7 @@ export async function POST(req: NextRequest, props: Params) {
   }
 
   // --- Generate schedule ---
-  const result = generateNextRound(players, completedRounds, courts, nextRoundNumber, 1000, fixedPairs)
+  const result = generateNextRound(players, completedRounds, courts, nextRoundNumber, 1000, fixedPairs, singlesOnly)
   if (!result) {
     return NextResponse.json({ error: 'Could not generate a valid schedule. Check player count.' }, { status: 422 })
   }
