@@ -76,7 +76,7 @@ export default function RoleSelectorSection() {
                 Discover open sessions, join local play, and connect with players near you. Free to join.
               </p>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
-                {['65+ courts listed', 'Free to join', 'No app download'].map((item) => (
+                {['60+ venues', 'Free to join', 'No app download'].map((item) => (
                   <div key={item} className="flex items-center gap-1.5 text-xs text-brand-muted">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand inline-block shrink-0" />
                     {item}

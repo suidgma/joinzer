@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 const trustItems = [
-  { label: '65+ courts listed' },
+  { label: '60+ venues' },
   { label: 'Leagues & tournaments' },
   { label: 'Free to join' },
 ]
