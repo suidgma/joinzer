@@ -32,7 +32,7 @@ export default function OrganizerOperationsSection() {
             <div>
               <p className="text-base font-bold text-brand-muted uppercase tracking-widest mb-3">Now</p>
               <p className="text-sm text-brand-body leading-relaxed">
-                Most organizers still piece events together across spreadsheets, texts, payment tools, and group chats.
+                Most organizers still piece events together using spreadsheets, texts, payment tools, and group chats.
               </p>
             </div>
             <ul className="space-y-3">
