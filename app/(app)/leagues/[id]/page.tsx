@@ -301,12 +301,12 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         )}
         {league.play_days != null && <Row label="Play Days" value={`${league.play_days}`} />}
         {league.games_per_session != null && <Row label="Games/Play" value={`${league.games_per_session}`} />}
-        {league.max_players != null && (
-          <Row
-            label="Players"
-            value={`${registeredForCapacity}/${league.max_players} players${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''}`}
-          />
-        )}
+        <Row
+          label="Players"
+          value={league.max_players != null
+            ? `${registeredForCapacity}/${league.max_players} players${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''}`
+            : `${registeredForCapacity} registered${waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ''}`}
+        />
       </div>
 
       {/* Description */}
