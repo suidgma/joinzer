@@ -443,6 +443,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       <LeagueRosterPanel
         leagueId={league.id}
         format={league.format}
+        partnerMode={(league as any).partner_mode ?? null}
         maxPlayers={league.max_players ?? null}
         organizerUserId={league.created_by}
         registrations={(rosterRegs ?? []) as any}

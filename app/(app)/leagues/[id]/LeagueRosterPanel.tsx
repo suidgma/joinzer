@@ -35,6 +35,7 @@ type TeamRow = {
 export type RosterProps = {
   leagueId: string
   format: string
+  partnerMode: string | null
   maxPlayers: number | null
   organizerUserId: string
   registrations: Reg[]
@@ -108,6 +109,11 @@ function PlayerRow({
             ✓ can sub
           </span>
         )}
+        {isSoloAwaiting && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 leading-none whitespace-nowrap">
+            Awaiting partner
+          </span>
+        )}
       </div>
       <div className="flex-shrink-0">
         <RatingBadge
@@ -123,6 +129,7 @@ function PlayerRow({
 export default function LeagueRosterPanel({
   leagueId,
   format,
+  partnerMode,
   maxPlayers,
   organizerUserId,
   registrations,
@@ -233,7 +240,7 @@ export default function LeagueRosterPanel({
                 reg={row.player1}
                 isOrganizer={row.player1.user_id === organizerUserId}
                 isSubAvailable={subInterestUserIds.has(row.player1.user_id)}
-                isSoloAwaiting={!row.player2}
+                isSoloAwaiting={partnerMode === 'fixed' && !row.player2}
               />
               {row.player2 && (
                 <>
