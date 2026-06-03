@@ -24,6 +24,13 @@ export function isSinglesFormat(format: string | null | undefined): boolean {
   return format != null && (SINGLES_FORMATS as readonly string[]).includes(format)
 }
 
+// Mixed doubles requires one man + one woman per team. Coed is intentionally
+// NOT included — coed allows any gender mix, so it uses the standard rotating
+// pairing. Only mixed_doubles enforces the 1M+1F-per-team constraint.
+export function isMixedDoublesFormat(format: string | null | undefined): boolean {
+  return format === 'mixed_doubles'
+}
+
 export function formatSkillRange(min: number | null, max: number | null): string | null {
   if (min == null && max == null) return null
   if (min != null && max != null) return `${min.toFixed(1)} – ${max.toFixed(1)}`

@@ -25,6 +25,7 @@ export type PlayerType   = 'roster_player' | 'sub' | 'guest'
 export type ActualStatus = 'present' | 'not_present' | 'late' | 'left_early'
 export type MatchType    = 'doubles' | 'singles' | 'bye'
 export type RoundStatus  = 'draft' | 'locked' | 'completed'
+export type GenderBucket = 'male' | 'female' | 'other'
 
 export type SessionPlayer = {
   id: string                    // league_session_players.id
@@ -34,6 +35,20 @@ export type SessionPlayer = {
   actualStatus: ActualStatus
   arrivedAfterRound: number | null
   joinzerRating: number         // default 1 000
+  gender?: string | null        // from profiles.gender; only used in mixed_doubles mode
+}
+
+/**
+ * Normalizes a raw profiles.gender value into one of three buckets. Mixed
+ * doubles needs to tell men from women; anything else (null, 'other', unknown)
+ * falls into 'other' and is treated as un-pairable for the M+F constraint.
+ */
+export function genderBucket(g: string | null | undefined): GenderBucket {
+  if (!g) return 'other'
+  const s = g.trim().toLowerCase()
+  if (s === 'male' || s === 'm' || s === 'man' || s === 'men') return 'male'
+  if (s === 'female' || s === 'f' || s === 'woman' || s === 'women') return 'female'
+  return 'other'
 }
 
 export type CompletedMatch = {
@@ -240,6 +255,57 @@ export function determineRoundFormatFixed(
   return { doublesCount, singlesCount, byeCount, activePlayers: presentCount, warning }
 }
 
+/**
+ * Round format for mixed-doubles (rotating) mode.
+ *
+ * Every doubles match must be two mixed teams: one man + one woman per side,
+ * i.e. each match consumes exactly 2 men + 2 women. The number of mixed matches
+ * is therefore bounded by the scarcer gender and the court count:
+ *   doublesCount = min(floor(M/2), floor(F/2), courts)
+ *
+ * Leftover players (the surplus gender plus any 'other'/unspecified) fill
+ * singles courts if any remain, otherwise bye. A roster-balance warning is
+ * surfaced when the genders don't divide evenly into mixed teams.
+ */
+export function determineRoundFormatMixed(
+  maleCount: number,
+  femaleCount: number,
+  otherCount: number,
+  courts: number,
+): RoundFormat {
+  const c = Math.max(1, courts)
+  const presentCount = maleCount + femaleCount + otherCount
+
+  if (presentCount < 2) {
+    return { doublesCount: 0, singlesCount: 0, byeCount: 0, activePlayers: 0, warning: 'Not enough players for any match.' }
+  }
+
+  const doublesCount = Math.min(Math.floor(maleCount / 2), Math.floor(femaleCount / 2), c)
+  const leftover     = presentCount - doublesCount * 4
+  const courtsLeft   = c - doublesCount
+
+  let singlesCount = 0
+  let byeCount     = 0
+  if (leftover >= 2 && courtsLeft >= 1) {
+    singlesCount = Math.min(Math.floor(leftover / 2), courtsLeft)
+    byeCount     = leftover - singlesCount * 2
+  } else {
+    byeCount = leftover
+  }
+
+  let warning: string | undefined
+  if (doublesCount === 0) {
+    warning = `Cannot form a mixed doubles match — need at least 2 men and 2 women present (have ${maleCount} men, ${femaleCount} women).`
+  } else if (maleCount !== femaleCount || otherCount > 0) {
+    const detail = otherCount > 0
+      ? `${maleCount} men, ${femaleCount} women, ${otherCount} unspecified`
+      : `${maleCount} men, ${femaleCount} women`
+    warning = `Roster is gender-imbalanced (${detail}) — not everyone can play mixed doubles each round.`
+  }
+
+  return { doublesCount, singlesCount, byeCount, activePlayers: presentCount, warning }
+}
+
 // ─── Candidate generation ────────────────────────────────────────────────────
 
 function shuffle<T>(arr: T[]): T[] {
@@ -363,6 +429,83 @@ function generateSinglesCandidate(
   }
 
   for (const p of byePlayers) {
+    matches.push({
+      courtNumber:      null,
+      matchType:        'bye',
+      team1Player1Id:   null,
+      team1Player2Id:   null,
+      team2Player1Id:   null,
+      team2Player2Id:   null,
+      singlesPlayer1Id: null,
+      singlesPlayer2Id: null,
+      byePlayerId:      p.id,
+    })
+  }
+
+  return matches
+}
+
+// ─── Mixed-doubles candidate generation ──────────────────────────────────────
+
+/**
+ * Builds one round candidate for a mixed-doubles league. Each doubles match is
+ * two mixed teams (1 man + 1 woman per side). Surplus players (the abundant
+ * gender plus any 'other') fill singles courts or take byes.
+ */
+function generateMixedCandidate(
+  present: SessionPlayer[],
+  format: RoundFormat,
+): GeneratedMatch[] {
+  const males   = shuffle(present.filter(p => genderBucket(p.gender) === 'male'))
+  const females = shuffle(present.filter(p => genderBucket(p.gender) === 'female'))
+  const others  = shuffle(present.filter(p => genderBucket(p.gender) === 'other'))
+
+  const usedPerGender = format.doublesCount * 2
+  const doublesM = males.slice(0, usedPerGender)
+  const doublesF = females.slice(0, usedPerGender)
+
+  const matches: GeneratedMatch[] = []
+  let court = 1
+
+  // Doubles: each match pairs one man + one woman per team.
+  for (let i = 0; i < format.doublesCount; i++) {
+    const b = i * 2
+    matches.push({
+      courtNumber:      court++,
+      matchType:        'doubles',
+      team1Player1Id:   doublesM[b]?.id     ?? null,
+      team1Player2Id:   doublesF[b]?.id     ?? null,
+      team2Player1Id:   doublesM[b + 1]?.id ?? null,
+      team2Player2Id:   doublesF[b + 1]?.id ?? null,
+      singlesPlayer1Id: null,
+      singlesPlayer2Id: null,
+      byePlayerId:      null,
+    })
+  }
+
+  // Everyone not placed in a mixed match (surplus gender + others).
+  const leftover = shuffle([
+    ...males.slice(usedPerGender),
+    ...females.slice(usedPerGender),
+    ...others,
+  ])
+
+  for (let i = 0; i < format.singlesCount; i++) {
+    const b = i * 2
+    matches.push({
+      courtNumber:      court++,
+      matchType:        'singles',
+      team1Player1Id:   null,
+      team1Player2Id:   null,
+      team2Player1Id:   null,
+      team2Player2Id:   null,
+      singlesPlayer1Id: leftover[b]?.id     ?? null,
+      singlesPlayer2Id: leftover[b + 1]?.id ?? null,
+      byePlayerId:      null,
+    })
+  }
+
+  for (const p of leftover.slice(format.singlesCount * 2)) {
     matches.push({
       courtNumber:      null,
       matchType:        'bye',
@@ -640,6 +783,7 @@ export function generateNextRound(
   candidateCount = 1000,
   fixedPairs?: ReadonlyMap<string, string>,
   singlesOnly = false,
+  mixedDoubles = false,
 ): GeneratedRound | null {
   const present = players.filter(p => p.actualStatus === 'present')
   if (present.length < 2) return null
@@ -658,6 +802,47 @@ export function generateNextRound(
     for (let i = 0; i < candidateCount; i++) {
       const matches = generateSinglesCandidate(present, format)
       const score   = scoreCandidate(matches, history, present)
+      if (score > bestScore || (score === bestScore && Math.random() < 0.5)) {
+        bestScore = score; bestMatches = matches
+      }
+    }
+
+    if (!bestMatches) return null
+
+    return {
+      matches: bestMatches,
+      notes:   buildNotes(bestMatches, history, present, format),
+      score:   bestScore,
+      format,
+    }
+  }
+
+  // Mixed-doubles (rotating) league: each doubles team must be 1 man + 1 woman.
+  // Only applies when partners rotate; fixed-partner pairs are assumed to have
+  // been chosen as valid mixed pairs at registration, so they fall through to
+  // the fixed-mode branch below.
+  if (mixedDoubles && !isFixedMode) {
+    const males   = present.filter(p => genderBucket(p.gender) === 'male').length
+    const females = present.filter(p => genderBucket(p.gender) === 'female').length
+    const others  = present.length - males - females
+    const format  = determineRoundFormatMixed(males, females, others, courts)
+
+    let bestMatches: GeneratedMatch[] | null = null
+    let bestScore = -Infinity
+
+    for (let i = 0; i < candidateCount; i++) {
+      const matches = generateMixedCandidate(present, format)
+
+      // Reject candidates missing required players (e.g. a court left short).
+      const valid = matches.every(m => {
+        if (m.matchType === 'doubles') return m.team1Player1Id && m.team1Player2Id && m.team2Player1Id && m.team2Player2Id
+        if (m.matchType === 'singles') return m.singlesPlayer1Id && m.singlesPlayer2Id
+        if (m.matchType === 'bye')     return !!m.byePlayerId
+        return false
+      })
+      if (!valid) continue
+
+      const score = scoreCandidate(matches, history, present)
       if (score > bestScore || (score === bestScore && Math.random() < 0.5)) {
         bestScore = score; bestMatches = matches
       }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { generateNextRound, type CompletedRound, type CompletedMatch, type SessionPlayer } from '@/lib/scheduling/leagueScheduler'
-import { isSinglesFormat } from '@/lib/taxonomy/formats'
+import { isSinglesFormat, isMixedDoublesFormat } from '@/lib/taxonomy/formats'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, props: Params) {
 
   const courts = session.number_of_courts ?? 4
   const singlesOnly = isSinglesFormat(league.format)
+  const isMixedDoubles = isMixedDoublesFormat(league.format)
   // Singles leagues have no partners; fixed-partner mode only applies to doubles.
   const isFixedPartnerMode = !singlesOnly && league.partner_mode === 'fixed'
 
@@ -45,6 +46,24 @@ export async function POST(req: NextRequest, props: Params) {
     .from('league_session_players')
     .select('*')
     .eq('session_id', params.sessionId)
+
+  // Mixed doubles needs each player's gender to enforce 1M+1F teams.
+  // league_session_players has no gender column, so join profiles via user_id.
+  const genderByUserId = new Map<string, string | null>()
+  if (isMixedDoubles) {
+    const userIds = (rawPlayers ?? [])
+      .map((p: Record<string, unknown>) => p.user_id as string | null)
+      .filter((id): id is string => !!id)
+    if (userIds.length > 0) {
+      const { data: profileRows } = await db
+        .from('profiles')
+        .select('id, gender')
+        .in('id', userIds)
+      for (const row of profileRows ?? []) {
+        genderByUserId.set(row.id as string, (row.gender as string | null) ?? null)
+      }
+    }
+  }
 
   const players: SessionPlayer[] = (rawPlayers ?? [])
     // Unassigned subs sit out — only assigned subs (covering an absent player) play
@@ -59,6 +78,7 @@ export async function POST(req: NextRequest, props: Params) {
       actualStatus:      (p.actual_status as SessionPlayer['actualStatus']) ?? 'not_present',
       arrivedAfterRound: p.arrived_after_round as number | null,
       joinzerRating:     (p.joinzer_rating as number) ?? 1000,
+      gender:            p.user_id ? (genderByUserId.get(p.user_id as string) ?? null) : null,
     }))
 
   const presentCount = players.filter(p => p.actualStatus === 'present').length
@@ -145,7 +165,7 @@ export async function POST(req: NextRequest, props: Params) {
   }
 
   // --- Generate schedule ---
-  const result = generateNextRound(players, completedRounds, courts, nextRoundNumber, 1000, fixedPairs, singlesOnly)
+  const result = generateNextRound(players, completedRounds, courts, nextRoundNumber, 1000, fixedPairs, singlesOnly, isMixedDoubles)
   if (!result) {
     return NextResponse.json({ error: 'Could not generate a valid schedule. Check player count.' }, { status: 422 })
   }
