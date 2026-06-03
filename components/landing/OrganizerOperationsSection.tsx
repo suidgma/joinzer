@@ -21,7 +21,7 @@ export default function OrganizerOperationsSection() {
 
         <div className="text-center mb-10 md:mb-14">
           <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark">
-            Before and after Joinzer
+            From scattered tools to one organized system
           </h2>
         </div>
 
