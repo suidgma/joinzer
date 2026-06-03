@@ -20,9 +20,6 @@ export default function OrganizerOperationsSection() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="text-center mb-10 md:mb-14">
-          <p className="text-brand-active text-xs font-semibold uppercase tracking-widest mb-3">
-            Sound familiar?
-          </p>
           <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold text-brand-dark">
             Before and after Joinzer
           </h2>
