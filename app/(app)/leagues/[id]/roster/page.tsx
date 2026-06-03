@@ -14,7 +14,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, created_by, max_players')
+    .select('id, name, created_by, max_players, format')
     .eq('id', params.id)
     .single()
 
@@ -43,8 +43,14 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         .select('created_at, profile:profiles(id, name, profile_photo_url)')
         .eq('league_id', params.id)
         .order('created_at', { ascending: true }),
-      // Fetch all profiles then exclude registered ones — Supabase JS client doesn't support subqueries
-      supabase.from('profiles').select('id, name').order('name', { ascending: true }).limit(200),
+      // Fetch profiles for the add-player dropdown; filter by gender for gender-specific formats
+      (() => {
+        const genderFilter: Record<string, string> = { mens_doubles: 'male', womens_doubles: 'female' }
+        const requiredGender = league ? genderFilter[(league as any).format] : undefined
+        let q = supabase.from('profiles').select('id, name').order('name', { ascending: true }).limit(200)
+        if (requiredGender) q = q.eq('gender', requiredGender)
+        return q
+      })(),
     ])
 
   // Exclude anyone already in the roster (non-cancelled)
