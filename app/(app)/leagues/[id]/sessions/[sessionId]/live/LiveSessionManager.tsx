@@ -962,14 +962,17 @@ export default function LiveSessionManager({
             <div className="rounded-xl border border-brand-border overflow-hidden">
               {/* Header — click a column label to mark all players with that status */}
               <div className="grid grid-cols-[1fr_repeat(6,36px)] items-end bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
-                <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
+                <div>
+                  <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
+                  <p className="text-[8px] text-brand-muted/60 leading-none mt-0.5">tap col → all</p>
+                </div>
                 {ROSTER_STATUSES.map(s => (
                   <button
                     key={s.key}
                     onClick={() => handleSetAllStatus(rosterPlayers.map(p => p.id), s.key)}
                     disabled={loading || generating || rosterPlayers.length === 0}
                     title={`Mark all as ${s.label}${s.sublabel ? ' ' + s.sublabel : ''}`}
-                    className="text-[9px] font-bold text-brand-muted text-center leading-tight hover:text-brand-active disabled:opacity-50 transition-colors"
+                    className="text-[9px] font-bold text-brand-muted text-center leading-tight underline decoration-dotted underline-offset-2 hover:text-brand-active disabled:opacity-50 transition-colors cursor-pointer"
                   >
                     {s.label}{s.sublabel && <><br />{s.sublabel}</>}
                   </button>
@@ -1035,14 +1038,17 @@ export default function LiveSessionManager({
             <div className="rounded-xl border border-brand-border overflow-hidden">
               {/* Header — click a column label to mark all subs with that status */}
               <div className="grid grid-cols-[1fr_repeat(5,36px)] items-end bg-brand-soft border-b border-brand-border px-2 py-1.5 gap-x-1">
-                <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
+                <div>
+                  <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wide">Player</span>
+                  <p className="text-[8px] text-brand-muted/60 leading-none mt-0.5">tap col → all</p>
+                </div>
                 {SUB_STATUSES.map(s => (
                   <button
                     key={s.key}
                     onClick={() => handleSetAllStatus(subPlayers.map(p => p.id), s.key)}
                     disabled={loading || generating || subPlayers.length === 0}
                     title={`Mark all as ${s.label}${s.sublabel ? ' ' + s.sublabel : ''}`}
-                    className="text-[9px] font-bold text-brand-muted text-center leading-tight hover:text-brand-active disabled:opacity-50 transition-colors"
+                    className="text-[9px] font-bold text-brand-muted text-center leading-tight underline decoration-dotted underline-offset-2 hover:text-brand-active disabled:opacity-50 transition-colors cursor-pointer"
                   >
                     {s.label}{s.sublabel && <><br />{s.sublabel}</>}
                   </button>
