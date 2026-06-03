@@ -21,7 +21,7 @@ export default function LandingNav() {
           <nav className="hidden md:flex items-center gap-8">
             <Link href="/for-players" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Players</Link>
             <Link href="/organizers" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Organizers</Link>
-            <Link href="/browse/leagues" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Browse</Link>
+            <Link href="/browse" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Browse</Link>
             <Link href="/about" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">About</Link>
           </nav>
 
@@ -63,7 +63,7 @@ export default function LandingNav() {
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-3">
           <Link href="/for-players" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Players</Link>
           <Link href="/organizers" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Organizers</Link>
-          <Link href="/browse/leagues" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Browse</Link>
+          <Link href="/browse" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">Browse</Link>
           <Link href="/about" onClick={() => setOpen(false)} className="block text-sm text-brand-muted py-2">About</Link>
           <div className="pt-2 space-y-2">
             <Link href="/login" className="block w-full text-center text-sm font-medium text-brand-dark border border-brand-border py-2.5 rounded-xl hover:bg-brand-soft transition-colors">Sign In</Link>

@@ -52,6 +52,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/sw.js' ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/leagues') ||
+    pathname === '/browse' ||
     pathname.startsWith('/browse/') ||
     pathname.startsWith('/api/stripe/') ||
     pathname.startsWith('/api/cron/')
