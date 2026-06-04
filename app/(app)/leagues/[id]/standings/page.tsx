@@ -12,10 +12,10 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: league }, { data: registrations }, { data: sessions }] = await Promise.all([
-    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method, partner_mode').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
-      .select('user_id, profile:profiles!user_id(id, name, profile_photo_url)')
+      .select('user_id, partner_user_id, profile:profiles!user_id(id, name, profile_photo_url)')
       .eq('league_id', params.id)
       .eq('status', 'registered'),
     supabase
@@ -152,6 +152,37 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       : b.winPct - a.winPct || b.diff - a.diff || b.points - a.points
   )
 
+  // For fixed-partner leagues, merge each pair into one team row
+  const partnerMode = (league as any).partner_mode ?? null
+  let finalStandings = standings
+  if (partnerMode === 'fixed') {
+    const partnerByUserId = Object.fromEntries(
+      (registrations ?? [])
+        .filter(r => (r as any).partner_user_id)
+        .map(r => [r.user_id, (r as any).partner_user_id as string])
+    )
+    const seen = new Set<string>()
+    finalStandings = standings
+      .filter(row => {
+        const partnerId = partnerByUserId[row.userId]
+        if (!partnerId) return true
+        const canonical = row.userId < partnerId ? `${row.userId}|${partnerId}` : `${partnerId}|${row.userId}`
+        if (seen.has(canonical)) return false
+        seen.add(canonical)
+        return true
+      })
+      .map(row => {
+        const partnerId = partnerByUserId[row.userId]
+        if (!partnerId) return row
+        const partnerRow = standings.find(s => s.userId === partnerId)
+        if (!partnerRow) return row
+        const n1 = row.name.split(' ')[0]
+        const n2 = partnerRow.name.split(' ')[0]
+        const [first, second] = n1.localeCompare(n2) <= 0 ? [n1, n2] : [n2, n1]
+        return { ...row, name: `Team ${first}/${second}` }
+      })
+  }
+
   const hasResults = !!matches && matches.length > 0
   const isManager = user?.id === league.created_by
   const firstSession = sessions?.[0]
@@ -212,7 +243,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         </div>
       ) : (
         <StandingsTable
-          initialStandings={standings}
+          initialStandings={finalStandings}
           sessionsWithData={sessionsWithData}
           sessionPts={Object.fromEntries(
             Array.from(sessionPts.entries()).map(([uid, bySession]) => [uid, Object.fromEntries(bySession.entries())])
