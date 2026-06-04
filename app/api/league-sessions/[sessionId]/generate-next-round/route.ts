@@ -37,9 +37,10 @@ export async function POST(req: NextRequest, props: Params) {
 
   const courts = session.number_of_courts ?? 4
   const singlesOnly = isSinglesFormat(league.format)
-  const isMixedDoubles = isMixedDoublesFormat(league.format)
-  // Singles leagues have no partners; fixed-partner mode only applies to doubles.
-  const isFixedPartnerMode = !singlesOnly && league.partner_mode === 'fixed'
+  // Mixed-doubles gender constraint (1M+1F per team) only applies when partners rotate.
+  // Fixed-partner leagues pre-assign pairs regardless of gender balance.
+  const isFixedPartnerMode = !isSinglesFormat(league.format) && league.partner_mode === 'fixed'
+  const isMixedDoubles = isMixedDoublesFormat(league.format) && !isFixedPartnerMode
 
   // --- Fetch present players ---
   const { data: rawPlayers } = await db
