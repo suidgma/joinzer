@@ -179,10 +179,10 @@ export default function StandingsTable({
             >
               Player<SortIcon col="name" />
             </th>
+            <Th col="points">Points</Th>
+            <Th col="diff">+/-</Th>
             <Th col="wl">W-L</Th>
             <Th col="winPct">Win%</Th>
-            <Th col="diff">+/-</Th>
-            <Th col="points">Points</Th>
             <Th col="streak">Streak</Th>
             {sessionsWithData.map((s) => (
               <Th key={s.id} col={`wk_${s.id}`} className="border-l">
@@ -217,12 +217,7 @@ export default function StandingsTable({
                   </div>
                 </td>
                 <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <span className="text-xs text-brand-muted">{p.wins}–{p.losses}</span>
-                </td>
-                <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <span className="text-sm font-bold text-brand-dark">
-                    {p.games > 0 ? (p.winPct * 100).toFixed(0) + '%' : '—'}
-                  </span>
+                  <span className="text-sm font-bold text-brand-dark">{p.games > 0 ? p.points : '—'}</span>
                 </td>
                 <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
                   <span className={`text-xs font-medium ${p.diff > 0 ? 'text-lime-600' : p.diff < 0 ? 'text-red-400' : 'text-brand-muted'}`}>
@@ -230,7 +225,12 @@ export default function StandingsTable({
                   </span>
                 </td>
                 <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <span className="text-sm font-bold text-brand-dark">{p.games > 0 ? p.points : '—'}</span>
+                  <span className="text-xs text-brand-muted">{p.wins}–{p.losses}</span>
+                </td>
+                <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
+                  <span className="text-sm font-bold text-brand-dark">
+                    {p.games > 0 ? (p.winPct * 100).toFixed(0) + '%' : '—'}
+                  </span>
                 </td>
                 <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
                   <StreakBadge streak={p.streak} />
