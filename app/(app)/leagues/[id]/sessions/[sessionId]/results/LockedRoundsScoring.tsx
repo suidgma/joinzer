@@ -90,6 +90,20 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
     setSaveError(null)
     setSavingAll(true)
 
+    // For re-edited matches, delete the existing row before re-inserting
+    const edited = unsaved.filter(m => editing[m.roundMatchId])
+    for (const m of edited) {
+      let q = supabase.from('league_matches').delete()
+        .eq('session_id', sessionId)
+        .eq('round_number', m.roundNumber)
+      if (m.courtNumber !== null) {
+        q = (q as any).eq('court_number', m.courtNumber)
+      } else {
+        q = (q as any).is('court_number', null)
+      }
+      await q
+    }
+
     const rows = unsaved.map((m) => {
       const s = scores[m.roundMatchId]
       const loser = parseInt(s.loserScore)
@@ -106,13 +120,14 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
       }
     })
 
-    const { error } = await supabase.from('league_matches').upsert(rows, { onConflict: 'session_id,round_number,court_number' })
+    const { error } = await supabase.from('league_matches').insert(rows)
     if (error) {
       setSaveError(error.message)
     } else {
       const nowSaved: Record<string, boolean> = {}
       for (const m of unsaved) nowSaved[m.roundMatchId] = true
       setSaved((prev) => ({ ...prev, ...nowSaved }))
+      setEditing({})
       router.refresh()
     }
     setSavingAll(false)
