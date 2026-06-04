@@ -15,6 +15,7 @@ type Props = {
 
 export default function MatchEntryForm({ sessionId, leagueId, players, pointsToWin }: Props) {
   const router = useRouter()
+  const [open, setOpen] = useState(false)
   const [t1p1, setT1p1] = useState('')
   const [t1p2, setT1p2] = useState('')
   const [t2p1, setT2p1] = useState('')
@@ -58,8 +59,24 @@ export default function MatchEntryForm({ sessionId, leagueId, players, pointsToW
 
   const selectCls = 'w-full input text-sm'
 
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full py-2.5 rounded-xl border border-brand-border text-sm font-medium text-brand-active hover:bg-brand-soft transition-colors"
+      >
+        + Add Match Manually
+      </button>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Add Match Manually</p>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-brand-muted hover:text-brand-dark">✕ Cancel</button>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
           <p className="text-xs font-medium text-brand-muted mb-1">Round</p>

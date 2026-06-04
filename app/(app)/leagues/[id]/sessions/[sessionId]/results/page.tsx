@@ -193,11 +193,8 @@ export default async function SessionResultsPage(
         </section>
       )}
 
-      {/* Manual add form */}
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Add Match Manually</h2>
-        <MatchEntryForm sessionId={params.sessionId} players={players} leagueId={params.id} pointsToWin={league.points_to_win ?? 11} />
-      </section>
+      {/* Manual add form — collapsed by default */}
+      <MatchEntryForm sessionId={params.sessionId} players={players} leagueId={params.id} pointsToWin={league.points_to_win ?? 11} />
     </main>
   )
 }
