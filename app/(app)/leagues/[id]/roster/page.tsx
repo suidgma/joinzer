@@ -14,7 +14,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, created_by, max_players, format')
+    .select('id, name, created_by, max_players, format, partner_mode')
     .eq('id', params.id)
     .single()
 
@@ -34,7 +34,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     await Promise.all([
       supabase
         .from('league_registrations')
-        .select('status, registered_at, is_co_admin, user_id, profile:profiles!user_id(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
+        .select('status, registered_at, is_co_admin, user_id, partner_user_id, profile:profiles!user_id(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
         .eq('league_id', params.id)
         .neq('status', 'cancelled')
         .order('registered_at', { ascending: true }),
@@ -85,6 +85,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         leagueId={params.id}
         leagueName={league.name}
         maxPlayers={league.max_players ?? null}
+        partnerMode={(league as any).partner_mode ?? null}
         registered={registered}
         waitlisted={waitlisted}
         subInterest={(subInterest ?? []) as any[]}
