@@ -652,6 +652,7 @@ function scoreCandidate(
   matches: GeneratedMatch[],
   history: History,
   present: SessionPlayer[],
+  isFixed = false,
 ): number {
   let score = 0
   const byId = Object.fromEntries(present.map(p => [p.id, p]))
@@ -661,9 +662,11 @@ function scoreCandidate(
       const { team1Player1Id: p1, team1Player2Id: p2, team2Player1Id: p3, team2Player2Id: p4 } = m
       if (!p1 || !p2 || !p3 || !p4) { score -= 10000; continue }
 
-      // Partner repeats (strongest penalty)
-      score -= (history[p1]?.partners[p2] ?? 0) * 1000
-      score -= (history[p3]?.partners[p4] ?? 0) * 1000
+      // Partner repeats — only penalise in rotating mode; fixed partners repeat every round by design
+      if (!isFixed) {
+        score -= (history[p1]?.partners[p2] ?? 0) * 1000
+        score -= (history[p3]?.partners[p4] ?? 0) * 1000
+      }
 
       // Opponent repeats
       for (const a of [p1, p2]) for (const b of [p3, p4]) {
@@ -718,6 +721,7 @@ function buildNotes(
   history: History,
   present: SessionPlayer[],
   format: RoundFormat,
+  isFixed = false,
 ): string[] {
   const byId = Object.fromEntries(present.map(p => [p.id, p]))
   const notes: string[] = []
@@ -758,8 +762,8 @@ function buildNotes(
     }
   }
 
-  // Partner note only makes sense for doubles rounds.
-  if (hasDoubles) {
+  // Partner note only makes sense for rotating doubles rounds.
+  if (hasDoubles && !isFixed) {
     if (!repeatPartner)  notes.push('No repeated partners.')
     else                 notes.push('One or more repeated partners — unavoidable with current roster.')
   }
@@ -869,7 +873,7 @@ export function generateNextRound(
 
     for (let i = 0; i < candidateCount; i++) {
       const matches = generateFixedCandidate(presentPairs, orphans, format)
-      const score   = scoreCandidate(matches, history, present)
+      const score   = scoreCandidate(matches, history, present, true)
       if (score > bestScore || (score === bestScore && Math.random() < 0.5)) {
         bestScore = score; bestMatches = matches
       }
@@ -879,7 +883,7 @@ export function generateNextRound(
 
     return {
       matches: bestMatches,
-      notes:   buildNotes(bestMatches, history, present, format),
+      notes:   buildNotes(bestMatches, history, present, format, true),
       score:   bestScore,
       format,
     }
