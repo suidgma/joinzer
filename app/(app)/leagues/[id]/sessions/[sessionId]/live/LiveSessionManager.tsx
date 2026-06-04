@@ -625,7 +625,8 @@ export default function LiveSessionManager({
 
   // --- Quick court preview ---
   function courtsPreview() {
-    if (eligibleCount < 2) return 'No players present yet.'
+    if (eligibleCount === 0) return 'No players present yet.'
+    if (eligibleCount === 1) return '1 player present — need at least 2 to generate a round.'
     const courts = numberOfCourts
     const isSingles = format.includes('singles')
 
