@@ -59,7 +59,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, location_id, default_win_by,
+        cost_cents, location_id, default_win_by, default_games_to, default_bracket_type,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -325,7 +325,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             tournamentStartTime={tournament.start_time ?? null}
             tournamentEndTime={tournament.estimated_end_time ?? null}
             tournamentLocationName={(tournament.location as any)?.name ?? null}
-            defaultWinBy={(tournament as any).default_win_by ?? 2}
+            defaultWinBy={(tournament as any).default_win_by ?? 1}
+            defaultGamesTo={(tournament as any).default_games_to ?? 11}
+            defaultBracketType={(tournament as any).default_bracket_type ?? 'round_robin'}
             defaultLocationId={(tournament as any).location_id ?? null}
             locations={(locationsData ?? []) as any[]}
           />
@@ -417,7 +419,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             tournamentStartTime={tournament.start_time ?? null}
             tournamentEndTime={tournament.estimated_end_time ?? null}
             tournamentLocationName={(tournament.location as any)?.name ?? null}
-            defaultWinBy={(tournament as any).default_win_by ?? 2}
+            defaultWinBy={(tournament as any).default_win_by ?? 1}
+            defaultGamesTo={(tournament as any).default_games_to ?? 11}
+            defaultBracketType={(tournament as any).default_bracket_type ?? 'round_robin'}
             defaultLocationId={(tournament as any).location_id ?? null}
             locations={(locationsData ?? []) as any[]}
           />

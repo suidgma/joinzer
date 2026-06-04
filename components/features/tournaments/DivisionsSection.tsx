@@ -99,11 +99,13 @@ type Props = {
   tournamentEndTime?: string | null
   tournamentLocationName?: string | null
   defaultWinBy?: number
+  defaultGamesTo?: number
+  defaultBracketType?: BracketType
   defaultLocationId?: string | null
   locations?: LocationOption[]
 }
 
-export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 2, defaultLocationId = null, locations = [] }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [] }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -178,8 +180,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fPartnerMode, setFPartnerMode] = useState<'fixed' | 'rotating'>('fixed')
   const [fMax, setFMax] = useState(16)
   const [fWaitlist, setFWaitlist] = useState(false)
-  const [fBracketType, setFBracketType] = useState<BracketType>('round_robin')
-  const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>({ ...FORMAT_DEFAULTS.round_robin, win_by: defaultWinBy })
+  const [fBracketType, setFBracketType] = useState<BracketType>(defaultBracketType)
+  const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
   const [fLocationId, setFLocationId] = useState<string>(defaultLocationId ?? '')
   const [fCostDollars, setFCostDollars] = useState('')
   const [fMinAge, setFMinAge] = useState('')
@@ -310,7 +312,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setShowAddForm(false)
     setFName(''); setFCategory('mixed'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
-    setFBracketType('round_robin'); setFFormatSettings({ ...FORMAT_DEFAULTS.round_robin, win_by: defaultWinBy })
+    setFBracketType(defaultBracketType)
+    setFFormatSettings({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
     setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('08:00')
     setFLocationId(defaultLocationId ?? '')
     setFLoading(false)
@@ -974,7 +977,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             <FormatSettingsFields
               bracketType={fBracketType}
               formatSettings={fFormatSettings}
-              onTypeChange={t => { setFBracketType(t); setFFormatSettings({ ...FORMAT_DEFAULTS[t], win_by: defaultWinBy }) }}
+              onTypeChange={t => { setFBracketType(t); setFFormatSettings({ ...FORMAT_DEFAULTS[t], win_by: defaultWinBy, games_to: defaultGamesTo }) }}
               onSettingsChange={setFFormatSettings}
             />
           </div>

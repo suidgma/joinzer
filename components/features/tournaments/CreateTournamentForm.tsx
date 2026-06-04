@@ -34,7 +34,9 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [costDollars, setCostDollars] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
-  const [defaultWinBy, setDefaultWinBy] = useState<1 | 2>(2)
+  const [defaultWinBy, setDefaultWinBy] = useState<1 | 2>(1)
+  const [defaultGamesTo, setDefaultGamesTo] = useState<11 | 15 | 21>(11)
+  const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination'>('round_robin')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,6 +81,8 @@ export default function CreateTournamentForm({ locations }: Props) {
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
         default_win_by: defaultWinBy,
+        default_games_to: defaultGamesTo,
+        default_bracket_type: defaultBracketType,
       })
       .select('id')
       .single()
@@ -200,15 +204,38 @@ export default function CreateTournamentForm({ locations }: Props) {
       </FormSection>
 
       <FormSection title="Division Defaults" description="These pre-populate each division you create and can be overridden per division." defaultOpen>
+        <FormRow label="Format">
+          <div className="flex flex-col gap-2">
+            {([
+              { value: 'round_robin',        label: 'Round Robin',        desc: 'Every team plays every other team.' },
+              { value: 'single_elimination', label: 'Single Elimination', desc: 'One loss and you\'re out.' },
+              { value: 'double_elimination', label: 'Double Elimination', desc: 'Teams eliminated after two losses.' },
+            ] as const).map(opt => (
+              <label key={opt.value} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${defaultBracketType === opt.value ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white hover:bg-brand-soft/50'}`}>
+                <input type="radio" name="default_bracket_type" value={opt.value} checked={defaultBracketType === opt.value} onChange={() => setDefaultBracketType(opt.value)} className="mt-0.5 accent-brand" />
+                <div>
+                  <p className="text-sm font-semibold text-brand-dark">{opt.label}</p>
+                  <p className="text-xs text-brand-muted">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Points to win">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {([11, 15, 21] as const).map(pts => (
+              <button key={pts} type="button" onClick={() => setDefaultGamesTo(pts)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultGamesTo === pts ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}>
+                {pts}
+              </button>
+            ))}
+          </div>
+        </FormRow>
         <FormRow label="Win By">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {([{ value: 1, label: 'Win by 1' }, { value: 2, label: 'Win by 2' }] as const).map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setDefaultWinBy(opt.value)}
-                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultWinBy === opt.value ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}
-              >
+              <button key={opt.value} type="button" onClick={() => setDefaultWinBy(opt.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultWinBy === opt.value ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}>
                 {opt.label}
               </button>
             ))}
