@@ -196,8 +196,8 @@ export default async function LiveSessionPage(
   const teamByUserId: Record<string, string> = {}
   if ((league as any).partner_mode === 'fixed') {
     const seen = new Set<string>()
-    const regList = (registrations ?? []) as Array<{ user_id: string; partner_user_id: string | null; profile: { name: string } | null }>
-    const nameByUserId = Object.fromEntries(regList.map(r => [r.user_id, (r.profile as any)?.name ?? '']))
+    const regList = (registrations ?? []) as any[]
+    const nameByUserId = Object.fromEntries(regList.map((r: any) => [r.user_id, r.profile?.name ?? '']))
     for (const reg of regList) {
       if (!reg.partner_user_id) continue
       const canonical = reg.user_id < reg.partner_user_id
