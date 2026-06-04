@@ -49,6 +49,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
     for (const m of matches) { if (m.existingScore != null) init[m.roundMatchId] = true }
     return init
   })
+  const [editing, setEditing] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [savingAll, setSavingAll] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -65,6 +66,12 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
 
   function setLoserScore(id: string, loserScore: string) {
     setScores((prev) => ({ ...prev, [id]: { ...prev[id], loserScore } }))
+    setErrors((prev) => { const next = { ...prev }; delete next[id]; return next })
+  }
+
+  function handleEdit(id: string) {
+    setSaved((prev) => { const next = { ...prev }; delete next[id]; return next })
+    setEditing((prev) => ({ ...prev, [id]: true }))
     setErrors((prev) => { const next = { ...prev }; delete next[id]; return next })
   }
 
@@ -99,7 +106,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
       }
     })
 
-    const { error } = await supabase.from('league_matches').insert(rows)
+    const { error } = await supabase.from('league_matches').upsert(rows, { onConflict: 'session_id,round_number,court_number' })
     if (error) {
       setSaveError(error.message)
     } else {
@@ -202,7 +209,16 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
 
                   {/* Score entry */}
                   {isSaved ? (
-                    <p className="text-center font-bold text-brand-dark text-sm">{displayScore}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-bold text-brand-dark text-sm">{displayScore}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(m.roundMatchId)}
+                        className="text-xs text-brand-active underline underline-offset-2 flex-shrink-0"
+                      >
+                        Edit
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <button
