@@ -105,11 +105,6 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
     `,
   })
 
-  if (error) {
-    console.error('Resend error:', error)
-    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
-  }
-
   // In-app notifications for all recipients (fire-and-forget — errors are swallowed)
   await createNotifications(
     userIds.map(uid => ({
