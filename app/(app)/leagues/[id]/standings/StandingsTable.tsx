@@ -165,6 +165,25 @@ export default function StandingsTable({
     )
   }
 
+  // Column order depends on standings method
+  const statColOrder: SortKey[] = standingsMethod === 'win_loss'
+    ? ['wl', 'winPct', 'points', 'diff', 'streak']
+    : ['points', 'diff', 'wl', 'winPct', 'streak']
+
+  const statColHeaders: Record<string, string> = {
+    points: 'Points', diff: '+/-', wl: 'W-L', winPct: 'Win%', streak: 'Streak',
+  }
+
+  function StatCell({ col, p, diffStr }: { col: SortKey; p: StandingRow; diffStr: string }) {
+    const base = `px-3 py-2.5 text-center border-b border-brand-border`
+    if (col === 'points') return <td className={base}><span className="text-sm font-bold text-brand-dark">{p.games > 0 ? p.points : '—'}</span></td>
+    if (col === 'diff')   return <td className={base}><span className={`text-xs font-medium ${p.diff > 0 ? 'text-lime-600' : p.diff < 0 ? 'text-red-400' : 'text-brand-muted'}`}>{p.games > 0 ? diffStr : '—'}</span></td>
+    if (col === 'wl')     return <td className={base}><span className="text-xs text-brand-muted">{p.wins}–{p.losses}</span></td>
+    if (col === 'winPct') return <td className={base}><span className="text-sm font-bold text-brand-dark">{p.games > 0 ? (p.winPct * 100).toFixed(0) + '%' : '—'}</span></td>
+    if (col === 'streak') return <td className={base}><StreakBadge streak={p.streak} /></td>
+    return null
+  }
+
   return (
     <div className="overflow-x-auto -mx-4 px-4">
       <table className="min-w-full text-sm border-separate border-spacing-0">
@@ -179,11 +198,7 @@ export default function StandingsTable({
             >
               Player<SortIcon col="name" />
             </th>
-            <Th col="points">Points</Th>
-            <Th col="diff">+/-</Th>
-            <Th col="wl">W-L</Th>
-            <Th col="winPct">Win%</Th>
-            <Th col="streak">Streak</Th>
+            {statColOrder.map(col => <Th key={col} col={col}>{statColHeaders[col]}</Th>)}
             {sessionsWithData.map((s) => (
               <Th key={s.id} col={`wk_${s.id}`} className="border-l">
                 Wk {s.session_number}
@@ -216,25 +231,7 @@ export default function StandingsTable({
                     <span className="text-sm font-medium text-brand-dark">{p.name}</span>
                   </div>
                 </td>
-                <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <span className="text-sm font-bold text-brand-dark">{p.games > 0 ? p.points : '—'}</span>
-                </td>
-                <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <span className={`text-xs font-medium ${p.diff > 0 ? 'text-lime-600' : p.diff < 0 ? 'text-red-400' : 'text-brand-muted'}`}>
-                    {p.games > 0 ? diffStr : '—'}
-                  </span>
-                </td>
-                <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <span className="text-xs text-brand-muted">{p.wins}–{p.losses}</span>
-                </td>
-                <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <span className="text-sm font-bold text-brand-dark">
-                    {p.games > 0 ? (p.winPct * 100).toFixed(0) + '%' : '—'}
-                  </span>
-                </td>
-                <td className={`px-3 py-2.5 text-center border-b border-brand-border ${rowBg}`}>
-                  <StreakBadge streak={p.streak} />
-                </td>
+                {statColOrder.map(col => <StatCell key={col} col={col} p={p} diffStr={diffStr} />)}
                 {sessionsWithData.map((s) => {
                   const pts = bySession[s.id]
                   const wl  = sessionWL[p.userId]?.[s.id]
