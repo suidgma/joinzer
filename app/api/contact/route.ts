@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const safeQuestion = escapeHtml(question.trim())
   const displayFrom = safeName ? `${safeName} (${safeEmail})` : safeEmail
 
-  const { error } = await sendEmail({
+  await sendEmail({
     to: 'support@joinzer.com',
     replyTo: email.trim(),
     subject: `Contact form: ${safeName ?? safeEmail}`,
@@ -45,11 +45,6 @@ export async function POST(request: NextRequest) {
       </div>
     `,
   })
-
-  if (error) {
-    console.error('Contact form Resend error:', error)
-    return NextResponse.json({ error: 'Failed to send. Please email support@joinzer.com directly.' }, { status: 500 })
-  }
 
   return NextResponse.json({ ok: true })
 }
