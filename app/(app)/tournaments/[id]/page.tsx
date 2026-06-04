@@ -53,13 +53,13 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data }, { data: divisionsRaw }, { data: regsRaw }, { data: matchesData }, { data: tournamentMessages }, { data: discountCodes }, { data: staffRow }] = await Promise.all([
+  const [{ data }, { data: divisionsRaw }, { data: regsRaw }, { data: matchesData }, { data: tournamentMessages }, { data: discountCodes }, { data: staffRow }, { data: locationsData }] = await Promise.all([
     db
       .from('tournaments')
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, location_id,
+        cost_cents, location_id, default_win_by,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -68,7 +68,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .single(),
     db
       .from('tournament_divisions')
-      .select('id, name, format, category, team_type, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
+      .select('id, name, format, category, team_type, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
@@ -98,6 +98,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     user
       ? db.from('tournament_staff').select('role').eq('tournament_id', params.id).eq('user_id', user.id).maybeSingle()
       : Promise.resolve({ data: null }),
+    db.from('locations').select('id, name, court_count, access_type, subarea').eq('is_active', true).order('sort_order', { ascending: true }),
   ])
 
   if (!data) notFound()
@@ -324,6 +325,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             tournamentStartTime={tournament.start_time ?? null}
             tournamentEndTime={tournament.estimated_end_time ?? null}
             tournamentLocationName={(tournament.location as any)?.name ?? null}
+            defaultWinBy={(tournament as any).default_win_by ?? 2}
+            defaultLocationId={(tournament as any).location_id ?? null}
+            locations={(locationsData ?? []) as any[]}
           />
 
           {/* Discount codes */}
@@ -413,6 +417,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             tournamentStartTime={tournament.start_time ?? null}
             tournamentEndTime={tournament.estimated_end_time ?? null}
             tournamentLocationName={(tournament.location as any)?.name ?? null}
+            defaultWinBy={(tournament as any).default_win_by ?? 2}
+            defaultLocationId={(tournament as any).location_id ?? null}
+            locations={(locationsData ?? []) as any[]}
           />
         )}
 

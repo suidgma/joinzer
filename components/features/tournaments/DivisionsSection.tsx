@@ -84,6 +84,8 @@ type Division = {
   tournament_registrations: Registration[]
 }
 
+type LocationOption = { id: string; name: string; subarea?: string | null }
+
 type Props = {
   tournamentId: string
   tournamentName?: string
@@ -96,9 +98,12 @@ type Props = {
   tournamentStartTime?: string | null
   tournamentEndTime?: string | null
   tournamentLocationName?: string | null
+  defaultWinBy?: number
+  defaultLocationId?: string | null
+  locations?: LocationOption[]
 }
 
-export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 2, defaultLocationId = null, locations = [] }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -174,7 +179,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fMax, setFMax] = useState(16)
   const [fWaitlist, setFWaitlist] = useState(false)
   const [fBracketType, setFBracketType] = useState<BracketType>('round_robin')
-  const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
+  const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>({ ...FORMAT_DEFAULTS.round_robin, win_by: defaultWinBy })
+  const [fLocationId, setFLocationId] = useState<string>(defaultLocationId ?? '')
   const [fCostDollars, setFCostDollars] = useState('')
   const [fMinAge, setFMinAge] = useState('')
   const [fMaxAge, setFMaxAge] = useState('')
@@ -199,6 +205,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [editWaitlist, setEditWaitlist] = useState(false)
   const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
   const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
+  const [editLocationId, setEditLocationId] = useState<string>('')
   const [editCostDollars, setEditCostDollars] = useState('')
   const [editMinAge, setEditMinAge] = useState('')
   const [editMaxAge, setEditMaxAge] = useState('')
@@ -292,8 +299,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         min_age: fMinAge ? parseInt(fMinAge) : null,
         max_age: fMaxAge ? parseInt(fMaxAge) : null,
         start_time: fStartTimeEnabled ? fStartTime : null,
+        location_id: fLocationId || null,
       })
-      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
+      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -302,8 +310,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setShowAddForm(false)
     setFName(''); setFCategory('mixed'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
-    setFBracketType('round_robin'); setFFormatSettings(FORMAT_DEFAULTS.round_robin)
+    setFBracketType('round_robin'); setFFormatSettings({ ...FORMAT_DEFAULTS.round_robin, win_by: defaultWinBy })
     setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('08:00')
+    setFLocationId(defaultLocationId ?? '')
     setFLoading(false)
   }
 
@@ -324,6 +333,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditMaxAge(div.max_age != null ? String(div.max_age) : '')
     setEditStartTime(div.start_time ? div.start_time.slice(0, 5) : '08:00')
     setEditStartTimeEnabled(!!div.start_time)
+    setEditLocationId((div as any).location_id ?? defaultLocationId ?? '')
     setEditFormatError(null)
     setEditingFormatId(div.id)
   }
@@ -352,6 +362,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       min_age: editMinAge ? parseInt(editMinAge) : null,
       max_age: editMaxAge ? parseInt(editMaxAge) : null,
       start_time: editStartTimeEnabled ? editStartTime : null,
+      location_id: editLocationId || null,
     }
 
     const supabase = createClient()
@@ -359,7 +370,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .from('tournament_divisions')
       .update(updatePayload)
       .eq('id', divisionId)
-      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
+      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !updated) { setEditFormatError(error?.message ?? 'Save failed'); setEditFormatLoading(false); return }
@@ -949,11 +960,21 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             </div>
           </div>
 
+          {locations.length > 0 && (
+            <div className="border-t border-brand-border pt-3">
+              <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide mb-2">Venue</p>
+              <select value={fLocationId} onChange={e => setFLocationId(e.target.value)} className="w-full input text-sm">
+                <option value="">— Use tournament venue —</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}{l.subarea ? ` — ${l.subarea}` : ''}</option>)}
+              </select>
+            </div>
+          )}
+
           <div className="border-t border-brand-border pt-3">
             <FormatSettingsFields
               bracketType={fBracketType}
               formatSettings={fFormatSettings}
-              onTypeChange={t => { setFBracketType(t); setFFormatSettings(FORMAT_DEFAULTS[t]) }}
+              onTypeChange={t => { setFBracketType(t); setFFormatSettings({ ...FORMAT_DEFAULTS[t], win_by: defaultWinBy }) }}
               onSettingsChange={setFFormatSettings}
             />
           </div>
@@ -1205,6 +1226,16 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         />
                       </div>
                     </div>
+
+                    {locations.length > 0 && (
+                      <div className="border-t border-brand-border pt-3">
+                        <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide mb-2">Venue</p>
+                        <select value={editLocationId} onChange={e => setEditLocationId(e.target.value)} className="w-full input text-sm">
+                          <option value="">— Use tournament venue —</option>
+                          {locations.map(l => <option key={l.id} value={l.id}>{l.name}{l.subarea ? ` — ${l.subarea}` : ''}</option>)}
+                        </select>
+                      </div>
+                    )}
 
                     <div className="border-t border-brand-border pt-3">
                       <FormatSettingsFields

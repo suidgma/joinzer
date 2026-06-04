@@ -34,6 +34,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [costDollars, setCostDollars] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
+  const [defaultWinBy, setDefaultWinBy] = useState<1 | 2>(2)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -77,6 +78,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
+        default_win_by: defaultWinBy,
       })
       .select('id')
       .single()
@@ -191,6 +193,23 @@ export default function CreateTournamentForm({ locations }: Props) {
                 }`}
               >
                 {r === 'open' ? 'Open' : 'Closed'}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+      </FormSection>
+
+      <FormSection title="Division Defaults" description="These pre-populate each division you create and can be overridden per division." defaultOpen>
+        <FormRow label="Win By">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {([{ value: 1, label: 'Win by 1' }, { value: 2, label: 'Win by 2' }] as const).map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setDefaultWinBy(opt.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultWinBy === opt.value ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}
+              >
+                {opt.label}
               </button>
             ))}
           </div>
