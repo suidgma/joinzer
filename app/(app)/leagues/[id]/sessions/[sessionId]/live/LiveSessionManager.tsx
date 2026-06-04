@@ -80,6 +80,7 @@ type Props = {
   attendanceByUserId: Record<string, string>
   subRequests: SubRequest[]
   format: string
+  teamByUserId?: Record<string, string>
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -134,9 +135,11 @@ function ScoreBadge({ score, t1Won }: { score: Score; t1Won: boolean }) {
   )
 }
 
-function MatchCard({ match, players, score }: { match: Match; players: Player[]; score?: Score | null }) {
+function MatchCard({ match, players, score, teamBySpId = {} }: { match: Match; players: Player[]; score?: Score | null; teamBySpId?: Record<string, string> }) {
   if (match.match_type === 'doubles') {
     const t1Won = score ? score.t1 > score.t2 : null
+    const t1Team = match.team1_player1_id ? teamBySpId[match.team1_player1_id] : undefined
+    const t2Team = match.team2_player1_id ? teamBySpId[match.team2_player1_id] : undefined
     return (
       <div className="bg-brand-surface border border-brand-border rounded-xl p-3">
         <p className="text-[10px] font-semibold text-brand-muted uppercase mb-2">
@@ -144,13 +147,25 @@ function MatchCard({ match, players, score }: { match: Match; players: Player[];
         </p>
         <div className="flex items-center gap-2 text-sm">
           <div className={`flex-1 space-y-0.5 ${score && t1Won ? 'font-semibold' : ''}`}>
-            <p className={score && t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team1_player1_id, players)}</p>
-            <p className={score && t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team1_player2_id, players)}</p>
+            {t1Team ? (
+              <p className={score && t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{t1Team}</p>
+            ) : (
+              <>
+                <p className={score && t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team1_player1_id, players)}</p>
+                <p className={score && t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team1_player2_id, players)}</p>
+              </>
+            )}
           </div>
           {score ? <ScoreBadge score={score} t1Won={!!t1Won} /> : <span className="text-brand-muted font-bold text-xs">vs</span>}
           <div className={`flex-1 text-right space-y-0.5 ${score && !t1Won ? 'font-semibold' : ''}`}>
-            <p className={score && !t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team2_player1_id, players)}</p>
-            <p className={score && !t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team2_player2_id, players)}</p>
+            {t2Team ? (
+              <p className={score && !t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{t2Team}</p>
+            ) : (
+              <>
+                <p className={score && !t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team2_player1_id, players)}</p>
+                <p className={score && !t1Won ? 'text-brand-dark' : score ? 'text-brand-muted' : 'text-brand-dark font-medium'}>{playerName(match.team2_player2_id, players)}</p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -187,6 +202,7 @@ function RoundCard({
   players,
   scoreMap,
   spToUserId,
+  teamBySpId,
   onLock,
   onUnlock,
   onComplete,
@@ -197,6 +213,7 @@ function RoundCard({
   players: Player[]
   scoreMap?: Map<string, Score>
   spToUserId?: Map<string, string>
+  teamBySpId?: Record<string, string>
   onLock: (id: string) => void
   onUnlock: (id: string) => void
   onComplete: (id: string) => void
@@ -239,7 +256,7 @@ function RoundCard({
       <div className="p-3 space-y-2">
         {round.matches
           .sort((a, b) => (a.court_number ?? 99) - (b.court_number ?? 99))
-          .map(m => <MatchCard key={m.id} match={m} players={players} score={matchScore(m)} />)
+          .map(m => <MatchCard key={m.id} match={m} players={players} score={matchScore(m)} teamBySpId={teamBySpId} />)
         }
       </div>
 
@@ -522,6 +539,7 @@ export default function LiveSessionManager({
   attendanceByUserId,
   subRequests,
   format,
+  teamByUserId = {},
 }: Props) {
   const router = useRouter()
   const currentRoundRef = useRef<HTMLElement>(null)
@@ -828,6 +846,32 @@ export default function LiveSessionManager({
   const subPlayers      = players.filter(p => p.player_type !== 'roster_player')
   const completedRounds = rounds.filter(r => r.status === 'completed')
 
+  // Map session_player.id → teamName for fixed-partner display
+  const teamBySpId: Record<string, string> = {}
+  const isFixedPartner = Object.keys(teamByUserId).length > 0
+  if (isFixedPartner) {
+    for (const p of players) {
+      if (p.userId && teamByUserId[p.userId]) teamBySpId[p.id] = teamByUserId[p.userId]
+    }
+  }
+
+  // Group roster players by team for attendance display
+  const teamGroups = (() => {
+    if (!isFixedPartner) return null
+    const seen = new Set<string>()
+    const groups: Array<{ teamName: string; members: Player[] }> = []
+    const solo: Player[] = []
+    for (const p of rosterPlayers) {
+      const teamName = p.userId ? teamByUserId[p.userId] : undefined
+      if (!teamName) { solo.push(p); continue }
+      if (seen.has(teamName)) continue
+      seen.add(teamName)
+      groups.push({ teamName, members: rosterPlayers.filter(o => o.userId && teamByUserId[o.userId] === teamName) })
+    }
+    groups.sort((a, b) => a.teamName.localeCompare(b.teamName))
+    return { groups, solo }
+  })()
+
   // absentPlayerId → sub player (for roster row "Subbed by X" display)
   const subByAbsentId = new Map<string, Player>()
   for (const p of subPlayers) {
@@ -979,10 +1023,28 @@ export default function LiveSessionManager({
                   </button>
                 ))}
               </div>
-              {rosterPlayers.map((p, idx) => {
+              {/* Render players — grouped by team for fixed-partner leagues */}
+              {(teamGroups
+                ? [
+                    ...teamGroups.groups.flatMap(({ teamName, members }) => [
+                      { type: 'teamHeader' as const, teamName, members },
+                      ...members.map(p => ({ type: 'player' as const, p })),
+                    ]),
+                    ...teamGroups.solo.map(p => ({ type: 'player' as const, p })),
+                  ]
+                : rosterPlayers.map(p => ({ type: 'player' as const, p }))
+              ).map((item, idx, arr) => {
+                if (item.type === 'teamHeader') {
+                  return (
+                    <div key={`team-${item.teamName}`} className="px-2 py-1 bg-brand/10 border-b border-brand-border">
+                      <p className="text-[10px] font-bold text-brand-dark uppercase tracking-wide">{item.teamName}</p>
+                    </div>
+                  )
+                }
+                const p = item.p
                 const selfStatus = p.user_id ? attendanceByUserId[p.user_id] : undefined
                 const assignedSub = subByAbsentId.get(p.id)
-                const isLast = idx === rosterPlayers.length - 1
+                const isLast = idx === arr.length - 1
                 return (
                   <div key={p.id}>
                     <div className={`grid grid-cols-[1fr_repeat(6,36px)] items-center px-2 py-2 gap-x-1 border-b border-brand-border ${ROW_BG[p.actual_status]}`}>
@@ -1136,6 +1198,7 @@ export default function LiveSessionManager({
           <RoundCard
             round={activeRound}
             players={players}
+            teamBySpId={teamBySpId}
             onLock={id => roundAction(id, 'lock')}
             onUnlock={id => roundAction(id, 'unlock')}
             onComplete={id => roundAction(id, 'complete')}
@@ -1156,6 +1219,7 @@ export default function LiveSessionManager({
                 players={players}
                 scoreMap={scoreMap}
                 spToUserId={spToUserId}
+                teamBySpId={teamBySpId}
                 onLock={() => {}}
                 onUnlock={() => {}}
                 onComplete={() => {}}

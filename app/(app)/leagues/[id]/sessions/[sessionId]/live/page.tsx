@@ -21,7 +21,7 @@ export default async function LiveSessionPage(
   )
 
   const [{ data: league }, { data: session }] = await Promise.all([
-    db.from('leagues').select('id, name, created_by, format').eq('id', params.id).single(),
+    db.from('leagues').select('id, name, created_by, format, partner_mode').eq('id', params.id).single(),
     db.from('league_sessions').select('id, session_number, session_date, status, number_of_courts, rounds_planned').eq('id', params.sessionId).single(),
   ])
 
@@ -48,7 +48,7 @@ export default async function LiveSessionPage(
     db.from('league_session_players').select('user_id, id, player_type').eq('session_id', params.sessionId),
     db.from('league_session_attendance').select('user_id, attendance_status').eq('league_session_id', params.sessionId),
     db.from('league_registrations')
-      .select('user_id, profile:profiles!user_id(id, name, joinzer_rating, dupr_rating, estimated_rating)')
+      .select('user_id, partner_user_id, profile:profiles!user_id(id, name, joinzer_rating, dupr_rating, estimated_rating)')
       .eq('league_id', params.id)
       .eq('status', 'registered'),
     db.from('league_session_subs')
@@ -192,6 +192,28 @@ export default async function LiveSessionPage(
 
   const scoredRoundNumbers = Array.from(new Set((matchScoreRows ?? []).map(r => r.round_number as number)))
 
+  // Build userId → teamName map for fixed-partner leagues
+  const teamByUserId: Record<string, string> = {}
+  if ((league as any).partner_mode === 'fixed') {
+    const seen = new Set<string>()
+    const regList = (registrations ?? []) as Array<{ user_id: string; partner_user_id: string | null; profile: { name: string } | null }>
+    const nameByUserId = Object.fromEntries(regList.map(r => [r.user_id, (r.profile as any)?.name ?? '']))
+    for (const reg of regList) {
+      if (!reg.partner_user_id) continue
+      const canonical = reg.user_id < reg.partner_user_id
+        ? `${reg.user_id}|${reg.partner_user_id}`
+        : `${reg.partner_user_id}|${reg.user_id}`
+      if (seen.has(canonical)) continue
+      seen.add(canonical)
+      const n1 = (nameByUserId[reg.user_id] ?? '').split(' ')[0]
+      const n2 = (nameByUserId[reg.partner_user_id] ?? '').split(' ')[0]
+      const [first, second] = n1.localeCompare(n2) <= 0 ? [n1, n2] : [n2, n1]
+      const teamName = `Team ${first}/${second}`
+      teamByUserId[reg.user_id] = teamName
+      teamByUserId[reg.partner_user_id] = teamName
+    }
+  }
+
   const dateStr = formatSessionDate(session.session_date, { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
@@ -218,6 +240,7 @@ export default async function LiveSessionPage(
         attendanceByUserId={attendanceByUserId}
         subRequests={(subRequests ?? []) as any[]}
         format={(league as any).format ?? 'mixed_doubles'}
+        teamByUserId={teamByUserId}
       />
 
     </main>
