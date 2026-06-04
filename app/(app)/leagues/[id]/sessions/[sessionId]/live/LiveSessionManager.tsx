@@ -851,7 +851,7 @@ export default function LiveSessionManager({
   const isFixedPartner = Object.keys(teamByUserId).length > 0
   if (isFixedPartner) {
     for (const p of players) {
-      if (p.userId && teamByUserId[p.userId]) teamBySpId[p.id] = teamByUserId[p.userId]
+      if (p.user_id && teamByUserId[p.user_id]) teamBySpId[p.id] = teamByUserId[p.user_id]
     }
   }
 
@@ -862,11 +862,11 @@ export default function LiveSessionManager({
     const groups: Array<{ teamName: string; members: Player[] }> = []
     const solo: Player[] = []
     for (const p of rosterPlayers) {
-      const teamName = p.userId ? teamByUserId[p.userId] : undefined
+      const teamName = p.user_id ? teamByUserId[p.user_id] : undefined
       if (!teamName) { solo.push(p); continue }
       if (seen.has(teamName)) continue
       seen.add(teamName)
-      groups.push({ teamName, members: rosterPlayers.filter(o => o.userId && teamByUserId[o.userId] === teamName) })
+      groups.push({ teamName, members: rosterPlayers.filter(o => o.user_id && teamByUserId[o.user_id] === teamName) })
     }
     groups.sort((a, b) => a.teamName.localeCompare(b.teamName))
     return { groups, solo }
