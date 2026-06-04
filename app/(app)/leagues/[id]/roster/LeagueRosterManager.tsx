@@ -67,6 +67,29 @@ export default function LeagueRosterManager({
   // Build userId → name map for partner display
   const nameById = Object.fromEntries(registered.map(r => [r.user_id, r.profile.name]))
 
+  // Compute unique teams (deduplicated pairs) sorted alphabetically
+  const teams = (() => {
+    const seen = new Set<string>()
+    const result: Array<{ key: string; p1: PlayerReg; p2: PlayerReg; label: string }> = []
+    for (const r of registered) {
+      if (!r.partner_user_id) continue
+      const partner = registered.find(p => p.user_id === r.partner_user_id)
+      if (!partner) continue
+      const canonical = r.user_id < r.partner_user_id
+        ? `${r.user_id}|${r.partner_user_id}`
+        : `${r.partner_user_id}|${r.user_id}`
+      if (seen.has(canonical)) continue
+      seen.add(canonical)
+      const n1 = r.profile.name.split(' ')[0]
+      const n2 = partner.profile.name.split(' ')[0]
+      const [first, second] = n1.localeCompare(n2) <= 0 ? [n1, n2] : [n2, n1]
+      result.push({ key: canonical, p1: r, p2: partner, label: `Team ${first}/${second}` })
+    }
+    return result.sort((a, b) => a.label.localeCompare(b.label))
+  })()
+
+  const unassigned = registered.filter(r => !r.partner_user_id)
+
   async function handleRemove(userId: string) {
     setRemovingId(userId)
     try {
@@ -199,62 +222,116 @@ export default function LeagueRosterManager({
             <span className="text-xs text-brand-muted">Required for schedule generation</span>
           </div>
           <div className="bg-brand-soft border border-brand-border rounded-xl p-3 space-y-2">
-            {registered.map((r) => {
-              const partnerName = r.partner_user_id ? nameById[r.partner_user_id] : null
-              const isAssigning = assigningPartnerId === r.user_id
-              // Only show unassigned players in partner dropdowns (exclude self and already-paired players)
-              const eligible = registered.filter(other =>
-                other.user_id !== r.user_id &&
-                (other.partner_user_id === null || other.partner_user_id === r.user_id)
-              )
 
-              return (
-                <div key={r.user_id} className="flex items-center gap-2 py-1 border-b border-brand-border last:border-0">
-                  <span className="text-sm font-medium text-brand-dark flex-1 min-w-0 truncate">{r.profile.name}</span>
-                  {isAssigning ? (
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <select
-                        value={partnerSelections[r.user_id] ?? r.partner_user_id ?? ''}
-                        onChange={e => setPartnerSelections(prev => ({ ...prev, [r.user_id]: e.target.value }))}
-                        className="input text-xs py-1"
-                      >
-                        <option value="">— No partner —</option>
-                        {eligible.map(o => (
-                          <option key={o.user_id} value={o.user_id}>{o.profile.name}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => handleAssignPartner(r.user_id)}
-                        disabled={savingPartnerId === r.user_id}
-                        className="text-xs px-2 py-1 rounded bg-brand text-brand-dark font-semibold disabled:opacity-40"
-                      >
-                        {savingPartnerId === r.user_id ? '…' : 'Save'}
-                      </button>
-                      <button onClick={() => setAssigningPartnerId(null)} className="text-xs text-brand-muted">✕</button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {partnerName ? (
-                        <span className="text-xs bg-brand/20 text-brand-dark px-2 py-0.5 rounded-full font-medium">
-                          ↔ {partnerName}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-red-500 font-medium">No partner</span>
-                      )}
-                      <button
-                        onClick={() => {
-                          setAssigningPartnerId(r.user_id)
-                          setPartnerSelections(prev => ({ ...prev, [r.user_id]: r.partner_user_id ?? '' }))
-                        }}
-                        className="text-xs text-brand-active underline underline-offset-2"
-                      >
-                        {partnerName ? 'Change' : 'Assign'}
-                      </button>
-                    </div>
-                  )}
+            {/* Paired teams — sorted alphabetically, deduplicated */}
+            {teams.map(({ key, p1, p2, label }) => (
+              <div key={key} className="border-b border-brand-border last:border-0 pb-2 last:pb-0 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-brand-dark">{label}</span>
                 </div>
-              )
-            })}
+                {/* Per-player change rows — only shown when that player is in edit mode */}
+                {[p1, p2].map(r => {
+                  const isAssigning = assigningPartnerId === r.user_id
+                  const eligible = registered.filter(other =>
+                    other.user_id !== r.user_id &&
+                    (other.partner_user_id === null || other.partner_user_id === r.user_id)
+                  )
+                  return (
+                    <div key={r.user_id} className="flex items-center gap-2 pl-2">
+                      <span className="text-xs text-brand-muted flex-1 truncate">{r.profile.name}</span>
+                      {isAssigning ? (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <select
+                            value={partnerSelections[r.user_id] ?? r.partner_user_id ?? ''}
+                            onChange={e => setPartnerSelections(prev => ({ ...prev, [r.user_id]: e.target.value }))}
+                            className="input text-xs py-0.5"
+                          >
+                            <option value="">— No partner —</option>
+                            {eligible.map(o => (
+                              <option key={o.user_id} value={o.user_id}>{o.profile.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleAssignPartner(r.user_id)}
+                            disabled={savingPartnerId === r.user_id}
+                            className="text-xs px-2 py-0.5 rounded bg-brand text-brand-dark font-semibold disabled:opacity-40"
+                          >
+                            {savingPartnerId === r.user_id ? '…' : 'Save'}
+                          </button>
+                          <button onClick={() => setAssigningPartnerId(null)} className="text-xs text-brand-muted">✕</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAssigningPartnerId(r.user_id)
+                            setPartnerSelections(prev => ({ ...prev, [r.user_id]: r.partner_user_id ?? '' }))
+                          }}
+                          className="text-xs text-brand-active underline underline-offset-2 flex-shrink-0"
+                        >
+                          Change
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+
+            {/* Unassigned players */}
+            {unassigned.length > 0 && (
+              <>
+                {teams.length > 0 && <p className="text-[10px] font-semibold text-brand-muted uppercase tracking-wide pt-1">Unassigned</p>}
+                {unassigned.map(r => {
+                  const isAssigning = assigningPartnerId === r.user_id
+                  const eligible = registered.filter(other =>
+                    other.user_id !== r.user_id &&
+                    (other.partner_user_id === null || other.partner_user_id === r.user_id)
+                  )
+                  return (
+                    <div key={r.user_id} className="flex items-center gap-2 py-1 border-b border-brand-border last:border-0">
+                      <span className="text-sm font-medium text-brand-dark flex-1 min-w-0 truncate">{r.profile.name}</span>
+                      <span className="text-xs text-red-500 font-medium flex-shrink-0">No partner</span>
+                      {isAssigning ? (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <select
+                            value={partnerSelections[r.user_id] ?? ''}
+                            onChange={e => setPartnerSelections(prev => ({ ...prev, [r.user_id]: e.target.value }))}
+                            className="input text-xs py-0.5"
+                          >
+                            <option value="">— Select partner —</option>
+                            {eligible.map(o => (
+                              <option key={o.user_id} value={o.user_id}>{o.profile.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleAssignPartner(r.user_id)}
+                            disabled={savingPartnerId === r.user_id}
+                            className="text-xs px-2 py-0.5 rounded bg-brand text-brand-dark font-semibold disabled:opacity-40"
+                          >
+                            {savingPartnerId === r.user_id ? '…' : 'Save'}
+                          </button>
+                          <button onClick={() => setAssigningPartnerId(null)} className="text-xs text-brand-muted">✕</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAssigningPartnerId(r.user_id)
+                            setPartnerSelections(prev => ({ ...prev, [r.user_id]: '' }))
+                          }}
+                          className="text-xs text-brand-active underline underline-offset-2 flex-shrink-0"
+                        >
+                          Assign
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+
+            {teams.length === 0 && unassigned.length === 0 && (
+              <p className="text-xs text-brand-muted">No registered players yet.</p>
+            )}
           </div>
         </section>
       )}
