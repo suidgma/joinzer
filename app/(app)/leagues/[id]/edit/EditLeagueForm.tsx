@@ -127,7 +127,7 @@ export default function EditLeagueForm({
   const [description, setDescription] = useState(d.description ?? '')
   const [costDollars, setCostDollars] = useState(d.cost_cents ? String(d.cost_cents / 100) : '')
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>(
-    (d.standings_method as 'win_loss' | 'total_points') ?? 'win_loss'
+    (d.standings_method as 'win_loss' | 'total_points') ?? 'total_points'
   )
   const [pointsToWin, setPointsToWin] = useState(d.points_to_win?.toString() ?? '11')
   const [winBy, setWinBy] = useState<1 | 2>((d.win_by as 1 | 2) ?? 1)
@@ -432,13 +432,13 @@ export default function EditLeagueForm({
         </FormRow>
         <FormRow label="Standings method">
           <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
-            <button type="button" onClick={() => setStandingsMethod('win_loss')}
-              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'win_loss' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
-              Win-Loss
-            </button>
             <button type="button" onClick={() => setStandingsMethod('total_points')}
               className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'total_points' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
               Total Points
+            </button>
+            <button type="button" onClick={() => setStandingsMethod('win_loss')}
+              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'win_loss' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
+              Win-Loss
             </button>
           </div>
         </FormRow>
