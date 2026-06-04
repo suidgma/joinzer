@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const duration = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
   const eventUrl = `https://joinzer.com/play/${eventId}`
 
-  const { error } = await sendEmail({
+  await sendEmail({
     to: user.email,
     subject: `Session created: ${title}`,
     html: `
@@ -55,10 +55,6 @@ export async function POST(request: NextRequest) {
     `,
   })
 
-  if (error) {
-    console.error('Resend error:', error)
-    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
-  }
 
   return NextResponse.json({ ok: true })
 }

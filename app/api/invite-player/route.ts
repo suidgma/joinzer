@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   })
   const locationName = (event.location as unknown as { name: string } | null)?.name ?? 'TBD'
 
-  const { error } = await sendEmail({
+  await sendEmail({
     to: invited.email,
     subject: `${inviter.name} wants you to join their session`,
     html: `
@@ -75,9 +75,7 @@ export async function POST(request: NextRequest) {
     `,
   })
 
-  if (error) {
-    return NextResponse.json({ error: 'Failed to send invite' }, { status: 500 })
-  }
+
 
   return NextResponse.json({ ok: true })
 }

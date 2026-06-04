@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const leagueUrl = `https://joinzer.com/leagues/${leagueId}`
   const isWaitlist = status === 'waitlist'
 
-  const { error } = await sendEmail({
+  await sendEmail({
     to: user.email,
     subject: isWaitlist ? `Waitlist confirmed: ${leagueName}` : `Registered: ${leagueName}`,
     html: `
@@ -42,10 +42,6 @@ export async function POST(request: NextRequest) {
     `,
   })
 
-  if (error) {
-    console.error('Resend error:', error)
-    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
-  }
 
   return NextResponse.json({ ok: true })
 }

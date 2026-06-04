@@ -86,7 +86,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
 
   const tournamentUrl = `https://joinzer.com/tournaments/${params.id}`
 
-  const { error } = await sendEmail({
+  await sendEmail({
     to: emails,
     subject: `[${tournament.name}] ${subject.trim()}`,
     html: `
