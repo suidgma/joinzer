@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
@@ -45,11 +45,8 @@ export async function POST(request: NextRequest) {
   })
   const locationName = (event.location as unknown as { name: string } | null)?.name ?? 'TBD'
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  const { error } = await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  const { error } = await sendEmail({
     to: invited.email,
-    replyTo: 'martyfit50@gmail.com',
     subject: `${inviter.name} wants you to join their session`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

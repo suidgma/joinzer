@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
@@ -9,9 +9,7 @@ export async function POST(request: NextRequest) {
 
   const { name, email } = await request.json()
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  await sendEmail({
     to: 'martyfit50@gmail.com',
     subject: `New user joined: ${name}`,
     html: `

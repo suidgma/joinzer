@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { createNotification } from '@/lib/notifications/create'
 import { logAudit } from '@/lib/audit/log'
 import { getSiteUrl } from '@/lib/utils/site-url'
@@ -88,11 +88,8 @@ export async function POST(_req: NextRequest, props: Params) {
   if (profile?.email) {
     const firstName = profile.name?.split(' ')[0] ?? 'there'
     const siteUrl = getSiteUrl()
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    resend.emails.send({
-      from: 'Joinzer <support@joinzer.com>',
+    sendEmail({
       to: profile.email,
-      replyTo: 'martyfit50@gmail.com',
       subject: `Refund issued — ${tournament.name}`,
       html: `
         <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

@@ -1,4 +1,4 @@
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { NextRequest, NextResponse } from 'next/server'
 
 function escapeHtml(str: string) {
@@ -11,8 +11,6 @@ function escapeHtml(str: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
   const { name, email, question } = await request.json()
 
   if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -27,8 +25,7 @@ export async function POST(request: NextRequest) {
   const safeQuestion = escapeHtml(question.trim())
   const displayFrom = safeName ? `${safeName} (${safeEmail})` : safeEmail
 
-  const { error } = await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  const { error } = await sendEmail({
     to: 'support@joinzer.com',
     replyTo: email.trim(),
     subject: `Contact form: ${safeName ?? safeEmail}`,

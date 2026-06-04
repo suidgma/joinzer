@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 
 export async function POST() {
   const supabase = createClient()
@@ -30,9 +30,7 @@ export async function POST() {
   const { error } = await admin.auth.admin.deleteUser(user.id)
   if (error) return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 })
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  await sendEmail({
     to: 'martyfit50@gmail.com',
     subject: `Account deleted: ${name}`,
     html: `

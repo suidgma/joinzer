@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { createNotification } from '@/lib/notifications/create'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
@@ -89,11 +89,8 @@ export async function POST(
   const tournamentName = tournament?.name ?? 'a tournament'
   const divisionName = division?.name ?? 'a division'
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  await sendEmail({
     to: partner_email.trim(),
-    replyTo: 'martyfit50@gmail.com',
     subject: `${inviterName} wants you as their partner`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

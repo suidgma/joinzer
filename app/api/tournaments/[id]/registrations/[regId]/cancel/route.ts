@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { logAudit } from '@/lib/audit/log'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
@@ -158,11 +158,8 @@ export async function POST(_req: NextRequest, props: Params) {
     if (promotedProfile?.email) {
       const siteUrl = getSiteUrl()
       const firstName = promotedProfile.name?.split(' ')[0] ?? 'there'
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      resend.emails.send({
-        from: 'Joinzer <support@joinzer.com>',
+      sendEmail({
         to: promotedProfile.email,
-        replyTo: 'martyfit50@gmail.com',
         subject: `You're in! A spot opened up — ${tournament.name}`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
@@ -196,11 +193,8 @@ export async function POST(_req: NextRequest, props: Params) {
       : pastDeadline
         ? '<p style="margin:0 0 16px;font-size:14px;color:#6b7280">The refund window for this tournament has closed, so your registration fee will not be refunded. Contact the organizer if you have questions.</p>'
         : ''
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    resend.emails.send({
-      from: 'Joinzer <support@joinzer.com>',
+    sendEmail({
       to: cancellerProfile.email,
-      replyTo: 'martyfit50@gmail.com',
       subject: `Registration cancelled — ${tournament.name}`,
       html: `
         <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

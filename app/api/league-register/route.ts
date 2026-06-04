@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify } from '@/lib/leagues/partner'
@@ -214,7 +214,6 @@ export async function POST(request: NextRequest) {
         if (partnerProfile) matchedWith = { name: partnerProfile.name ?? 'Your partner' }
 
         if (myProfile && partnerProfile) {
-          const resend = new Resend(process.env.RESEND_API_KEY)
           const leagueUrl = `${getSiteUrl()}/leagues/${leagueId}`
 
           const emailHtml = (recipientName: string, partnerName: string) => `
@@ -235,19 +234,15 @@ export async function POST(request: NextRequest) {
           `
 
           if (myProfile.email) {
-            resend.emails.send({
-              from: 'Joinzer <support@joinzer.com>',
+            sendEmail({
               to: myProfile.email,
-              replyTo: 'martyfit50@gmail.com',
               subject: `Partner match confirmed — ${partnerProfile.name}`,
               html: emailHtml(myProfile.name ?? '', partnerProfile.name ?? ''),
             }).catch(() => {})
           }
           if (partnerProfile.email) {
-            resend.emails.send({
-              from: 'Joinzer <support@joinzer.com>',
+            sendEmail({
               to: partnerProfile.email,
-              replyTo: 'martyfit50@gmail.com',
               subject: `Partner match confirmed — ${myProfile.name}`,
               html: emailHtml(partnerProfile.name ?? '', myProfile.name ?? ''),
             }).catch(() => {})
@@ -260,7 +255,6 @@ export async function POST(request: NextRequest) {
   // Confirmation email for the registering player (fire-and-forget)
   ;(async () => {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
       const siteUrl = getSiteUrl()
       const leagueUrl = `${siteUrl}/leagues/${leagueId}`
 
@@ -318,10 +312,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await resend.emails.send({
-        from: 'Joinzer <support@joinzer.com>',
+      await sendEmail({
         to: toEmail,
-        replyTo: 'martyfit50@gmail.com',
         subject: isWaitlist ? `Waitlist confirmed: ${league.name}` : `Registered: ${league.name}`,
         html: registrationEmail({
           heading: isWaitlist ? "You're on the waitlist!" : "You're registered!",

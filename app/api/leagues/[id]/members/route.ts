@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { formatSkillRange } from '@/lib/taxonomy/formats'
 
 type Params = { params: Promise<{ id: string }> }
@@ -63,7 +63,6 @@ export async function POST(req: NextRequest, props: Params) {
 
 async function notifyPlayerAdded(leagueId: string, userId: string) {
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const resend = new Resend(process.env.RESEND_API_KEY)
 
   const [{ data: league }, { data: player }] = await Promise.all([
     db.from('leagues').select('name, format, skill_min, skill_max, location_name').eq('id', leagueId).single(),
@@ -86,10 +85,8 @@ async function notifyPlayerAdded(leagueId: string, userId: string) {
 
   const formatLabel = FORMAT_LABELS[(league as { format: string }).format] ?? (league as { format: string }).format
 
-  await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  await sendEmail({
     to: player.email,
-    replyTo: 'martyfit50@gmail.com',
     subject: `You've been added to ${(league as { name: string }).name}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

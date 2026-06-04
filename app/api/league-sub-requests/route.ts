@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { createNotification } from '@/lib/notifications/create'
 
 function admin() {
@@ -117,7 +117,6 @@ async function sendOrganizerNotification(
   playerEmail: string
 ) {
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const resend = new Resend(process.env.RESEND_API_KEY)
 
   const { data: league } = await db.from('leagues').select('name, created_by').eq('id', leagueId).single()
   if (!league) return
@@ -126,10 +125,8 @@ async function sendOrganizerNotification(
   if (!organizer?.email) return
 
   const leagueUrl = `https://joinzer.com/leagues/${leagueId}`
-  await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  await sendEmail({
     to: organizer.email,
-    replyTo: 'martyfit50@gmail.com',
     subject: `Sub needed: ${league.name}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

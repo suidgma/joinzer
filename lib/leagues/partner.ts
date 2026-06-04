@@ -1,6 +1,6 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { createStub } from '@/lib/users/stubs'
 import { createNotification } from '@/lib/notifications/create'
@@ -64,7 +64,6 @@ export async function voidCaptainHold(
 
     if (profile?.email && league) {
       const siteUrl = getSiteUrl()
-      const resend = new Resend(process.env.RESEND_API_KEY)
       const isDeclined = reason === 'declined'
 
       const rows: EmailRow[] = [
@@ -73,10 +72,8 @@ export async function voidCaptainHold(
         ['Outcome', isDeclined ? 'Partner declined the invitation' : 'Invitation expired after 72 hours'],
       ]
 
-      resend.emails.send({
-        from: 'Joinzer <support@joinzer.com>',
+      sendEmail({
         to: profile.email,
-        replyTo: 'martyfit50@gmail.com',
         subject: isDeclined
           ? `Partner invitation declined — ${league.name}`
           : `Partner invitation expired — ${league.name}`,
@@ -216,11 +213,8 @@ export async function createInviteAndNotify(
     ['Invited by', captainName],
   ]
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  await sendEmail({
     to: partnerEmail,
-    replyTo: 'martyfit50@gmail.com',
     subject: `${captainName} invited you as their partner — ${league?.name ?? 'League on Joinzer'}`,
     html: registrationEmail({
       heading: "You've been invited as a doubles partner",

@@ -1,9 +1,8 @@
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
-  const resend = new Resend(process.env.RESEND_API_KEY)
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || !user.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -14,10 +13,8 @@ export async function POST(request: NextRequest) {
   const leagueUrl = `https://joinzer.com/leagues/${leagueId}`
   const isWaitlist = status === 'waitlist'
 
-  const { error } = await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  const { error } = await sendEmail({
     to: user.email,
-    replyTo: 'martyfit50@gmail.com',
     subject: isWaitlist ? `Waitlist confirmed: ${leagueName}` : `Registered: ${leagueName}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

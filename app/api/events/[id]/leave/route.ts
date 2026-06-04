@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -58,11 +58,8 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
       const siteUrl = getSiteUrl()
       const firstName = profile.name?.split(' ')[0] ?? 'there'
 
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      resend.emails.send({
-        from: 'Joinzer <support@joinzer.com>',
+      sendEmail({
         to: profile.email,
-        replyTo: 'martyfit50@gmail.com',
         subject: `You're in! A spot opened up — ${event.title}`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">

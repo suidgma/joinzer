@@ -1,4 +1,4 @@
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
@@ -84,11 +84,9 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Could not resolve any player emails' }, { status: 500 })
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
   const tournamentUrl = `https://joinzer.com/tournaments/${params.id}`
 
-  const { error } = await resend.emails.send({
-    from: 'Joinzer <support@joinzer.com>',
+  const { error } = await sendEmail({
     to: emails,
     subject: `[${tournament.name}] ${subject.trim()}`,
     html: `

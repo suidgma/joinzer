@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
@@ -221,7 +221,6 @@ export async function POST(
     // Fire-and-forget invite email
     ;(async () => {
       try {
-        const resend = new Resend(process.env.RESEND_API_KEY)
         const siteUrl = getSiteUrl()
         const acceptUrl = `${siteUrl}/tournaments/invite/${rpc.invitation_token}`
         const [{ data: inviterProf }, { data: tourn }, { data: div }] = await Promise.all([
@@ -232,10 +231,8 @@ export async function POST(
         const inviterName = inviterProf?.name ?? 'A player'
         const tournamentName = tourn?.name ?? 'a tournament'
         const divisionName = div?.name ?? 'a division'
-        await resend.emails.send({
-          from: 'Joinzer <support@joinzer.com>',
+        await sendEmail({
           to: partner_email!,
-          replyTo: 'martyfit50@gmail.com',
           subject: `${inviterName} wants you as their partner`,
           html: `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
@@ -264,7 +261,6 @@ export async function POST(
     // Fire-and-forget captain confirmation email
     ;(async () => {
       try {
-        const resend = new Resend(process.env.RESEND_API_KEY)
         const siteUrl = getSiteUrl()
         const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
         const [{ data: tourn }, { data: profile }] = await Promise.all([
@@ -295,10 +291,8 @@ export async function POST(
             url: tournamentUrl,
           }])),
         }] : []
-        await resend.emails.send({
-          from: 'Joinzer <support@joinzer.com>',
+        await sendEmail({
           to: profile.email,
-          replyTo: 'martyfit50@gmail.com',
           subject: isWaitlist ? `Waitlist confirmed: ${tourn.name}` : `Registered: ${tourn.name}`,
           html: registrationEmail({
             heading: isWaitlist ? "You're on the waitlist!" : "You're registered!",
@@ -479,7 +473,6 @@ export async function POST(
     // Fire-and-forget invite email
     ;(async () => {
       try {
-        const resend = new Resend(process.env.RESEND_API_KEY)
         const siteUrl = getSiteUrl()
         const acceptUrl = `${siteUrl}/tournaments/invite/${invitation.token}`
         const [{ data: inviterProf }, { data: tourn }, { data: div }] = await Promise.all([
@@ -490,10 +483,8 @@ export async function POST(
         const inviterName = inviterProf?.name ?? 'A player'
         const tournamentName = tourn?.name ?? 'a tournament'
         const divisionName = div?.name ?? 'a division'
-        await resend.emails.send({
-          from: 'Joinzer <support@joinzer.com>',
+        await sendEmail({
           to: partner_email,
-          replyTo: 'martyfit50@gmail.com',
           subject: `${inviterName} wants you as their partner`,
           html: `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
@@ -576,7 +567,6 @@ export async function POST(
 
       // Send match notification emails (fire-and-forget)
       if (myProfile && partnerProfile) {
-        const resend = new Resend(process.env.RESEND_API_KEY)
         const siteUrl = getSiteUrl()
         const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
 
@@ -599,28 +589,19 @@ export async function POST(
           </div>
         `
 
-        const emails = []
         if (myProfile.email) {
-          emails.push({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: myProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Partner match confirmed — ${partnerProfile.name}`,
             html: emailHtml(myProfile.name ?? '', partnerProfile.name ?? ''),
-          })
+          }).catch(() => {})
         }
         if (partnerProfile.email) {
-          emails.push({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: partnerProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Partner match confirmed — ${myProfile.name}`,
             html: emailHtml(partnerProfile.name ?? '', myProfile.name ?? ''),
-          })
-        }
-        if (emails.length > 0) {
-          resend.emails.send(emails[0]).catch(() => {})
-          if (emails[1]) resend.emails.send(emails[1]).catch(() => {})
+          }).catch(() => {})
         }
       }
     }
@@ -629,7 +610,6 @@ export async function POST(
   // Confirmation email for the registering player (fire-and-forget)
   ;(async () => {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
       const siteUrl = getSiteUrl()
       const tournamentUrl = `${siteUrl}/tournaments/${params.id}`
 
@@ -679,10 +659,8 @@ export async function POST(
         }])),
       }] : []
 
-      await resend.emails.send({
-        from: 'Joinzer <support@joinzer.com>',
+      await sendEmail({
         to: profile.email,
-        replyTo: 'martyfit50@gmail.com',
         subject: isWaitlist ? `Waitlist confirmed: ${tournament.name}` : `Registered: ${tournament.name}`,
         html: registrationEmail({
           heading: isWaitlist ? "You're on the waitlist!" : "You're registered!",

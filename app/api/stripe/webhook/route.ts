@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { generateIcs } from '@/lib/email/ics'
 import { createInviteAndNotify, voidCaptainHold } from '@/lib/leagues/partner'
@@ -147,7 +147,6 @@ export async function POST(req: NextRequest) {
         const locationName = locationResult.data?.name ?? null
         const partnerName = (partnerResult.data as any)?.name ?? null
 
-        const resend = new Resend(process.env.RESEND_API_KEY)
         const tournamentUrl = `${siteUrl}/tournaments/${tournament.id}`
         const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
 
@@ -172,10 +171,8 @@ export async function POST(req: NextRequest) {
             }])),
           }] : []
 
-          await resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          await sendEmail({
             to: profile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${tournament.name}`,
             html: registrationEmail({
               heading: 'Payment Confirmed ✓',
@@ -222,10 +219,8 @@ export async function POST(req: NextRequest) {
                 url: tournamentUrl,
               }])),
             }] : []
-            resend.emails.send({
-              from: 'Joinzer <support@joinzer.com>',
+            sendEmail({
               to: partnerEmail,
-              replyTo: 'martyfit50@gmail.com',
               subject: `You're registered — ${tournament.name}`,
               html: registrationEmail({
                 heading: "You're registered! ✓",
@@ -291,11 +286,8 @@ export async function POST(req: NextRequest) {
             timeZone: 'America/Los_Angeles',
             hour: 'numeric', minute: '2-digit',
           })
-          const resend = new Resend(process.env.RESEND_API_KEY)
-          await resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          await sendEmail({
             to: profile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${ev.title}`,
             html: registrationEmail({
               firstName: profile.name?.split(' ')[0] ?? 'there',
@@ -370,7 +362,6 @@ export async function POST(req: NextRequest) {
           const leagueUrl = `${siteUrl}/leagues/${meta.league_id}`
           const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
           const isWaitlist = joinAs !== 'registered'
-          const resend = new Resend(process.env.RESEND_API_KEY)
 
           const fmt = (d: string | null) => d
             ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
@@ -411,10 +402,8 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          await resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          await sendEmail({
             to: profile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${league.name}`,
             html: registrationEmail({
               heading: isWaitlist ? 'Payment Confirmed — Waitlisted' : "You're registered! Payment Confirmed ✓",
@@ -564,7 +553,6 @@ export async function POST(req: NextRequest) {
           const partnerProfile = matchProfiles?.find(p => p.id === soloPartner.user_id)
 
           if (myProfile && partnerProfile) {
-            const resend = new Resend(process.env.RESEND_API_KEY)
             const tournamentUrl = `${siteUrl}/tournaments/${tId}`
             const matchHtml = (recipientName: string, partnerName: string) => `
               <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
@@ -585,19 +573,15 @@ export async function POST(req: NextRequest) {
               </div>
             `
             if (myProfile.email) {
-              resend.emails.send({
-                from: 'Joinzer <support@joinzer.com>',
+              sendEmail({
                 to: myProfile.email,
-                replyTo: 'martyfit50@gmail.com',
                 subject: `Partner match confirmed — ${partnerProfile.name}`,
                 html: matchHtml(myProfile.name ?? '', partnerProfile.name ?? ''),
               }).catch(() => {})
             }
             if (partnerProfile.email) {
-              resend.emails.send({
-                from: 'Joinzer <support@joinzer.com>',
+              sendEmail({
                 to: partnerProfile.email,
-                replyTo: 'martyfit50@gmail.com',
                 subject: `Partner match confirmed — ${myProfile.name}`,
                 html: matchHtml(partnerProfile.name ?? '', myProfile.name ?? ''),
               }).catch(() => {})
@@ -620,7 +604,6 @@ export async function POST(req: NextRequest) {
         const locationName = locationResult.data?.name ?? null
         const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
         const isWaitlist = regStatus === 'waitlisted'
-        const resend = new Resend(process.env.RESEND_API_KEY)
         const tournamentUrl = `${siteUrl}/tournaments/${tId}`
 
         const soloRows: EmailRow[] = [
@@ -643,10 +626,8 @@ export async function POST(req: NextRequest) {
           }])),
         }] : []
 
-        resend.emails.send({
-          from: 'Joinzer <support@joinzer.com>',
+        sendEmail({
           to: soloProfile.email,
-          replyTo: 'martyfit50@gmail.com',
           subject: isWaitlist ? `Waitlist confirmed: ${soloTournament.name}` : `Payment confirmed — ${soloTournament.name}`,
           html: registrationEmail({
             heading: isWaitlist ? "You're on the waitlist!" : 'Payment Confirmed ✓',
@@ -801,7 +782,6 @@ export async function POST(req: NextRequest) {
           ? await service.from('locations').select('name').eq('id', (partnerTournament as any).location_id).single()
           : { data: null }
         const locationName = locationResult.data?.name ?? null
-        const resend = new Resend(process.env.RESEND_API_KEY)
 
         if (inviteeProfile?.email) {
           const inviteeRows: EmailRow[] = [
@@ -823,10 +803,8 @@ export async function POST(req: NextRequest) {
             }])),
           }] : []
 
-          resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: inviteeProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${partnerTournament.name}`,
             html: registrationEmail({
               heading: 'Payment Confirmed ✓',
@@ -841,10 +819,8 @@ export async function POST(req: NextRequest) {
         }
 
         if (inviterProfile?.email) {
-          resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: inviterProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Partner confirmed — ${partnerTournament.name}`,
             html: registrationEmail({
               heading: "You're set! Partner Confirmed ✓",
@@ -921,13 +897,10 @@ export async function POST(req: NextRequest) {
           service.from('leagues').select('name, id').eq('id', inv.league_id).single(),
         ])
         const captainProfile = captainProfileResult.data
-        const resend = new Resend(process.env.RESEND_API_KEY)
 
         if (captainProfile?.email && league) {
-          resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: captainProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Action needed — ${league.name} registration`,
             html: registrationEmail({
               heading: 'Payment capture failed',
@@ -943,10 +916,8 @@ export async function POST(req: NextRequest) {
 
         const { data: partnerProfile } = await service.from('profiles').select('name, email').eq('id', meta.user_id).single()
         if (partnerProfile?.email && league) {
-          resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: partnerProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `You've been refunded — ${league.name}`,
             html: registrationEmail({
               heading: 'Payment refunded',
@@ -1010,7 +981,6 @@ export async function POST(req: NextRequest) {
       const partnerProfile = partnerProfileResult.data
 
       if (league) {
-        const resend = new Resend(process.env.RESEND_API_KEY)
         const leagueUrl = `${siteUrl}/leagues/${inv.league_id}`
         const fmt = (d: string | null) => d
           ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: 'long', day: 'numeric', year: 'numeric' })
@@ -1025,10 +995,8 @@ export async function POST(req: NextRequest) {
         ]
 
         if (captainProfile?.email) {
-          resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: captainProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `You're registered! — ${league.name}`,
             html: registrationEmail({
               heading: "You're registered! ✓",
@@ -1043,10 +1011,8 @@ export async function POST(req: NextRequest) {
         }
 
         if (partnerProfile?.email) {
-          resend.emails.send({
-            from: 'Joinzer <support@joinzer.com>',
+          sendEmail({
             to: partnerProfile.email,
-            replyTo: 'martyfit50@gmail.com',
             subject: `Payment confirmed — ${league.name}`,
             html: registrationEmail({
               heading: 'Payment Confirmed ✓',

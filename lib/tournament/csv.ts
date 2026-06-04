@@ -1,5 +1,5 @@
 import { createClient as createAdmin, type User } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email/send'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { registrationEmail, type EmailRow } from '@/lib/email/templates'
 import { normalizeEmail, createStub } from '@/lib/users/stubs'
@@ -340,11 +340,8 @@ async function sendStubInvites(
           ['Added by', organizerName],
         ]
 
-        const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
-          from: 'Joinzer <support@joinzer.com>',
+        await sendEmail({
           to: email,
-          replyTo: 'martyfit50@gmail.com',
           subject: `${organizerName} added you to ${tournament.name} on Joinzer`,
           html: registrationEmail({
             heading: "You've been added to a tournament",
