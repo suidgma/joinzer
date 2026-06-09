@@ -59,7 +59,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, location_id, default_win_by, default_games_to, default_bracket_type,
+        cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type,
         location:locations!location_id (id, name, subarea, court_count),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -202,7 +202,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
           <div className="flex items-start gap-2">
             <span className="text-brand-muted text-xs pt-0.5">👤</span>
             <div>
-              <p className="text-sm text-brand-dark">Organizer: {tournament.organizer.name}</p>
+              <p className="text-sm text-brand-dark">
+                Organizer: {(tournament as any).contact_name || tournament.organizer.name}
+              </p>
               {(tournament as any).contact_email && (
                 <a
                   href={`mailto:${(tournament as any).contact_email}`}
