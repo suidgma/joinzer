@@ -62,7 +62,7 @@ export function singleEliminationBracket(
       round_number: 1,
       match_number: matchNum++,
       team_1_registration_id: t1,
-      team_2_registration_id: null, // byes always have null t2
+      team_2_registration_id: t2,  // null only for bye slots; real matches get the actual opponent
     }
     if (isBye && t1) {
       row.status = 'completed'
@@ -133,7 +133,7 @@ export function doubleEliminationBracket(
       round_number: 1,
       match_number: matchNum++,
       team_1_registration_id: t1,
-      team_2_registration_id: null,
+      team_2_registration_id: t2,  // null only for bye slots; real matches get the actual opponent
     }
     if (isBye && t1) {
       row.status = 'completed'
