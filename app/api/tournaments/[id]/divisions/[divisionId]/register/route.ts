@@ -163,21 +163,26 @@ export async function POST(
   const effectiveTeams = teamRegs + Math.floor(soloRegs / 2)
   const isFull = effectiveTeams >= division.max_entries
 
-  if (registration_type === 'team') {
-    if (isFull && !division.waitlist_enabled) {
-      return NextResponse.json({ error: 'Division is full and has no waitlist' }, { status: 400 })
-    }
-  } else {
-    // Solo: can register if there's room for another team (unmatched solos don't block until matched)
-    // After this solo: new effective = teamRegs + floor((soloRegs + 1) / 2)
-    const newEffective = teamRegs + Math.floor((soloRegs + 1) / 2)
-    if (newEffective > division.max_entries && !division.waitlist_enabled) {
-      return NextResponse.json({ error: 'Division is full — no room for another solo player' }, { status: 400 })
+  // isOrganizerAdd is resolved before the capacity gate so organizers can always
+  // add players manually regardless of capacity — they own the roster.
+  const isOrganizerAdd = targetUserId !== user.id
+
+  if (!isOrganizerAdd) {
+    if (registration_type === 'team') {
+      if (isFull && !division.waitlist_enabled) {
+        return NextResponse.json({ error: 'Division is full and has no waitlist' }, { status: 400 })
+      }
+    } else {
+      // Solo: can register if there's room for another team (unmatched solos don't block until matched)
+      // After this solo: new effective = teamRegs + floor((soloRegs + 1) / 2)
+      const newEffective = teamRegs + Math.floor((soloRegs + 1) / 2)
+      if (newEffective > division.max_entries && !division.waitlist_enabled) {
+        return NextResponse.json({ error: 'Division is full — no room for another solo player' }, { status: 400 })
+      }
     }
   }
 
   const status = isFull && division.waitlist_enabled ? 'waitlisted' : 'registered'
-  const isOrganizerAdd = targetUserId !== user.id
 
   // Self-service doubles team registration requires partner_email up-front so that the
   // invite record is created atomically with the registration row — prevents orphaned teams.
