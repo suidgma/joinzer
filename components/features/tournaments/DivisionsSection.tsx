@@ -2003,6 +2003,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                           Cancel
                         </button>
                       </div>
+                    ) : isFull ? (
+                      <p className="text-xs text-brand-muted pt-1">
+                        Division full ({active.length}/{maxPlayers}) — increase Max Entries to add more.
+                      </p>
                     ) : (
                       <button
                         onClick={() => {
