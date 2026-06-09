@@ -108,7 +108,9 @@ function BracketMatchCard({
   })
 
   const isDone = match.status === 'completed'
-  const isBye = !match.team_2_registration_id
+  // A true bye: team_1 has a real player, team_2 is null (player auto-advances).
+  // When BOTH slots are null it's a future TBD round — show TBD, not BYE.
+  const isBye = !match.team_2_registration_id && !!match.team_1_registration_id
   const w = match.winner_registration_id
 
   async function saveScore() {
