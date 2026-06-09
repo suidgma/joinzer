@@ -47,6 +47,8 @@ type Props = {
   tournamentDate: string        // YYYY-MM-DD
   defaultStartTime: string      // HH:MM
   defaultEndTime: string | null // HH:MM or null
+  locationCourtCount?: number | null
+  locationName?: string | null
 }
 
 function lastName(name: string | null | undefined): string {
@@ -203,7 +205,7 @@ function generateSchedule(
   return result
 }
 
-export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime }: Props) {
+export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime, locationCourtCount, locationName }: Props) {
   const router = useRouter()
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [showGenerator, setShowGenerator] = useState(false)
@@ -213,8 +215,8 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
   const [genStartTime, setGenStartTime] = useState(defaultStartTime || '08:00')
   const [genEndTime, setGenEndTime] = useState(defaultEndTime || '17:00')
   const [genDuration, setGenDuration] = useState(45)
-  const [genFirstCourt, setGenFirstCourt] = useState(11)
-  const [genLastCourt, setGenLastCourt] = useState(24)
+  const [genFirstCourt, setGenFirstCourt] = useState(1)
+  const [genLastCourt, setGenLastCourt] = useState(locationCourtCount ?? 24)
 
   // Edits pending save
   const [edits, setEdits] = useState<Record<string, { court_number: string; date: string; time: string }>>({})
@@ -474,12 +476,14 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Courts (Sunset Park)</label>
+              <label className="block text-xs font-medium text-brand-muted mb-1">
+                Courts{locationName ? ` (${locationName})` : ''}
+              </label>
               <div className="flex items-center gap-2">
                 <input
                   type="number" min="1" max="100"
                   value={genFirstCourt}
-                  onChange={e => setGenFirstCourt(parseInt(e.target.value) || 11)}
+                  onChange={e => setGenFirstCourt(parseInt(e.target.value) || 1)}
                   className="w-full input text-center"
                   placeholder="First"
                 />
@@ -487,7 +491,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                 <input
                   type="number" min="1" max="100"
                   value={genLastCourt}
-                  onChange={e => setGenLastCourt(parseInt(e.target.value) || 24)}
+                  onChange={e => setGenLastCourt(parseInt(e.target.value) || locationCourtCount || 24)}
                   className="w-full input text-center"
                   placeholder="Last"
                 />

@@ -60,7 +60,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         id, name, description, start_date, start_time, estimated_end_time,
         status, visibility, registration_status, registration_closes_at, organizer_id,
         cost_cents, location_id, default_win_by, default_games_to, default_bracket_type,
-        location:locations!location_id (id, name, subarea),
+        location:locations!location_id (id, name, subarea, court_count),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
       `)
@@ -350,6 +350,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
               tournamentDate={tournament.start_date}
               defaultStartTime={tournament.start_time ?? '08:00'}
               defaultEndTime={tournament.estimated_end_time ?? null}
+              locationCourtCount={(tournament.location as any)?.court_count ?? null}
+              locationName={(tournament.location as any)?.name ?? null}
             />
           )}
 

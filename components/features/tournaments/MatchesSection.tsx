@@ -49,6 +49,8 @@ type Props = {
   tournamentDate: string
   defaultStartTime: string
   defaultEndTime: string | null
+  locationCourtCount?: number | null
+  locationName?: string | null
 }
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
@@ -262,7 +264,7 @@ function MatchCard({
   )
 }
 
-export default function MatchesSection({ tournamentId, divisions, initialMatches, isOrganizer, tournamentDate, defaultStartTime, defaultEndTime }: Props) {
+export default function MatchesSection({ tournamentId, divisions, initialMatches, isOrganizer, tournamentDate, defaultStartTime, defaultEndTime, locationCourtCount, locationName }: Props) {
   const [matchesByDiv, setMatchesByDiv] = useState<Record<string, Match[]>>(() => {
     const map: Record<string, Match[]> = {}
     for (const div of divisions) map[div.id] = []
@@ -349,6 +351,8 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
           tournamentDate={tournamentDate}
           defaultStartTime={defaultStartTime}
           defaultEndTime={defaultEndTime}
+          locationCourtCount={locationCourtCount}
+          locationName={locationName}
         />
       )}
 
