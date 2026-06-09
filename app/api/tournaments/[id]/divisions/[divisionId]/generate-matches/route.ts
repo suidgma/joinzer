@@ -54,15 +54,24 @@ export async function POST(
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
 
   // Fetch settled registered teams (paid, waived, comped) — unpaid rows (abandoned checkouts) must not get bracket slots.
-  // We pull partner_registration_id so we can dedupe doubles pairs to one row per team
-  // (the register_doubles_pair RPC inserts two cross-linked rows per team).
+  // user_id is included so we can dedupe: if the same player somehow has two settled registrations
+  // (test data, race condition, manual DB edit) only their earliest row gets a bracket slot.
   const { data: registrations } = await service
     .from('tournament_registrations')
-    .select('id, partner_registration_id')
+    .select('id, user_id, partner_registration_id')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
     .in('payment_status', ['paid', 'waived', 'comped'])
     .order('created_at', { ascending: true })
+
+  // Dedupe by user_id — one bracket slot per person. ORDER BY created_at ASC means
+  // the first registration seen per user wins; later duplicates are silently dropped.
+  const seenUserIds = new Set<string>()
+  const deduped = (registrations ?? []).filter(r => {
+    if (seenUserIds.has(r.user_id)) return false
+    seenUserIds.add(r.user_id)
+    return true
+  })
 
   const ft = division.bracket_type as string
   const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
@@ -82,7 +91,7 @@ export async function POST(
   if (isRotating) {
     // Rotating: each registration is a solo player. Don't dedupe — every
     // registration row is one individual. Need at least 4 players for doubles.
-    const playerIds = (registrations ?? []).map(r => r.id)
+    const playerIds = deduped.map(r => r.id)
     if (playerIds.length < 4) {
       return NextResponse.json({
         error: `Rotating doubles needs at least 4 solo registrations. This division has ${playerIds.length}.`,
@@ -95,7 +104,7 @@ export async function POST(
     // before bracket slots are assigned. A missing link means a 1-person
     // "team" would get a slot — block early with a clear count.
     if (isDoublesFormat(division.format)) {
-      const unpaired = (registrations ?? []).filter(r => !r.partner_registration_id)
+      const unpaired = deduped.filter(r => !r.partner_registration_id)
       if (unpaired.length > 0) {
         return NextResponse.json({
           error: `${unpaired.length} player${unpaired.length !== 1 ? 's' : ''} in this doubles division ${unpaired.length !== 1 ? 'have' : 'has'} no partner assigned. Assign all partners before generating matches.`,
@@ -103,7 +112,7 @@ export async function POST(
       }
     }
 
-    const teams = dedupeRegistrationsToTeams(registrations ?? [])
+    const teams = dedupeRegistrationsToTeams(deduped)
     if (teams.length < 2) {
       return NextResponse.json({
         error: `Need at least 2 settled registrations to generate matches. This division has ${teams.length} settled registration${teams.length === 1 ? '' : 's'}.`,
