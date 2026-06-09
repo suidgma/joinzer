@@ -74,6 +74,10 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Two-form-factor refactor Slices 0–6** — all desktop-canonical routes shipped: primitives, tournament create/manage/sub-routes, league create/manage/sub-routes (standings/roster/edit)
 - **Audit log** — `audit_log` table + `lib/audit/log.ts` helper. Wired into: match score, match ready, match reschedule, registration cancel/withdraw/refund, league sub request claim/approve/cancel. Still unwired: tournament/league create, division edits.
 - **Partner mode setting (Fixed vs Rotating)** — tournaments + leagues both expose an organizer toggle on doubles divisions/formats. Leagues: `leagues.partner_mode` enum; scheduler honors `partner_user_id` cross-links in fixed mode. Tournaments: support rotating for `round_robin` bracket type only (`tournament_divisions.partner_mode`; `tournament_matches.team_*_partner_registration_id` columns hold the 4-player layout).
+- **Email log** — `email_log` table; all transactional emails logged via `lib/email/send.ts` (recipient, subject, Resend ID, status).
+- **Fixed-partner assignment UI** — Roster page shows "Team X/Y" pairs for fixed-partner leagues; organizer assigns/changes via `/api/leagues/[id]/assign-partner`. Teams shown in attendance and match cards in Live Session Manager.
+- **Tournament division defaults** — Create Tournament sets default format (round robin/single/double elim), points-to-win (11/15/21), win-by (1/2), and primary venue. Divisions inherit all and can override. Columns: `tournaments.default_win_by`, `tournaments.default_games_to`, `tournaments.default_bracket_type`, `tournament_divisions.location_id`.
+- **Gender validation** — All tournament registration paths enforce gender for mens/womens divisions (RPC + route + auto-pairing). League roster add-player dropdown filters by gender for gender-specific formats.
 
 - **In-app notification center** — `notifications` table + RLS + indexes. Bell + panel in app header (all breakpoints). Deep links per notification. 12+ triggers wired across tournaments, leagues, Stripe webhook, cron. No browser push.
 - **Players directory** — `/players` with search, skill/gender filters, availability. `/players/[id]` individual profile page. Cards link to profiles; invite-tap still works when player is available.
@@ -132,6 +136,26 @@ Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 - When finishing a phase or major slice: 10-minute pass through CLAUDE.md to re-verify "Current State" claims, move completed items out of "Open Decisions," update the verification date.
 - Do not document fast-changing things (specific routes, specific tables, schema columns) in markdown. Point at the codebase or Supabase Table Editor instead.
 
+### Gotchas learned in session (June 5, 2026)
+
+**Supabase migration rule — apply BEFORE pushing code.**
+New DB columns must exist in Supabase before the code that selects them is deployed. Selecting a non-existent column causes the query to return `null` → `notFound()` → 404. Apply migrations in the SQL editor first, verify, then push to Vercel.
+
+**`sendEmail` returns `void` — never destructure `{ error }`.**
+`lib/email/send.ts` wraps Resend and returns `Promise<void>`. Do NOT write `const { error } = await sendEmail(...)`. Just `await sendEmail(...)`.
+
+**`league_matches` has no unique constraint.**
+`upsert` with `onConflict` on `(session_id, round_number, court_number)` fails — no constraint exists. For edit flows, DELETE the existing row then INSERT the new one.
+
+**`Player` type in `LiveSessionManager` uses snake_case.**
+The type has `user_id` (not `userId`). All session player fields are snake_case — don't mix in camelCase.
+
+**Supabase join type inference conflicts.**
+When a query uses a foreign-key join (e.g. `profile:profiles!user_id(...)`), TypeScript may reject explicit type assertions on the result. Cast with `as any[]` first, then access fields typed as `any`.
+
+**Fixed-partner mode only activates when pairs are linked in the DB.**
+`isFixedMode` in the league scheduler is `true` only when `fixedPairs.size > 0`. If no `partner_user_id` is set in `league_registrations`, the scheduler silently falls back to rotating mode. Organizer must assign pairs via the Roster page before generating rounds.
+
 ---
 
 ## Quick Links
@@ -143,4 +167,4 @@ Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 
 ---
 
-*Last verified against repo: June 1, 2026*
+*Last verified against repo: June 5, 2026*

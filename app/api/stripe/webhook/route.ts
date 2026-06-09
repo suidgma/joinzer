@@ -755,11 +755,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true })
       }
 
-      // Cross-link both registrations: partner_user_id + partner_registration_id
+      // Cross-link both registrations and settle the inviter's payment status.
+      // The partner paid the team's entry fee — the captain's unpaid row is now covered.
       await Promise.all([
         service.from('tournament_registrations').update({
           partner_user_id: uId,
           partner_registration_id: newPartnerReg.id,
+          payment_status: 'waived',
         }).eq('id', inviterRegId),
         service.from('tournament_registrations').update({
           partner_user_id: inviterReg.user_id,

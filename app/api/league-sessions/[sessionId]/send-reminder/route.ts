@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { withBrandHeader } from '@/lib/email/send'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -57,7 +58,7 @@ export async function POST(_req: NextRequest, props: Params) {
     to: p.email,
     replyTo: 'martyfit50@gmail.com',
     subject: `Reminder: ${league.name} — Session ${session.session_number}`,
-    html: `
+    html: withBrandHeader(`
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
         <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
           <h1 style="margin:0;font-size:20px;color:#012D0B">Session reminder</h1>
@@ -76,7 +77,7 @@ export async function POST(_req: NextRequest, props: Params) {
           <p style="margin-top:24px;font-size:12px;color:#9ca3af">You're receiving this because you're registered for a league on Joinzer.</p>
         </div>
       </div>
-    `,
+    `),
   }))
 
   const { error } = await resend.batch.send(emails)
