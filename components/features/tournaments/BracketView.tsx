@@ -37,7 +37,7 @@ type Props = {
   isDoubles: boolean
   tournamentId: string
   divisionId: string
-  onScoreUpdate: (updatedMatch: Match) => void
+  onScoreUpdate: (updatedMatches: Match[]) => void
 }
 
 function lastName(name: string | null | undefined): string {
@@ -92,7 +92,7 @@ function BracketMatchCard({
   isDoubles: boolean
   tournamentId: string
   divisionId: string
-  onScoreUpdate: (m: Match) => void
+  onScoreUpdate: (updatedMatches: Match[]) => void
 }) {
   const [scoring, setScoring] = useState(false)
   const [s1, setS1] = useState('')
@@ -144,7 +144,9 @@ function BracketMatchCard({
       setLoading(false)
       if (!res.ok) { setErr(json.error ?? 'Failed'); return }
       setScoring(false); setS1(''); setS2('')
-      onScoreUpdate(json.match)
+      const changed: Match[] = [json.match]
+      if (json.advancedToMatch) changed.push(json.advancedToMatch)
+      onScoreUpdate(changed)
     } catch {
       // Network error — queue for retry
       enqueue(bracketQueueKey(tournamentId), { url, method: 'PATCH', body, dedupeKey: match.id })
@@ -224,7 +226,7 @@ function BracketColumn({
   isDoubles: boolean
   tournamentId: string
   divisionId: string
-  onScoreUpdate: (m: Match) => void
+  onScoreUpdate: (updatedMatches: Match[]) => void
 }) {
   // spacing between cards doubles each round: 0, CARD_H, 3*CARD_H, 7*CARD_H...
   const gap = (Math.pow(2, rIdx) - 1) * CARD_H
@@ -258,7 +260,7 @@ function SingleBracket({
   isDoubles: boolean
   tournamentId: string
   divisionId: string
-  onScoreUpdate: (m: Match) => void
+  onScoreUpdate: (updatedMatches: Match[]) => void
   title?: string
 }) {
   if (matches.length === 0) return null

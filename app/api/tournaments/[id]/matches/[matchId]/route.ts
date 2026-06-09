@@ -72,6 +72,7 @@ export async function PATCH(
     .select('id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status')
     .eq('division_id', match.division_id)
 
+  let advancedToMatch = null
   if (divisionMatches) {
     const completedMatch: MatchRow = {
       ...match,
@@ -84,8 +85,14 @@ export async function PATCH(
         .from('tournament_matches')
         .update({ [advancement.field]: advancement.value })
         .eq('id', advancement.matchId)
+      const { data: nextMatch } = await service
+        .from('tournament_matches')
+        .select('id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status')
+        .eq('id', advancement.matchId)
+        .single()
+      advancedToMatch = nextMatch
     }
   }
 
-  return NextResponse.json({ match: updated })
+  return NextResponse.json({ match: updated, advancedToMatch })
 }
