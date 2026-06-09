@@ -1882,8 +1882,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                     {/* Add Player / Add Team */}
                     {addingPlayerId === div.id ? (
                       <div className="pt-2 space-y-2">
-                        {isDoublesFormat(div.format) ? (
-                          /* ── Doubles: two-phase player selection ── */
+                        {isDoublesFormat(div.format) && div.partner_mode !== 'fixed' ? (
+                          /* ── Rotating doubles: two-phase player selection ── */
                           selectedP1 ? (
                             /* Phase 2: P1 locked, pick P2 + team name */
                             <>
@@ -2019,7 +2019,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         }}
                         className="text-xs text-brand-active font-medium hover:underline pt-1"
                       >
-                        {isDoublesFormat(div.format) ? '+ Add Team' : '+ Add Player'}
+                        {isDoublesFormat(div.format) && div.partner_mode !== 'fixed' ? '+ Add Team' : '+ Add Player'}
                       </button>
                     )}
                   </div>
