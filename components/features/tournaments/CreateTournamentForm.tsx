@@ -32,10 +32,11 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [deadlineTouched, setDeadlineTouched] = useState(false)
   const [costDollars, setCostDollars] = useState('')
+  const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
   const [defaultWinBy, setDefaultWinBy] = useState<1 | 2>(1)
-  const [defaultGamesTo, setDefaultGamesTo] = useState<11 | 15 | 21>(11)
+  const [defaultGamesTo, setDefaultGamesTo] = useState<number>(11)
   const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination'>('round_robin')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +79,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        contact_name: contactName.trim() || null,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
         default_win_by: defaultWinBy,
@@ -222,14 +224,14 @@ export default function CreateTournamentForm({ locations }: Props) {
           </div>
         </FormRow>
         <FormRow label="Points to win">
-          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
-            {([11, 15, 21] as const).map(pts => (
-              <button key={pts} type="button" onClick={() => setDefaultGamesTo(pts)}
-                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultGamesTo === pts ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}>
-                {pts}
-              </button>
-            ))}
-          </div>
+          <input
+            type="number"
+            min="1"
+            value={defaultGamesTo}
+            onChange={e => setDefaultGamesTo(Number(e.target.value) || 11)}
+            onBlur={e => setDefaultGamesTo(Math.max(1, Number(e.target.value) || 11))}
+            className="w-full input"
+          />
         </FormRow>
         <FormRow label="Win By">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
@@ -287,18 +289,26 @@ export default function CreateTournamentForm({ locations }: Props) {
           </p>
         )}
         <FormRow
-          label="Contact email"
-          htmlFor="contact-email"
+          label="Organizer info"
           helpText="Shown publicly so players can contact the organizer."
         >
-          <input
-            id="contact-email"
-            type="email"
-            value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
-            placeholder="yourname@email.com"
-            className="w-full input"
-          />
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Organizer name"
+              className="w-full input"
+            />
+            <input
+              id="contact-email"
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              placeholder="yourname@email.com"
+              className="w-full input"
+            />
+          </div>
         </FormRow>
         <FormRow label="Player score entry">
           <label className="flex items-center gap-3 cursor-pointer">

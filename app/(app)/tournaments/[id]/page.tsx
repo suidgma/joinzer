@@ -59,8 +59,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select(`
         id, name, description, start_date, start_time, estimated_end_time,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, location_id, default_win_by, default_games_to, default_bracket_type,
-        location:locations!location_id (id, name, subarea),
+        cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type,
+        location:locations!location_id (id, name, subarea, court_count),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
       `)
@@ -68,7 +68,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .single(),
     db
       .from('tournament_divisions')
-      .select('id, name, format, category, team_type, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
@@ -202,7 +202,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
           <div className="flex items-start gap-2">
             <span className="text-brand-muted text-xs pt-0.5">👤</span>
             <div>
-              <p className="text-sm text-brand-dark">Organizer: {tournament.organizer.name}</p>
+              <p className="text-sm text-brand-dark">
+                Organizer: {(tournament as any).contact_name || tournament.organizer.name}
+              </p>
               {(tournament as any).contact_email && (
                 <a
                   href={`mailto:${(tournament as any).contact_email}`}
@@ -350,6 +352,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
               tournamentDate={tournament.start_date}
               defaultStartTime={tournament.start_time ?? '08:00'}
               defaultEndTime={tournament.estimated_end_time ?? null}
+              locationCourtCount={(tournament.location as any)?.court_count ?? null}
+              locationName={(tournament.location as any)?.name ?? null}
             />
           )}
 

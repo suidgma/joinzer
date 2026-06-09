@@ -12,7 +12,7 @@ import PrepTournamentModal from './PrepTournamentModal'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
-import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
+import { isDoublesFormat, formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -69,7 +69,6 @@ type Division = {
   category: string
   team_type: string
   partner_mode?: string
-  skill_level: string | null
   skill_min: number | null
   skill_max: number | null
   max_entries: number
@@ -191,7 +190,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fCostDollars, setFCostDollars] = useState('')
   const [fMinAge, setFMinAge] = useState('')
   const [fMaxAge, setFMaxAge] = useState('')
-  const [fStartTime, setFStartTime] = useState('08:00')
+  const [fStartTime, setFStartTime] = useState(tournamentStartTime?.slice(0, 5) ?? '08:00')
   const [fStartTimeEnabled, setFStartTimeEnabled] = useState(false)
   const [fLoading, setFLoading] = useState(false)
   const [fError, setFError] = useState<string | null>(null)
@@ -308,7 +307,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         start_time: fStartTimeEnabled ? fStartTime : null,
         location_id: fLocationId || null,
       })
-      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -319,7 +318,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFBracketType(defaultBracketType)
     setFFormatSettings({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
-    setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('08:00')
+    setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime(tournamentStartTime?.slice(0, 5) ?? '08:00')
     setFLocationId(defaultLocationId ?? '')
     setFLoading(false)
   }
@@ -331,7 +330,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditCategory(div.category ?? 'mixed')
     setEditTeamType(div.team_type ?? 'doubles')
     setEditPartnerMode((div.partner_mode === 'rotating' ? 'rotating' : 'fixed'))
-    setEditSkill(div.skill_level ?? '')
+    setEditSkill(skillRangeToLevel(div.skill_min, div.skill_max) ?? '')
     setEditMax(div.max_entries)
     setEditWaitlist(!!div.waitlist_enabled)
     setEditBracketType(div.bracket_type)
@@ -378,7 +377,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .from('tournament_divisions')
       .update(updatePayload)
       .eq('id', divisionId)
-      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !updated) { setEditFormatError(error?.message ?? 'Save failed'); setEditFormatLoading(false); return }

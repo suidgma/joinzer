@@ -47,6 +47,8 @@ type Props = {
   tournamentDate: string        // YYYY-MM-DD
   defaultStartTime: string      // HH:MM
   defaultEndTime: string | null // HH:MM or null
+  locationCourtCount?: number | null
+  locationName?: string | null
 }
 
 function lastName(name: string | null | undefined): string {
@@ -171,6 +173,9 @@ function generateSchedule(
     const p1 = m.team_1_registration_id
     const p2 = m.team_2_registration_id
 
+    // Bye matches (p2 === null) are auto-completed — skip court/time assignment
+    if (!p2) continue
+
     // Find the earliest wave with a free court and no player conflict
     let wave = 0
     while (true) {
@@ -203,7 +208,7 @@ function generateSchedule(
   return result
 }
 
-export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime }: Props) {
+export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime, locationCourtCount, locationName }: Props) {
   const router = useRouter()
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [showGenerator, setShowGenerator] = useState(false)
@@ -213,8 +218,8 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
   const [genStartTime, setGenStartTime] = useState(defaultStartTime || '08:00')
   const [genEndTime, setGenEndTime] = useState(defaultEndTime || '17:00')
   const [genDuration, setGenDuration] = useState(45)
-  const [genFirstCourt, setGenFirstCourt] = useState(11)
-  const [genLastCourt, setGenLastCourt] = useState(24)
+  const [genFirstCourt, setGenFirstCourt] = useState(1)
+  const [genLastCourt, setGenLastCourt] = useState(locationCourtCount ?? 24)
 
   // Edits pending save
   const [edits, setEdits] = useState<Record<string, { court_number: string; date: string; time: string }>>({})
@@ -247,7 +252,8 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
   )
 
   const numCourts = Math.max(1, genLastCourt - genFirstCourt + 1)
-  const numWaves = Math.ceil(playableMatches.length / numCourts)
+  const realMatches = playableMatches.filter(m => m.team_2_registration_id)
+  const numWaves = Math.ceil(realMatches.length / numCourts)
   const estimatedEndMin = toMinutes(genStartTime) + numWaves * genDuration
   const estimatedEndTime = fromMinutes(estimatedEndMin)
   const overrun = estimatedEndMin > toMinutes(genEndTime)
@@ -474,12 +480,14 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Courts (Sunset Park)</label>
+              <label className="block text-xs font-medium text-brand-muted mb-1">
+                Courts{locationName ? ` (${locationName})` : ''}
+              </label>
               <div className="flex items-center gap-2">
                 <input
                   type="number" min="1" max="100"
                   value={genFirstCourt}
-                  onChange={e => setGenFirstCourt(parseInt(e.target.value) || 11)}
+                  onChange={e => setGenFirstCourt(parseInt(e.target.value) || 1)}
                   className="w-full input text-center"
                   placeholder="First"
                 />
@@ -487,7 +495,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                 <input
                   type="number" min="1" max="100"
                   value={genLastCourt}
-                  onChange={e => setGenLastCourt(parseInt(e.target.value) || 24)}
+                  onChange={e => setGenLastCourt(parseInt(e.target.value) || locationCourtCount || 24)}
                   className="w-full input text-center"
                   placeholder="Last"
                 />
@@ -629,8 +637,13 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                               {m.court_number != null && (
-                                <span className="text-[10px] font-bold bg-brand-soft text-brand-dark px-1.5 py-0.5 rounded">
+                                <span className="text-[10px] font-bold bg-brand text-brand-dark px-1.5 py-0.5 rounded">
                                   Court {m.court_number}
+                                </span>
+                              )}
+                              {m.scheduled_time && (
+                                <span className="text-[10px] font-semibold text-brand-dark">
+                                  {formatScheduledTime(m.scheduled_time)}
                                 </span>
                               )}
                               {divName && (
@@ -701,6 +714,8 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">No court</span>
+                        <span className="text-[10px] font-semibold text-amber-700">No time</span>
                         {divName && <span className="text-[10px] text-brand-muted">{divName}</span>}
                         {m.round_number != null && <span className="text-[10px] text-brand-muted">Rd {m.round_number}</span>}
                         <span className="text-[10px] text-brand-muted capitalize">{m.match_stage?.replace(/_/g, ' ')}</span>
