@@ -190,7 +190,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fCostDollars, setFCostDollars] = useState('')
   const [fMinAge, setFMinAge] = useState('')
   const [fMaxAge, setFMaxAge] = useState('')
-  const [fStartTime, setFStartTime] = useState('08:00')
+  const [fStartTime, setFStartTime] = useState(tournamentStartTime?.slice(0, 5) ?? '08:00')
   const [fStartTimeEnabled, setFStartTimeEnabled] = useState(false)
   const [fLoading, setFLoading] = useState(false)
   const [fError, setFError] = useState<string | null>(null)
@@ -318,7 +318,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFBracketType(defaultBracketType)
     setFFormatSettings({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
-    setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime('08:00')
+    setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime(tournamentStartTime?.slice(0, 5) ?? '08:00')
     setFLocationId(defaultLocationId ?? '')
     setFLoading(false)
   }
