@@ -20,17 +20,17 @@ describe('prepareLeagueWrite', () => {
       [4.0, 4.5, 'advanced'],
       [4.5, 5.0, 'advanced'],
     ]
-    for (const [min, max, expectedLevel] of cases) {
+    for (const [min, max] of cases) {
       const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_min: min, skill_max: max })
-      expect(result.skill_level).toBe(expectedLevel)
+      expect(result.skill_min).toBe(min)
+      expect(result.skill_max).toBe(max)
     }
   })
 
-  it('null inputs produce null skill_min, skill_max, and skill_level', () => {
+  it('null inputs produce null skill_min and skill_max', () => {
     const result = prepareLeagueWrite({ format: 'mixed_doubles', skill_min: null, skill_max: null })
     expect(result.skill_min).toBeNull()
     expect(result.skill_max).toBeNull()
-    expect(result.skill_level).toBeNull()
   })
 })
 
@@ -106,11 +106,10 @@ describe('prepareDivisionWrite', () => {
     expect(result.skill_max).toBeNull()
   })
 
-  it('passes category, team_type, skill_level through unchanged', () => {
+  it('passes category and team_type through unchanged', () => {
     const result = prepareDivisionWrite({ category: 'men', team_type: 'doubles', skill_level: 'Advanced' })
     expect(result.category).toBe('men')
     expect(result.team_type).toBe('doubles')
-    expect(result.skill_level).toBe('Advanced')
   })
 })
 

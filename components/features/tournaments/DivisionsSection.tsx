@@ -12,7 +12,7 @@ import PrepTournamentModal from './PrepTournamentModal'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
-import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
+import { isDoublesFormat, formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -69,7 +69,6 @@ type Division = {
   category: string
   team_type: string
   partner_mode?: string
-  skill_level: string | null
   skill_min: number | null
   skill_max: number | null
   max_entries: number
@@ -308,7 +307,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         start_time: fStartTimeEnabled ? fStartTime : null,
         location_id: fLocationId || null,
       })
-      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -331,7 +330,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditCategory(div.category ?? 'mixed')
     setEditTeamType(div.team_type ?? 'doubles')
     setEditPartnerMode((div.partner_mode === 'rotating' ? 'rotating' : 'fixed'))
-    setEditSkill(div.skill_level ?? '')
+    setEditSkill(skillRangeToLevel(div.skill_min, div.skill_max) ?? '')
     setEditMax(div.max_entries)
     setEditWaitlist(!!div.waitlist_enabled)
     setEditBracketType(div.bracket_type)
@@ -378,7 +377,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .from('tournament_divisions')
       .update(updatePayload)
       .eq('id', divisionId)
-      .select('id, name, format, category, team_type, partner_mode, skill_level, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !updated) { setEditFormatError(error?.message ?? 'Save failed'); setEditFormatLoading(false); return }

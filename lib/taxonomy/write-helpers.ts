@@ -1,5 +1,3 @@
-import { skillRangeToLevel } from './formats'
-
 // Title Case keys — used by tournament divisions (matches Phase 1 migration Section 5)
 const DIVISION_SKILL_TO_RANGE: Record<string, { skill_min: number; skill_max: number }> = {
   Beginner:     { skill_min: 2.0, skill_max: 2.5 },
@@ -35,14 +33,11 @@ export function prepareLeagueWrite(input: {
   skill_max: number | null
 }): {
   format: string
-  skill_level: string | null
   skill_min: number | null
   skill_max: number | null
 } {
   return {
     format: input.format,
-    // still written until Phase 4 drops the legacy skill_level column
-    skill_level: skillRangeToLevel(input.skill_min, input.skill_max),
     skill_min: input.skill_min,
     skill_max: input.skill_max,
   }
@@ -55,7 +50,6 @@ export function prepareDivisionWrite(input: {
 }): {
   category: string
   team_type: string
-  skill_level: string | null
   format: string
   skill_min: number | null
   skill_max: number | null
@@ -64,7 +58,6 @@ export function prepareDivisionWrite(input: {
   return {
     category: input.category,
     team_type: input.team_type,
-    skill_level: input.skill_level,
     format: mapDivisionFormat(input.category, input.team_type),
     skill_min: range?.skill_min ?? null,
     skill_max: range?.skill_max ?? null,
