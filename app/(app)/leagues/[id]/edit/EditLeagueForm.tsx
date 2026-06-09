@@ -109,6 +109,9 @@ export default function EditLeagueForm({
   const [name, setName] = useState(d.name ?? '')
   const { teamType: initTeamType, category: initCategory } = parseFormat(d.format ?? 'mixed_doubles')
   const [teamType, setTeamType] = useState<'doubles' | 'singles'>(initTeamType)
+  const [partnerMode, setPartnerMode] = useState<'rotating' | 'fixed'>(
+    (d as any).partner_mode === 'fixed' ? 'fixed' : 'rotating'
+  )
   const [category, setCategory] = useState(initCategory)
   const [skillMin, setSkillMin] = useState(d.skill_min?.toString() ?? '2.0')
   const [skillMax, setSkillMax] = useState(d.skill_max?.toString() ?? '')
@@ -182,6 +185,7 @@ export default function EditLeagueForm({
         standings_method: standingsMethod,
         points_to_win: pointsToWinNum,
         win_by: winBy,
+        partner_mode: teamType === 'doubles' ? partnerMode : 'rotating',
         sub_credit_cap: parseInt(subCreditCap) || 7,
         no_play_dates: noPlayDates,
       })
@@ -235,6 +239,25 @@ export default function EditLeagueForm({
             ))}
           </div>
         </FormRow>
+        {teamType === 'doubles' && (
+          <FormRow label="Partner mode">
+            <div className="grid grid-cols-2 gap-2">
+              {(['rotating', 'fixed'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPartnerMode(m)}
+                  className={`p-2.5 rounded-lg border text-left ${partnerMode === m ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                >
+                  <div className="text-sm font-semibold text-brand-dark capitalize">{m}</div>
+                  <div className="text-xs text-brand-muted mt-0.5">
+                    {m === 'rotating' ? 'New partner every match' : 'Same partner all season'}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </FormRow>
+        )}
         <FormRow label="Category" htmlFor="category" helpText={lockHint}>
           <select
             id="category"
