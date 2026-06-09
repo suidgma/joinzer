@@ -173,6 +173,9 @@ function generateSchedule(
     const p1 = m.team_1_registration_id
     const p2 = m.team_2_registration_id
 
+    // Bye matches (p2 === null) are auto-completed — skip court/time assignment
+    if (!p2) continue
+
     // Find the earliest wave with a free court and no player conflict
     let wave = 0
     while (true) {
@@ -249,7 +252,8 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
   )
 
   const numCourts = Math.max(1, genLastCourt - genFirstCourt + 1)
-  const numWaves = Math.ceil(playableMatches.length / numCourts)
+  const realMatches = playableMatches.filter(m => m.team_2_registration_id)
+  const numWaves = Math.ceil(realMatches.length / numCourts)
   const estimatedEndMin = toMinutes(genStartTime) + numWaves * genDuration
   const estimatedEndTime = fromMinutes(estimatedEndMin)
   const overrun = estimatedEndMin > toMinutes(genEndTime)
