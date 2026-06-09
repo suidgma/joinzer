@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
 
+const MATCH_SELECT = 'id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status'
+const SLIM_SELECT  = 'id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status'
+
 export async function PATCH(
   req: NextRequest,
   props: { params: Promise<{ id: string; matchId: string }> }
@@ -66,33 +69,82 @@ export async function PATCH(
     return NextResponse.json({ error: error?.message ?? 'Update failed' }, { status: 500 })
   }
 
-  // Advance winner to next round slot
-  const { data: divisionMatches } = await service
+  // Advance winner through the bracket, cascading over induced BYEs.
+  // An induced BYE occurs when one team advances into a future-round slot but the
+  // other slot is null because the bracket had an odd-sized half — the filled player
+  // should auto-advance without needing a score entry.
+  const advancedMatches: unknown[] = []
+
+  const { data: initialDivMatches } = await service
     .from('tournament_matches')
-    .select('id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status')
+    .select(SLIM_SELECT)
     .eq('division_id', match.division_id)
 
-  let advancedToMatch = null
-  if (divisionMatches) {
-    const completedMatch: MatchRow = {
-      ...match,
-      winner_registration_id,
-      status: 'completed',
-    }
-    const advancement = computeAdvancement(completedMatch, divisionMatches as MatchRow[])
-    if (advancement) {
+  if (initialDivMatches) {
+    let currentCompleted: MatchRow = { ...match, winner_registration_id, status: 'completed' }
+    let allDivMatches: MatchRow[] = initialDivMatches as MatchRow[]
+
+    for (let step = 0; step < 10; step++) {
+      const advancement = computeAdvancement(currentCompleted, allDivMatches)
+      if (!advancement) break
+
+      // Write the winner into the next-round slot
       await service
         .from('tournament_matches')
         .update({ [advancement.field]: advancement.value })
         .eq('id', advancement.matchId)
+
+      // Fetch the updated next-round match
       const { data: nextMatch } = await service
         .from('tournament_matches')
-        .select('id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status')
+        .select(MATCH_SELECT)
         .eq('id', advancement.matchId)
         .single()
-      advancedToMatch = nextMatch
+
+      if (!nextMatch) break
+
+      const t1 = nextMatch.team_1_registration_id
+      const t2 = nextMatch.team_2_registration_id
+      const isInducedBye = (!!t1 && !t2) || (!t1 && !!t2)
+
+      if (!isInducedBye) {
+        // Normal case: opponent filled in, match is ready to play
+        advancedMatches.push(nextMatch)
+        break
+      }
+
+      // Induced BYE: auto-complete so the lone player cascades to the next round
+      const byeWinner = t1 ?? t2
+      const { data: byeCompleted } = await service
+        .from('tournament_matches')
+        .update({ winner_registration_id: byeWinner, status: 'completed' })
+        .eq('id', nextMatch.id)
+        .select(MATCH_SELECT)
+        .single()
+
+      if (!byeCompleted) break
+      advancedMatches.push(byeCompleted)
+
+      // Re-fetch division matches so the next computeAdvancement sees the BYE completion
+      const { data: freshMatches } = await service
+        .from('tournament_matches')
+        .select(SLIM_SELECT)
+        .eq('division_id', match.division_id)
+
+      if (!freshMatches) break
+      allDivMatches = freshMatches as MatchRow[]
+      currentCompleted = {
+        id: byeCompleted.id,
+        round_number: byeCompleted.round_number,
+        match_number: byeCompleted.match_number,
+        match_stage: byeCompleted.match_stage,
+        team_1_registration_id: byeCompleted.team_1_registration_id,
+        team_2_registration_id: byeCompleted.team_2_registration_id,
+        winner_registration_id: byeCompleted.winner_registration_id,
+        status: byeCompleted.status,
+      }
     }
   }
 
-  return NextResponse.json({ match: updated, advancedToMatch })
+  return NextResponse.json({ match: updated, advancedMatches })
 }

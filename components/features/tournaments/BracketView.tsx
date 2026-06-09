@@ -108,9 +108,10 @@ function BracketMatchCard({
   })
 
   const isDone = match.status === 'completed'
-  // A true bye: team_1 has a real player, team_2 is null (player auto-advances).
-  // When BOTH slots are null it's a future TBD round — show TBD, not BYE.
-  const isBye = !match.team_2_registration_id && !!match.team_1_registration_id
+  // Structural BYE: completed with a winner but no team_2 (auto-advanced during bracket gen
+  // or induced cascade). A pending match where team_1 is set but team_2 is null is NOT a bye
+  // — team_2 is just TBD (waiting for the other half of the bracket to produce a winner).
+  const isBye = isDone && !match.team_2_registration_id && !!match.team_1_registration_id
   const w = match.winner_registration_id
 
   async function saveScore() {
@@ -144,8 +145,7 @@ function BracketMatchCard({
       setLoading(false)
       if (!res.ok) { setErr(json.error ?? 'Failed'); return }
       setScoring(false); setS1(''); setS2('')
-      const changed: Match[] = [json.match]
-      if (json.advancedToMatch) changed.push(json.advancedToMatch)
+      const changed: Match[] = [json.match, ...(json.advancedMatches ?? [])]
       onScoreUpdate(changed)
     } catch {
       // Network error — queue for retry
