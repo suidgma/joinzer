@@ -1029,7 +1029,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const maxPlayers = isDoublesFormat(div.format) ? div.max_entries * 2 : div.max_entries
             const isFull    = active.length >= maxPlayers
             const isClosed  = div.status === 'closed'
-            const canReg    = !myReg && !isClosed && (!isFull || div.waitlist_enabled)
+            const canReg    = !isOrganizer && !myReg && !isClosed && (!isFull || div.waitlist_enabled)
             const isManaging = managingId === div.id
             const isEditingFormat = editingFormatId === div.id
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
@@ -1556,18 +1556,32 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                               </div>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                    reg.payment_status === 'paid'     ? 'bg-green-100 text-green-700' :
-                                    reg.payment_status === 'waived'   ? 'bg-gray-100 text-gray-500'   :
-                                    reg.payment_status === 'comped'   ? 'bg-blue-50 text-blue-600'    :
-                                    reg.payment_status === 'refunded' ? 'bg-purple-100 text-purple-700' :
-                                                                        'bg-red-50 text-red-600'
-                                  }`}>
-                                    {reg.payment_status === 'paid'     ? '$ Paid'    :
-                                     reg.payment_status === 'waived'   ? 'Waived'    :
-                                     reg.payment_status === 'comped'   ? 'Comped'    :
-                                     reg.payment_status === 'refunded' ? 'Refunded'  : '$ Unpaid'}
-                                  </span>
+                                  {(() => {
+                                    const awaitingPartner =
+                                      reg.payment_status === 'unpaid' &&
+                                      reg.registration_type === 'team' &&
+                                      isDoublesFormat(div.format) &&
+                                      !reg.partner_registration_id
+                                    const colorClass =
+                                      reg.payment_status === 'paid'     ? 'bg-green-100 text-green-700'     :
+                                      reg.payment_status === 'waived'   ? 'bg-gray-100 text-gray-500'       :
+                                      reg.payment_status === 'comped'   ? 'bg-blue-50 text-blue-600'        :
+                                      reg.payment_status === 'refunded' ? 'bg-purple-100 text-purple-700'   :
+                                      awaitingPartner                   ? 'bg-amber-50 text-amber-700'      :
+                                                                          'bg-red-50 text-red-600'
+                                    const label =
+                                      reg.payment_status === 'paid'     ? '$ Paid'          :
+                                      reg.payment_status === 'waived'   ? 'Waived'          :
+                                      reg.payment_status === 'comped'   ? 'Comped'          :
+                                      reg.payment_status === 'refunded' ? 'Refunded'        :
+                                      awaitingPartner                   ? 'Awaiting Partner' :
+                                                                          '$ Unpaid'
+                                    return (
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${colorClass}`}>
+                                        {label}
+                                      </span>
+                                    )
+                                  })()}
                                   {reg.partner_user_id ? (
                                     <span className="text-brand-muted">Partner ✓</span>
                                   ) : isDoublesFormat(div.format) ? (

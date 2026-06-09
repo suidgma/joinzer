@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import { withBrandHeader } from '@/lib/email/send'
 
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -68,7 +69,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
         to: profile.email,
         replyTo: 'martyfit50@gmail.com',
         subject: `Cancelled: ${event.title}`,
-        html: `
+        html: withBrandHeader(`
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
             <div style="background:#ef4444;padding:24px 32px;border-radius:12px 12px 0 0">
               <h1 style="margin:0;font-size:20px;color:#ffffff">Session Cancelled</h1>
@@ -87,7 +88,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
               <p style="margin-top:24px;font-size:12px;color:#9ca3af">Sorry for the inconvenience — see you on the courts soon!</p>
             </div>
           </div>
-        `,
+        `),
       }
     })
     .filter((e): e is NonNullable<typeof e> => e !== null)

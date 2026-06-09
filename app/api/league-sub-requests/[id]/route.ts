@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { createNotification, createNotifications } from '@/lib/notifications/create'
 import { logAudit } from '@/lib/audit/log'
+import { withBrandHeader } from '@/lib/email/send'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -205,7 +206,7 @@ async function sendClaimNotification(
 }
 
 function emailHtml(heading: string, body: string, ctaUrl: string, ctaLabel: string) {
-  return `
+  return withBrandHeader(`
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
       <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
         <h1 style="margin:0;font-size:20px;color:#012D0B">${heading}</h1>
@@ -216,5 +217,5 @@ function emailHtml(heading: string, body: string, ctaUrl: string, ctaLabel: stri
         <p style="margin-top:24px;font-size:12px;color:#9ca3af">You're receiving this from Joinzer.</p>
       </div>
     </div>
-  `
+  `)
 }

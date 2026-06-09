@@ -9,6 +9,7 @@ import {
   rotatingDoublesMatches,
 } from '@/lib/tournament/bracketBuilder'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 export async function POST(
   _req: NextRequest,
@@ -46,7 +47,7 @@ export async function POST(
   // Fetch division format
   const { data: division } = await service
     .from('tournament_divisions')
-    .select('id, bracket_type, format_settings_json, partner_mode')
+    .select('id, format, bracket_type, format_settings_json, partner_mode')
     .eq('id', params.divisionId)
     .eq('tournament_id', params.id)
     .single()
@@ -90,6 +91,18 @@ export async function POST(
     matchRows = rotatingDoublesMatches(playerIds, base).rows
   } else {
     // Fixed mode: existing dedupe-and-bracket flow.
+    // For doubles divisions, every settled player must be linked to a partner
+    // before bracket slots are assigned. A missing link means a 1-person
+    // "team" would get a slot — block early with a clear count.
+    if (isDoublesFormat(division.format)) {
+      const unpaired = (registrations ?? []).filter(r => !r.partner_registration_id)
+      if (unpaired.length > 0) {
+        return NextResponse.json({
+          error: `${unpaired.length} player${unpaired.length !== 1 ? 's' : ''} in this doubles division ${unpaired.length !== 1 ? 'have' : 'has'} no partner assigned. Assign all partners before generating matches.`,
+        }, { status: 400 })
+      }
+    }
+
     const teams = dedupeRegistrationsToTeams(registrations ?? [])
     if (teams.length < 2) {
       return NextResponse.json({

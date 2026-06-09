@@ -5,6 +5,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { createNotifications } from '@/lib/notifications/create'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import { withBrandHeader } from '@/lib/email/send'
 
 // Vercel calls this daily at 8 AM Pacific.
 // Protected by CRON_SECRET — set this in Vercel env vars and add it
@@ -196,7 +197,7 @@ function reminderHtml({
     .map((d) => `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">${d.label}</td><td style="padding:6px 0;font-size:14px">${d.value}</td></tr>`)
     .join('')
 
-  return `
+  return withBrandHeader(`
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
       <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
         <h1 style="margin:0;font-size:20px;color:#012D0B">${heading}</h1>
@@ -209,5 +210,5 @@ function reminderHtml({
         <p style="margin-top:24px;font-size:12px;color:#9ca3af">See you on the court!</p>
       </div>
     </div>
-  `
+  `)
 }

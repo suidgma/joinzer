@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { withBrandHeader } from '@/lib/email/send'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
         to: p.email as string,
         replyTo: 'martyfit50@gmail.com',
         subject: `New session: ${title}`,
-        html: `
+        html: withBrandHeader(`
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
             <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
               <h1 style="margin:0;font-size:20px;color:#012D0B">New session posted!</h1>
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
               </p>
             </div>
           </div>
-        `,
+        `),
       }
     })
 
