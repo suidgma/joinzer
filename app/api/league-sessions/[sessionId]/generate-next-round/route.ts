@@ -66,7 +66,7 @@ export async function POST(req: NextRequest, props: Params) {
     }
   }
 
-  const players: SessionPlayer[] = (rawPlayers ?? [])
+  const playersRaw: SessionPlayer[] = (rawPlayers ?? [])
     // Unassigned subs sit out — only assigned subs (covering an absent player) play
     .filter((p: Record<string, unknown>) =>
       p.player_type !== 'sub' || p.sub_for_session_player_id !== null
@@ -81,6 +81,17 @@ export async function POST(req: NextRequest, props: Params) {
       joinzerRating:     (p.joinzer_rating as number) ?? 1000,
       gender:            p.user_id ? (genderByUserId.get(p.user_id as string) ?? null) : null,
     }))
+
+  // Dedupe by userId — one scheduler slot per person. If the same user somehow
+  // has two league_session_players rows, only the first is kept so the scheduler
+  // cannot pair a player against themselves.
+  const seenUserIds = new Set<string>()
+  const players = playersRaw.filter(p => {
+    if (!p.userId) return true  // null userId (guests) always pass through
+    if (seenUserIds.has(p.userId)) return false
+    seenUserIds.add(p.userId)
+    return true
+  })
 
   const presentCount = players.filter(p => p.actualStatus === 'present').length
   if (presentCount < 2) {
