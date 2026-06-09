@@ -437,10 +437,11 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
                     isDoubles={isDoubles}
                     tournamentId={tournamentId}
                     divisionId={div.id}
-                    onScoreUpdate={(updated) => {
+                    onScoreUpdate={(updatedMatches) => {
+                      const byId = new Map(updatedMatches.map(m => [m.id, m]))
                       setMatchesByDiv(prev => ({
                         ...prev,
-                        [div.id]: prev[div.id].map(m => m.id === updated.id ? updated : m),
+                        [div.id]: prev[div.id].map(m => byId.has(m.id) ? byId.get(m.id)! : m),
                       }))
                     }}
                   />
