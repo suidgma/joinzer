@@ -36,7 +36,7 @@ const FORMAT_META: Record<BracketType, { label: string; description: string }> =
 
 export function validateFormatSettings(type: BracketType, s: FormatSettings): string | null {
   const gt = s.games_to
-  if (!gt || ![11, 15, 21].includes(gt)) return 'Games to must be 11, 15, or 21.'
+  if (!gt || gt < 1) return 'Games to must be at least 1.'
   const wb = s.win_by
   if (!wb || ![1, 2].includes(wb)) return 'Win by must be 1 or 2.'
   if (type === 'pool_play_playoffs') {
