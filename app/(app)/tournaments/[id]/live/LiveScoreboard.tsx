@@ -61,12 +61,13 @@ function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
 
 type Props = {
   tournamentId: string
+  status?: string
   initialDivisions: Division[]
   initialMatches: Match[]
   initialRegistrations: Reg[]
 }
 
-export default function LiveScoreboard({ tournamentId, initialDivisions, initialMatches, initialRegistrations }: Props) {
+export default function LiveScoreboard({ tournamentId, status, initialDivisions, initialMatches, initialRegistrations }: Props) {
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [updatedAt, setUpdatedAt] = useState(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
 
@@ -101,16 +102,33 @@ export default function LiveScoreboard({ tournamentId, initialDivisions, initial
   const completed = matches.filter(m => m.status === 'completed')
   const total = matches.length
 
+  // Only show the pulsing "Live" indicator when the tournament is actually under
+  // way — otherwise a draft or upcoming event misleadingly reads as live.
+  const isLive = status === 'in_progress' || inProgress.length > 0
+  const isFinal = status === 'completed' || (total > 0 && completed.length === total)
+
   return (
     <div className="space-y-5">
       {/* Progress bar */}
       <div>
         <div className="flex items-center justify-between text-xs text-brand-muted mb-1.5">
           <span>{completed.length} of {total} matches complete</span>
-          <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />
-            Live · {updatedAt}
-          </span>
+          {isLive ? (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />
+              Live · {updatedAt}
+            </span>
+          ) : isFinal ? (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-muted inline-block" />
+              Final
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-muted/50 inline-block" />
+              Not started
+            </span>
+          )}
         </div>
         <div className="w-full h-2 bg-brand-border rounded-full overflow-hidden">
           <div

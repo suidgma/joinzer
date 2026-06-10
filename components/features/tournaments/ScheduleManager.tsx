@@ -323,7 +323,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     })
     setMatches(scheduledAllMatches)
 
-    // Commit immediately so the operator's "Generate Tournament" click is the
+    // Commit immediately so the operator's "Generate Full Schedule" click is the
     // single action that produces a fully saved schedule. Pending per-match
     // edits are cleared because everything is now in sync with the DB.
     const ok = await persistScheduleUpdates(generated)
@@ -456,7 +456,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
           onClick={() => setShowGenerator(!showGenerator)}
           className="text-sm font-medium text-brand-active hover:underline"
         >
-          {showGenerator ? 'Close' : hasMatches ? '⚙ Reschedule' : '⚙ Generate Tournament'}
+          {showGenerator ? 'Close' : hasMatches ? '⚙ Reschedule' : '⚙ Generate Full Schedule'}
         </button>
       </div>
 
@@ -465,7 +465,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-4">
           <div>
             <h3 className="font-heading text-sm font-bold text-brand-dark">
-              {hasMatches ? 'Regenerate Schedule' : 'Generate Full Tournament'}
+              {hasMatches ? 'Regenerate Schedule' : 'Generate Full Schedule'}
             </h3>
             {!hasMatches && (
               <p className="text-xs text-brand-muted mt-0.5">
@@ -608,7 +608,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
           <p className="text-2xl">🏆</p>
           <p className="text-sm font-medium text-brand-dark">No schedule yet</p>
-          <p className="text-xs text-brand-muted">Click ⚙ Generate Tournament to build brackets and assign courts in one step.</p>
+          <p className="text-xs text-brand-muted">Click ⚙ Generate Full Schedule to build brackets and assign courts in one step.</p>
         </div>
       )}
 

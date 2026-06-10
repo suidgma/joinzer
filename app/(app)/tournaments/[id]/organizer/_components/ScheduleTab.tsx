@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { Clock } from 'lucide-react'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
 import { teamLabel } from './ScoreEntryModal'
@@ -121,7 +122,23 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
         )
       })}
 
-      {groups.length === 0 && (
+      {groups.length === 0 && !playerView && (
+        <div className="bg-white rounded-xl border border-brand-border text-center py-12 px-4">
+          <p className="text-2xl mb-2">📅</p>
+          <p className="text-sm font-semibold text-brand-dark">No matches scheduled yet</p>
+          <p className="text-xs text-brand-muted mt-1 mb-4 max-w-xs mx-auto">
+            Once players have registered, generate the bracket and assign courts from the overview.
+          </p>
+          <Link
+            href={`/tournaments/${tournamentId}`}
+            className="inline-block py-2 px-4 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+          >
+            Generate from Overview →
+          </Link>
+        </div>
+      )}
+
+      {groups.length === 0 && playerView && (
         <p className="text-sm text-brand-muted text-center py-10">No matches scheduled yet.</p>
       )}
 

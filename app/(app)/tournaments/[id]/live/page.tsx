@@ -50,6 +50,7 @@ export default async function PublicLiveScoreboardPage(
 
         <LiveScoreboard
           tournamentId={params.id}
+          status={tournament.status}
           initialDivisions={divisions ?? []}
           initialMatches={matches ?? []}
           initialRegistrations={(registrations ?? []) as any[]}

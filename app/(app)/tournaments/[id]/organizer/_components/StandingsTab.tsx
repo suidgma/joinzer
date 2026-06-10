@@ -32,24 +32,55 @@ type Props = {
   registrations: OrgRegistration[]
   divisions: OrgDivision[]
   updatedAt: string
+  status?: string
 }
 
-export default function StandingsTab({ matches, registrations, divisions, updatedAt }: Props) {
+export default function StandingsTab({ matches, registrations, divisions, updatedAt, status }: Props) {
+  // Only badge as "Live" when play is actually under way.
+  const isLive = status === 'in_progress' || matches.some(m => m.status === 'in_progress')
+  const completedCount = matches.filter(m => m.status === 'completed').length
+  const isFinal = status === 'completed' || (matches.length > 0 && completedCount === matches.length)
+
+  // Standings rows per division (a division with registered teams shows even
+  // before any matches are played — teams start at 0–0).
+  const withRows = divisions
+    .map(div => ({
+      div,
+      rows: computeStandings(
+        matches.filter(m => m.division_id === div.id),
+        registrations.filter(r => r.division_id === div.id),
+      ),
+    }))
+    .filter(d => d.rows.length > 0)
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">Standings</h3>
-        <span className="text-[10px] text-brand-muted flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-          Live · {updatedAt}
-        </span>
+        {isLive ? (
+          <span className="text-[10px] text-brand-muted flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />
+            Live · {updatedAt}
+          </span>
+        ) : isFinal ? (
+          <span className="text-[10px] text-brand-muted flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-muted inline-block" />
+            Final
+          </span>
+        ) : null}
       </div>
 
-      {divisions.map(div => {
-        const divRegs = registrations.filter(r => r.division_id === div.id)
-        const divMatches = matches.filter(m => m.division_id === div.id)
-        const rows = computeStandings(divMatches, divRegs)
-        if (rows.length === 0) return null
+      {divisions.length > 0 && withRows.length === 0 && (
+        <div className="bg-white rounded-xl border border-brand-border text-center py-12 px-4">
+          <p className="text-2xl mb-2">📊</p>
+          <p className="text-sm font-semibold text-brand-dark">No standings yet</p>
+          <p className="text-xs text-brand-muted mt-1">
+            Standings appear once players register and matches are played.
+          </p>
+        </div>
+      )}
+
+      {withRows.map(({ div, rows }) => {
         return (
           <div key={div.id} className="bg-white rounded-xl border border-brand-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-brand-border">
