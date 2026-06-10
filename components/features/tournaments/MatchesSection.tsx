@@ -334,6 +334,22 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
     setScoreLoading(false)
   }
 
+  function handleScheduleUpdate(updatedMatches: Match[]) {
+    setMatchesByDiv(prev => {
+      const next = { ...prev }
+      for (const m of updatedMatches) {
+        if (next[m.division_id]) {
+          next[m.division_id] = next[m.division_id].map(existing =>
+            existing.id === m.id
+              ? { ...existing, court_number: m.court_number, scheduled_time: m.scheduled_time }
+              : existing
+          )
+        }
+      }
+      return next
+    })
+  }
+
   const showsStandings = (ft: string) => ft === 'round_robin' || ft === 'pool_play_playoffs'
   const showsBracket = (ft: string) => ft === 'single_elimination' || ft === 'double_elimination' || ft === 'pool_play_playoffs'
 
@@ -353,6 +369,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
           defaultEndTime={defaultEndTime}
           locationCourtCount={locationCourtCount}
           locationName={locationName}
+          onScheduleUpdate={handleScheduleUpdate}
         />
       )}
 
