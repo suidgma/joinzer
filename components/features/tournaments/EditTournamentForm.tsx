@@ -58,6 +58,11 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [additionalDays, setAdditionalDays] = useState<{ date: string; start_time: string; end_time: string }[]>(
     (tournament as any).additional_days ?? []
   )
+  const [defaultWinBy, setDefaultWinBy] = useState<1 | 2>((tournament as any).default_win_by ?? 1)
+  const [defaultGamesTo, setDefaultGamesTo] = useState<number>((tournament as any).default_games_to ?? 11)
+  const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination' | 'pool_play_playoffs'>(
+    (tournament as any).default_bracket_type ?? 'round_robin'
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,6 +90,9 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         contact_name: contactName.trim() || null,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
+        default_win_by: defaultWinBy,
+        default_games_to: defaultGamesTo,
+        default_bracket_type: defaultBracketType,
       })
       .eq('id', tournament.id)
 
@@ -235,6 +243,47 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
                 }`}
               >
                 {r === 'open' ? 'Open' : 'Closed'}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+      </FormSection>
+
+      <FormSection title="Division Defaults" description="These pre-populate each division you create and can be overridden per division." defaultOpen>
+        <FormRow label="Format">
+          <div className="flex flex-col gap-2">
+            {([
+              { value: 'round_robin',        label: 'Round Robin',          desc: 'Every team plays every other team.' },
+              { value: 'single_elimination', label: 'Single Elimination',   desc: 'One loss and you\'re out.' },
+              { value: 'double_elimination', label: 'Double Elimination',   desc: 'Teams eliminated after two losses.' },
+              { value: 'pool_play_playoffs', label: 'Pool Play + Playoffs', desc: 'Groups phase, then bracket playoffs.' },
+            ] as const).map(opt => (
+              <label key={opt.value} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${defaultBracketType === opt.value ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white hover:bg-brand-soft/50'}`}>
+                <input type="radio" name="default_bracket_type" value={opt.value} checked={defaultBracketType === opt.value} onChange={() => setDefaultBracketType(opt.value)} className="mt-0.5 accent-brand" />
+                <div>
+                  <p className="text-sm font-semibold text-brand-dark">{opt.label}</p>
+                  <p className="text-xs text-brand-muted">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Points to win">
+          <input
+            type="number"
+            min="1"
+            value={defaultGamesTo}
+            onChange={e => setDefaultGamesTo(Number(e.target.value) || 11)}
+            onBlur={e => setDefaultGamesTo(Math.max(1, Number(e.target.value) || 11))}
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow label="Win By">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {([{ value: 1, label: 'Win by 1' }, { value: 2, label: 'Win by 2' }] as const).map(opt => (
+              <button key={opt.value} type="button" onClick={() => setDefaultWinBy(opt.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultWinBy === opt.value ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}>
+                {opt.label}
               </button>
             ))}
           </div>
