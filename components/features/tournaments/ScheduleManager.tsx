@@ -49,6 +49,7 @@ type Props = {
   defaultEndTime: string | null // HH:MM or null
   locationCourtCount?: number | null
   locationName?: string | null
+  onScheduleUpdate?: (updatedMatches: Match[]) => void
 }
 
 function lastName(name: string | null | undefined): string {
@@ -208,7 +209,7 @@ function generateSchedule(
   return result
 }
 
-export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime, locationCourtCount, locationName }: Props) {
+export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime, locationCourtCount, locationName, onScheduleUpdate }: Props) {
   const router = useRouter()
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [showGenerator, setShowGenerator] = useState(false)
@@ -312,11 +313,12 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     const generated = generateSchedule(playable, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
 
     const genMap = new Map(generated.map(g => [g.id, g]))
-    setMatches(prev => prev.map(m => {
+    const scheduledAllMatches = allMatches.map(m => {
       const g = genMap.get(m.id)
       if (!g) return m
       return { ...m, court_number: g.court_number, scheduled_time: g.scheduled_time }
-    }))
+    })
+    setMatches(scheduledAllMatches)
 
     // Commit immediately so the operator's "Generate Tournament" click is the
     // single action that produces a fully saved schedule. Pending per-match
@@ -325,6 +327,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     if (ok) {
       setEdits({})
       setSaveSuccess(true)
+      onScheduleUpdate?.(scheduledAllMatches)
     }
 
     setShowGenerator(false)
@@ -341,16 +344,18 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
 
     const generated = generateSchedule(playableMatches, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
     const genMap = new Map(generated.map(g => [g.id, g]))
-    setMatches(prev => prev.map(m => {
+    const rescheduledMatches = matches.map(m => {
       const g = genMap.get(m.id)
       if (!g) return m
       return { ...m, court_number: g.court_number, scheduled_time: g.scheduled_time }
-    }))
+    })
+    setMatches(rescheduledMatches)
 
     const ok = await persistScheduleUpdates(generated)
     if (ok) {
       setEdits({})
       setSaveSuccess(true)
+      onScheduleUpdate?.(rescheduledMatches)
     }
 
     setShowGenerator(false)
@@ -403,8 +408,17 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     })
 
     if (res.ok) {
+      const savedMatches = matches.map(m => {
+        const e = edits[m.id]
+        if (!e) return m
+        const court = parseInt(e.court_number)
+        const iso = e.date && e.time ? `${e.date}T${e.time}:00-07:00` : null
+        return { ...m, court_number: isNaN(court) ? null : court, scheduled_time: iso }
+      })
+      setMatches(savedMatches)
       setEdits({})
       setSaveSuccess(true)
+      onScheduleUpdate?.(savedMatches)
       router.refresh()
     } else {
       const data = await res.json().catch(() => ({}))
