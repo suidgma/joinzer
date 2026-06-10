@@ -24,8 +24,10 @@ export default async function EditTournamentPage(props: { params: Promise<{ id: 
     supabase
       .from('tournaments')
       .select(`
-        id, name, description, start_date, start_time, estimated_end_time,
+        id, name, description, start_date, start_time, estimated_end_time, additional_days,
         status, visibility, registration_status, registration_closes_at, organizer_id, cost_cents,
+        contact_name, contact_email, allow_player_scores,
+        default_win_by, default_games_to, default_bracket_type,
         location_id,
         location:locations!location_id (id, name, subarea),
         organizer:profiles!organizer_id (name),
