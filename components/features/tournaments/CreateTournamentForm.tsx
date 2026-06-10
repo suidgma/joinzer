@@ -37,7 +37,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
   const [defaultWinBy, setDefaultWinBy] = useState<1 | 2>(1)
   const [defaultGamesTo, setDefaultGamesTo] = useState<number>(11)
-  const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination'>('round_robin')
+  const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination' | 'pool_play_playoffs'>('round_robin')
   const [additionalDays, setAdditionalDays] = useState<{ date: string; start_time: string; end_time: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -249,9 +249,10 @@ export default function CreateTournamentForm({ locations }: Props) {
         <FormRow label="Format">
           <div className="flex flex-col gap-2">
             {([
-              { value: 'round_robin',        label: 'Round Robin',        desc: 'Every team plays every other team.' },
-              { value: 'single_elimination', label: 'Single Elimination', desc: 'One loss and you\'re out.' },
-              { value: 'double_elimination', label: 'Double Elimination', desc: 'Teams eliminated after two losses.' },
+              { value: 'round_robin',        label: 'Round Robin',          desc: 'Every team plays every other team.' },
+              { value: 'single_elimination', label: 'Single Elimination',   desc: 'One loss and you\'re out.' },
+              { value: 'double_elimination', label: 'Double Elimination',   desc: 'Teams eliminated after two losses.' },
+              { value: 'pool_play_playoffs', label: 'Pool Play + Playoffs', desc: 'Groups phase, then bracket playoffs.' },
             ] as const).map(opt => (
               <label key={opt.value} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${defaultBracketType === opt.value ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white hover:bg-brand-soft/50'}`}>
                 <input type="radio" name="default_bracket_type" value={opt.value} checked={defaultBracketType === opt.value} onChange={() => setDefaultBracketType(opt.value)} className="mt-0.5 accent-brand" />
