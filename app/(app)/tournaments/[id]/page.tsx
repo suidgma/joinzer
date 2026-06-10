@@ -120,7 +120,10 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     ] : []),
   ]
   const deadlinePassed = tournament.registration_closes_at != null && new Date() > new Date(tournament.registration_closes_at)
-  const regOpen = tournament.registration_status === 'open' && !deadlinePassed
+  const isDraft = tournament.status === 'draft'
+  // Registration is only truly open once the tournament is published — a draft
+  // is invisible to players, so "Registration Open" would be misleading there.
+  const regOpen = tournament.status === 'published' && tournament.registration_status === 'open' && !deadlinePassed
 
   const startFormatted = formatTime(tournament.start_time)
   const endFormatted = formatTime(tournament.estimated_end_time)
@@ -162,9 +165,14 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             <StatusBadge status={tournament.status} />
           </div>
           <span className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-semibold ${
-            regOpen ? 'bg-brand-soft text-brand-active' : 'bg-gray-100 text-gray-500'
+            regOpen ? 'bg-brand-soft text-brand-active'
+              : isDraft ? 'bg-amber-50 text-amber-700'
+              : 'bg-gray-100 text-gray-500'
           }`}>
-            {regOpen ? 'Registration Open' : deadlinePassed ? 'Deadline Passed' : 'Registration Closed'}
+            {isDraft ? 'Opens when published'
+              : regOpen ? 'Registration Open'
+              : deadlinePassed ? 'Deadline Passed'
+              : 'Registration Closed'}
           </span>
         </div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">{tournament.name}</h1>

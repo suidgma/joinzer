@@ -37,6 +37,7 @@ export default async function TournamentStandingsPage(props: { params: Promise<{
           registrations={orgRegs}
           divisions={orgDivisions}
           updatedAt={updatedAt}
+          status={tournament.status}
         />
       </div>
     </DesktopShell>
