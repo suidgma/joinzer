@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import BracketView from './BracketView'
 import ScheduleManager from './ScheduleManager'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
@@ -277,6 +277,22 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
     }
     return map
   })
+
+  // When router.refresh() brings in new matches (e.g. after schedule save or bracket generation
+  // on a page that was loaded before matches existed), merge them into state.
+  // useState initializer only runs once; this covers subsequent prop updates.
+  useEffect(() => {
+    setMatchesByDiv(prev => {
+      const knownIds = new Set(Object.values(prev).flat().map(m => m.id))
+      const incoming = initialMatches.filter(m => !knownIds.has(m.id))
+      if (incoming.length === 0) return prev
+      const next = { ...prev }
+      for (const m of incoming) {
+        next[m.division_id] = [...(next[m.division_id] ?? []), m]
+      }
+      return next
+    })
+  }, [initialMatches])
 
   const [generating, setGenerating] = useState<Record<string, boolean>>({})
   const [genError, setGenError] = useState<Record<string, string | null>>({})
