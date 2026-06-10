@@ -386,7 +386,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
     const e = edits[id]
     if (!e) { setEditingId(null); return }
     const court = parseInt(e.court_number)
-    const iso = e.date && e.time ? `${e.date}T${e.time}:00-07:00` : null
+    const iso = e.date && e.time ? `${e.date}T${e.time.slice(0, 5)}:00-07:00` : null
     setMatches(prev => prev.map(m =>
       m.id === id ? { ...m, court_number: isNaN(court) ? null : court, scheduled_time: iso } : m
     ))
@@ -400,7 +400,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
 
     const updates = Object.entries(edits).map(([id, e]) => {
       const court = parseInt(e.court_number)
-      const iso = e.date && e.time ? `${e.date}T${e.time}:00-07:00` : null
+      const iso = e.date && e.time ? `${e.date}T${e.time.slice(0, 5)}:00-07:00` : null
       return { id, court_number: isNaN(court) ? null : court, scheduled_time: iso }
     })
 
@@ -415,7 +415,7 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
         const e = edits[m.id]
         if (!e) return m
         const court = parseInt(e.court_number)
-        const iso = e.date && e.time ? `${e.date}T${e.time}:00-07:00` : null
+        const iso = e.date && e.time ? `${e.date}T${e.time.slice(0, 5)}:00-07:00` : null
         return { ...m, court_number: isNaN(court) ? null : court, scheduled_time: iso }
       })
       setMatches(savedMatches)
