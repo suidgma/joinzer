@@ -40,6 +40,8 @@ type Division = {
   tournament_registrations: Registration[]
 }
 
+type TournamentDay = { date: string; start_time: string; end_time: string }
+
 type Props = {
   tournamentId: string
   initialMatches: Match[]
@@ -47,6 +49,7 @@ type Props = {
   tournamentDate: string        // YYYY-MM-DD
   defaultStartTime: string      // HH:MM
   defaultEndTime: string | null // HH:MM or null
+  additionalDays?: TournamentDay[]
   locationCourtCount?: number | null
   locationName?: string | null
   onScheduleUpdate?: (updatedMatches: Pick<Match, 'id' | 'division_id' | 'court_number' | 'scheduled_time'>[]) => void
@@ -209,7 +212,7 @@ function generateSchedule(
   return result
 }
 
-export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime, locationCourtCount, locationName, onScheduleUpdate }: Props) {
+export default function ScheduleManager({ tournamentId, initialMatches, divisions, tournamentDate, defaultStartTime, defaultEndTime, additionalDays, locationCourtCount, locationName, onScheduleUpdate }: Props) {
   const router = useRouter()
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [showGenerator, setShowGenerator] = useState(false)
@@ -472,6 +475,27 @@ export default function ScheduleManager({ tournamentId, initialMatches, division
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            {(additionalDays ?? []).length > 0 && (
+              <div className="col-span-2 sm:col-span-4">
+                <label className="block text-xs font-medium text-brand-muted mb-1">Day</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[{ date: tournamentDate, start_time: defaultStartTime || '08:00', end_time: defaultEndTime || '17:00' }, ...(additionalDays ?? [])].map((day, i) => {
+                    const isActive = genDate === day.date
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => { setGenDate(day.date); setGenStartTime(day.start_time); setGenEndTime(day.end_time) }}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${isActive ? 'bg-brand border-brand text-brand-dark' : 'bg-white border-brand-border text-brand-muted hover:text-brand-dark'}`}
+                      >
+                        Day {i + 1}
+                        <span className="ml-1 font-normal opacity-70">{new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             <div className="col-span-2">
               <label className="block text-xs font-medium text-brand-muted mb-1">Date</label>
               <input type="date" value={genDate} onChange={e => setGenDate(e.target.value)} className="w-full input" />

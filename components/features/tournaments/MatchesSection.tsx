@@ -41,6 +41,8 @@ type Division = {
   tournament_registrations: Registration[]
 }
 
+type TournamentDay = { date: string; start_time: string; end_time: string }
+
 type Props = {
   tournamentId: string
   divisions: Division[]
@@ -49,6 +51,7 @@ type Props = {
   tournamentDate: string
   defaultStartTime: string
   defaultEndTime: string | null
+  additionalDays?: TournamentDay[]
   locationCourtCount?: number | null
   locationName?: string | null
 }
@@ -264,7 +267,7 @@ function MatchCard({
   )
 }
 
-export default function MatchesSection({ tournamentId, divisions, initialMatches, isOrganizer, tournamentDate, defaultStartTime, defaultEndTime, locationCourtCount, locationName }: Props) {
+export default function MatchesSection({ tournamentId, divisions, initialMatches, isOrganizer, tournamentDate, defaultStartTime, defaultEndTime, additionalDays, locationCourtCount, locationName }: Props) {
   const [matchesByDiv, setMatchesByDiv] = useState<Record<string, Match[]>>(() => {
     const map: Record<string, Match[]> = {}
     for (const div of divisions) map[div.id] = []
@@ -367,6 +370,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
           tournamentDate={tournamentDate}
           defaultStartTime={defaultStartTime}
           defaultEndTime={defaultEndTime}
+          additionalDays={additionalDays}
           locationCourtCount={locationCourtCount}
           locationName={locationName}
           onScheduleUpdate={handleScheduleUpdate}

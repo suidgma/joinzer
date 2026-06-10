@@ -47,6 +47,12 @@ export type TournamentListItem = {
   organizer: { name: string } | null
 }
 
+export type TournamentDay = {
+  date: string
+  start_time: string
+  end_time: string
+}
+
 export type TournamentDetail = {
   id: string
   name: string
@@ -54,6 +60,7 @@ export type TournamentDetail = {
   start_date: string
   start_time: string
   estimated_end_time: string | null
+  additional_days: TournamentDay[]
   status: string
   visibility: string
   registration_status: string

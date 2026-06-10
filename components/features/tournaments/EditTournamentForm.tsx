@@ -55,6 +55,9 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [contactName, setContactName] = useState((tournament as any).contact_name ?? '')
   const [contactEmail, setContactEmail] = useState((tournament as any).contact_email ?? '')
   const [allowPlayerScores, setAllowPlayerScores] = useState((tournament as any).allow_player_scores ?? false)
+  const [additionalDays, setAdditionalDays] = useState<{ date: string; start_time: string; end_time: string }[]>(
+    (tournament as any).additional_days ?? []
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -73,6 +76,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         start_date: startDate,
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
+        additional_days: additionalDays,
         status,
         visibility,
         registration_status: registrationStatus,
@@ -124,6 +128,9 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         <FormRow label="Location" htmlFor="location">
           <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
         </FormRow>
+        <div className="px-1 pb-1">
+          <p className="text-xs font-bold text-brand-dark mb-3">Day 1</p>
+        </div>
         <FormRow label="Date" htmlFor="start-date" required>
           <input
             id="start-date"
@@ -146,6 +153,41 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             </div>
           </div>
         </FormRow>
+
+        {additionalDays.map((day, i) => (
+          <div key={i} className="border-t border-brand-border/50 pt-4 mt-2">
+            <div className="flex items-center justify-between px-1 mb-3">
+              <p className="text-xs font-bold text-brand-dark">Day {i + 2}</p>
+              <button type="button" onClick={() => setAdditionalDays(prev => prev.filter((_, idx) => idx !== i))}
+                className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+            </div>
+            <FormRow label="Date">
+              <input type="date" value={day.date}
+                onChange={e => setAdditionalDays(prev => prev.map((d, idx) => idx === i ? { ...d, date: e.target.value } : d))}
+                className="w-full input" />
+            </FormRow>
+            <FormRow label="Times">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+                  <TimeSelect value={day.start_time} onChange={v => setAdditionalDays(prev => prev.map((d, idx) => idx === i ? { ...d, start_time: v } : d))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
+                  <TimeSelect value={day.end_time} onChange={v => setAdditionalDays(prev => prev.map((d, idx) => idx === i ? { ...d, end_time: v } : d))} />
+                </div>
+              </div>
+            </FormRow>
+          </div>
+        ))}
+
+        <div className="px-1 pt-2">
+          <button type="button"
+            onClick={() => setAdditionalDays(prev => [...prev, { date: '', start_time: '08:00', end_time: '17:00' }])}
+            className="text-sm font-semibold text-brand-active hover:underline">
+            + Add Day
+          </button>
+        </div>
       </FormSection>
 
       <FormSection title="Registration" defaultOpen>
