@@ -49,7 +49,7 @@ type Props = {
   defaultEndTime: string | null // HH:MM or null
   locationCourtCount?: number | null
   locationName?: string | null
-  onScheduleUpdate?: (updatedMatches: Match[]) => void
+  onScheduleUpdate?: (updatedMatches: Pick<Match, 'id' | 'division_id' | 'court_number' | 'scheduled_time'>[]) => void
 }
 
 function lastName(name: string | null | undefined): string {

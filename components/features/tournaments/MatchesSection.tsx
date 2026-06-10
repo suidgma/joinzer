@@ -334,7 +334,7 @@ export default function MatchesSection({ tournamentId, divisions, initialMatches
     setScoreLoading(false)
   }
 
-  function handleScheduleUpdate(updatedMatches: Match[]) {
+  function handleScheduleUpdate(updatedMatches: { id: string; division_id: string; court_number: number | null; scheduled_time: string | null }[]) {
     setMatchesByDiv(prev => {
       const next = { ...prev }
       for (const m of updatedMatches) {
