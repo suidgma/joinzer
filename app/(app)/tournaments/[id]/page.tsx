@@ -57,7 +57,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     db
       .from('tournaments')
       .select(`
-        id, name, description, start_date, start_time, estimated_end_time,
+        id, name, description, start_date, start_time, estimated_end_time, additional_days,
         status, visibility, registration_status, registration_closes_at, organizer_id,
         cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type,
         location:locations!location_id (id, name, subarea, court_count),
@@ -352,6 +352,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
               tournamentDate={tournament.start_date}
               defaultStartTime={tournament.start_time ?? '08:00'}
               defaultEndTime={tournament.estimated_end_time ?? null}
+              additionalDays={tournament.additional_days ?? []}
               locationCourtCount={(tournament.location as any)?.court_count ?? null}
               locationName={(tournament.location as any)?.name ?? null}
             />
