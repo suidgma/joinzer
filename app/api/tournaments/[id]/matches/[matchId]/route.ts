@@ -105,15 +105,42 @@ export async function PATCH(
 
       const t1 = nextMatch.team_1_registration_id
       const t2 = nextMatch.team_2_registration_id
-      const isInducedBye = (!!t1 && !t2) || (!t1 && !!t2)
 
-      if (!isInducedBye) {
-        // Normal case: opponent filled in, match is ready to play
+      if (t1 && t2) {
+        // Both slots filled — match is ready to play
         advancedMatches.push(nextMatch)
         break
       }
 
-      // Induced BYE: auto-complete so the lone player cascades to the next round
+      if (!t1 && !t2) break
+
+      // One slot is filled, one is null. Distinguish a genuine induced BYE
+      // (no real pending match will ever fill the null slot) from TBD
+      // (another pending match in the same stage/round will eventually fill it).
+      const otherField = advancement.field === 'team_1_registration_id'
+        ? 'team_2_registration_id'
+        : 'team_1_registration_id'
+
+      const hasPendingFeeder = allDivMatches.some(m => {
+        if (m.match_stage !== currentCompleted.match_stage) return false
+        if (m.round_number !== currentCompleted.round_number) return false
+        if (m.status === 'completed') return false
+        if (!m.team_1_registration_id && !m.team_2_registration_id) return false
+        if (m.id === currentCompleted.id) return false
+        const adv = computeAdvancement(
+          { ...m, winner_registration_id: m.team_1_registration_id ?? m.team_2_registration_id ?? '', status: 'completed' },
+          allDivMatches
+        )
+        return adv?.matchId === nextMatch.id && adv?.field === otherField
+      })
+
+      if (hasPendingFeeder) {
+        // TBD — another pending match will eventually fill the empty slot; stop here
+        advancedMatches.push(nextMatch)
+        break
+      }
+
+      // Genuine induced BYE — no real match will ever fill the empty slot
       const byeWinner = t1 ?? t2
       const { data: byeCompleted } = await service
         .from('tournament_matches')
