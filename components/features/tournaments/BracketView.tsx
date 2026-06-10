@@ -40,6 +40,14 @@ type Props = {
   onScoreUpdate: (updatedMatches: Match[]) => void
 }
 
+function formatMatchTime(scheduled_time: string | null): string {
+  if (!scheduled_time) return ''
+  const d = new Date(scheduled_time)
+  const day = d.toLocaleDateString('en-US', { weekday: 'short' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${day} ${time}`
+}
+
 function lastName(name: string | null | undefined): string {
   if (!name) return ''
   const parts = name.trim().split(/\s+/)
@@ -173,6 +181,15 @@ function BracketMatchCard({
           <span className={`font-bold ml-1 shrink-0 ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_2_score}</span>
         )}
       </div>
+
+      {/* Assignment info: court + time */}
+      {(match.court_number != null || match.scheduled_time) && (
+        <div className="px-2 py-1 border-t border-brand-border/40 text-[9px] text-brand-muted flex items-center gap-1 flex-wrap">
+          {match.court_number != null && <span className="font-medium">Ct.{match.court_number}</span>}
+          {match.court_number != null && match.scheduled_time && <span>·</span>}
+          {match.scheduled_time && <span>{formatMatchTime(match.scheduled_time)}</span>}
+        </div>
+      )}
 
       {/* Pending sync indicator */}
       {pendingSync && (
