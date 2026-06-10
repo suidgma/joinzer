@@ -88,17 +88,14 @@ export async function PATCH(
       const advancement = computeAdvancement(currentCompleted, allDivMatches)
       if (!advancement) break
 
-      // Write the winner into the next-round slot
-      await service
+      // Write the winner into the next-round slot and read back the updated row atomically.
+      // A separate update + select risks a read-your-own-writes miss under connection pooling,
+      // causing the freshly-written slot to appear null in the BYE check below.
+      const { data: nextMatch } = await service
         .from('tournament_matches')
         .update({ [advancement.field]: advancement.value })
         .eq('id', advancement.matchId)
-
-      // Fetch the updated next-round match
-      const { data: nextMatch } = await service
-        .from('tournament_matches')
         .select(MATCH_SELECT)
-        .eq('id', advancement.matchId)
         .single()
 
       if (!nextMatch) break

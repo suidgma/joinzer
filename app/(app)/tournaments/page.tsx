@@ -36,8 +36,6 @@ export default async function TournamentsPage(props: { searchParams: Promise<Sea
     .gte('start_date', today)
     .order('start_date', { ascending: true })
 
-  if (!showTest) query = query.eq('dummy', false)
-
   const { data, error: queryError } = await query
 
   if (queryError) {
