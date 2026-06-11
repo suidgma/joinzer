@@ -71,6 +71,7 @@ export default async function DivisionManagePage(
       tournamentId={params.id}
       tournamentName={(tournament as any).name}
       tournamentStartDate={(tournament as any).start_date ?? null}
+      tournamentStartTime={(tournament as any).start_time ?? null}
       division={division as any}
       initialRegistrations={registrations}
       initialMatches={matchesRaw ?? []}

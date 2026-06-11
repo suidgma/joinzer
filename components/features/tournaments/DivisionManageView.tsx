@@ -62,12 +62,53 @@ type Props = {
   tournamentId: string
   tournamentName: string
   tournamentStartDate: string | null
+  tournamentStartTime?: string | null
   division: Division
   initialRegistrations: Registration[]
   initialMatches: Match[]
   isOrganizer: boolean
   currentUserId: string | null
   locationCourtCount?: number | null
+}
+
+function buildAutoSchedule(
+  matches: Match[],
+  startDate: string,
+  startTime: string,           // "HH:MM"
+  courtCount: number,
+  durationMinutes: number,
+): Array<{ id: string; court_number: number; scheduled_time: string }> {
+  const byRound = new Map<number, Match[]>()
+  for (const m of matches) {
+    const r = m.round_number ?? 1
+    if (!byRound.has(r)) byRound.set(r, [])
+    byRound.get(r)!.push(m)
+  }
+  const rounds = Array.from(byRound.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([, ms]) => ms.sort((a, b) => a.match_number - b.match_number))
+
+  const [h, min] = startTime.split(':').map(Number)
+  let offsetMin = h * 60 + (min || 0)
+  const result: Array<{ id: string; court_number: number; scheduled_time: string }> = []
+
+  for (const roundMatches of rounds) {
+    for (let i = 0; i < roundMatches.length; i++) {
+      const slotOffset = Math.floor(i / courtCount)
+      const courtOffset = i % courtCount
+      const totalMin = offsetMin + slotOffset * durationMinutes
+      const hh = String(Math.floor(totalMin / 60)).padStart(2, '0')
+      const mm = String(totalMin % 60).padStart(2, '0')
+      result.push({
+        id: roundMatches[i].id,
+        court_number: courtOffset + 1,
+        scheduled_time: `${startDate}T${hh}:${mm}:00-07:00`,
+      })
+    }
+    const slotsNeeded = Math.ceil(roundMatches.length / courtCount)
+    offsetMin += slotsNeeded * durationMinutes
+  }
+  return result
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -84,9 +125,9 @@ const FORMAT_LABELS: Record<string, string> = {
 }
 
 export default function DivisionManageView({
-  tournamentId, tournamentName, tournamentStartDate,
+  tournamentId, tournamentName, tournamentStartDate, tournamentStartTime,
   division, initialRegistrations, initialMatches,
-  isOrganizer, currentUserId,
+  isOrganizer, currentUserId, locationCourtCount,
 }: Props) {
   const router = useRouter()
   const [registrations, setRegistrations] = useState<Registration[]>(initialRegistrations)
@@ -132,6 +173,23 @@ export default function DivisionManageView({
       const d = await res.json().catch(() => ({}))
       throw new Error(d.error ?? 'Failed to generate matches')
     }
+    const { matches: newMatches } = await res.json()
+
+    // Auto-schedule: distribute matches across courts, stagger by round
+    if (newMatches?.length && tournamentStartDate) {
+      const startTime = tournamentStartTime?.slice(0, 5) ?? '09:00'
+      const courts = Math.max(1, locationCourtCount ?? 1)
+      const gamesToPoints = (division.format_settings_json as any)?.games_to ?? 11
+      const duration = gamesToPoints >= 21 ? 45 : gamesToPoints >= 15 ? 35 : 25
+
+      const updates = buildAutoSchedule(newMatches, tournamentStartDate, startTime, courts, duration)
+      await fetch(`/api/tournaments/${tournamentId}/schedule`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      })
+    }
+
     router.refresh()
   }
 
