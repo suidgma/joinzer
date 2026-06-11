@@ -86,16 +86,18 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
     return withSeed.length > 0 ? [...withSeed, ...noSeed] : [...confirmed]
   })
 
+  // Start locked if seeds were previously saved, unlocked if no seeds set yet
+  const [locked, setLocked] = useState(() => confirmed.some(r => r.seed != null))
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const dragIndex = useRef<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
 
-  function handleDragStart(i: number) { dragIndex.current = i }
-  function handleDragOver(e: React.DragEvent, i: number) { e.preventDefault(); setDragOver(i) }
+  function handleDragStart(i: number) { if (!locked) dragIndex.current = i }
+  function handleDragOver(e: React.DragEvent, i: number) { if (!locked) { e.preventDefault(); setDragOver(i) } }
   function handleDrop(i: number) {
+    if (locked) return
     const from = dragIndex.current
     if (from === null || from === i) { setDragOver(null); return }
     const next = [...order]
@@ -103,7 +105,6 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
     next.splice(i, 0, moved)
     setOrder(next)
     setDragOver(null)
-    setSaved(false)
   }
   function handleDragEnd() { dragIndex.current = null; setDragOver(null) }
 
@@ -114,7 +115,6 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
       return rb - ra
     })
     setOrder(sorted)
-    setSaved(false)
   }
 
   async function save() {
@@ -126,7 +126,7 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seeds }) }
       )
       if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error ?? 'Save failed') }
-      else setSaved(true)
+      else setLocked(true)
     } catch { setError('Network error') }
     finally { setSaving(false) }
   }
@@ -139,19 +139,28 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
       <div className="flex items-center justify-between px-3 py-2 border-b border-brand-border bg-brand-surface">
         <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Seeding &amp; Registrants</p>
         <div className="flex items-center gap-2">
-          {hasRatings && (
+          {!locked && hasRatings && (
             <button onClick={autoSeed} className="text-xs text-brand-active hover:underline">
               Auto-seed by rating
             </button>
           )}
           {order.length > 0 && (
-            <button
-              onClick={save}
-              disabled={saving}
-              className="px-3 py-1 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand/80 disabled:opacity-50 transition-colors"
-            >
-              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Seeds'}
-            </button>
+            locked ? (
+              <button
+                onClick={() => setLocked(false)}
+                className="px-3 py-1 rounded-lg border border-brand-border text-brand-muted text-xs font-semibold hover:bg-brand-soft transition-colors"
+              >
+                🔒 Edit Seeds
+              </button>
+            ) : (
+              <button
+                onClick={save}
+                disabled={saving}
+                className="px-3 py-1 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand/80 disabled:opacity-50 transition-colors"
+              >
+                {saving ? 'Saving…' : 'Save Seeds'}
+              </button>
+            )
           )}
         </div>
       </div>
@@ -169,16 +178,16 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
             return (
               <li
                 key={reg.id}
-                draggable
+                draggable={!locked}
                 onDragStart={() => handleDragStart(i)}
                 onDragOver={e => handleDragOver(e, i)}
                 onDrop={() => handleDrop(i)}
                 onDragEnd={handleDragEnd}
                 className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                  dragOver === i ? 'bg-brand-soft' : 'bg-white hover:bg-brand-soft/30'
-                }`}
+                  !locked && dragOver === i ? 'bg-brand-soft' : 'bg-white'
+                } ${!locked ? 'hover:bg-brand-soft/30' : ''}`}
               >
-                <GripVertical className="w-3.5 h-3.5 text-brand-muted shrink-0 cursor-grab active:cursor-grabbing" />
+                <GripVertical className={`w-3.5 h-3.5 shrink-0 ${locked ? 'text-brand-border' : 'text-brand-muted cursor-grab active:cursor-grabbing'}`} />
                 <span className="w-5 text-[10px] font-bold text-brand-muted text-right shrink-0">{i + 1}</span>
                 <span className="flex-1 font-medium text-brand-dark truncate">{teamName(reg, isDoubles)}</span>
                 {reg.user_profile?.is_stub && (
@@ -242,7 +251,9 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
       )}
 
       <p className="px-3 py-1.5 text-[10px] text-brand-muted border-t border-brand-border/60 bg-brand-surface">
-        Drag to reorder · Seed 1 gets the best bracket position · Seeds apply when you generate matches
+        {locked
+          ? '🔒 Seeds locked · Click "Edit Seeds" to change the order'
+          : 'Drag to reorder · Seed 1 gets the best bracket position · Click Save Seeds to lock'}
       </p>
     </div>
   )
