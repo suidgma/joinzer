@@ -38,6 +38,7 @@ type Props = {
   tournamentId: string
   divisionId: string
   onScoreUpdate: (updatedMatches: Match[]) => void
+  listLayout?: boolean
 }
 
 function formatMatchTime(scheduled_time: string | null): string {
@@ -203,9 +204,13 @@ function BracketMatchCard({
         scoring ? (
           <div className="px-2 py-1.5 border-t border-brand-border/60 space-y-1 bg-gray-50">
             <div className="flex gap-1">
-              <input type="number" value={s1} onChange={e => setS1(e.target.value)} placeholder="T1"
+              <input type="text" inputMode="numeric" value={s1}
+                onChange={e => setS1(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="0" maxLength={2}
                 className="w-full border border-brand-border rounded px-1.5 py-0.5 text-[10px] text-center" />
-              <input type="number" value={s2} onChange={e => setS2(e.target.value)} placeholder="T2"
+              <input type="text" inputMode="numeric" value={s2}
+                onChange={e => setS2(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="0" maxLength={2}
                 className="w-full border border-brand-border rounded px-1.5 py-0.5 text-[10px] text-center" />
             </div>
             {err && <p className="text-[9px] text-red-600">{err}</p>}
@@ -317,7 +322,45 @@ function SingleBracket({
   )
 }
 
-export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate }: Props) {
+function RoundRobinList({
+  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate,
+}: Omit<Props, 'listLayout'>) {
+  const roundMap = new Map<number, Match[]>()
+  for (const m of matches) {
+    const r = m.round_number ?? 1
+    if (!roundMap.has(r)) roundMap.set(r, [])
+    roundMap.get(r)!.push(m)
+  }
+  const roundNums = Array.from(roundMap.keys()).sort((a, b) => a - b)
+
+  return (
+    <div className="space-y-4">
+      {roundNums.map(rNum => (
+        <div key={rNum}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-brand-muted mb-2">Round {rNum}</p>
+          <div className="flex flex-wrap gap-2">
+            {(roundMap.get(rNum) ?? [])
+              .sort((a, b) => a.match_number - b.match_number)
+              .map(m => (
+                <BracketMatchCard
+                  key={m.id}
+                  match={m}
+                  regs={regs}
+                  isOrganizer={isOrganizer}
+                  isDoubles={isDoubles}
+                  tournamentId={tournamentId}
+                  divisionId={divisionId}
+                  onScoreUpdate={onScoreUpdate}
+                />
+              ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout }: Props) {
   const handleOnline = useCallback(async () => {
     const qKey = bracketQueueKey(tournamentId)
     const queue = getQueue(qKey)
@@ -333,6 +376,16 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
   }, [handleOnline])
+
+  if (listLayout) {
+    return (
+      <RoundRobinList
+        matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+        tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+      />
+    )
+  }
+
   // Separate by stage for double elimination
   const winners = matches.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'single_elimination')
   const losers = matches.filter(m => m.match_stage === 'losers_bracket')

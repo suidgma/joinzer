@@ -15,16 +15,31 @@ export default async function PublicLiveScoreboardPage(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const [{ data: tournament }, { data: divisions }, { data: matches }, { data: registrations }] =
+  const [{ data: tournament }, { data: divisions }, { data: matches }, { data: regsRaw }] =
     await Promise.all([
       db.from('tournaments').select('id, name, start_date, status').eq('id', params.id).single(),
       db.from('tournament_divisions').select('id, name').eq('tournament_id', params.id).eq('status', 'active'),
       db.from('tournament_matches').select('*').eq('tournament_id', params.id),
       db.from('tournament_registrations')
-        .select('id, user_id, division_id, team_name, status, partner_user_id, profiles!user_id(name)')
+        .select('id, user_id, division_id, team_name, status, partner_user_id, partner_registration_id')
         .eq('tournament_id', params.id)
-        .eq('status', 'registered'),
+        .neq('status', 'cancelled'),
     ])
+
+  // Fetch profiles separately — avoids ambiguous FK join issues
+  const userIds = Array.from(new Set(
+    (regsRaw ?? []).flatMap((r: any) => [r.user_id, r.partner_user_id]).filter(Boolean)
+  ))
+  const { data: profilesRaw } = userIds.length > 0
+    ? await db.from('profiles').select('id, name').in('id', userIds)
+    : { data: [] as { id: string; name: string }[] }
+  const profileMap = new Map((profilesRaw ?? []).map((p: any) => [p.id, p.name as string]))
+
+  const registrations = (regsRaw ?? []).map((r: any) => ({
+    ...r,
+    profiles: profileMap.get(r.user_id) ? { name: profileMap.get(r.user_id) } : null,
+    partner_name: r.partner_user_id ? (profileMap.get(r.partner_user_id) ?? null) : null,
+  }))
 
   if (!tournament) {
     return (

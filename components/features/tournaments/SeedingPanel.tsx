@@ -46,10 +46,11 @@ type Props = {
   onMarkComped: (regId: string) => void
   onRemove: (regId: string) => void
   hasMatches: boolean
-  onGenerateMatches: () => Promise<void>
+  onGenerateMatches: (durationMinutes: number) => Promise<void>
   onReplacePlayer?: (regId: string, newUserId: string, newUserName: string) => void
   matches?: MatchItem[]
   tournamentDate?: string
+  addPlayerSlot?: React.ReactNode
 }
 
 function lastName(name: string | null | undefined): string {
@@ -71,7 +72,10 @@ function teamName(reg: SeededReg, isDoubles: boolean): string {
   if (!isDoubles) return p1 ?? '—'
   const p2 = reg.partner_profile?.name
   if (p2) return `${lastName(p1)} / ${lastName(p2)}`
-  return lastName(p1)
+  // Partner linked by ID but profile missing, or no partner assigned yet
+  return reg.partner_registration_id
+    ? `${lastName(p1)} / ?`
+    : `${lastName(p1)} (no partner)`
 }
 
 function isConfirmed(reg: SeededReg) {
@@ -176,10 +180,22 @@ function initScheduleEdits(
 export default function SeedingPanel({
   registrations, isDoubles, tournamentId, divisionId,
   onMarkComped, onRemove, hasMatches, onGenerateMatches, onReplacePlayer,
-  matches, tournamentDate,
+  matches, tournamentDate, addPlayerSlot,
 }: Props) {
-  const confirmed = registrations.filter(isConfirmed)
-  const awaiting  = registrations.filter(r => !isConfirmed(r))
+  // For doubles: deduplicate so each partner pair shows as one row.
+  // When both partner registrations exist, only the first one encountered is kept.
+  function dedupeForDoubles(regs: SeededReg[]): SeededReg[] {
+    if (!isDoubles) return regs
+    const suppressedIds = new Set<string>()
+    return regs.filter(r => {
+      if (suppressedIds.has(r.id)) return false
+      if (r.partner_registration_id) suppressedIds.add(r.partner_registration_id)
+      return true
+    })
+  }
+
+  const confirmed = dedupeForDoubles(registrations.filter(isConfirmed))
+  const awaiting  = dedupeForDoubles(registrations.filter(r => !isConfirmed(r)))
 
   const [order, setOrder] = useState<SeededReg[]>(() => {
     const withSeed = confirmed.filter(r => r.seed != null).sort((a, b) => (a.seed ?? 0) - (b.seed ?? 0))
@@ -188,6 +204,19 @@ export default function SeedingPanel({
   })
 
   const [locked, setLocked] = useState(() => confirmed.some(r => r.seed != null))
+
+  // Sync order when registrations change (player added or removed from parent)
+  useEffect(() => {
+    const confirmedNow = dedupeForDoubles(registrations.filter(isConfirmed))
+    const confirmedIds = new Set(confirmedNow.map(r => r.id))
+    setOrder(prev => {
+      const still = prev.filter(r => confirmedIds.has(r.id))
+      const existing = new Set(still.map(r => r.id))
+      const added = confirmedNow.filter(r => !existing.has(r.id))
+      if (still.length === prev.length && added.length === 0) return prev
+      return [...still, ...added]
+    })
+  }, [registrations]) // eslint-disable-line react-hooks/exhaustive-deps
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -203,13 +232,17 @@ export default function SeedingPanel({
   const [replaceLoading, setReplaceLoading] = useState(false)
   const [replaceError, setReplaceError] = useState<string | null>(null)
 
-  // Schedule editing state
+  // Schedule editing state — re-initialize when matches prop changes (e.g. after generate matches)
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, ScheduleEdit>>(
     () => initScheduleEdits(matches, tournamentDate)
   )
+  useEffect(() => {
+    setScheduleEdits(initScheduleEdits(matches, tournamentDate))
+  }, [matches]) // eslint-disable-line react-hooks/exhaustive-deps
   const [scheduleSaving, setScheduleSaving] = useState(false)
   const [scheduleError, setScheduleError] = useState<string | null>(null)
   const [scheduleSaved, setScheduleSaved] = useState(false)
+  const [roundDuration, setRoundDuration] = useState(60)
 
   // Reset schedule edits when matches change (e.g. after generation)
   const matchIdsKey = (matches ?? []).map(m => m.id).sort().join(',')
@@ -505,6 +538,13 @@ export default function SeedingPanel({
         </ul>
       )}
 
+      {/* ── Add Player slot ── */}
+      {addPlayerSlot && (
+        <div className="border-t border-brand-border px-3 py-2.5">
+          {addPlayerSlot}
+        </div>
+      )}
+
       {/* ── Match Schedule (inline, when matches exist) ── */}
       {hasMatches && rounds.length > 0 && (
         <div className="border-t border-brand-border">
@@ -573,10 +613,22 @@ export default function SeedingPanel({
 
       {/* ── Generate / Re-generate Matches ── */}
       <div className="px-3 py-2.5 border-t border-brand-border/60 bg-brand-surface space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-brand-muted shrink-0">Time per round</span>
+          <select
+            value={roundDuration}
+            onChange={e => setRoundDuration(Number(e.target.value))}
+            className="input text-xs py-0.5 px-2 flex-1"
+          >
+            <option value={60}>1 hour</option>
+            <option value={90}>1.5 hours</option>
+            <option value={120}>2 hours</option>
+          </select>
+        </div>
         <button
           onClick={async () => {
             setGenerating(true); setGenError(null)
-            try { await onGenerateMatches() }
+            try { await onGenerateMatches(roundDuration) }
             catch (e: unknown) { setGenError(e instanceof Error ? e.message : 'Failed') }
             finally { setGenerating(false) }
           }}

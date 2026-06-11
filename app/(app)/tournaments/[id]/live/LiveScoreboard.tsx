@@ -24,15 +24,27 @@ type Reg = {
   team_name: string | null
   status: string
   partner_user_id: string | null
+  partner_registration_id: string | null
   profiles: { name: string } | null
+  partner_name: string | null
 }
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
 
+function lastName(name: string | null | undefined): string {
+  if (!name) return ''
+  const parts = name.trim().split(/\s+/)
+  return parts[parts.length - 1]
+}
+
 function teamLabel(regId: string, regs: Reg[]): string {
   const reg = regs.find(r => r.id === regId)
   if (!reg) return 'TBD'
-  return reg.team_name ?? reg.profiles?.name ?? 'Player'
+  if (reg.team_name) return reg.team_name
+  const p1 = reg.profiles?.name ?? null
+  const p2 = reg.partner_name ?? null
+  if (p1 && p2) return `${lastName(p1)} / ${lastName(p2)}`
+  return p1 ?? 'Player'
 }
 
 function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {

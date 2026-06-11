@@ -241,13 +241,15 @@ function MatchCard({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-[10px] text-brand-muted mb-1 truncate">Team 1</label>
-              <input type="number" value={score1} onChange={e => onScore1Change(e.target.value)}
-                placeholder="0" min={0} className="w-full input text-sm" />
+              <input type="text" inputMode="numeric" value={score1}
+                onChange={e => onScore1Change(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="" maxLength={2} className="w-full input text-sm" />
             </div>
             <div>
               <label className="block text-[10px] text-brand-muted mb-1 truncate">Team 2</label>
-              <input type="number" value={score2} onChange={e => onScore2Change(e.target.value)}
-                placeholder="0" min={0} className="w-full input text-sm" />
+              <input type="text" inputMode="numeric" value={score2}
+                onChange={e => onScore2Change(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="" maxLength={2} className="w-full input text-sm" />
             </div>
           </div>
           {scoreError && <p className="text-xs text-red-600">{scoreError}</p>}
