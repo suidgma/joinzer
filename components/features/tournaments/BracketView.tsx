@@ -43,9 +43,9 @@ type Props = {
 function formatMatchTime(scheduled_time: string | null): string {
   if (!scheduled_time) return ''
   const d = new Date(scheduled_time)
-  const day = d.toLocaleDateString('en-US', { weekday: 'short' })
+  const day = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  return `${day} ${time}`
+  return `${day} · ${time}`
 }
 
 function lastName(name: string | null | undefined): string {
