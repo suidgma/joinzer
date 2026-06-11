@@ -1721,6 +1721,50 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   />
                 )}
 
+                {/* Add Player for bracket divisions — lives here so it can access DivisionsSection state */}
+                {isManaging && isBracket && (
+                  <div className="pt-1">
+                    {addingPlayerId === div.id ? (
+                      <div className="space-y-2">
+                        {isDoublesFormat(div.format) && div.partner_mode !== 'fixed' ? (
+                          selectedP1 ? (
+                            <>
+                              <div className="flex items-center gap-2 px-3 py-2 bg-brand-soft rounded-lg text-xs text-brand-dark">
+                                <span className="font-medium">{selectedP1.name}</span>
+                                <button onClick={() => { setSelectedP1(null); setPlayerSearch(''); setPlayerResults([]); setPlayerSearch2(''); setPlayerResults2([]) }} className="text-brand-muted hover:text-red-500 ml-auto">✕</button>
+                              </div>
+                              <input type="text" value={playerSearch2} onChange={e => searchPlayers(e.target.value, [...div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), selectedP1.id], div.format, setPlayerSearch2, setPlayerResults2)} onFocus={() => searchPlayers(playerSearch2, [...div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), selectedP1.id], div.format, setPlayerSearch2, setPlayerResults2)} placeholder="Search partner by name…" className="w-full input text-xs" autoFocus />
+                              {playerResults2.length > 0 && (<ul className="border border-brand-border rounded-xl overflow-y-auto max-h-48">{playerResults2.map(p2 => (<li key={p2.id}><button onClick={() => handleAddTeam(div.id, selectedP1, p2, addTeamName)} disabled={addPlayerLoading} className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors">{p2.name}</button></li>))}</ul>)}
+                              <input type="text" value={addTeamName} onChange={e => setAddTeamName(e.target.value)} placeholder="Team name (optional)" className="w-full input text-xs" />
+                            </>
+                          ) : (
+                            <>
+                              <input type="text" value={playerSearch} onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)} onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)} placeholder="Search player 1 by name…" className="w-full input text-xs" autoFocus />
+                              {playerResults.length > 0 && (<ul className="border border-brand-border rounded-xl overflow-y-auto max-h-64">{playerResults.map(p => (<li key={p.id}><button onClick={() => { setSelectedP1(p); setPlayerSearch(''); setPlayerResults([]); setPlayerSearch2(''); setPlayerResults2([]) }} disabled={addPlayerLoading} className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors">{p.name}</button></li>))}</ul>)}
+                            </>
+                          )
+                        ) : (
+                          <>
+                            <input type="text" value={playerSearch} onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)} onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)} placeholder="Search player by name…" className="w-full input text-xs" autoFocus />
+                            {playerResults.length > 0 && (<ul className="border border-brand-border rounded-xl overflow-y-auto max-h-64">{playerResults.map(p => (<li key={p.id}><button onClick={() => handleAddPlayer(div.id, p.id, p.name)} disabled={addPlayerLoading} className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors">{p.name}</button></li>))}</ul>)}
+                          </>
+                        )}
+                        {addPlayerError && <p className="text-xs text-red-600">{addPlayerError}</p>}
+                        <button onClick={() => { setAddingPlayerId(null); setSelectedP1(null); setPlayerSearch(''); setPlayerSearch2(''); setPlayerResults([]); setPlayerResults2([]); setAddTeamName(''); setAddPlayerError(null) }} className="text-xs text-brand-muted hover:underline">Cancel</button>
+                      </div>
+                    ) : isFull ? (
+                      <p className="text-xs text-brand-muted">Division full ({active.length}/{maxPlayers}) — increase Max Entries to add more.</p>
+                    ) : (
+                      <button
+                        onClick={() => { setAddingPlayerId(div.id); setSelectedP1(null); setPlayerSearch(''); setPlayerSearch2(''); setPlayerResults([]); setPlayerResults2([]); setAddTeamName(''); setAddPlayerError(null); searchPlayers('', div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format) }}
+                        className="text-xs text-brand-active font-medium hover:underline"
+                      >
+                        {isDoublesFormat(div.format) && div.partner_mode !== 'fixed' ? '+ Add Team' : '+ Add Player'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {isManaging && !isBracket && (
                   <div className="space-y-2">
 
