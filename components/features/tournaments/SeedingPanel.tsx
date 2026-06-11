@@ -100,6 +100,53 @@ function paymentBadge(reg: SeededReg) {
   return <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${classes}`}>{label}</span>
 }
 
+function TimeSlotPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parts = value ? value.split(':').map(Number) : []
+  const h24 = parts[0] ?? 9
+  const rawMin = parts[1] ?? 0
+  const minute = [0, 15, 30, 45].includes(rawMin) ? rawMin : 0
+  const hour12 = h24 % 12 || 12
+  const ampm = h24 < 12 ? 'AM' : 'PM'
+
+  function emit(newH12: number, newAmpm: string, newMin: number) {
+    let h = newH12 % 12
+    if (newAmpm === 'PM') h += 12
+    onChange(`${String(h).padStart(2, '0')}:${String(newMin).padStart(2, '0')}`)
+  }
+
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      <select
+        value={hour12}
+        onChange={e => emit(Number(e.target.value), ampm, minute)}
+        className="input text-xs py-0.5 px-1 w-12 text-center"
+      >
+        {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+          <option key={h} value={h}>{h}</option>
+        ))}
+      </select>
+      <span className="text-brand-muted text-xs font-bold">:</span>
+      <select
+        value={minute}
+        onChange={e => emit(hour12, ampm, Number(e.target.value))}
+        className="input text-xs py-0.5 px-1 w-14 text-center"
+      >
+        {[0, 15, 30, 45].map(min => (
+          <option key={min} value={min}>{String(min).padStart(2, '0')}</option>
+        ))}
+      </select>
+      <select
+        value={ampm}
+        onChange={e => emit(hour12, e.target.value, minute)}
+        className="input text-xs py-0.5 px-1 w-14 text-center"
+      >
+        <option>AM</option>
+        <option>PM</option>
+      </select>
+    </div>
+  )
+}
+
 function roundLabel(roundNum: number, totalRounds: number): string {
   const fromFinal = totalRounds - roundNum
   if (fromFinal === 0) return 'Final'
@@ -510,11 +557,9 @@ export default function SeedingPanel({
                           onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, date: e.target.value } }))}
                           className="input text-xs py-0.5 px-1.5 flex-1 min-w-[130px]"
                         />
-                        <input
-                          type="time"
+                        <TimeSlotPicker
                           value={edit.time}
-                          onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time: e.target.value } }))}
-                          className="input text-xs py-0.5 px-1.5 w-24 shrink-0"
+                          onChange={time => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time } }))}
                         />
                       </div>
                     </div>
