@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { GripVertical } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type SeededReg = {
   id: string
@@ -46,6 +47,7 @@ type Props = {
   onRemove: (regId: string) => void
   hasMatches: boolean
   onGenerateMatches: () => Promise<void>
+  onReplacePlayer?: (regId: string, newUserId: string, newUserName: string) => void
   matches?: MatchItem[]
   tournamentDate?: string
 }
@@ -74,7 +76,7 @@ function teamName(reg: SeededReg, isDoubles: boolean): string {
 
 function isConfirmed(reg: SeededReg) {
   if (['paid', 'waived', 'comped'].includes(reg.payment_status ?? '')) return true
-  // Free tournaments: registered players with no payment status
+  // Free tournaments: registered players with no payment requirement
   if (reg.payment_status == null && reg.status === 'registered') return true
   return false
 }
@@ -126,7 +128,7 @@ function initScheduleEdits(
 
 export default function SeedingPanel({
   registrations, isDoubles, tournamentId, divisionId,
-  onMarkComped, onRemove, hasMatches, onGenerateMatches,
+  onMarkComped, onRemove, hasMatches, onGenerateMatches, onReplacePlayer,
   matches, tournamentDate,
 }: Props) {
   const confirmed = registrations.filter(isConfirmed)
@@ -147,6 +149,13 @@ export default function SeedingPanel({
   const dragIndex = useRef<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
 
+  // Replace-player state
+  const [replacingRegId, setReplacingRegId] = useState<string | null>(null)
+  const [replaceSearch, setReplaceSearch] = useState('')
+  const [replaceResults, setReplaceResults] = useState<{ id: string; name: string }[]>([])
+  const [replaceLoading, setReplaceLoading] = useState(false)
+  const [replaceError, setReplaceError] = useState<string | null>(null)
+
   // Schedule editing state
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, ScheduleEdit>>(
     () => initScheduleEdits(matches, tournamentDate)
@@ -166,7 +175,7 @@ export default function SeedingPanel({
     }
   }, [matchIdsKey, matches, tournamentDate])
 
-  // Group matches by round for the schedule section
+  // Group matches by round
   const rounds = useMemo(() => {
     if (!matches || matches.length === 0) return []
     const byRound = new Map<number, MatchItem[]>()
@@ -245,6 +254,48 @@ export default function SeedingPanel({
     finally { setScheduleSaving(false) }
   }
 
+  async function searchForReplacement(query: string) {
+    setReplaceSearch(query)
+    if (!query.trim()) { setReplaceResults([]); return }
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .ilike('name', `%${query}%`)
+      .limit(20)
+    setReplaceResults(data ?? [])
+  }
+
+  async function handleReplace(regId: string, newPlayer: { id: string; name: string }) {
+    setReplaceLoading(true); setReplaceError(null)
+    try {
+      const res = await fetch(
+        `/api/tournaments/${tournamentId}/registrations/${regId}/replace-player`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_user_id: newPlayer.id }) }
+      )
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setReplaceError(d.error ?? 'Replacement failed')
+        return
+      }
+      // Update local order state with new player name
+      setOrder(prev => prev.map(r =>
+        r.id === regId
+          ? { ...r, user_profile: { ...r.user_profile, name: newPlayer.name, is_stub: false } }
+          : r
+      ))
+      // Also update the regNameMap by refreshing it via the registrations prop update
+      onReplacePlayer?.(regId, newPlayer.id, newPlayer.name)
+      setReplacingRegId(null)
+      setReplaceSearch('')
+      setReplaceResults([])
+    } catch {
+      setReplaceError('Network error')
+    } finally {
+      setReplaceLoading(false)
+    }
+  }
+
   const hasRatings = order.some(r => teamRating(r, isDoubles) != null)
 
   return (
@@ -289,36 +340,80 @@ export default function SeedingPanel({
           {order.map((reg, i) => {
             const rating = teamRating(reg, isDoubles)
             const canComp = reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped'
+            const isReplacing = replacingRegId === reg.id
             return (
-              <li
-                key={reg.id}
-                draggable={!locked}
-                onDragStart={() => handleDragStart(i)}
-                onDragOver={e => handleDragOver(e, i)}
-                onDrop={() => handleDrop(i)}
-                onDragEnd={handleDragEnd}
-                className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                  !locked && dragOver === i ? 'bg-brand-soft' : 'bg-white'
-                } ${!locked ? 'hover:bg-brand-soft/30' : ''}`}
-              >
-                <GripVertical className={`w-3.5 h-3.5 shrink-0 ${locked ? 'text-brand-border' : 'text-brand-muted cursor-grab active:cursor-grabbing'}`} />
-                <span className="w-5 text-[10px] font-bold text-brand-muted text-right shrink-0">{i + 1}</span>
-                <span className="flex-1 font-medium text-brand-dark truncate">{teamName(reg, isDoubles)}</span>
-                {reg.user_profile?.is_stub && (
-                  <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">Invited</span>
-                )}
-                {paymentBadge(reg)}
-                {rating != null && <span className="text-[10px] text-brand-muted shrink-0 w-8 text-right">{rating.toFixed(2)}</span>}
-                <div className="flex shrink-0 items-center gap-2 ml-1">
-                  {canComp && (
-                    <button onClick={() => onMarkComped(reg.id)} className="text-brand-active hover:underline whitespace-nowrap">
-                      Mark Comped
-                    </button>
+              <li key={reg.id} className="text-xs">
+                {/* Player row */}
+                <div
+                  draggable={!locked && !isReplacing}
+                  onDragStart={() => handleDragStart(i)}
+                  onDragOver={e => handleDragOver(e, i)}
+                  onDrop={() => handleDrop(i)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center gap-2 px-3 py-2 transition-colors ${
+                    !locked && dragOver === i ? 'bg-brand-soft' : 'bg-white'
+                  } ${!locked && !isReplacing ? 'hover:bg-brand-soft/30' : ''}`}
+                >
+                  <GripVertical className={`w-3.5 h-3.5 shrink-0 ${locked ? 'text-brand-border' : 'text-brand-muted cursor-grab active:cursor-grabbing'}`} />
+                  <span className="w-5 text-[10px] font-bold text-brand-muted text-right shrink-0">{i + 1}</span>
+                  <span className="flex-1 font-medium text-brand-dark truncate">{teamName(reg, isDoubles)}</span>
+                  {reg.user_profile?.is_stub && (
+                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">Invited</span>
                   )}
-                  <button onClick={() => onRemove(reg.id)} className="text-red-500 hover:underline">
-                    Remove
-                  </button>
+                  {paymentBadge(reg)}
+                  {rating != null && <span className="text-[10px] text-brand-muted shrink-0 w-8 text-right">{rating.toFixed(2)}</span>}
+                  <div className="flex shrink-0 items-center gap-2 ml-1">
+                    <button
+                      onClick={() => {
+                        setReplacingRegId(isReplacing ? null : reg.id)
+                        setReplaceSearch(''); setReplaceResults([]); setReplaceError(null)
+                      }}
+                      className={`hover:underline whitespace-nowrap ${isReplacing ? 'text-brand-muted' : 'text-amber-600'}`}
+                    >
+                      {isReplacing ? 'Cancel' : 'Replace'}
+                    </button>
+                    {canComp && (
+                      <button onClick={() => onMarkComped(reg.id)} className="text-brand-active hover:underline whitespace-nowrap">
+                        Comp
+                      </button>
+                    )}
+                    <button onClick={() => onRemove(reg.id)} className="text-red-500 hover:underline">
+                      Remove
+                    </button>
+                  </div>
                 </div>
+
+                {/* Inline Replace Player UI */}
+                {isReplacing && (
+                  <div className="px-3 pb-2 pt-1 bg-amber-50 border-t border-amber-100 space-y-1.5">
+                    <p className="text-[10px] font-semibold text-amber-800 uppercase tracking-wide">Replace player in this bracket slot</p>
+                    <input
+                      type="text"
+                      value={replaceSearch}
+                      onChange={e => searchForReplacement(e.target.value)}
+                      placeholder="Search by name…"
+                      className="w-full input text-xs"
+                      autoFocus
+                    />
+                    {replaceResults.length > 0 && (
+                      <ul className="border border-brand-border rounded-xl overflow-y-auto max-h-40 bg-white">
+                        {replaceResults.map(p => (
+                          <li key={p.id}>
+                            <button
+                              onClick={() => handleReplace(reg.id, p)}
+                              disabled={replaceLoading}
+                              className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors"
+                            >
+                              {p.name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {replaceError && <p className="text-xs text-red-600">{replaceError}</p>}
+                    <p className="text-[10px] text-amber-700">Replacement inherits this seed position and payment status.</p>
+                  </div>
+                )}
               </li>
             )
           })}
@@ -348,7 +443,7 @@ export default function SeedingPanel({
                     <div className="flex shrink-0 items-center gap-2 ml-1">
                       {canComp && (
                         <button onClick={() => onMarkComped(reg.id)} className="text-brand-active hover:underline whitespace-nowrap">
-                          Mark Comped
+                          Comp
                         </button>
                       )}
                       <button onClick={() => onRemove(reg.id)} className="text-red-500 hover:underline">
@@ -382,12 +477,11 @@ export default function SeedingPanel({
           {scheduleError && <p className="px-3 py-1 text-xs text-red-600 bg-red-50">{scheduleError}</p>}
           <div className="divide-y divide-brand-border/40">
             {rounds.map(({ roundNum, matches: roundMatches }) => (
-              <div key={roundNum} className="px-3 py-2 space-y-2">
+              <div key={roundNum} className="px-3 py-2 space-y-3">
                 <p className="text-[10px] font-bold text-brand-muted uppercase tracking-wider">
                   {roundLabel(roundNum, totalRounds)}
                 </p>
                 {roundMatches.map(m => {
-                  // Round 1 null = actual BYE; later rounds null = winner TBD
                   const name1 = m.team_1_registration_id
                     ? (regNameMap.get(m.team_1_registration_id) ?? 'TBD')
                     : (roundNum === 1 ? 'BYE' : 'TBD')
@@ -397,7 +491,7 @@ export default function SeedingPanel({
                   const edit = scheduleEdits[m.id] ?? { court: '', time: '', date: tournamentDate ?? '' }
                   return (
                     <div key={m.id} className="space-y-1.5">
-                      <span className="text-xs text-brand-dark font-medium">{name1} vs {name2}</span>
+                      <span className="text-xs font-medium text-brand-dark">{name1} vs {name2}</span>
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] text-brand-muted">Ct.</span>

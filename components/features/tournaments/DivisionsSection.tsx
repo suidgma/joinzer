@@ -1725,6 +1725,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                     }}
                     matches={matchesByDivision[div.id]}
                     tournamentDate={tournamentStartDate ?? undefined}
+                    onReplacePlayer={(regId, newUserId, newUserName) => {
+                      setDivisions(prev => prev.map(d =>
+                        d.id !== div.id ? d : {
+                          ...d,
+                          tournament_registrations: d.tournament_registrations.map(r =>
+                            r.id === regId
+                              ? { ...r, user_id: newUserId, user_profile: { ...r.user_profile, name: newUserName, is_stub: false } }
+                              : r
+                          ),
+                        }
+                      ))
+                    }}
                   />
                 )}
 
