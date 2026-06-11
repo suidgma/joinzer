@@ -14,6 +14,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
 import { isDoublesFormat, formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
+import SeedingPanel from './SeedingPanel'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles:           "Men's Doubles",
@@ -51,6 +52,7 @@ const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediat
 
 type Registration = {
   id: string
+  seed?: number | null
   user_id: string
   partner_user_id: string | null
   partner_registration_id: string | null
@@ -59,7 +61,17 @@ type Registration = {
   registration_type: 'team' | 'solo'
   payment_status?: string
   stripe_payment_intent_id?: string | null
-  user_profile: { name: string | null; is_stub?: boolean } | null
+  user_profile: {
+    name: string | null
+    is_stub?: boolean
+    dupr_rating?: number | null
+    estimated_rating?: number | null
+  } | null
+  partner_profile?: {
+    name: string | null
+    dupr_rating?: number | null
+    estimated_rating?: number | null
+  } | null
 }
 
 type Division = {
@@ -1079,6 +1091,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const isManaging = managingId === div.id
             const isEditingFormat = editingFormatId === div.id
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
+            const isBracket = div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination'
 
             const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
@@ -1686,7 +1699,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   </div>
                 )}
 
-                {isManaging && (
+                {isManaging && isBracket && (
+                  <SeedingPanel
+                    registrations={div.tournament_registrations.filter(r => r.status !== 'cancelled')}
+                    isDoubles={isDoublesFormat(div.format)}
+                    tournamentId={tournamentId}
+                    divisionId={div.id}
+                    onMarkComped={regId => handleMarkComped(div.id, regId)}
+                    onRemove={regId => handleRemove(div.id, regId)}
+                  />
+                )}
+
+                {isManaging && !isBracket && (
                   <div className="space-y-2">
 
                     {div.tournament_registrations.filter(r => r.status !== 'cancelled').length === 0 ? (
