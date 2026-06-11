@@ -1091,6 +1091,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const isManaging = managingId === div.id
             const isEditingFormat = editingFormatId === div.id
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
+            const isBracket = div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination'
 
             const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
@@ -1698,16 +1699,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   </div>
                 )}
 
-                {isManaging && (div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination') && active.length > 0 && (
+                {isManaging && isBracket && (
                   <SeedingPanel
-                    registrations={active}
+                    registrations={div.tournament_registrations.filter(r => r.status !== 'cancelled')}
                     isDoubles={isDoublesFormat(div.format)}
                     tournamentId={tournamentId}
                     divisionId={div.id}
+                    onMarkComped={regId => handleMarkComped(div.id, regId)}
+                    onRemove={regId => handleRemove(div.id, regId)}
                   />
                 )}
 
-                {isManaging && (
+                {isManaging && !isBracket && (
                   <div className="space-y-2">
 
                     {div.tournament_registrations.filter(r => r.status !== 'cancelled').length === 0 ? (
