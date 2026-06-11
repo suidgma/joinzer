@@ -14,7 +14,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
 import { isDoublesFormat, formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
-import SeedingPanel from './SeedingPanel'
+import SeedingPanel, { type MatchItem } from './SeedingPanel'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles:           "Men's Doubles",
@@ -115,9 +115,10 @@ type Props = {
   defaultLocationId?: string | null
   locations?: LocationOption[]
   matchCountByDivision?: Record<string, number>
+  matchesByDivision?: Record<string, MatchItem[]>
 }
 
-export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [], matchCountByDivision = {} }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [], matchCountByDivision = {}, matchesByDivision = {} }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -1718,6 +1719,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       }
                       router.refresh()
                     }}
+                    matches={matchesByDivision[div.id]}
+                    tournamentDate={tournamentStartDate ?? undefined}
                   />
                 )}
 

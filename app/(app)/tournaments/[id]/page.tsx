@@ -274,8 +274,11 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     const matchesForOrg = (matchesData ?? []) as any[]
 
     const matchCountByDivision: Record<string, number> = {}
+    const matchesByDivision: Record<string, any[]> = {}
     for (const m of matchesForOrg) {
       matchCountByDivision[m.division_id] = (matchCountByDivision[m.division_id] ?? 0) + 1
+      if (!matchesByDivision[m.division_id]) matchesByDivision[m.division_id] = []
+      matchesByDivision[m.division_id].push(m)
     }
 
     const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => ({
@@ -357,6 +360,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             defaultLocationId={(tournament as any).location_id ?? null}
             locations={(locationsData ?? []) as any[]}
             matchCountByDivision={matchCountByDivision}
+            matchesByDivision={matchesByDivision}
           />
 
           {/* Discount codes */}

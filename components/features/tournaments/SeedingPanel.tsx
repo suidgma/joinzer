@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { GripVertical } from 'lucide-react'
 
 type SeededReg = {
@@ -24,6 +24,19 @@ type SeededReg = {
   } | null
 }
 
+export type MatchItem = {
+  id: string
+  round_number: number
+  match_number: number
+  team_1_registration_id: string | null
+  team_2_registration_id: string | null
+  court_number: number | null
+  scheduled_time: string | null
+  status?: string
+}
+
+type ScheduleEdit = { court: string; time: string; date: string }
+
 type Props = {
   registrations: SeededReg[]
   isDoubles: boolean
@@ -33,6 +46,8 @@ type Props = {
   onRemove: (regId: string) => void
   hasMatches: boolean
   onGenerateMatches: () => Promise<void>
+  matches?: MatchItem[]
+  tournamentDate?: string
 }
 
 function lastName(name: string | null | undefined): string {
@@ -58,27 +73,62 @@ function teamName(reg: SeededReg, isDoubles: boolean): string {
 }
 
 function isConfirmed(reg: SeededReg) {
-  return ['paid', 'waived', 'comped'].includes(reg.payment_status ?? '')
+  if (['paid', 'waived', 'comped'].includes(reg.payment_status ?? '')) return true
+  // Free tournaments: registered players with no payment status
+  if (reg.payment_status == null && reg.status === 'registered') return true
+  return false
 }
 
 function paymentBadge(reg: SeededReg) {
   const p = reg.payment_status
   const classes =
-    p === 'paid'     ? 'bg-green-100 text-green-700' :
-    p === 'waived'   ? 'bg-gray-100 text-gray-500'   :
-    p === 'comped'   ? 'bg-blue-50 text-blue-600'     :
-    p === 'refunded' ? 'bg-purple-100 text-purple-700':
+    p === 'paid'     ? 'bg-green-100 text-green-700'    :
+    p === 'waived'   ? 'bg-gray-100 text-gray-500'      :
+    p === 'comped'   ? 'bg-blue-50 text-blue-600'       :
+    p === 'refunded' ? 'bg-purple-100 text-purple-700'  :
+    p == null        ? 'bg-brand-soft text-brand-active':
                        'bg-red-50 text-red-600'
   const label =
     p === 'paid'     ? '$ Paid'   :
     p === 'waived'   ? 'Waived'   :
     p === 'comped'   ? 'Comped'   :
     p === 'refunded' ? 'Refunded' :
+    p == null        ? 'Free'     :
                        '$ Unpaid'
   return <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${classes}`}>{label}</span>
 }
 
-export default function SeedingPanel({ registrations, isDoubles, tournamentId, divisionId, onMarkComped, onRemove, hasMatches, onGenerateMatches }: Props) {
+function roundLabel(roundNum: number, totalRounds: number): string {
+  const fromFinal = totalRounds - roundNum
+  if (fromFinal === 0) return 'Final'
+  if (fromFinal === 1) return 'Semi-Final'
+  if (fromFinal === 2) return 'Quarter-Final'
+  return `Round ${roundNum}`
+}
+
+function initScheduleEdits(
+  matches: MatchItem[] | undefined,
+  tournamentDate: string | undefined,
+): Record<string, ScheduleEdit> {
+  const result: Record<string, ScheduleEdit> = {}
+  for (const m of matches ?? []) {
+    let timeStr = ''
+    let dateStr = tournamentDate ?? ''
+    if (m.scheduled_time) {
+      const d = new Date(m.scheduled_time)
+      timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      dateStr = d.toISOString().slice(0, 10)
+    }
+    result[m.id] = { court: m.court_number != null ? String(m.court_number) : '', time: timeStr, date: dateStr }
+  }
+  return result
+}
+
+export default function SeedingPanel({
+  registrations, isDoubles, tournamentId, divisionId,
+  onMarkComped, onRemove, hasMatches, onGenerateMatches,
+  matches, tournamentDate,
+}: Props) {
   const confirmed = registrations.filter(isConfirmed)
   const awaiting  = registrations.filter(r => !isConfirmed(r))
 
@@ -96,6 +146,49 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
 
   const dragIndex = useRef<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
+
+  // Schedule editing state
+  const [scheduleEdits, setScheduleEdits] = useState<Record<string, ScheduleEdit>>(
+    () => initScheduleEdits(matches, tournamentDate)
+  )
+  const [scheduleSaving, setScheduleSaving] = useState(false)
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+  const [scheduleSaved, setScheduleSaved] = useState(false)
+
+  // Reset schedule edits when matches change (e.g. after generation)
+  const matchIdsKey = (matches ?? []).map(m => m.id).sort().join(',')
+  const prevMatchIdsKey = useRef(matchIdsKey)
+  useEffect(() => {
+    if (matchIdsKey !== prevMatchIdsKey.current) {
+      prevMatchIdsKey.current = matchIdsKey
+      setScheduleEdits(initScheduleEdits(matches, tournamentDate))
+      setScheduleSaved(false)
+    }
+  }, [matchIdsKey, matches, tournamentDate])
+
+  // Group matches by round for the schedule section
+  const rounds = useMemo(() => {
+    if (!matches || matches.length === 0) return []
+    const byRound = new Map<number, MatchItem[]>()
+    for (const m of matches) {
+      if (!byRound.has(m.round_number)) byRound.set(m.round_number, [])
+      byRound.get(m.round_number)!.push(m)
+    }
+    return Array.from(byRound.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([roundNum, ms]) => ({ roundNum, matches: ms.sort((a, b) => a.match_number - b.match_number) }))
+  }, [matches])
+
+  const totalRounds = rounds.length
+
+  // Map registration IDs → display names for match labels
+  const regNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const reg of registrations.filter(r => r.status !== 'cancelled')) {
+      map.set(reg.id, teamName(reg, isDoubles))
+    }
+    return map
+  }, [registrations, isDoubles])
 
   function handleDragStart(i: number) { if (!locked) dragIndex.current = i }
   function handleDragOver(e: React.DragEvent, i: number) { if (!locked) { e.preventDefault(); setDragOver(i) } }
@@ -134,11 +227,29 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
     finally { setSaving(false) }
   }
 
+  async function saveSchedule() {
+    setScheduleSaving(true); setScheduleError(null); setScheduleSaved(false)
+    try {
+      const updates = Object.entries(scheduleEdits).map(([id, edit]) => {
+        const court = parseInt(edit.court)
+        const iso = edit.date && edit.time ? `${edit.date}T${edit.time}:00-07:00` : null
+        return { id, court_number: isNaN(court) ? null : court, scheduled_time: iso }
+      })
+      const res = await fetch(
+        `/api/tournaments/${tournamentId}/schedule`,
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updates }) }
+      )
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setScheduleError(d.error ?? 'Save failed') }
+      else setScheduleSaved(true)
+    } catch { setScheduleError('Network error') }
+    finally { setScheduleSaving(false) }
+  }
+
   const hasRatings = order.some(r => teamRating(r, isDoubles) != null)
 
   return (
     <div className="border border-brand-border rounded-xl overflow-hidden">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-brand-border bg-brand-surface">
         <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Seeding &amp; Registrants</p>
         <div className="flex items-center gap-2">
@@ -170,11 +281,11 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
 
       {error && <p className="px-3 py-1 text-xs text-red-600 bg-red-50">{error}</p>}
 
+      {/* ── Player list (always visible) ── */}
       {registrations.length === 0 ? (
         <p className="px-3 py-3 text-xs text-brand-muted">No registrants yet.</p>
       ) : (
         <ul className="divide-y divide-brand-border/60">
-          {/* Confirmed registrants — draggable, seeded */}
           {order.map((reg, i) => {
             const rating = teamRating(reg, isDoubles)
             const canComp = reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped'
@@ -212,7 +323,6 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
             )
           })}
 
-          {/* Awaiting payment — not seeded */}
           {awaiting.length > 0 && (
             <>
               <li className="px-3 py-1 bg-brand-surface">
@@ -253,33 +363,87 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
         </ul>
       )}
 
-      {/* Generate Matches */}
+      {/* ── Match Schedule (inline, when matches exist) ── */}
+      {hasMatches && rounds.length > 0 && (
+        <div className="border-t border-brand-border">
+          <div className="flex items-center justify-between px-3 py-2 bg-brand-surface border-b border-brand-border/60">
+            <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Match Schedule</p>
+            <div className="flex items-center gap-2">
+              {scheduleSaved && <span className="text-[10px] text-green-600 font-semibold">✓ Saved</span>}
+              <button
+                onClick={saveSchedule}
+                disabled={scheduleSaving}
+                className="px-3 py-1 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand/80 disabled:opacity-50 transition-colors"
+              >
+                {scheduleSaving ? 'Saving…' : 'Save Schedule'}
+              </button>
+            </div>
+          </div>
+          {scheduleError && <p className="px-3 py-1 text-xs text-red-600 bg-red-50">{scheduleError}</p>}
+          <div className="divide-y divide-brand-border/40">
+            {rounds.map(({ roundNum, matches: roundMatches }) => (
+              <div key={roundNum} className="px-3 py-2 space-y-2">
+                <p className="text-[10px] font-bold text-brand-muted uppercase tracking-wider">
+                  {roundLabel(roundNum, totalRounds)}
+                </p>
+                {roundMatches.map(m => {
+                  const name1 = m.team_1_registration_id
+                    ? (regNameMap.get(m.team_1_registration_id) ?? 'TBD')
+                    : 'BYE'
+                  const name2 = m.team_2_registration_id
+                    ? (regNameMap.get(m.team_2_registration_id) ?? 'TBD')
+                    : 'BYE'
+                  const edit = scheduleEdits[m.id] ?? { court: '', time: '', date: tournamentDate ?? '' }
+                  return (
+                    <div key={m.id} className="flex items-center gap-2 text-xs">
+                      <span className="flex-1 text-brand-dark font-medium truncate min-w-0">{name1} vs {name2}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] text-brand-muted">Ct.</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={edit.court}
+                          onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, court: e.target.value } }))}
+                          placeholder="—"
+                          className="w-11 input text-xs py-0.5 px-1.5 text-center"
+                        />
+                      </div>
+                      <input
+                        type="time"
+                        value={edit.time}
+                        onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time: e.target.value } }))}
+                        className="input text-xs py-0.5 px-1.5 w-24 shrink-0"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Generate / Re-generate Matches ── */}
       <div className="px-3 py-2.5 border-t border-brand-border/60 bg-brand-surface space-y-1.5">
-        {hasMatches ? (
-          <p className="text-xs text-brand-muted">✓ Matches already generated for this division</p>
-        ) : (
-          <>
-            <button
-              onClick={async () => {
-                setGenerating(true); setGenError(null)
-                try { await onGenerateMatches() }
-                catch (e: unknown) { setGenError(e instanceof Error ? e.message : 'Failed') }
-                finally { setGenerating(false) }
-              }}
-              disabled={generating || confirmed.length < 2}
-              className="w-full py-2 rounded-lg bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
-            >
-              {generating ? 'Generating…' : 'Generate Matches'}
-            </button>
-            {genError && <p className="text-xs text-red-600">{genError}</p>}
-            {confirmed.length < 2 && (
-              <p className="text-[10px] text-brand-muted">Need at least 2 confirmed registrants to generate.</p>
-            )}
-          </>
+        <button
+          onClick={async () => {
+            setGenerating(true); setGenError(null)
+            try { await onGenerateMatches() }
+            catch (e: unknown) { setGenError(e instanceof Error ? e.message : 'Failed') }
+            finally { setGenerating(false) }
+          }}
+          disabled={generating || confirmed.length < 2}
+          className="w-full py-2 rounded-lg bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
+        >
+          {generating ? 'Generating…' : hasMatches ? 'Re-generate Matches' : 'Generate Matches'}
+        </button>
+        {genError && <p className="text-xs text-red-600">{genError}</p>}
+        {confirmed.length < 2 && (
+          <p className="text-[10px] text-brand-muted">Need at least 2 confirmed registrants to generate.</p>
         )}
         <p className="text-[10px] text-brand-muted">
           {locked
-            ? '🔒 Seeds locked · Click "Edit Seeds" to change the order'
+            ? '🔒 Seeds locked · Click "Edit Seeds" to reorder · Re-generate to apply new order'
             : 'Drag to reorder · Seed 1 gets the best bracket position · Save Seeds to lock'}
         </p>
       </div>
