@@ -8,7 +8,6 @@ import Link from 'next/link'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
-import MatchesSection from '@/components/features/tournaments/MatchesSection'
 import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
@@ -371,22 +370,6 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             />
           </div>
 
-          {/* Match generation + schedule manager */}
-          {divisionsForOrg.length > 0 && (
-            <MatchesSection
-              tournamentId={tournament.id}
-              divisions={divisionsForOrg}
-              initialMatches={matchesForOrg}
-              isOrganizer={true}
-              tournamentDate={tournament.start_date}
-              defaultStartTime={tournament.start_time ?? '08:00'}
-              defaultEndTime={tournament.estimated_end_time ?? null}
-              additionalDays={tournament.additional_days ?? []}
-              locationCourtCount={(tournament.location as any)?.court_count ?? null}
-              locationName={(tournament.location as any)?.name ?? null}
-            />
-          )}
-
           {/* Operational day-of tabs — useful once matches exist */}
           {orgMatches.length > 0 && (
             <TournamentOrganizerView
@@ -466,18 +449,6 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             currentUserId={user.id}
             matches={matches}
             divisions={divisions}
-          />
-        )}
-
-        {divisions.length > 0 && (
-          <MatchesSection
-            tournamentId={tournament.id}
-            divisions={divisions}
-            initialMatches={matches}
-            isOrganizer={false}
-            tournamentDate={tournament.start_date}
-            defaultStartTime={tournament.start_time ?? '08:00'}
-            defaultEndTime={tournament.estimated_end_time ?? null}
           />
         )}
 
