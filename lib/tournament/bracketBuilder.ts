@@ -19,6 +19,29 @@ function shuffle<T>(arr: T[]): T[] {
   return arr
 }
 
+/**
+ * Returns slot positions for standard bracket seeding.
+ * bracketPositions(8) = [0,7,3,4,1,6,2,5] so that consecutive pairs are
+ * (S1 vs S8), (S4 vs S5), (S2 vs S7), (S3 vs S6) — top two seeds can only
+ * meet in the final.
+ */
+function bracketPositions(n: number): number[] {
+  if (n <= 1) return [0]
+  const half = bracketPositions(n / 2)
+  return half.flatMap(pos => [pos, n - 1 - pos])
+}
+
+/**
+ * Arranges teams (sorted by seed ascending) into standard bracket seeding
+ * order. Teams beyond the array length become null (BYE slots), distributed
+ * so top seeds receive byes.
+ */
+export function arrangeSeedsForBracket(seededTeams: string[]): (string | null)[] {
+  const size = nextPow2(seededTeams.length)
+  const positions = bracketPositions(size)
+  return positions.map(i => (i < seededTeams.length ? seededTeams[i] : null))
+}
+
 // ── Single Elimination ────────────────────────────────────────────────────────
 
 /**
@@ -34,16 +57,17 @@ export function singleEliminationBracket(
   teams: string[],
   stage: 'single_elimination' | 'winners_bracket' | 'playoffs',
   base: BaseMatch,
-  startMatchNum = 1
+  startMatchNum = 1,
+  skipShuffle = false
 ): { rows: BaseMatch[]; nextMatchNum: number } {
-  const shuffled = shuffle([...teams])
-  const size = nextPow2(shuffled.length)
-
-  // Pad with nulls for byes
-  const seeded: (string | null)[] = [
-    ...shuffled,
-    ...Array(size - shuffled.length).fill(null),
-  ]
+  // When skipShuffle=true, teams are pre-sorted by seed; use standard bracket
+  // seeding order so top seeds receive byes and meet each other late.
+  const seeded: (string | null)[] = skipShuffle
+    ? arrangeSeedsForBracket(teams)
+    : (() => {
+        const shuffled = shuffle([...teams])
+        return [...shuffled, ...Array(nextPow2(shuffled.length) - shuffled.length).fill(null)]
+      })()
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum
@@ -107,14 +131,15 @@ export function singleEliminationBracket(
 export function doubleEliminationBracket(
   teams: string[],
   base: BaseMatch,
-  startMatchNum = 1
+  startMatchNum = 1,
+  skipShuffle = false
 ): BaseMatch[] {
-  const shuffled = shuffle([...teams])
-  const size = nextPow2(shuffled.length)
-  const seeded: (string | null)[] = [
-    ...shuffled,
-    ...Array(size - shuffled.length).fill(null),
-  ]
+  const seeded: (string | null)[] = skipShuffle
+    ? arrangeSeedsForBracket(teams)
+    : (() => {
+        const shuffled = shuffle([...teams])
+        return [...shuffled, ...Array(nextPow2(shuffled.length) - shuffled.length).fill(null)]
+      })()
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum

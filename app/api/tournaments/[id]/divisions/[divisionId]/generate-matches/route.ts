@@ -58,7 +58,7 @@ export async function POST(
   // (test data, race condition, manual DB edit) only their earliest row gets a bracket slot.
   const { data: registrations } = await service
     .from('tournament_registrations')
-    .select('id, user_id, partner_registration_id')
+    .select('id, user_id, partner_registration_id, seed')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
     .in('payment_status', ['paid', 'waived', 'comped'])
@@ -72,6 +72,18 @@ export async function POST(
     seenUserIds.add(r.user_id)
     return true
   })
+
+  // If any registration has a seed set, sort by seed ASC (nulls last) and use
+  // standard bracket seeding order. Otherwise fall back to random shuffle.
+  const hasSeeds = deduped.some(r => r.seed != null)
+  if (hasSeeds) {
+    deduped.sort((a, b) => {
+      if (a.seed == null && b.seed == null) return 0
+      if (a.seed == null) return 1
+      if (b.seed == null) return -1
+      return a.seed - b.seed
+    })
+  }
 
   const ft = division.bracket_type as string
   const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
@@ -120,9 +132,9 @@ export async function POST(
     }
 
     if (ft === 'single_elimination') {
-      matchRows = singleEliminationBracket(teams, 'single_elimination', base).rows
+      matchRows = singleEliminationBracket(teams, 'single_elimination', base, 1, hasSeeds).rows
     } else if (ft === 'double_elimination') {
-      matchRows = doubleEliminationBracket(teams, base)
+      matchRows = doubleEliminationBracket(teams, base, 1, hasSeeds)
     } else if (ft === 'pool_play_playoffs') {
       const numPools = (fs.number_of_pools as number) ?? 2
       matchRows = poolPlayMatches(teams, numPools, base).rows
