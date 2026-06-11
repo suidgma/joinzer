@@ -387,33 +387,42 @@ export default function SeedingPanel({
                   {roundLabel(roundNum, totalRounds)}
                 </p>
                 {roundMatches.map(m => {
+                  // Round 1 null = actual BYE; later rounds null = winner TBD
                   const name1 = m.team_1_registration_id
                     ? (regNameMap.get(m.team_1_registration_id) ?? 'TBD')
-                    : 'BYE'
+                    : (roundNum === 1 ? 'BYE' : 'TBD')
                   const name2 = m.team_2_registration_id
                     ? (regNameMap.get(m.team_2_registration_id) ?? 'TBD')
-                    : 'BYE'
+                    : (roundNum === 1 ? 'BYE' : 'TBD')
                   const edit = scheduleEdits[m.id] ?? { court: '', time: '', date: tournamentDate ?? '' }
                   return (
-                    <div key={m.id} className="flex items-center gap-2 text-xs">
-                      <span className="flex-1 text-brand-dark font-medium truncate min-w-0">{name1} vs {name2}</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[10px] text-brand-muted">Ct.</span>
+                    <div key={m.id} className="space-y-1.5">
+                      <span className="text-xs text-brand-dark font-medium">{name1} vs {name2}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-brand-muted">Ct.</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={edit.court}
+                            onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, court: e.target.value } }))}
+                            placeholder="—"
+                            className="w-11 input text-xs py-0.5 px-1.5 text-center"
+                          />
+                        </div>
                         <input
-                          type="number"
-                          min="1"
-                          value={edit.court}
-                          onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, court: e.target.value } }))}
-                          placeholder="—"
-                          className="w-11 input text-xs py-0.5 px-1.5 text-center"
+                          type="date"
+                          value={edit.date}
+                          onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, date: e.target.value } }))}
+                          className="input text-xs py-0.5 px-1.5 flex-1 min-w-[130px]"
+                        />
+                        <input
+                          type="time"
+                          value={edit.time}
+                          onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time: e.target.value } }))}
+                          className="input text-xs py-0.5 px-1.5 w-24 shrink-0"
                         />
                       </div>
-                      <input
-                        type="time"
-                        value={edit.time}
-                        onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time: e.target.value } }))}
-                        className="input text-xs py-0.5 px-1.5 w-24 shrink-0"
-                      />
                     </div>
                   )
                 })}

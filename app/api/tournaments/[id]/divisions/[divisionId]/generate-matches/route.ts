@@ -12,13 +12,16 @@ import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   props: { params: Promise<{ id: string; divisionId: string }> }
 ) {
   const params = await props.params;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json().catch(() => ({}))
+  const force = body.force === true
 
   const service = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,13 +38,22 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Block duplicate generation
+  // Check for existing matches — block unless force=true (re-generate flow)
   const { count: existing } = await service
     .from('tournament_matches')
     .select('id', { count: 'exact', head: true })
     .eq('division_id', params.divisionId)
   if (existing && existing > 0) {
-    return NextResponse.json({ error: 'Matches already generated for this division' }, { status: 409 })
+    if (!force) {
+      return NextResponse.json({ error: 'Matches already generated for this division' }, { status: 409 })
+    }
+    const { error: deleteError } = await service
+      .from('tournament_matches')
+      .delete()
+      .eq('division_id', params.divisionId)
+    if (deleteError) {
+      return NextResponse.json({ error: 'Failed to clear existing matches' }, { status: 500 })
+    }
   }
 
   // Fetch division format

@@ -1712,7 +1712,11 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                     onRemove={regId => handleRemove(div.id, regId)}
                     hasMatches={hasMatches}
                     onGenerateMatches={async () => {
-                      const res = await fetch(`/api/tournaments/${tournamentId}/divisions/${div.id}/generate-matches`, { method: 'POST' })
+                      const res = await fetch(`/api/tournaments/${tournamentId}/divisions/${div.id}/generate-matches`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ force: hasMatches }),
+                      })
                       if (!res.ok) {
                         const d = await res.json().catch(() => ({}))
                         throw new Error(d.error ?? 'Failed to generate matches')
