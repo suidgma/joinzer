@@ -200,7 +200,7 @@ function BracketMatchCard({
       )}
 
       {/* Score entry */}
-      {isOrganizer && !isDone && !isBye && (
+      {isOrganizer && !isDone && !isBye && match.team_1_registration_id && match.team_2_registration_id && (
         scoring ? (
           <div className="px-2 py-1.5 border-t border-brand-border/60 space-y-1 bg-gray-50">
             <div className="flex gap-1">
