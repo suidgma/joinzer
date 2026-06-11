@@ -549,3 +549,67 @@ export function computeAdvancement(
   const field = posInRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
   return { matchId: nextMatch.id, field, value: winner }
 }
+
+/**
+ * Given a completed WB match, returns the DB update to drop the LOSER into the
+ * correct Losers Bracket slot.
+ *
+ * WB round N losers drop into LB round (N===1 ? 1 : N*2-1):
+ *   - WB R1 → LB R1: pairs of 2 WB losers share one LB match
+ *   - WB R2 → LB R3: each WB loser takes one LB match slot as team_2
+ *   - WB R3 → LB R5: same pattern
+ *
+ * Returns null for BYE matches (no loser), non-WB matches, or when no matching
+ * LB slot exists.
+ */
+export function computeLbDrop(
+  completedMatch: MatchRow,
+  allMatches: MatchRow[]
+): { matchId: string; field: 'team_1_registration_id' | 'team_2_registration_id'; value: string } | null {
+  if (completedMatch.match_stage !== 'winners_bracket') return null
+
+  const winner = completedMatch.winner_registration_id
+  if (!winner) return null
+
+  // BYE match — no loser
+  const loser = winner === completedMatch.team_1_registration_id
+    ? completedMatch.team_2_registration_id
+    : completedMatch.team_1_registration_id
+  if (!loser) return null
+
+  const wbRound = completedMatch.round_number ?? 1
+
+  // WB R1 → LB R1; WB R2 → LB R3; WB RN → LB R(2N-1)
+  const lbTargetRound = wbRound === 1 ? 1 : wbRound * 2 - 1
+
+  const sameWbRound = allMatches
+    .filter(m => m.match_stage === 'winners_bracket' && m.round_number === wbRound)
+    .sort((a, b) => a.match_number - b.match_number)
+
+  const posInWbRound = sameWbRound.findIndex(m => m.id === completedMatch.id)
+  if (posInWbRound === -1) return null
+
+  const lbTargetMatches = allMatches
+    .filter(m => m.match_stage === 'losers_bracket' && m.round_number === lbTargetRound)
+    .sort((a, b) => a.match_number - b.match_number)
+
+  if (lbTargetMatches.length === 0) return null
+
+  let lbMatchIdx: number
+  let lbField: 'team_1_registration_id' | 'team_2_registration_id'
+
+  if (wbRound === 1) {
+    // Pair WB R1 losers together: positions 0&1 → LB match 0, 2&3 → LB match 1, etc.
+    lbMatchIdx = Math.floor(posInWbRound / 2)
+    lbField = posInWbRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
+  } else {
+    // One WB loser per LB match, as team_2 (LB survivor fills team_1 via advancement)
+    lbMatchIdx = posInWbRound
+    lbField = 'team_2_registration_id'
+  }
+
+  const targetLbMatch = lbTargetMatches[lbMatchIdx]
+  if (!targetLbMatch) return null
+
+  return { matchId: targetLbMatch.id, field: lbField, value: loser }
+}

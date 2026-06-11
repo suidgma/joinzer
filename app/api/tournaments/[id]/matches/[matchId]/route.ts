@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { computeAdvancement, computeLbDrop, type MatchRow } from '@/lib/tournament/bracketBuilder'
 
 const MATCH_SELECT = 'id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status'
 const SLIM_SELECT  = 'id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status'
@@ -166,6 +166,29 @@ export async function PATCH(
         team_2_registration_id: byeCompleted.team_2_registration_id,
         winner_registration_id: byeCompleted.winner_registration_id,
         status: byeCompleted.status,
+      }
+    }
+  }
+
+  // For WB matches with a real loser, drop the loser into the Losers Bracket.
+  // This runs after the winner cascade so allDivMatches is fresh.
+  if (match.match_stage === 'winners_bracket') {
+    const { data: freshForLb } = await service
+      .from('tournament_matches')
+      .select(SLIM_SELECT)
+      .eq('division_id', match.division_id)
+
+    if (freshForLb) {
+      const completedForLb: MatchRow = { ...match, winner_registration_id, status: 'completed' }
+      const lbDrop = computeLbDrop(completedForLb, freshForLb as MatchRow[])
+      if (lbDrop) {
+        const { data: lbMatch } = await service
+          .from('tournament_matches')
+          .update({ [lbDrop.field]: lbDrop.value })
+          .eq('id', lbDrop.matchId)
+          .select(MATCH_SELECT)
+          .single()
+        if (lbMatch) advancedMatches.push(lbMatch)
       }
     }
   }
