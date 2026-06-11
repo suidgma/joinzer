@@ -31,6 +31,8 @@ type Props = {
   divisionId: string
   onMarkComped: (regId: string) => void
   onRemove: (regId: string) => void
+  hasMatches: boolean
+  onGenerateMatches: () => Promise<void>
 }
 
 function lastName(name: string | null | undefined): string {
@@ -76,7 +78,7 @@ function paymentBadge(reg: SeededReg) {
   return <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${classes}`}>{label}</span>
 }
 
-export default function SeedingPanel({ registrations, isDoubles, tournamentId, divisionId, onMarkComped, onRemove }: Props) {
+export default function SeedingPanel({ registrations, isDoubles, tournamentId, divisionId, onMarkComped, onRemove, hasMatches, onGenerateMatches }: Props) {
   const confirmed = registrations.filter(isConfirmed)
   const awaiting  = registrations.filter(r => !isConfirmed(r))
 
@@ -86,8 +88,9 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
     return withSeed.length > 0 ? [...withSeed, ...noSeed] : [...confirmed]
   })
 
-  // Start locked if seeds were previously saved, unlocked if no seeds set yet
   const [locked, setLocked] = useState(() => confirmed.some(r => r.seed != null))
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -250,11 +253,36 @@ export default function SeedingPanel({ registrations, isDoubles, tournamentId, d
         </ul>
       )}
 
-      <p className="px-3 py-1.5 text-[10px] text-brand-muted border-t border-brand-border/60 bg-brand-surface">
-        {locked
-          ? '🔒 Seeds locked · Click "Edit Seeds" to change the order'
-          : 'Drag to reorder · Seed 1 gets the best bracket position · Click Save Seeds to lock'}
-      </p>
+      {/* Generate Matches */}
+      <div className="px-3 py-2.5 border-t border-brand-border/60 bg-brand-surface space-y-1.5">
+        {hasMatches ? (
+          <p className="text-xs text-brand-muted">✓ Matches already generated for this division</p>
+        ) : (
+          <>
+            <button
+              onClick={async () => {
+                setGenerating(true); setGenError(null)
+                try { await onGenerateMatches() }
+                catch (e: unknown) { setGenError(e instanceof Error ? e.message : 'Failed') }
+                finally { setGenerating(false) }
+              }}
+              disabled={generating || confirmed.length < 2}
+              className="w-full py-2 rounded-lg bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
+            >
+              {generating ? 'Generating…' : 'Generate Matches'}
+            </button>
+            {genError && <p className="text-xs text-red-600">{genError}</p>}
+            {confirmed.length < 2 && (
+              <p className="text-[10px] text-brand-muted">Need at least 2 confirmed registrants to generate.</p>
+            )}
+          </>
+        )}
+        <p className="text-[10px] text-brand-muted">
+          {locked
+            ? '🔒 Seeds locked · Click "Edit Seeds" to change the order'
+            : 'Drag to reorder · Seed 1 gets the best bracket position · Save Seeds to lock'}
+        </p>
+      </div>
     </div>
   )
 }

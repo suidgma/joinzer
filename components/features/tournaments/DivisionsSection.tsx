@@ -114,9 +114,10 @@ type Props = {
   defaultBracketType?: BracketType
   defaultLocationId?: string | null
   locations?: LocationOption[]
+  matchCountByDivision?: Record<string, number>
 }
 
-export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [] }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [], matchCountByDivision = {} }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -1092,6 +1093,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const isEditingFormat = editingFormatId === div.id
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
             const isBracket = div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination'
+            const hasMatches = (matchCountByDivision[div.id] ?? 0) > 0
 
             const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
@@ -1707,6 +1709,15 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                     divisionId={div.id}
                     onMarkComped={regId => handleMarkComped(div.id, regId)}
                     onRemove={regId => handleRemove(div.id, regId)}
+                    hasMatches={hasMatches}
+                    onGenerateMatches={async () => {
+                      const res = await fetch(`/api/tournaments/${tournamentId}/divisions/${div.id}/generate-matches`, { method: 'POST' })
+                      if (!res.ok) {
+                        const d = await res.json().catch(() => ({}))
+                        throw new Error(d.error ?? 'Failed to generate matches')
+                      }
+                      router.refresh()
+                    }}
                   />
                 )}
 
