@@ -47,8 +47,9 @@ type Props = {
 // created when 5 teams are padded to an 8-slot bracket.
 function hasRealPredecessor(match: Match, allMatches: Match[], depth = 0): boolean {
   if (depth > 6) return false
+  // A completed match already had its winner advanced — it can't feed a null-null slot downstream
+  if (match.status === 'completed') return false
   if (match.team_1_registration_id || match.team_2_registration_id) return true
-  if (match.status === 'completed') return true  // auto-completed BYE/cascade = real
   if (match.match_stage === 'championship') return true
   const round = match.round_number ?? 1
   if (round <= 1) return false  // R1 null-null in WB/LB = phantom by definition
