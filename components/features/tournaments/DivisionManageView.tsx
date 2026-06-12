@@ -132,6 +132,14 @@ export default function DivisionManageView({
   const router = useRouter()
   const [registrations, setRegistrations] = useState<Registration[]>(initialRegistrations)
   const [matches, setMatches] = useState<Match[]>(initialMatches)
+  const [showSeeds, setShowSeeds] = useState<boolean>(() => {
+    try { return localStorage.getItem(`seeds-${division.id}`) === 'true' } catch { return false }
+  })
+
+  function handleToggleShowSeeds(val: boolean) {
+    setShowSeeds(val)
+    try { localStorage.setItem(`seeds-${division.id}`, String(val)) } catch { /* */ }
+  }
 
   // Add player state
   const [addingPlayer, setAddingPlayer] = useState(false)
@@ -383,6 +391,8 @@ export default function DivisionManageView({
             matches={matchItems}
             tournamentDate={tournamentStartDate ?? undefined}
             addPlayerSlot={addPlayerContent}
+            showSeeds={showSeeds}
+            onToggleShowSeeds={handleToggleShowSeeds}
           />
         )}
 
@@ -399,6 +409,7 @@ export default function DivisionManageView({
                 user_id: r.user_id,
                 team_name: r.team_name,
                 status: r.status,
+                seed: r.seed ?? null,
                 user_profile: r.user_profile ? { name: r.user_profile.name ?? '' } : null,
                 partner_user_id: r.partner_user_id,
                 partner_profile: r.partner_profile ? { name: r.partner_profile.name ?? '' } : null,
@@ -410,6 +421,7 @@ export default function DivisionManageView({
               onScoreUpdate={handleScoreUpdate}
               listLayout={!isBracket}
               pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
+              showSeeds={showSeeds}
             />
           </div>
         )}

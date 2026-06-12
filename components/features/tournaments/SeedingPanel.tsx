@@ -51,6 +51,8 @@ type Props = {
   matches?: MatchItem[]
   tournamentDate?: string
   addPlayerSlot?: React.ReactNode
+  showSeeds?: boolean
+  onToggleShowSeeds?: (val: boolean) => void
 }
 
 function firstName(name: string | null | undefined): string {
@@ -179,7 +181,7 @@ function initScheduleEdits(
 export default function SeedingPanel({
   registrations, isDoubles, tournamentId, divisionId,
   onMarkComped, onRemove, hasMatches, onGenerateMatches, onReplacePlayer,
-  matches, tournamentDate, addPlayerSlot,
+  matches, tournamentDate, addPlayerSlot, showSeeds, onToggleShowSeeds,
 }: Props) {
   // For doubles: keep the lexicographically-smaller registration ID of each pair
   // as the canonical row — matches dedupeRegistrationsToTeams in the bracket generator
@@ -285,10 +287,11 @@ export default function SeedingPanel({
   const regNameMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const reg of registrations.filter(r => r.status !== 'cancelled')) {
-      map.set(reg.id, teamName(reg, isDoubles))
+      const base = teamName(reg, isDoubles)
+      map.set(reg.id, showSeeds && reg.seed != null ? `#${reg.seed} ${base}` : base)
     }
     return map
-  }, [registrations, isDoubles])
+  }, [registrations, isDoubles, showSeeds])
 
   // Map registration IDs → seed position (0-based) for match display ordering
   const seedIndexMap = useMemo(() => {
@@ -653,6 +656,17 @@ export default function SeedingPanel({
             <option value={120}>2 hours</option>
           </select>
         </div>
+        {onToggleShowSeeds && (
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!showSeeds}
+              onChange={e => onToggleShowSeeds(e.target.checked)}
+              className="rounded border-brand-border text-brand accent-brand"
+            />
+            <span className="text-xs text-brand-muted">Show seed numbers next to names</span>
+          </label>
+        )}
         <button
           onClick={async () => {
             setGenerating(true); setGenError(null)

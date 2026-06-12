@@ -25,6 +25,7 @@ type Registration = {
   user_id: string
   team_name: string | null
   status: string
+  seed?: number | null
   user_profile: { name: string } | null
   partner_user_id?: string | null
   partner_profile?: { name: string } | null
@@ -40,6 +41,7 @@ type Props = {
   onScoreUpdate: (updatedMatches: Match[]) => void
   listLayout?: boolean
   pointsToWin?: number
+  showSeeds?: boolean
 }
 
 // Returns false if a null-null scheduled WB/LB match traces back to at least one
@@ -100,20 +102,24 @@ function firstName(name: string | null | undefined): string {
   return name.trim().split(/\s+/)[0]
 }
 
-function TeamNameDisplay({ regId, regs, isDoubles }: {
+function TeamNameDisplay({ regId, regs, isDoubles, showSeeds }: {
   regId: string | null
   regs: Registration[]
   isDoubles: boolean
+  showSeeds?: boolean
 }) {
   if (!regId) return <span>TBD</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
-  if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
+  const seedPrefix = showSeeds && r.seed != null
+    ? <span className="text-[9px] font-bold text-brand-muted mr-0.5">#{r.seed}</span>
+    : null
+  if (!isDoubles) return <span>{seedPrefix}{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
   const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{p1}/{firstName(r.partner_profile.name)}</span>
+    return <span>{seedPrefix}{p1}/{firstName(r.partner_profile.name)}</span>
   }
-  return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
+  return <span>{seedPrefix}{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }
 
 function getRoundLabel(roundNum: number, totalRounds: number, stage: string): string {
@@ -140,7 +146,7 @@ const CARD_H = 96
 const bracketQueueKey = (tournamentId: string) => `bracket_${tournamentId}`
 
 function BracketMatchCard({
-  match, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin,
+  match, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
 }: {
   match: Match
   regs: Registration[]
@@ -150,6 +156,7 @@ function BracketMatchCard({
   divisionId: string
   onScoreUpdate: (updatedMatches: Match[]) => void
   pointsToWin?: number
+  showSeeds?: boolean
 }) {
   const ptw = pointsToWin ?? 11
   const [scoring, setScoring] = useState(false)
@@ -245,7 +252,7 @@ function BracketMatchCard({
         ) : isDone && match.team_1_score != null ? (
           <span className={`w-7 shrink-0 font-bold text-right ${w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_1_score}</span>
         ) : null}
-        <span className={`font-semibold truncate ${isDone && w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}><TeamNameDisplay regId={match.team_1_registration_id} regs={regs} isDoubles={isDoubles} /></span>
+        <span className={`font-semibold truncate ${isDone && w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}><TeamNameDisplay regId={match.team_1_registration_id} regs={regs} isDoubles={isDoubles} showSeeds={showSeeds} /></span>
       </div>
       {/* Team 2 */}
       <div className={`flex items-center gap-1.5 px-2 py-1.5 ${isDone && w === match.team_2_registration_id ? 'bg-brand-soft' : ''}`}>
@@ -259,7 +266,7 @@ function BracketMatchCard({
         ) : isDone && match.team_2_score != null && !isBye ? (
           <span className={`w-7 shrink-0 font-bold text-right ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_2_score}</span>
         ) : <span className="w-7 shrink-0" />}
-        <span className={`font-semibold truncate ${isBye ? 'text-brand-muted italic' : isDone && w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>{isBye ? 'BYE' : <TeamNameDisplay regId={match.team_2_registration_id} regs={regs} isDoubles={isDoubles} />}</span>
+        <span className={`font-semibold truncate ${isBye ? 'text-brand-muted italic' : isDone && w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>{isBye ? 'BYE' : <TeamNameDisplay regId={match.team_2_registration_id} regs={regs} isDoubles={isDoubles} showSeeds={showSeeds} />}</span>
       </div>
 
       {/* Assignment info: court + time */}
@@ -309,7 +316,7 @@ function BracketMatchCard({
 }
 
 function BracketColumn({
-  roundNum, matches, totalRounds, rIdx, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin,
+  roundNum, matches, totalRounds, rIdx, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
 }: {
   roundNum: number
   matches: Match[]
@@ -322,6 +329,7 @@ function BracketColumn({
   divisionId: string
   onScoreUpdate: (updatedMatches: Match[]) => void
   pointsToWin?: number
+  showSeeds?: boolean
 }) {
   // spacing between cards doubles each round: 0, CARD_H, 3*CARD_H, 7*CARD_H...
   const gap = (Math.pow(2, rIdx) - 1) * CARD_H
@@ -339,7 +347,7 @@ function BracketColumn({
           <BracketMatchCard
             match={match} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
             tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-            pointsToWin={pointsToWin}
+            pointsToWin={pointsToWin} showSeeds={showSeeds}
           />
         </div>
       ))}
@@ -348,7 +356,7 @@ function BracketColumn({
 }
 
 function SingleBracket({
-  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, title, pointsToWin,
+  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, title, pointsToWin, showSeeds,
 }: {
   matches: Match[]
   regs: Registration[]
@@ -359,6 +367,7 @@ function SingleBracket({
   onScoreUpdate: (updatedMatches: Match[]) => void
   title?: string
   pointsToWin?: number
+  showSeeds?: boolean
 }) {
   if (matches.length === 0) return null
 
@@ -390,6 +399,7 @@ function SingleBracket({
               divisionId={divisionId}
               onScoreUpdate={onScoreUpdate}
               pointsToWin={pointsToWin}
+              showSeeds={showSeeds}
             />
           ))}
         </div>
@@ -399,7 +409,7 @@ function SingleBracket({
 }
 
 function RoundRobinList({
-  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin,
+  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
 }: Omit<Props, 'listLayout'>) {
   const roundMap = new Map<number, Match[]>()
   for (const m of matches) {
@@ -428,6 +438,7 @@ function RoundRobinList({
                   divisionId={divisionId}
                   onScoreUpdate={onScoreUpdate}
                   pointsToWin={pointsToWin}
+                  showSeeds={showSeeds}
                 />
               ))}
           </div>
@@ -437,7 +448,7 @@ function RoundRobinList({
   )
 }
 
-export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin }: Props) {
+export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin, showSeeds }: Props) {
   const handleOnline = useCallback(async () => {
     const qKey = bracketQueueKey(tournamentId)
     const queue = getQueue(qKey)
@@ -459,7 +470,7 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
       <RoundRobinList
         matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
         tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-        pointsToWin={pointsToWin}
+        pointsToWin={pointsToWin} showSeeds={showSeeds}
       />
     )
   }
@@ -481,16 +492,16 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
       <div className="space-y-5">
         <SingleBracket matches={winners} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
           tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-          title="Winners Bracket" pointsToWin={pointsToWin} />
+          title="Winners Bracket" pointsToWin={pointsToWin} showSeeds={showSeeds} />
         {losers.length > 0 && (
           <SingleBracket matches={losers} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
             tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-            title="Losers Bracket" pointsToWin={pointsToWin} />
+            title="Losers Bracket" pointsToWin={pointsToWin} showSeeds={showSeeds} />
         )}
         {championship.length > 0 && (
           <SingleBracket matches={championship} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
             tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-            title="Championship" pointsToWin={pointsToWin} />
+            title="Championship" pointsToWin={pointsToWin} showSeeds={showSeeds} />
         )}
       </div>
     )
@@ -501,6 +512,6 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
   return (
     <SingleBracket matches={bracketMatches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
       tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-      pointsToWin={pointsToWin} />
+      pointsToWin={pointsToWin} showSeeds={showSeeds} />
   )
 }
