@@ -41,6 +41,41 @@ type Props = {
   listLayout?: boolean
 }
 
+// Returns false if a null-null scheduled WB/LB match traces back to at least one
+// real team through its same-stage predecessors. Returns true (phantom) when it's
+// a padded bracket slot that will never have players — e.g. the null-null R1 pair
+// created when 5 teams are padded to an 8-slot bracket.
+function hasRealPredecessor(match: Match, allMatches: Match[], depth = 0): boolean {
+  if (depth > 6) return false
+  if (match.team_1_registration_id || match.team_2_registration_id) return true
+  if (match.status === 'completed') return true  // auto-completed BYE/cascade = real
+  if (match.match_stage === 'championship') return true
+  const round = match.round_number ?? 1
+  if (round <= 1) return false  // R1 null-null in WB/LB = phantom by definition
+  const sameRound = allMatches
+    .filter(m => m.match_stage === match.match_stage && m.round_number === round)
+    .sort((a, b) => a.match_number - b.match_number)
+  const idx = sameRound.findIndex(m => m.id === match.id)
+  if (idx === -1) return false
+  const prevRound = allMatches
+    .filter(m => m.match_stage === match.match_stage && m.round_number === round - 1)
+    .sort((a, b) => a.match_number - b.match_number)
+  const f1 = prevRound[idx * 2]
+  const f2 = prevRound[idx * 2 + 1]
+  return (
+    (f1 != null && hasRealPredecessor(f1, allMatches, depth + 1)) ||
+    (f2 != null && hasRealPredecessor(f2, allMatches, depth + 1))
+  )
+}
+
+function isPhantomMatch(match: Match, allMatches: Match[]): boolean {
+  const stage = match.match_stage
+  if (stage !== 'winners_bracket' && stage !== 'losers_bracket' && stage !== 'single_elimination') return false
+  if (match.team_1_registration_id || match.team_2_registration_id) return false
+  if (match.status === 'completed') return false
+  return !hasRealPredecessor(match, allMatches, 0)
+}
+
 function formatMatchTime(scheduled_time: string | null): string {
   if (!scheduled_time) return ''
   const d = new Date(scheduled_time)
@@ -386,11 +421,15 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
     )
   }
 
+  // Strip phantom padded slots (null-null scheduled matches with no real upstream feeder)
+  // before rendering so the bracket doesn't show disconnected TBD vs TBD ghost cards.
+  const visibleMatches = matches.filter(m => !isPhantomMatch(m, matches))
+
   // Separate by stage for double elimination
-  const winners = matches.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'single_elimination')
-  const losers = matches.filter(m => m.match_stage === 'losers_bracket')
-  const championship = matches.filter(m => m.match_stage === 'championship')
-  const playoffs = matches.filter(m => m.match_stage === 'playoffs' || m.match_stage === 'consolation')
+  const winners = visibleMatches.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'single_elimination')
+  const losers = visibleMatches.filter(m => m.match_stage === 'losers_bracket')
+  const championship = visibleMatches.filter(m => m.match_stage === 'championship')
+  const playoffs = visibleMatches.filter(m => m.match_stage === 'playoffs' || m.match_stage === 'consolation')
 
   const hasDoubleElim = losers.length > 0
 
