@@ -95,8 +95,36 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
 }
 
 function computeStandings(matches: Match[], regs: Registration[], isDoubles: boolean, poolNum?: number): StandingRow[] {
+  const activeRegs = regs.filter(r => r.status === 'registered')
+
+  // For doubles, each team has two registrations (one per player). Deduplicate so
+  // only one row per team appears. Build a canonical ID map so match stats for
+  // either partner's reg ID get credited to the same row.
+  const canonicalId = new Map<string, string>()
+  let rowRegs: Registration[]
+
+  if (isDoubles) {
+    const seen = new Set<string>()
+    rowRegs = []
+    for (const r of activeRegs) {
+      if (seen.has(r.id)) continue
+      rowRegs.push(r)
+      seen.add(r.id)
+      canonicalId.set(r.id, r.id)
+      if (r.partner_registration_id) {
+        seen.add(r.partner_registration_id)
+        canonicalId.set(r.partner_registration_id, r.id)
+      }
+    }
+  } else {
+    rowRegs = activeRegs
+    for (const r of activeRegs) canonicalId.set(r.id, r.id)
+  }
+
+  const canon = (id: string) => canonicalId.get(id) ?? id
+
   const map = new Map<string, StandingRow>()
-  regs.filter(r => r.status === 'registered').forEach(r => {
+  rowRegs.forEach(r => {
     map.set(r.id, { regId: r.id, name: teamLabel(r.id, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
   })
 
@@ -108,16 +136,17 @@ function computeStandings(matches: Match[], regs: Registration[], isDoubles: boo
   )
 
   for (const m of relevant) {
-    const t1 = m.team_1_registration_id!
-    const t2 = m.team_2_registration_id!
+    const t1 = canon(m.team_1_registration_id!)
+    const t2 = canon(m.team_2_registration_id!)
     const s1 = m.team_1_score ?? 0
     const s2 = m.team_2_score ?? 0
     if (!map.has(t1)) map.set(t1, { regId: t1, name: teamLabel(t1, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
     if (!map.has(t2)) map.set(t2, { regId: t2, name: teamLabel(t2, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
     const r1 = map.get(t1)!
     const r2 = map.get(t2)!
-    if (m.winner_registration_id === t1) { r1.wins++; r2.losses++ }
-    else if (m.winner_registration_id === t2) { r2.wins++; r1.losses++ }
+    const winner = m.winner_registration_id ? canon(m.winner_registration_id) : null
+    if (winner === t1) { r1.wins++; r2.losses++ }
+    else if (winner === t2) { r2.wins++; r1.losses++ }
     r1.pf += s1; r1.pa += s2
     r2.pf += s2; r2.pa += s1
   }
