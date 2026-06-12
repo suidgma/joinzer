@@ -679,8 +679,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       return
     }
 
-    const reg1 = { ...json.reg1, user_profile: { name: p1.name } }
-    const reg2 = { ...json.reg2, user_profile: { name: p2.name } }
+    const reg1 = { ...json.reg1, user_profile: { name: p1.name }, partner_profile: { name: p2.name } }
+    const reg2 = { ...json.reg2, user_profile: { name: p2.name }, partner_profile: { name: p1.name } }
     setDivisions(prev => prev.map(d =>
       d.id === divisionId
         ? { ...d, tournament_registrations: [...d.tournament_registrations, reg1, reg2] }
