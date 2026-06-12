@@ -72,7 +72,9 @@ function isPhantomMatch(match: Match, allMatches: Match[]): boolean {
   const stage = match.match_stage
   if (stage !== 'winners_bracket' && stage !== 'losers_bracket' && stage !== 'single_elimination') return false
   if (match.team_1_registration_id || match.team_2_registration_id) return false
-  if (match.status === 'completed') return false
+  // A "completed" match with no team IDs is a phantom BYE slot written by the
+  // generation cascade — hide it so it doesn't render as "TBD vs TBD".
+  if (match.status === 'completed') return true
   return !hasRealPredecessor(match, allMatches, 0)
 }
 

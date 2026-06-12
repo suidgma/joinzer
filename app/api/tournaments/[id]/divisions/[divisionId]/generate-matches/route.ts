@@ -221,11 +221,14 @@ export async function POST(
 
       if (!feederIsPhantom) continue
 
-      // Genuine induced BYE — auto-complete this R2 match
+      // Genuine induced BYE — auto-complete this R2 match.
+      // Write the team field too (in case Step 1's update was a no-op) so the
+      // match renders as "Thompson vs BYE" rather than "TBD vs TBD".
       const byeWinner = t1 ?? t2
+      const byeTeamField = emptyIsTeam2 ? 'team_1_registration_id' : 'team_2_registration_id'
       const { data: byeCompleted } = await service
         .from('tournament_matches')
-        .update({ winner_registration_id: byeWinner, status: 'completed' })
+        .update({ [byeTeamField]: byeWinner, winner_registration_id: byeWinner, status: 'completed' })
         .eq('id', m.id)
         .select(slim)
         .single()

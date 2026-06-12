@@ -392,23 +392,32 @@ export async function PATCH(
     }
   }
 
-  // Advance WB Final winner → Championship team_1, or LB Final winner → Championship team_2
+  // Advance WB Final winner → Championship team_1, or LB Final winner → Championship team_2.
+  // Must also check cascaded auto-completions (e.g. LB Final BYE-cascaded by cascadeWinner)
+  // because computeChampionshipAdvancement needs the actual final-round match, not the
+  // earlier match that triggered the cascade.
   {
     const { data: freshForChamp } = await service
       .from('tournament_matches')
       .select(SLIM_SELECT)
       .eq('division_id', match.division_id)
     if (freshForChamp) {
-      const completedForChamp: MatchRow = { ...match, winner_registration_id, status: 'completed' }
-      const champAdv = computeChampionshipAdvancement(completedForChamp, freshForChamp as MatchRow[])
-      if (champAdv) {
-        const { data: champMatch } = await service
-          .from('tournament_matches')
-          .update({ [champAdv.field]: champAdv.value })
-          .eq('id', champAdv.matchId)
-          .select(MATCH_SELECT)
-          .single()
-        if (champMatch) advancedMatches.push(champMatch)
+      const allFresh = freshForChamp as MatchRow[]
+      const candidates: MatchRow[] = [
+        { ...match, winner_registration_id, status: 'completed' },
+        ...(advancedMatches as MatchRow[]).filter(m => m.status === 'completed' && !!m.winner_registration_id),
+      ]
+      for (const candidate of candidates) {
+        const champAdv = computeChampionshipAdvancement(candidate, allFresh)
+        if (champAdv) {
+          const { data: champMatch } = await service
+            .from('tournament_matches')
+            .update({ [champAdv.field]: champAdv.value })
+            .eq('id', champAdv.matchId)
+            .select(MATCH_SELECT)
+            .single()
+          if (champMatch) advancedMatches.push(champMatch)
+        }
       }
     }
   }
