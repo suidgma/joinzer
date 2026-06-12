@@ -904,14 +904,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
-              <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
-                {CATEGORY_OPTIONS.filter(o => fTeamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Team Type</label>
               <select
                 value={fTeamType}
@@ -920,6 +912,14 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
               >
                 <option value="doubles">Doubles</option>
                 <option value="singles">Singles</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
+              <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
+                {CATEGORY_OPTIONS.filter(o => fTeamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
           </div>
