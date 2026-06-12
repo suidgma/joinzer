@@ -173,8 +173,10 @@ function initScheduleEdits(
     let dateStr = tournamentDate ?? ''
     if (m.scheduled_time) {
       const d = new Date(m.scheduled_time)
-      timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-      dateStr = d.toISOString().slice(0, 10)
+      if (!isNaN(d.getTime())) {
+        timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+        dateStr = d.toISOString().slice(0, 10)
+      }
     }
     result[m.id] = { court: m.court_number != null ? String(m.court_number) : '', time: timeStr, date: dateStr }
   }
