@@ -266,7 +266,7 @@ function BracketMatchCard({
           />
         ) : isDone && match.team_2_score != null && !isBye ? (
           <span className={`w-7 shrink-0 font-bold text-right ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_2_score}</span>
-        ) : <span className="w-7 shrink-0" />}
+        ) : isDone ? <span className="w-7 shrink-0" /> : null}
         <span className={`font-semibold truncate ${isBye ? 'text-brand-muted italic' : isDone && w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>{isBye ? 'BYE' : <TeamNameDisplay regId={match.team_2_registration_id} regs={regs} isDoubles={isDoubles} showSeeds={showSeeds} />}</span>
       </div>
 
