@@ -272,8 +272,16 @@ export default function DivisionManageView({
     )
     const json = await res.json()
     if (!res.ok) { setAddPlayerError(json.error ?? 'Failed to add team'); setAddPlayerLoading(false); return }
-    const reg1 = { ...json.reg1, user_profile: { name: p1.name, dupr_rating: p1.dupr_rating ?? null, estimated_rating: p1.estimated_rating ?? null } }
-    const reg2 = { ...json.reg2, user_profile: { name: p2.name, dupr_rating: p2.dupr_rating ?? null, estimated_rating: p2.estimated_rating ?? null } }
+    const reg1 = {
+      ...json.reg1,
+      user_profile: { name: p1.name, dupr_rating: p1.dupr_rating ?? null, estimated_rating: p1.estimated_rating ?? null },
+      partner_profile: { name: p2.name, dupr_rating: p2.dupr_rating ?? null, estimated_rating: p2.estimated_rating ?? null },
+    }
+    const reg2 = {
+      ...json.reg2,
+      user_profile: { name: p2.name, dupr_rating: p2.dupr_rating ?? null, estimated_rating: p2.estimated_rating ?? null },
+      partner_profile: { name: p1.name, dupr_rating: p1.dupr_rating ?? null, estimated_rating: p1.estimated_rating ?? null },
+    }
     setRegistrations(prev => [...prev, reg1, reg2])
     setAddingPlayer(false); setSelectedP1(null)
     setPlayerSearch(''); setPlayerSearch2(''); setPlayerResults([]); setPlayerResults2([])
