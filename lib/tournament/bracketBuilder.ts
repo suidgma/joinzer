@@ -526,6 +526,12 @@ export function computeAdvancement(
   if (!winner) return null
 
   const stage = completedMatch.match_stage
+
+  // Round robin and pool play schedules are fixed up front — winners never
+  // advance into later rounds. Without this guard, scoring a round-N match
+  // overwrites the pre-assigned teams of round N+1, corrupting the schedule.
+  if (stage === 'round_robin' || stage === 'pool_play') return null
+
   const roundNum = completedMatch.round_number ?? 1
 
   // Matches in the same stage and same round, sorted by match_number
