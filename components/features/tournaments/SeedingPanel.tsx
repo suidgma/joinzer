@@ -72,7 +72,10 @@ function teamName(reg: SeededReg, isDoubles: boolean): string {
   const p1 = reg.user_profile?.name
   if (!isDoubles) return firstName(p1)
   const p2 = reg.partner_profile?.name
-  if (p2) return `${firstName(p1)}/${firstName(p2)}`
+  if (p2) {
+    const names = [firstName(p1), firstName(p2)].sort((a, b) => a.localeCompare(b))
+    return `${names[0]}/${names[1]}`
+  }
   // Partner linked by ID but profile missing, or no partner assigned yet
   return reg.partner_registration_id
     ? `${firstName(p1)}/?`

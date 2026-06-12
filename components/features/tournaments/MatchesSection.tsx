@@ -69,8 +69,12 @@ function teamLabel(regId: string | null, regs: Registration[], isDoubles = false
   if (!r) return '—'
   if (!isDoubles) return r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)
   const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
-  const p2 = r.partner_profile?.name ? firstName(r.partner_profile.name) : '?'
-  return `${p1}/${p2}`
+  const p2raw = r.partner_profile?.name ? firstName(r.partner_profile.name) : null
+  if (p2raw) {
+    const names = [p1, p2raw].sort((a, b) => a.localeCompare(b))
+    return `${names[0]}/${names[1]}`
+  }
+  return `${p1}/?`
 }
 
 function TeamNameDisplay({ regId, regs, isDoubles }: {
@@ -84,7 +88,8 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
   if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
   const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{p1}/{firstName(r.partner_profile.name)}</span>
+    const names = [p1, firstName(r.partner_profile.name)].sort((a, b) => a.localeCompare(b))
+    return <span>{names[0]}/{names[1]}</span>
   }
   return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }

@@ -82,15 +82,17 @@ function TeamNameDisplay({ regId, partnerRegId, regs, isDoubles }: {
   // Rotating doubles: the partner is a separate registration on the match row,
   // not a cross-linked partner_profile on this registration.
   if (partnerRegId) {
-    const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
-    const p2 = regToFirstName(partnerRegId, regs)
-    return <span>{p1}/{p2}</span>
+    const a = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+    const b = regToFirstName(partnerRegId, regs)
+    const names = [a, b].sort((x, y) => x.localeCompare(y))
+    return <span>{names[0]}/{names[1]}</span>
   }
 
   // Fixed doubles: partner comes from the cross-linked registration.
   const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{p1}/{firstName(r.partner_profile.name)}</span>
+    const names = [p1, firstName(r.partner_profile.name)].sort((a, b) => a.localeCompare(b))
+    return <span>{names[0]}/{names[1]}</span>
   }
   return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }

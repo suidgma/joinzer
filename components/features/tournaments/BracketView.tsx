@@ -117,7 +117,8 @@ function TeamNameDisplay({ regId, regs, isDoubles, showSeeds }: {
   if (!isDoubles) return <span>{seedPrefix}{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
   const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{seedPrefix}{p1}/{firstName(r.partner_profile.name)}</span>
+    const names = [p1, firstName(r.partner_profile.name)].sort((a, b) => a.localeCompare(b))
+    return <span>{seedPrefix}{names[0]}/{names[1]}</span>
   }
   return <span>{seedPrefix}{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }

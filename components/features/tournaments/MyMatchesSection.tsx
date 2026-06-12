@@ -65,7 +65,8 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
   if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || 'Unknown'}</span>
   const p1 = firstName(r.user_profile?.name) || r.team_name || 'Unknown'
   if (r.partner_profile?.name) {
-    return <span>{p1}/{firstName(r.partner_profile.name)}</span>
+    const names = [p1, firstName(r.partner_profile.name)].sort((a, b) => a.localeCompare(b))
+    return <span>{names[0]}/{names[1]}</span>
   }
   return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }
