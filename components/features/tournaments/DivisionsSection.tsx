@@ -908,7 +908,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             </div>
           </div>
 
-          {fTeamType === 'doubles' && fBracketType === 'round_robin' && (
+          {fTeamType === 'doubles' && (
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Partner Mode</label>
               <div className="grid grid-cols-2 gap-2">
@@ -918,15 +918,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'fixed' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
                 >
                   <div className="text-sm font-semibold text-brand-dark">Fixed</div>
-                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Captains pick partner at registration. Teams stay together every match.</div>
+                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Teams register together and stay paired every match.</div>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFPartnerMode('rotating')}
-                  className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                  onClick={() => fBracketType === 'round_robin' ? setFPartnerMode('rotating') : undefined}
+                  disabled={fBracketType !== 'round_robin'}
+                  className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'} ${fBracketType !== 'round_robin' ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <div className="text-sm font-semibold text-brand-dark">Rotating</div>
-                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Players register solo. New partner every round across the bracket.</div>
+                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">
+                    {fBracketType !== 'round_robin' ? 'Round robin only.' : 'Players register solo. New partner every round.'}
+                  </div>
                 </button>
               </div>
             </div>
@@ -1178,7 +1181,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       </div>
                     </div>
 
-                    {editTeamType === 'doubles' && editBracketType === 'round_robin' && (
+                    {editTeamType === 'doubles' && (
                       <div>
                         <label className="block text-xs font-medium text-brand-muted mb-1">Partner Mode</label>
                         <div className="grid grid-cols-2 gap-2">
@@ -1188,15 +1191,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                             className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'fixed' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
                           >
                             <div className="text-sm font-semibold text-brand-dark">Fixed</div>
-                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Captains pick partner at registration. Teams stay together every match.</div>
+                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Teams register together and stay paired every match.</div>
                           </button>
                           <button
                             type="button"
-                            onClick={() => setEditPartnerMode('rotating')}
-                            className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                            onClick={() => editBracketType === 'round_robin' ? setEditPartnerMode('rotating') : undefined}
+                            disabled={editBracketType !== 'round_robin'}
+                            className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'} ${editBracketType !== 'round_robin' ? 'opacity-40 cursor-not-allowed' : ''}`}
                           >
                             <div className="text-sm font-semibold text-brand-dark">Rotating</div>
-                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Players register solo. New partner every round across the bracket.</div>
+                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">
+                              {editBracketType !== 'round_robin' ? 'Round robin only.' : 'Players register solo. New partner every round.'}
+                            </div>
                           </button>
                         </div>
                       </div>
