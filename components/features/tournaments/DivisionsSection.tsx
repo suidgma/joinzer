@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -249,18 +249,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
 
-  // Add player state (organizer)
-  const [addingPlayerId, setAddingPlayerId] = useState<string | null>(null) // division id
-  const [playerSearch, setPlayerSearch] = useState('')
-  const [playerResults, setPlayerResults] = useState<{ id: string; name: string }[]>([])
-  const [addPlayerLoading, setAddPlayerLoading] = useState(false)
-  const [addPlayerError, setAddPlayerError] = useState<string | null>(null)
-  // Doubles team add state
-  const [selectedP1, setSelectedP1] = useState<{ id: string; name: string } | null>(null)
-  const [playerSearch2, setPlayerSearch2] = useState('')
-  const [playerResults2, setPlayerResults2] = useState<{ id: string; name: string }[]>([])
-  const [addTeamName, setAddTeamName] = useState('')
-
   // QR check-in modal
   const [qrDivision, setQrDivision] = useState<{ id: string; name: string } | null>(null)
 
@@ -280,18 +268,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // "Pay for Both" — partner email input (per division, shown when no partner linked yet)
   const [payBothEmails, setPayBothEmails] = useState<Record<string, string>>({})
   const [showPayBothInput, setShowPayBothInput] = useState<string | null>(null)
-
-  // Move player state (per reg)
-  const [movingRegId, setMovingRegId] = useState<string | null>(null)
-  const [moveTargetId, setMoveTargetId] = useState<string>('')
-  const [moveLoading, setMoveLoading] = useState(false)
-  const [moveError, setMoveError] = useState<string | null>(null)
-
-  // Pair solo players state (per reg)
-  const [pairingRegId, setPairingRegId] = useState<string | null>(null)
-  const [pairTargetId, setPairTargetId] = useState<string>('')
-  const [pairLoading, setPairLoading] = useState(false)
-  const [pairError, setPairError] = useState<string | null>(null)
 
   // ── Add division ──────────────────────────────────────────────────
   async function handleAddDivision(e: React.FormEvent) {
@@ -494,59 +470,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     router.refresh()
   }
 
-  // ── Organizer: remove registrant ──────────────────────────────────
-  async function handleRemove(divisionId: string, regId: string) {
-    await handleCancel(divisionId, regId)
-  }
-
-  // ── Organizer: comp a registration (manual override, not real payment) ──
-  async function handleMarkComped(divisionId: string, regId: string) {
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update({ payment_status: 'comped' })
-      .eq('id', regId)
-    if (error) { alert(error.message); return }
-    setDivisions(prev => prev.map(d =>
-      d.id !== divisionId ? d : {
-        ...d,
-        tournament_registrations: d.tournament_registrations.map(r =>
-          r.id === regId ? { ...r, payment_status: 'comped' } : r
-        ),
-      }
-    ))
-  }
-
-  // ── Organizer: refund a paid registration ────────────────────────
-  async function handleRefund(divisionId: string, regId: string) {
-    if (!confirm('Issue a full refund to this player via Stripe?')) return
-    const res = await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}/refund`, { method: 'POST' })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      alert(body.error ?? 'Refund failed')
-      return
-    }
-    setDivisions(prev => prev.map(d =>
-      d.id !== divisionId ? d : {
-        ...d,
-        tournament_registrations: d.tournament_registrations.map(r =>
-          r.id === regId ? { ...r, payment_status: 'refunded' } : r
-        ),
-      }
-    ))
-  }
-
-  // ── Organizer: promote waitlisted → registered ────────────────────
-  async function handlePromote(divisionId: string, regId: string) {
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update({ status: 'registered' })
-      .eq('id', regId)
-    if (error) { alert(error.message); return }
-    updateReg(divisionId, regId, 'registered')
-  }
-
   // ── Organizer: assign fixed partner ──────────────────────────────
   async function handleAssignPartner(divisionId: string, reg1Id: string) {
     const reg2Id = partnerSelections[reg1Id] || null
@@ -615,100 +538,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'closed' } : d))
   }
 
-  // ── Organizer: search players ─────────────────────────────────────
-  async function searchPlayers(
-    query: string,
-    excludeUserIds: string[] = [],
-    format?: string,
-    setSearch: (v: string) => void = setPlayerSearch,
-    setResults: (v: { id: string; name: string }[]) => void = setPlayerResults,
-  ) {
-    setSearch(query)
-    const supabase = createClient()
-    let q = supabase.from('profiles').select('id, name, gender').order('name').limit(500)
-    if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
-    const excludeIds = Array.from(new Set((currentUserId ? [currentUserId] : []).concat(excludeUserIds)))
-    if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
-    if (format === 'mens_doubles' || format === 'mens_singles') q = (q as any).eq('gender', 'male')
-    else if (format === 'womens_doubles' || format === 'womens_singles') q = (q as any).eq('gender', 'female')
-    const { data } = await q
-    setResults(data ?? [])
-  }
-
-  // ── Organizer: add player to division ─────────────────────────────
-  async function handleAddPlayer(divisionId: string, userId: string, userName: string) {
-    setAddPlayerLoading(true)
-    setAddPlayerError(null)
-    const res = await fetch(
-      `/api/tournaments/${tournamentId}/divisions/${divisionId}/register`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }) }
-    )
-    const json = await res.json()
-    if (!res.ok) { setAddPlayerError(json.error ?? 'Failed to add player'); setAddPlayerLoading(false); return }
-
-    const reg = { ...json.registration, user_profile: { name: userName } }
-    setDivisions(prev => prev.map(d =>
-      d.id === divisionId
-        ? { ...d, tournament_registrations: [...d.tournament_registrations, reg] }
-        : d
-    ))
-    setAddingPlayerId(null)
-    setPlayerSearch('')
-    setPlayerResults([])
-    setAddPlayerLoading(false)
-    router.refresh()
-  }
-
-  // ── Organizer: add doubles team (calls register_doubles_pair RPC via route) ──
-  async function handleAddTeam(
-    divisionId: string,
-    p1: { id: string; name: string },
-    p2: { id: string; name: string },
-    teamName: string,
-  ) {
-    setAddPlayerLoading(true)
-    setAddPlayerError(null)
-    const res = await fetch(
-      `/api/tournaments/${tournamentId}/divisions/${divisionId}/register`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: p1.id, partner_user_id: p2.id, team_name: teamName || null }),
-      }
-    )
-    const json = await res.json()
-    if (!res.ok) {
-      const errorMessages: Record<string, string> = {
-        division_full: 'Division is full',
-        division_closed: 'Registration is closed for this division',
-        already_registered: `${p1.name} or ${p2.name} is already registered in this division`,
-        gender_mismatch: "Both players must match the division's gender requirement",
-        not_doubles_format: 'This division is singles — use the singles add flow',
-      }
-      setAddPlayerError(errorMessages[json.error as string] ?? (json.error ?? 'Failed to add team'))
-      setAddPlayerLoading(false)
-      return
-    }
-
-    const reg1 = { ...json.reg1, user_profile: { name: p1.name }, partner_profile: { name: p2.name } }
-    const reg2 = { ...json.reg2, user_profile: { name: p2.name }, partner_profile: { name: p1.name } }
-    setDivisions(prev => prev.map(d =>
-      d.id === divisionId
-        ? { ...d, tournament_registrations: [...d.tournament_registrations, reg1, reg2] }
-        : d
-    ))
-    setAddingPlayerId(null)
-    setSelectedP1(null)
-    setPlayerSearch('')
-    setPlayerSearch2('')
-    setPlayerResults([])
-    setPlayerResults2([])
-    setAddTeamName('')
-    setAddPlayerLoading(false)
-    router.refresh()
-  }
-
   // ── Merge division into another ────────────────────────────────────
   async function handleMerge(fromDivisionId: string) {
     if (!mergeTargetId || mergeTargetId === fromDivisionId) return
@@ -748,63 +577,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setMergeTargetId('')
     setMergeLoading(false)
     router.refresh()
-  }
-
-  // ── Pair two solo registrants ──────────────────────────────────────
-  async function handlePairSolo(divisionId: string, reg1Id: string, reg2Id: string) {
-    if (!pairTargetId) return
-    setPairLoading(true)
-    setPairError(null)
-    const res = await fetch(
-      `/api/tournaments/${tournamentId}/divisions/${divisionId}/pair-solos`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reg1_id: reg1Id, reg2_id: reg2Id }) }
-    )
-    const json = await res.json()
-    if (!res.ok) { setPairError(json.error ?? 'Pairing failed'); setPairLoading(false); return }
-
-    // Optimistic update: set partner links on both rows in local state
-    setDivisions(prev => prev.map(d => {
-      if (d.id !== divisionId) return d
-      const r1 = d.tournament_registrations.find(r => r.id === reg1Id)
-      const r2 = d.tournament_registrations.find(r => r.id === reg2Id)
-      if (!r1 || !r2) return d
-      return {
-        ...d,
-        tournament_registrations: d.tournament_registrations.map(r => {
-          if (r.id === reg1Id) return { ...r, partner_user_id: r2.user_id, partner_registration_id: reg2Id }
-          if (r.id === reg2Id) return { ...r, partner_user_id: r1.user_id, partner_registration_id: reg1Id }
-          return r
-        }),
-      }
-    }))
-    setPairingRegId(null)
-    setPairTargetId('')
-    setPairLoading(false)
-  }
-
-  // ── Move single player to another division ─────────────────────────
-  async function handleMovePlayer(fromDivisionId: string, regId: string) {
-    if (!moveTargetId || moveTargetId === fromDivisionId) return
-    setMoveLoading(true)
-    setMoveError(null)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update({ division_id: moveTargetId })
-      .eq('id', regId)
-    if (error) { setMoveError(error.message); setMoveLoading(false); return }
-
-    setDivisions(prev => {
-      const movedReg = prev.find(d => d.id === fromDivisionId)?.tournament_registrations.find(r => r.id === regId)
-      return prev.map(d => {
-        if (d.id === fromDivisionId) return { ...d, tournament_registrations: d.tournament_registrations.filter(r => r.id !== regId) }
-        if (d.id === moveTargetId && movedReg) return { ...d, tournament_registrations: [...d.tournament_registrations, { ...movedReg, division_id: moveTargetId }] }
-        return d
-      })
-    })
-    setMovingRegId(null)
-    setMoveTargetId('')
-    setMoveLoading(false)
   }
 
   // ── Pay for registration via Stripe Checkout ─────────────────────
