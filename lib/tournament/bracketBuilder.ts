@@ -551,6 +551,38 @@ export function computeAdvancement(
 }
 
 /**
+ * For double elimination, the WB Final winner and LB Final winner both need to
+ * advance to the Championship match. computeAdvancement only moves within the
+ * same stage, so we handle the cross-stage hop here.
+ *
+ * Returns the DB update to place the WB/LB champion into the Championship, or
+ * null if there is no championship match or the given match isn't the stage final.
+ */
+export function computeChampionshipAdvancement(
+  completedMatch: MatchRow,
+  allMatches: MatchRow[]
+): { matchId: string; field: 'team_1_registration_id' | 'team_2_registration_id'; value: string } | null {
+  const winner = completedMatch.winner_registration_id
+  if (!winner) return null
+
+  const stage = completedMatch.match_stage
+  if (stage !== 'winners_bracket' && stage !== 'losers_bracket') return null
+
+  const championship = allMatches.find(m => m.match_stage === 'championship')
+  if (!championship) return null
+
+  // Only the last round of this stage advances to the Championship
+  const stageMatches = allMatches.filter(m => m.match_stage === stage)
+  const maxRound = Math.max(...stageMatches.map(m => m.round_number ?? 1))
+  if ((completedMatch.round_number ?? 1) !== maxRound) return null
+
+  // WB champion → team_1 (they come in undefeated)
+  // LB champion → team_2 (they have one loss)
+  const field = stage === 'winners_bracket' ? 'team_1_registration_id' : 'team_2_registration_id'
+  return { matchId: championship.id, field, value: winner }
+}
+
+/**
  * Given a completed WB match, returns the DB update to drop the LOSER into the
  * correct Losers Bracket slot.
  *

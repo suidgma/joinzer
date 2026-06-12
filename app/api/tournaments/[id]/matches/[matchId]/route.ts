@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { computeAdvancement, computeLbDrop, type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { computeAdvancement, computeLbDrop, computeChampionshipAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
 
 const MATCH_SELECT = 'id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status'
 const SLIM_SELECT  = 'id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status'
@@ -39,6 +39,10 @@ function checkPendingFeeder(
   currentCompleted: MatchRow,
   allDivMatches: MatchRow[],
 ): boolean {
+  // Championship always waits — its two participants come from different stages
+  // (WB Final winner and LB Final winner). Never treat it as an induced BYE.
+  if (nextMatch.match_stage === 'championship') return true
+
   // Same-stage feeder: a pending match in the same stage/round that advances here
   const hasSameStageFeeder = allDivMatches.some(m => {
     if (m.match_stage !== currentCompleted.match_stage) return false
@@ -384,6 +388,27 @@ export async function PATCH(
             }
           }
         }
+      }
+    }
+  }
+
+  // Advance WB Final winner → Championship team_1, or LB Final winner → Championship team_2
+  {
+    const { data: freshForChamp } = await service
+      .from('tournament_matches')
+      .select(SLIM_SELECT)
+      .eq('division_id', match.division_id)
+    if (freshForChamp) {
+      const completedForChamp: MatchRow = { ...match, winner_registration_id, status: 'completed' }
+      const champAdv = computeChampionshipAdvancement(completedForChamp, freshForChamp as MatchRow[])
+      if (champAdv) {
+        const { data: champMatch } = await service
+          .from('tournament_matches')
+          .update({ [champAdv.field]: champAdv.value })
+          .eq('id', champAdv.matchId)
+          .select(MATCH_SELECT)
+          .single()
+        if (champMatch) advancedMatches.push(champMatch)
       }
     }
   }
