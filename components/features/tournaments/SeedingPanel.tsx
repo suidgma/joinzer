@@ -53,10 +53,9 @@ type Props = {
   addPlayerSlot?: React.ReactNode
 }
 
-function lastName(name: string | null | undefined): string {
+function firstName(name: string | null | undefined): string {
   if (!name) return '?'
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1]
+  return name.trim().split(/\s+/)[0]
 }
 
 function teamRating(reg: SeededReg, isDoubles: boolean): number | null {
@@ -69,13 +68,13 @@ function teamRating(reg: SeededReg, isDoubles: boolean): number | null {
 
 function teamName(reg: SeededReg, isDoubles: boolean): string {
   const p1 = reg.user_profile?.name
-  if (!isDoubles) return p1 ?? '—'
+  if (!isDoubles) return firstName(p1)
   const p2 = reg.partner_profile?.name
-  if (p2) return `${lastName(p1)} / ${lastName(p2)}`
+  if (p2) return `${firstName(p1)}/${firstName(p2)}`
   // Partner linked by ID but profile missing, or no partner assigned yet
   return reg.partner_registration_id
-    ? `${lastName(p1)} / ?`
-    : `${lastName(p1)} (no partner)`
+    ? `${firstName(p1)}/?`
+    : `${firstName(p1)} (no partner)`
 }
 
 function isConfirmed(reg: SeededReg) {
@@ -182,16 +181,27 @@ export default function SeedingPanel({
   onMarkComped, onRemove, hasMatches, onGenerateMatches, onReplacePlayer,
   matches, tournamentDate, addPlayerSlot,
 }: Props) {
-  // For doubles: deduplicate so each partner pair shows as one row.
-  // When both partner registrations exist, only the first one encountered is kept.
+  // For doubles: keep the lexicographically-smaller registration ID of each pair
+  // as the canonical row — matches dedupeRegistrationsToTeams in the bracket generator
+  // so the seeding panel and bracket show the same player first for each team.
+  // Falls back to whichever row is present when the canonical half has been removed.
   function dedupeForDoubles(regs: SeededReg[]): SeededReg[] {
     if (!isDoubles) return regs
-    const suppressedIds = new Set<string>()
-    return regs.filter(r => {
-      if (suppressedIds.has(r.id)) return false
-      if (r.partner_registration_id) suppressedIds.add(r.partner_registration_id)
-      return true
-    })
+    const regIdSet = new Set(regs.map(r => r.id))
+    const handledPairs = new Set<string>()
+    const result: SeededReg[] = []
+    for (const r of regs) {
+      const partnerId = r.partner_registration_id
+      if (!partnerId) { result.push(r); continue }
+      const canonical = r.id < partnerId ? r.id : partnerId
+      if (handledPairs.has(canonical)) continue
+      if (r.id === canonical || !regIdSet.has(canonical)) {
+        handledPairs.add(canonical)
+        result.push(r)
+      }
+      // else: skip non-canonical row; canonical will be pushed when encountered
+    }
+    return result
   }
 
   const confirmed = dedupeForDoubles(registrations.filter(isConfirmed))
@@ -221,6 +231,7 @@ export default function SeedingPanel({
   const [genError, setGenError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoSeedDone, setAutoSeedDone] = useState(false)
 
   const dragIndex = useRef<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
@@ -279,6 +290,13 @@ export default function SeedingPanel({
     return map
   }, [registrations, isDoubles])
 
+  // Map registration IDs → seed position (0-based) for match display ordering
+  const seedIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    order.forEach((r, i) => map.set(r.id, i))
+    return map
+  }, [order])
+
   function handleDragStart(i: number) { if (!locked) dragIndex.current = i }
   function handleDragOver(e: React.DragEvent, i: number) { if (!locked) { e.preventDefault(); setDragOver(i) } }
   function handleDrop(i: number) {
@@ -289,6 +307,7 @@ export default function SeedingPanel({
     const [moved] = next.splice(from, 1)
     next.splice(i, 0, moved)
     setOrder(next)
+    setAutoSeedDone(false)
     setDragOver(null)
   }
   function handleDragEnd() { dragIndex.current = null; setDragOver(null) }
@@ -300,6 +319,7 @@ export default function SeedingPanel({
       return rb - ra
     })
     setOrder(sorted)
+    setAutoSeedDone(true)
   }
 
   async function save() {
@@ -311,7 +331,7 @@ export default function SeedingPanel({
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seeds }) }
       )
       if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error ?? 'Save failed') }
-      else setLocked(true)
+      else { setLocked(true); setAutoSeedDone(false) }
     } catch { setError('Network error') }
     finally { setSaving(false) }
   }
@@ -385,9 +405,13 @@ export default function SeedingPanel({
         <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Seeding &amp; Registrants</p>
         <div className="flex items-center gap-2">
           {!locked && hasRatings && (
-            <button onClick={autoSeed} className="text-xs text-brand-active hover:underline">
-              Auto-seed by rating
-            </button>
+            autoSeedDone ? (
+              <span className="text-xs text-green-600 font-medium">Sorted by rating — save to lock in</span>
+            ) : (
+              <button onClick={autoSeed} className="text-xs text-brand-active hover:underline">
+                Auto-seed by rating
+              </button>
+            )
           )}
           {order.length > 0 && (
             locked ? (
@@ -569,12 +593,16 @@ export default function SeedingPanel({
                   {roundLabel(roundNum, totalRounds)}
                 </p>
                 {roundMatches.map(m => {
-                  const name1 = m.team_1_registration_id
+                  const rawName1 = m.team_1_registration_id
                     ? (regNameMap.get(m.team_1_registration_id) ?? 'TBD')
                     : (roundNum === 1 ? 'BYE' : 'TBD')
-                  const name2 = m.team_2_registration_id
+                  const rawName2 = m.team_2_registration_id
                     ? (regNameMap.get(m.team_2_registration_id) ?? 'TBD')
                     : (roundNum === 1 ? 'BYE' : 'TBD')
+                  // Display lower seed first regardless of team_1/team_2 slot assignment
+                  const s1 = m.team_1_registration_id != null ? (seedIndexMap.get(m.team_1_registration_id) ?? Infinity) : Infinity
+                  const s2 = m.team_2_registration_id != null ? (seedIndexMap.get(m.team_2_registration_id) ?? Infinity) : Infinity
+                  const [name1, name2] = s1 <= s2 ? [rawName1, rawName2] : [rawName2, rawName1]
                   const edit = scheduleEdits[m.id] ?? { court: '', time: '', date: tournamentDate ?? '' }
                   return (
                     <div key={m.id} className="space-y-1.5">

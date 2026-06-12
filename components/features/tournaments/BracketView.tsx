@@ -39,6 +39,7 @@ type Props = {
   divisionId: string
   onScoreUpdate: (updatedMatches: Match[]) => void
   listLayout?: boolean
+  pointsToWin?: number
 }
 
 // Returns false if a null-null scheduled WB/LB match traces back to at least one
@@ -52,7 +53,14 @@ function hasRealPredecessor(match: Match, allMatches: Match[], depth = 0): boole
   if (match.team_1_registration_id || match.team_2_registration_id) return true
   if (match.match_stage === 'championship') return true
   const round = match.round_number ?? 1
-  if (round <= 1) return false  // R1 null-null in WB/LB = phantom by definition
+  // LB R1 is fed by WB R1 losers (cross-stage) — not phantom when WB R1 has real teams
+  if (match.match_stage === 'losers_bracket' && round <= 1) {
+    return allMatches.some(m =>
+      m.match_stage === 'winners_bracket' && m.round_number === 1 &&
+      (m.team_1_registration_id != null || m.team_2_registration_id != null)
+    )
+  }
+  if (round <= 1) return false  // WB/SE R1 null-null = phantom by definition
   const sameRound = allMatches
     .filter(m => m.match_stage === match.match_stage && m.round_number === round)
     .sort((a, b) => a.match_number - b.match_number)
@@ -87,10 +95,9 @@ function formatMatchTime(scheduled_time: string | null): string {
   return `${day} · ${time}`
 }
 
-function lastName(name: string | null | undefined): string {
+function firstName(name: string | null | undefined): string {
   if (!name) return ''
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1]
+  return name.trim().split(/\s+/)[0]
 }
 
 function TeamNameDisplay({ regId, regs, isDoubles }: {
@@ -101,12 +108,12 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
   if (!regId) return <span>TBD</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
-  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || regId.slice(0, 8)}</span>
-  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
+  const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+    return <span>{p1}/{firstName(r.partner_profile.name)}</span>
   }
-  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
+  return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }
 
 function getRoundLabel(roundNum: number, totalRounds: number, stage: string): string {
@@ -124,14 +131,16 @@ function getRoundLabel(roundNum: number, totalRounds: number, stage: string): st
   return `Round ${roundNum}`
 }
 
-// Height of one match card in px (must match the rendered card)
-const CARD_H = 72
+// Height of one match card in px — must match actual rendered card height.
+// All cards are forced to this height via flex-col + flex-1 spacer so the
+// centering math (topPad = gap/2) stays correct across rounds.
+const CARD_H = 96
 
 // Queue key scoped to this tournament's bracket score ops
 const bracketQueueKey = (tournamentId: string) => `bracket_${tournamentId}`
 
 function BracketMatchCard({
-  match, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate,
+  match, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin,
 }: {
   match: Match
   regs: Registration[]
@@ -140,7 +149,9 @@ function BracketMatchCard({
   tournamentId: string
   divisionId: string
   onScoreUpdate: (updatedMatches: Match[]) => void
+  pointsToWin?: number
 }) {
+  const ptw = pointsToWin ?? 11
   const [scoring, setScoring] = useState(false)
   const [s1, setS1] = useState('')
   const [s2, setS2] = useState('')
@@ -203,22 +214,52 @@ function BracketMatchCard({
     }
   }
 
+  function handleS1Change(val: string) {
+    const cleaned = val.replace(/\D/g, '').slice(0, 2)
+    setS1(cleaned)
+    setErr(null)
+    const n = Number(cleaned)
+    if (cleaned !== '' && n < ptw) setS2(String(ptw))
+  }
+
+  function handleS2Change(val: string) {
+    const cleaned = val.replace(/\D/g, '').slice(0, 2)
+    setS2(cleaned)
+    setErr(null)
+    const n = Number(cleaned)
+    if (cleaned !== '' && n < ptw) setS1(String(ptw))
+  }
+
   return (
-    <div className={`w-36 rounded-xl border bg-white text-[11px] overflow-hidden ${pendingSync ? 'border-amber-400' : 'border-brand-border'}`}
+    <div className={`w-36 rounded-xl border bg-white text-[11px] overflow-hidden flex flex-col ${pendingSync ? 'border-amber-400' : 'border-brand-border'}`}
       style={{ minHeight: `${CARD_H}px` }}>
       {/* Team 1 */}
-      <div className={`flex items-center justify-between px-2 py-1.5 border-b border-brand-border/60 ${isDone && w === match.team_1_registration_id ? 'bg-brand-soft' : ''}`}>
-        <span className={`font-semibold truncate max-w-[88px] ${isDone && w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}><TeamNameDisplay regId={match.team_1_registration_id} regs={regs} isDoubles={isDoubles} /></span>
-        {isDone && match.team_1_score != null && (
-          <span className={`font-bold ml-1 shrink-0 ${w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_1_score}</span>
-        )}
+      <div className={`flex items-center gap-1.5 px-2 py-1.5 border-b border-brand-border/60 ${isDone && w === match.team_1_registration_id ? 'bg-brand-soft' : ''}`}>
+        {scoring ? (
+          <input
+            type="text" inputMode="numeric" value={s1}
+            onChange={e => handleS1Change(e.target.value)}
+            placeholder={String(ptw)} maxLength={2}
+            className="w-7 shrink-0 border border-brand-border rounded px-0.5 py-0.5 text-[10px] text-center"
+          />
+        ) : isDone && match.team_1_score != null ? (
+          <span className={`w-7 shrink-0 font-bold text-right ${w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_1_score}</span>
+        ) : null}
+        <span className={`font-semibold truncate ${isDone && w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}><TeamNameDisplay regId={match.team_1_registration_id} regs={regs} isDoubles={isDoubles} /></span>
       </div>
       {/* Team 2 */}
-      <div className={`flex items-center justify-between px-2 py-1.5 ${isDone && w === match.team_2_registration_id ? 'bg-brand-soft' : ''}`}>
-        <span className={`font-semibold truncate max-w-[88px] ${isBye ? 'text-brand-muted italic' : isDone && w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>{isBye ? 'BYE' : <TeamNameDisplay regId={match.team_2_registration_id} regs={regs} isDoubles={isDoubles} />}</span>
-        {isDone && match.team_2_score != null && !isBye && (
-          <span className={`font-bold ml-1 shrink-0 ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_2_score}</span>
-        )}
+      <div className={`flex items-center gap-1.5 px-2 py-1.5 ${isDone && w === match.team_2_registration_id ? 'bg-brand-soft' : ''}`}>
+        {scoring ? (
+          <input
+            type="text" inputMode="numeric" value={s2}
+            onChange={e => handleS2Change(e.target.value)}
+            placeholder={String(ptw)} maxLength={2}
+            className="w-7 shrink-0 border border-brand-border rounded px-0.5 py-0.5 text-[10px] text-center"
+          />
+        ) : isDone && match.team_2_score != null && !isBye ? (
+          <span className={`w-7 shrink-0 font-bold text-right ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_2_score}</span>
+        ) : <span className="w-7 shrink-0" />}
+        <span className={`font-semibold truncate ${isBye ? 'text-brand-muted italic' : isDone && w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>{isBye ? 'BYE' : <TeamNameDisplay regId={match.team_2_registration_id} regs={regs} isDoubles={isDoubles} />}</span>
       </div>
 
       {/* Assignment info: court + time */}
@@ -237,27 +278,20 @@ function BracketMatchCard({
         </div>
       )}
 
-      {/* Score entry */}
+      {/* Spacer: pushes Score section to the bottom, ensuring every card fills CARD_H */}
+      <div className="flex-1" />
+
+      {/* Score entry controls */}
       {isOrganizer && !isDone && !isBye && match.team_1_registration_id && match.team_2_registration_id && (
         scoring ? (
-          <div className="px-2 py-1.5 border-t border-brand-border/60 space-y-1 bg-gray-50">
-            <div className="flex gap-1">
-              <input type="text" inputMode="numeric" value={s1}
-                onChange={e => setS1(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                placeholder="0" maxLength={2}
-                className="w-full border border-brand-border rounded px-1.5 py-0.5 text-[10px] text-center" />
-              <input type="text" inputMode="numeric" value={s2}
-                onChange={e => setS2(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                placeholder="0" maxLength={2}
-                className="w-full border border-brand-border rounded px-1.5 py-0.5 text-[10px] text-center" />
-            </div>
+          <div className="px-2 py-1 border-t border-brand-border/60 bg-gray-50 space-y-1">
             {err && <p className="text-[9px] text-red-600">{err}</p>}
             <div className="flex gap-1">
               <button onClick={saveScore} disabled={loading}
                 className="flex-1 py-0.5 rounded bg-brand text-brand-dark text-[10px] font-semibold disabled:opacity-50">
                 {loading ? '…' : 'Save'}
               </button>
-              <button onClick={() => { setScoring(false); setErr(null) }}
+              <button onClick={() => { setScoring(false); setS1(''); setS2(''); setErr(null) }}
                 className="px-1.5 py-0.5 rounded border border-brand-border text-[10px] text-brand-muted">
                 ✕
               </button>
@@ -275,7 +309,7 @@ function BracketMatchCard({
 }
 
 function BracketColumn({
-  roundNum, matches, totalRounds, rIdx, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate,
+  roundNum, matches, totalRounds, rIdx, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin,
 }: {
   roundNum: number
   matches: Match[]
@@ -287,6 +321,7 @@ function BracketColumn({
   tournamentId: string
   divisionId: string
   onScoreUpdate: (updatedMatches: Match[]) => void
+  pointsToWin?: number
 }) {
   // spacing between cards doubles each round: 0, CARD_H, 3*CARD_H, 7*CARD_H...
   const gap = (Math.pow(2, rIdx) - 1) * CARD_H
@@ -304,6 +339,7 @@ function BracketColumn({
           <BracketMatchCard
             match={match} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
             tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+            pointsToWin={pointsToWin}
           />
         </div>
       ))}
@@ -312,7 +348,7 @@ function BracketColumn({
 }
 
 function SingleBracket({
-  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, title,
+  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, title, pointsToWin,
 }: {
   matches: Match[]
   regs: Registration[]
@@ -322,6 +358,7 @@ function SingleBracket({
   divisionId: string
   onScoreUpdate: (updatedMatches: Match[]) => void
   title?: string
+  pointsToWin?: number
 }) {
   if (matches.length === 0) return null
 
@@ -352,6 +389,7 @@ function SingleBracket({
               tournamentId={tournamentId}
               divisionId={divisionId}
               onScoreUpdate={onScoreUpdate}
+              pointsToWin={pointsToWin}
             />
           ))}
         </div>
@@ -361,7 +399,7 @@ function SingleBracket({
 }
 
 function RoundRobinList({
-  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate,
+  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin,
 }: Omit<Props, 'listLayout'>) {
   const roundMap = new Map<number, Match[]>()
   for (const m of matches) {
@@ -389,6 +427,7 @@ function RoundRobinList({
                   tournamentId={tournamentId}
                   divisionId={divisionId}
                   onScoreUpdate={onScoreUpdate}
+                  pointsToWin={pointsToWin}
                 />
               ))}
           </div>
@@ -398,7 +437,7 @@ function RoundRobinList({
   )
 }
 
-export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout }: Props) {
+export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin }: Props) {
   const handleOnline = useCallback(async () => {
     const qKey = bracketQueueKey(tournamentId)
     const queue = getQueue(qKey)
@@ -420,6 +459,7 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
       <RoundRobinList
         matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
         tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+        pointsToWin={pointsToWin}
       />
     )
   }
@@ -440,14 +480,17 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
     return (
       <div className="space-y-5">
         <SingleBracket matches={winners} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-          tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate} title="Winners Bracket" />
+          tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+          title="Winners Bracket" pointsToWin={pointsToWin} />
         {losers.length > 0 && (
           <SingleBracket matches={losers} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-            tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate} title="Losers Bracket" />
+            tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+            title="Losers Bracket" pointsToWin={pointsToWin} />
         )}
         {championship.length > 0 && (
           <SingleBracket matches={championship} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-            tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate} title="Championship" />
+            tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+            title="Championship" pointsToWin={pointsToWin} />
         )}
       </div>
     )
@@ -457,6 +500,7 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
   const bracketMatches = playoffs.length > 0 ? playoffs : [...winners, ...championship]
   return (
     <SingleBracket matches={bracketMatches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-      tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate} />
+      tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+      pointsToWin={pointsToWin} />
   )
 }

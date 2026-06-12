@@ -113,7 +113,8 @@ const ROW_BG: Record<ActualStatus, string> = {
 
 function playerName(id: string | null, players: Player[]) {
   if (!id) return '?'
-  return players.find(p => p.id === id)?.display_name ?? '?'
+  const full = players.find(p => p.id === id)?.display_name ?? '?'
+  return full.trim().split(/\s+/)[0]
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

@@ -58,20 +58,19 @@ type Props = {
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
 
-function lastName(name: string | null | undefined): string {
+function firstName(name: string | null | undefined): string {
   if (!name) return ''
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1]
+  return name.trim().split(/\s+/)[0]
 }
 
 function teamLabel(regId: string | null, regs: Registration[], isDoubles = false): string {
   if (!regId) return 'BYE'
   const r = regs.find(x => x.id === regId)
   if (!r) return '—'
-  if (!isDoubles) return r.team_name || r.user_profile?.name || regId.slice(0, 8)
-  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
-  const p2 = r.partner_profile?.name ? lastName(r.partner_profile.name) : '?'
-  return `${p1} / ${p2}`
+  if (!isDoubles) return r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)
+  const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  const p2 = r.partner_profile?.name ? firstName(r.partner_profile.name) : '?'
+  return `${p1}/${p2}`
 }
 
 function TeamNameDisplay({ regId, regs, isDoubles }: {
@@ -82,12 +81,12 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
   if (!regId) return <span>BYE</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
-  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || regId.slice(0, 8)}</span>
-  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
+  const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+    return <span>{p1}/{firstName(r.partner_profile.name)}</span>
   }
-  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
+  return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }
 
 function computeStandings(matches: Match[], regs: Registration[], isDoubles: boolean, poolNum?: number): StandingRow[] {

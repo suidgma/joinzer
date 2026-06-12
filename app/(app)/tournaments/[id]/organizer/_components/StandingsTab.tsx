@@ -43,7 +43,8 @@ export default function StandingsTab({ matches, registrations, divisions, update
 
   // Standings rows per division (a division with registered teams shows even
   // before any matches are played — teams start at 0–0).
-  const withRows = divisions
+  const withRows = [...divisions]
+    .sort((a, b) => a.name.localeCompare(b.name))
     .map(div => ({
       div,
       rows: computeStandings(

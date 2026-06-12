@@ -353,7 +353,10 @@ export default function DivisionManageView({
             </span>
           </div>
           <p className="text-xs text-brand-muted">
-            <span className="font-semibold text-brand-dark">{active.length}</span> / {maxPlayers} players
+            <span className="font-semibold text-brand-dark">
+              {isDoubles ? Math.floor(active.length / 2) : active.length}
+            </span>
+            {' / '}{division.max_entries}{' '}{isDoubles ? 'teams' : 'players'}
           </p>
         </div>
 
@@ -398,6 +401,7 @@ export default function DivisionManageView({
               divisionId={division.id}
               onScoreUpdate={handleScoreUpdate}
               listLayout={!isBracket}
+              pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
             />
           </div>
         )}

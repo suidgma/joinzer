@@ -31,10 +31,9 @@ type Reg = {
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
 
-function lastName(name: string | null | undefined): string {
+function firstName(name: string | null | undefined): string {
   if (!name) return ''
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1]
+  return name.trim().split(/\s+/)[0]
 }
 
 function teamLabel(regId: string, regs: Reg[]): string {
@@ -43,8 +42,8 @@ function teamLabel(regId: string, regs: Reg[]): string {
   if (reg.team_name) return reg.team_name
   const p1 = reg.profiles?.name ?? null
   const p2 = reg.partner_name ?? null
-  if (p1 && p2) return `${lastName(p1)} / ${lastName(p2)}`
-  return p1 ?? 'Player'
+  if (p1 && p2) return `${firstName(p1)}/${firstName(p2)}`
+  return firstName(p1) || 'Player'
 }
 
 function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
@@ -110,9 +109,12 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
     return () => { supabase.removeChannel(channel) }
   }, [tournamentId])
 
-  const inProgress = matches.filter(m => m.status === 'in_progress')
-  const completed = matches.filter(m => m.status === 'completed')
-  const total = matches.length
+  // Exclude null-null phantom matches (structural BYE slots in double elimination)
+  // from the progress counter — they can never be played or scored.
+  const playable = matches.filter(m => m.team_1_registration_id != null || m.team_2_registration_id != null)
+  const inProgress = playable.filter(m => m.status === 'in_progress')
+  const completed = playable.filter(m => m.status === 'completed')
+  const total = playable.length
 
   // Only show the pulsing "Live" indicator when the tournament is actually under
   // way — otherwise a draft or upcoming event misleadingly reads as live.
@@ -180,7 +182,7 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
       )}
 
       {/* Standings per division */}
-      {initialDivisions.map(div => {
+      {[...initialDivisions].sort((a, b) => a.name.localeCompare(b.name)).map(div => {
         const divRegs = initialRegistrations.filter(r => r.division_id === div.id)
         const divMatches = matches.filter(m => m.division_id === div.id)
         const rows = computeStandings(divMatches, divRegs)
