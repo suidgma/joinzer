@@ -29,6 +29,7 @@ function normalizeSettings(input: Record<string, unknown>, current: ScheduleSett
     keep_divisions_grouped: bool(input.keep_divisions_grouped, current.keep_divisions_grouped),
     allow_division_overlap: bool(input.allow_division_overlap, current.allow_division_overlap),
     allow_court_sharing: bool(input.allow_court_sharing, current.allow_court_sharing),
+    schedule_by_priority: bool(input.schedule_by_priority, current.schedule_by_priority),
     leave_end_buffer: bool(input.leave_end_buffer, current.leave_end_buffer),
     end_buffer_minutes: num(input.end_buffer_minutes, current.end_buffer_minutes, 0, 240),
   }

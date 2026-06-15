@@ -14,6 +14,7 @@ export type SchedulableMatch = {
   team_2_registration_id?: string | null
   court_number?: number | null
   scheduled_time?: string | null
+  scheduled_end_time?: string | null
 }
 
 export type BlockWindow = {
@@ -37,7 +38,11 @@ export function scheduleBlockMatches(
   settings: ScheduleSettings,
   keepDivisionsGrouped = true,
   shareCourts = true,
+  divisionPriority?: Map<string, number>,
 ): { overflowCount: number } {
+  // Higher organizer-set priority schedules a division's matches first.
+  const byPriority = settings.schedule_by_priority && divisionPriority != null
+  const prio = (d: string) => divisionPriority?.get(d) ?? 0
   const courts = block.court_numbers.length > 0 ? [...block.court_numbers].sort((a, b) => a - b) : [1]
   const startMin = timeToMinutes(block.start_time)
   const endMin = timeToMinutes(block.end_time)
@@ -68,8 +73,12 @@ export function scheduleBlockMatches(
     const ra = a.round_number ?? 1, rb = b.round_number ?? 1
     if (ra !== rb) return ra - rb
     if (keepDivisionsGrouped && a.division_id !== b.division_id) {
+      if (byPriority) {
+        const pa = prio(a.division_id), pb = prio(b.division_id)
+        if (pa !== pb) return pb - pa             // higher priority first
+      }
       const ca = divCount.get(a.division_id) ?? 0, cb = divCount.get(b.division_id) ?? 0
-      if (ca !== cb) return cb - ca               // largest division first
+      if (ca !== cb) return cb - ca               // then largest division first
       return a.division_id < b.division_id ? -1 : 1
     }
     return a.match_number - b.match_number
@@ -98,6 +107,7 @@ export function scheduleBlockMatches(
 
     m.court_number = bestCourt
     m.scheduled_time = toIso(block.block_date, bestStart)
+    m.scheduled_end_time = toIso(block.block_date, bestStart + duration)
     courtFree.set(bestCourt, bestStart + perMatch)
     for (const t of teams) teamLastEnd.set(t, bestStart + duration)
     if (bestStart + duration > endMin) overflow++

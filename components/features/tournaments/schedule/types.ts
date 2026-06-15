@@ -34,7 +34,7 @@ export type DivisionStats = {
   playerIds: string[]   // unique user ids registered (both partners count)
 }
 
-export type DivisionBlockLink = { division_id: string; block_id: string }
+export type DivisionBlockLink = { division_id: string; block_id: string; priority: number }
 
 // A generated draft match, used for the preview before publishing.
 export type DraftMatch = {
@@ -46,6 +46,7 @@ export type DraftMatch = {
   match_stage: string | null
   court_number: number | null
   scheduled_time: string | null
+  scheduled_end_time: string | null
   team_1_registration_id: string | null
   team_2_registration_id: string | null
   status: string

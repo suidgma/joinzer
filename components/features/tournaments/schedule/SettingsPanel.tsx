@@ -109,6 +109,7 @@ export default function SettingsPanel({ tournamentId, settings, onChange, onErro
           <div className="border-t border-brand-border pt-3 space-y-2.5">
             <Toggle label="Keep divisions grouped on courts" checked={draft.keep_divisions_grouped} onChange={v => set('keep_divisions_grouped', v)} />
             <Toggle label="Allow courts to be shared across divisions" checked={draft.allow_court_sharing} onChange={v => set('allow_court_sharing', v)} />
+            <Toggle label="Schedule by division priority" checked={draft.schedule_by_priority} onChange={v => set('schedule_by_priority', v)} />
             <Toggle label="Allow divisions to overlap (no shared players)" checked={draft.allow_division_overlap} onChange={v => set('allow_division_overlap', v)} />
             <label className="flex items-center justify-between gap-3 text-xs">
               <span className="text-brand-muted">Player conflicts are</span>

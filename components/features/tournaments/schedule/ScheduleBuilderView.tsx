@@ -79,6 +79,11 @@ export default function ScheduleBuilderView({
     [assignments]
   )
 
+  const priorityByDivision = useMemo(
+    () => new Map(assignments.map(a => [a.division_id, a.priority])),
+    [assignments]
+  )
+
   const assignedByBlock = useMemo(() => {
     const m = new Map<string, BuilderDivision[]>()
     for (const d of divisions) {
@@ -172,7 +177,7 @@ export default function ScheduleBuilderView({
 
   async function assign(divisionId: string, blockId: string) {
     const prev = assignments
-    setAssignments(a => [...a.filter(x => x.division_id !== divisionId), { division_id: divisionId, block_id: blockId }])
+    setAssignments(a => [...a.filter(x => x.division_id !== divisionId), { division_id: divisionId, block_id: blockId, priority: 0 }])
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/division-blocks/${divisionId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_id: blockId }),
@@ -187,6 +192,20 @@ export default function ScheduleBuilderView({
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/division-blocks/${divisionId}`, { method: 'DELETE' })
       if (!res.ok) { const j = await res.json(); flash(j.error ?? 'Failed to unassign'); setAssignments(prev) }
+    } catch { flash('Network error'); setAssignments(prev) }
+  }
+
+  async function setPriority(divisionId: string, priority: number) {
+    const link = assignments.find(a => a.division_id === divisionId)
+    if (!link) return
+    const prev = assignments
+    setAssignments(a => a.map(x => (x.division_id === divisionId ? { ...x, priority } : x)))
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/division-blocks/${divisionId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ block_id: link.block_id, priority }),
+      })
+      if (!res.ok) { const j = await res.json(); flash(j.error ?? 'Failed to set priority'); setAssignments(prev) }
     } catch { flash('Network error'); setAssignments(prev) }
   }
 
@@ -460,7 +479,9 @@ export default function ScheduleBuilderView({
                         block={b}
                         locationName={locationName(b.location_id)}
                         settings={settings}
-                        assigned={divs.map(d => ({ id: d.id, name: d.name, matches: estimates.get(d.id)?.matches ?? null }))}
+                        assigned={divs.map(d => ({ id: d.id, name: d.name, matches: estimates.get(d.id)?.matches ?? null, priority: priorityByDivision.get(d.id) ?? 0 }))}
+                        showPriority={settings.schedule_by_priority}
+                        onChangePriority={setPriority}
                         onEdit={() => setModal({ mode: 'edit', block: b })}
                         onDuplicate={() => duplicate(b)}
                         onDelete={() => removeBlock(b)}

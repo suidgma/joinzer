@@ -19,11 +19,11 @@ function fmtClock(d: Date): string {
   })
 }
 
-/** "1:00 – 1:25 PM" — start to estimated end (start + match duration). */
-function fmtRange(iso: string | null, durationMin: number): string {
+/** "1:00 – 1:25 PM" — uses the stored end time, falling back to start + duration. */
+function fmtRange(iso: string | null, endIso: string | null, durationMin: number): string {
   if (!iso) return '—'
   const start = new Date(iso)
-  const end = new Date(start.getTime() + durationMin * 60000)
+  const end = endIso ? new Date(endIso) : new Date(start.getTime() + durationMin * 60000)
   return `${fmtClock(start)} – ${fmtClock(end)}`
 }
 
@@ -45,7 +45,7 @@ export default function SchedulePreview({ draftMatches, blocks, divisions, teamL
   function MatchRow({ m, show }: { m: DraftMatch; show: ('time' | 'court' | 'division')[] }) {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        {show.includes('time') && <span className="w-28 shrink-0 text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, matchDurationMinutes)}</span>}
+        {show.includes('time') && <span className="w-28 shrink-0 text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, m.scheduled_end_time, matchDurationMinutes)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {label(m.team_1_registration_id)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id)}
