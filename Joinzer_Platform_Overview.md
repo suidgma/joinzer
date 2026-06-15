@@ -1,5 +1,5 @@
-# Joinzer — Platform Overview & Feature Inventory
 
+# Joinzer — Platform Overview & Feature Inventory
 > **Purpose of this document:** Comprehensive reference for competitive analysis. Describes what Joinzer is, who it serves, and every piece of functionality currently built and deployed. Use this to compare Joinzer's capabilities against established pickleball and recreational sports platforms.
 
 ---
