@@ -4,7 +4,7 @@ import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown, Wand2, S
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink, DraftMatch } from './types'
 import { estimateDivision, blockCapacity, type DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
-import { detectPlayerConflicts } from '@/lib/tournament/scheduleConflicts'
+import { detectPlayerConflicts, blocksOverlap } from '@/lib/tournament/scheduleConflicts'
 import SettingsPanel from './SettingsPanel'
 import BlockCard from './BlockCard'
 import BlockFormModal from './BlockFormModal'
@@ -41,6 +41,7 @@ export default function ScheduleBuilderView({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [showConflicts, setShowConflicts] = useState(false)
   const [busy, setBusy] = useState<null | 'generate' | 'publish' | 'discard'>(null)
+  const [lastOverflow, setLastOverflow] = useState(0)
 
   function flash(msg: string) {
     setToast(msg)
@@ -124,6 +125,23 @@ export default function ScheduleBuilderView({
       text: `${c.sharedPlayerIds.length} player${c.sharedPlayerIds.length === 1 ? '' : 's'} in both “${a}” and “${b}”, which overlap in time.`,
     })
   }
+  // Overlap turned off: flag any two divisions in overlapping blocks that aren't
+  // already surfaced above as a shared-player conflict.
+  if (!settings.allow_division_overlap) {
+    const conflictPairs = new Set(conflicts.map(c => [c.divisionAId, c.divisionBId].sort().join('|')))
+    for (let i = 0; i < assignments.length; i++) {
+      for (let j = i + 1; j < assignments.length; j++) {
+        const a = assignments[i], b = assignments[j]
+        if (a.division_id === b.division_id) continue
+        const ba = blockById.get(a.block_id), bb = blockById.get(b.block_id)
+        if (!ba || !bb || !blocksOverlap(ba, bb)) continue
+        if (conflictPairs.has([a.division_id, b.division_id].sort().join('|'))) continue
+        const na = divisionById.get(a.division_id)?.name ?? 'A'
+        const nb = divisionById.get(b.division_id)?.name ?? 'B'
+        warnings.push({ level: 'amber', text: `“${na}” and “${nb}” are in overlapping time blocks, but division overlap is turned off.` })
+      }
+    }
+  }
   const allGood = warnings.length === 0 && blocks.length > 0 && assignments.length > 0
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
@@ -186,26 +204,49 @@ export default function ScheduleBuilderView({
     } catch { flash('Network error') }
   }
 
-  async function generate(force = false) {
+  async function generate(opts: { force?: boolean; replacePublished?: boolean } = {}) {
     setBusy('generate')
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: !!opts.force, replacePublished: !!opts.replacePublished }),
       })
       const json = await res.json()
+
+      // Player conflicts are hard errors under the current settings — block, no override.
+      if (res.status === 409 && json.error === 'player_conflicts') {
+        flash(`Can’t generate — ${json.playerCount} player${json.playerCount === 1 ? '' : 's'} in overlapping divisions. Resolve the conflicts, or set player conflicts to “Warnings”.`)
+        return
+      }
+      // Replacing a LIVE published schedule needs its own explicit confirmation.
+      if (res.status === 409 && json.error === 'published_exists') {
+        const n = json.publishedCount
+        if (window.confirm(
+          `⚠️ ${n} published (live) match${n === 1 ? '' : 'es'} already exist for these divisions.\n\n` +
+          `Regenerating will DELETE the live schedule and replace it with a new draft. Players lose access to it until you publish again.\n\nReplace the live schedule?`
+        )) {
+          await generate({ force: true, replacePublished: true })
+        }
+        return
+      }
+      // Replacing only an existing draft — lighter confirmation.
       if (res.status === 409 && json.error === 'existing_matches') {
-        const parts = []
-        if (json.publishedCount) parts.push(`${json.publishedCount} published`)
-        if (json.draftCount) parts.push(`${json.draftCount} draft`)
-        if (window.confirm(`This will replace existing matches (${parts.join(', ')}) for the assigned divisions. Continue?`)) {
-          await generate(true)
+        const n = json.draftCount
+        if (window.confirm(`Replace the existing draft (${n} match${n === 1 ? '' : 'es'}) for these divisions?`)) {
+          await generate({ force: true })
         }
         return
       }
       if (!res.ok) { flash(json.error ?? 'Failed to generate'); return }
+
       setDraftMatches(json.matches as DraftMatch[])
+      setLastOverflow(json.overflow ?? 0)
+      const parts = [`${json.generated} matches`]
       const skip = (json.skipped ?? []).length
-      flash(`Draft generated — ${json.generated} matches${skip ? `, ${skip} division${skip === 1 ? '' : 's'} skipped` : ''}`)
+      if (skip) parts.push(`${skip} division${skip === 1 ? '' : 's'} skipped`)
+      if (json.overflow) parts.push(`${json.overflow} past block end`)
+      flash(`Draft generated — ${parts.join(', ')}`)
     } catch {
       flash('Network error')
     } finally {
@@ -221,6 +262,7 @@ export default function ScheduleBuilderView({
       const json = await res.json()
       if (!res.ok) { flash(json.error ?? 'Failed to publish'); return }
       setDraftMatches([])
+      setLastOverflow(0)
       flash(`Published — ${json.published} matches are now live`)
     } catch {
       flash('Network error')
@@ -237,6 +279,7 @@ export default function ScheduleBuilderView({
       const json = await res.json()
       if (!res.ok) { flash(json.error ?? 'Failed to discard'); return }
       setDraftMatches([])
+      setLastOverflow(0)
       flash('Draft discarded')
     } catch {
       flash('Network error')
@@ -410,7 +453,7 @@ export default function ScheduleBuilderView({
             {hasDraft ? (
               <>
                 <button
-                  onClick={() => generate(false)}
+                  onClick={() => generate()}
                   disabled={busy !== null}
                   className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-brand-border text-brand-muted hover:bg-brand-soft disabled:opacity-50 transition-colors"
                 >
@@ -433,7 +476,7 @@ export default function ScheduleBuilderView({
               </>
             ) : (
               <button
-                onClick={() => generate(false)}
+                onClick={() => generate()}
                 disabled={!canGenerate || busy !== null}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-brand text-brand-dark hover:bg-brand-hover disabled:opacity-50 transition-colors"
               >
@@ -448,6 +491,11 @@ export default function ScheduleBuilderView({
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-[11px] text-amber-800 font-medium">
               Draft only — these {draftMatches.length} matches are hidden from players until you publish.
             </div>
+            {lastOverflow > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-[11px] text-red-700 font-medium">
+                ⚠️ {lastOverflow} match{lastOverflow === 1 ? '' : 'es'} are scheduled past their block’s end time. Widen the block, add courts, or shorten match duration, then regenerate.
+              </div>
+            )}
             <SchedulePreview draftMatches={draftMatches} blocks={blocks} divisions={divisions} teamLabels={teamLabels} />
           </>
         ) : (
