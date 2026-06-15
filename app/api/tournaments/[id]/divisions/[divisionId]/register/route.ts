@@ -61,6 +61,32 @@ export async function POST(
       }
     }
 
+    // Capacity check — organizer team adds respect max_entries the same as self-service.
+    // Count using team-slot logic (mirrors the solo path below) so both paths agree.
+    {
+      const [{ data: divCap }, { data: regCap }] = await Promise.all([
+        service.from('tournament_divisions').select('max_entries, waitlist_enabled').eq('id', params.divisionId).single(),
+        service.from('tournament_registrations')
+          .select('id, registration_type, partner_registration_id')
+          .eq('division_id', params.divisionId)
+          .eq('status', 'registered')
+          .in('payment_status', ['paid', 'waived', 'comped']),
+      ])
+      if (divCap && regCap) {
+        // Each doubles team creates 2 registration rows cross-linked via partner_registration_id.
+        // Count actual teams by taking only the canonical row (smaller ID) from each pair.
+        const teamRows = regCap.filter(r => r.registration_type === 'team')
+        const uniqueTeams = teamRows.filter(r =>
+          !r.partner_registration_id || r.id < r.partner_registration_id
+        ).length
+        const soloRegs = regCap.filter(r => r.registration_type === 'solo').length
+        const effectiveTeams = uniqueTeams + Math.floor(soloRegs / 2)
+        if (effectiveTeams >= divCap.max_entries && !divCap.waitlist_enabled) {
+          return NextResponse.json({ error: 'division_full' }, { status: 400 })
+        }
+      }
+    }
+
     const p2UserId: string = body.partner_user_id
     const { data: rpcResult, error: rpcError } = await service.rpc('register_doubles_pair', {
       p_tournament_id: params.id,
@@ -151,34 +177,35 @@ export async function POST(
   //   unmatched solos don't consume a slot — they wait for a partner
   const { data: regCounts } = await service
     .from('tournament_registrations')
-    .select('registration_type, partner_registration_id')
+    .select('id, registration_type, partner_registration_id')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
     .in('payment_status', ['paid', 'waived', 'comped'])
 
-  const teamRegs = (regCounts ?? []).filter(r => r.registration_type === 'team').length
+  // Each doubles team creates 2 registration rows. Dedup to actual team count using
+  // partner_registration_id: canonical = smaller ID in each pair.
+  const teamRows = (regCounts ?? []).filter(r => r.registration_type === 'team')
+  const uniqueTeams = teamRows.filter(r => !r.partner_registration_id || r.id < r.partner_registration_id).length
   const soloRegs = (regCounts ?? []).filter(r => r.registration_type === 'solo').length
   const matchedSolos = (regCounts ?? []).filter(r => r.registration_type === 'solo' && r.partner_registration_id).length
   const unmatchedSolos = soloRegs - matchedSolos
-  const effectiveTeams = teamRegs + Math.floor(soloRegs / 2)
+  const effectiveTeams = uniqueTeams + Math.floor(soloRegs / 2)
   const isFull = effectiveTeams >= division.max_entries
 
-  // isOrganizerAdd is resolved before the capacity gate so organizers can always
-  // add players manually regardless of capacity — they own the roster.
   const isOrganizerAdd = targetUserId !== user.id
 
-  if (!isOrganizerAdd) {
-    if (registration_type === 'team') {
-      if (isFull && !division.waitlist_enabled) {
-        return NextResponse.json({ error: 'Division is full and has no waitlist' }, { status: 400 })
-      }
-    } else {
-      // Solo: can register if there's room for another team (unmatched solos don't block until matched)
-      // After this solo: new effective = teamRegs + floor((soloRegs + 1) / 2)
-      const newEffective = teamRegs + Math.floor((soloRegs + 1) / 2)
-      if (newEffective > division.max_entries && !division.waitlist_enabled) {
-        return NextResponse.json({ error: 'Division is full — no room for another solo player' }, { status: 400 })
-      }
+  // Capacity is enforced for everyone — organizer adds included. If the organizer
+  // needs to exceed max_entries they should update that field first.
+  if (registration_type === 'team') {
+    if (isFull && !division.waitlist_enabled) {
+      return NextResponse.json({ error: 'Division is full and has no waitlist' }, { status: 400 })
+    }
+  } else {
+    // Solo: can register if there's room for another team (unmatched solos don't block until matched)
+    // After this solo: new effective = teamRegs + floor((soloRegs + 1) / 2)
+    const newEffective = uniqueTeams + Math.floor((soloRegs + 1) / 2)
+    if (newEffective > division.max_entries && !division.waitlist_enabled) {
+      return NextResponse.json({ error: 'Division is full — no room for another solo player' }, { status: 400 })
     }
   }
 

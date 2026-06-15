@@ -58,20 +58,23 @@ type Props = {
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
 
-function lastName(name: string | null | undefined): string {
+function firstName(name: string | null | undefined): string {
   if (!name) return ''
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1]
+  return name.trim().split(/\s+/)[0]
 }
 
 function teamLabel(regId: string | null, regs: Registration[], isDoubles = false): string {
   if (!regId) return 'BYE'
   const r = regs.find(x => x.id === regId)
   if (!r) return '—'
-  if (!isDoubles) return r.team_name || r.user_profile?.name || regId.slice(0, 8)
-  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
-  const p2 = r.partner_profile?.name ? lastName(r.partner_profile.name) : '?'
-  return `${p1} / ${p2}`
+  if (!isDoubles) return r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)
+  const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  const p2raw = r.partner_profile?.name ? firstName(r.partner_profile.name) : null
+  if (p2raw) {
+    const names = [p1, p2raw].sort((a, b) => a.localeCompare(b))
+    return `${names[0]}/${names[1]}`
+  }
+  return `${p1}/?`
 }
 
 function TeamNameDisplay({ regId, regs, isDoubles }: {
@@ -82,17 +85,46 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
   if (!regId) return <span>BYE</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
-  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || regId.slice(0, 8)}</span>
-  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
+  const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+    const names = [p1, firstName(r.partner_profile.name)].sort((a, b) => a.localeCompare(b))
+    return <span>{names[0]}/{names[1]}</span>
   }
-  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
+  return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }
 
 function computeStandings(matches: Match[], regs: Registration[], isDoubles: boolean, poolNum?: number): StandingRow[] {
+  const activeRegs = regs.filter(r => r.status === 'registered')
+
+  // For doubles, each team has two registrations (one per player). Deduplicate so
+  // only one row per team appears. Build a canonical ID map so match stats for
+  // either partner's reg ID get credited to the same row.
+  const canonicalId = new Map<string, string>()
+  let rowRegs: Registration[]
+
+  if (isDoubles) {
+    const seen = new Set<string>()
+    rowRegs = []
+    for (const r of activeRegs) {
+      if (seen.has(r.id)) continue
+      rowRegs.push(r)
+      seen.add(r.id)
+      canonicalId.set(r.id, r.id)
+      if (r.partner_registration_id) {
+        seen.add(r.partner_registration_id)
+        canonicalId.set(r.partner_registration_id, r.id)
+      }
+    }
+  } else {
+    rowRegs = activeRegs
+    for (const r of activeRegs) canonicalId.set(r.id, r.id)
+  }
+
+  const canon = (id: string) => canonicalId.get(id) ?? id
+
   const map = new Map<string, StandingRow>()
-  regs.filter(r => r.status === 'registered').forEach(r => {
+  rowRegs.forEach(r => {
     map.set(r.id, { regId: r.id, name: teamLabel(r.id, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
   })
 
@@ -104,16 +136,17 @@ function computeStandings(matches: Match[], regs: Registration[], isDoubles: boo
   )
 
   for (const m of relevant) {
-    const t1 = m.team_1_registration_id!
-    const t2 = m.team_2_registration_id!
+    const t1 = canon(m.team_1_registration_id!)
+    const t2 = canon(m.team_2_registration_id!)
     const s1 = m.team_1_score ?? 0
     const s2 = m.team_2_score ?? 0
     if (!map.has(t1)) map.set(t1, { regId: t1, name: teamLabel(t1, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
     if (!map.has(t2)) map.set(t2, { regId: t2, name: teamLabel(t2, regs, isDoubles), wins: 0, losses: 0, pf: 0, pa: 0 })
     const r1 = map.get(t1)!
     const r2 = map.get(t2)!
-    if (m.winner_registration_id === t1) { r1.wins++; r2.losses++ }
-    else if (m.winner_registration_id === t2) { r2.wins++; r1.losses++ }
+    const winner = m.winner_registration_id ? canon(m.winner_registration_id) : null
+    if (winner === t1) { r1.wins++; r2.losses++ }
+    else if (winner === t2) { r2.wins++; r1.losses++ }
     r1.pf += s1; r1.pa += s2
     r2.pf += s2; r2.pa += s1
   }
@@ -241,13 +274,15 @@ function MatchCard({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-[10px] text-brand-muted mb-1 truncate">Team 1</label>
-              <input type="number" value={score1} onChange={e => onScore1Change(e.target.value)}
-                placeholder="0" min={0} className="w-full input text-sm" />
+              <input type="text" inputMode="numeric" value={score1}
+                onChange={e => onScore1Change(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="" maxLength={2} className="w-full input text-sm" />
             </div>
             <div>
               <label className="block text-[10px] text-brand-muted mb-1 truncate">Team 2</label>
-              <input type="number" value={score2} onChange={e => onScore2Change(e.target.value)}
-                placeholder="0" min={0} className="w-full input text-sm" />
+              <input type="text" inputMode="numeric" value={score2}
+                onChange={e => onScore2Change(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="" maxLength={2} className="w-full input text-sm" />
             </div>
           </div>
           {scoreError && <p className="text-xs text-red-600">{scoreError}</p>}

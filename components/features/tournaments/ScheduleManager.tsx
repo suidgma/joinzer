@@ -55,17 +55,16 @@ type Props = {
   onScheduleUpdate?: (updatedMatches: Pick<Match, 'id' | 'division_id' | 'court_number' | 'scheduled_time'>[]) => void
 }
 
-function lastName(name: string | null | undefined): string {
+function firstName(name: string | null | undefined): string {
   if (!name) return ''
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1]
+  return name.trim().split(/\s+/)[0]
 }
 
-function regToLastName(regId: string | null, regs: Registration[]): string {
+function regToFirstName(regId: string | null, regs: Registration[]): string {
   if (!regId) return ''
   const r = regs.find(x => x.id === regId)
   if (!r) return regId.slice(0, 8)
-  return lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  return firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
 }
 
 function TeamNameDisplay({ regId, partnerRegId, regs, isDoubles }: {
@@ -78,22 +77,24 @@ function TeamNameDisplay({ regId, partnerRegId, regs, isDoubles }: {
   if (!regId) return <span>BYE</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
-  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || regId.slice(0, 8)}</span>
+  if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || regId.slice(0, 8)}</span>
 
   // Rotating doubles: the partner is a separate registration on the match row,
   // not a cross-linked partner_profile on this registration.
   if (partnerRegId) {
-    const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
-    const p2 = regToLastName(partnerRegId, regs)
-    return <span>{p1} / {p2}</span>
+    const a = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+    const b = regToFirstName(partnerRegId, regs)
+    const names = [a, b].sort((x, y) => x.localeCompare(y))
+    return <span>{names[0]}/{names[1]}</span>
   }
 
   // Fixed doubles: partner comes from the cross-linked registration.
-  const p1 = lastName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
+  const p1 = firstName(r.user_profile?.name) || r.team_name || regId.slice(0, 8)
   if (r.partner_profile?.name) {
-    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+    const names = [p1, firstName(r.partner_profile.name)].sort((a, b) => a.localeCompare(b))
+    return <span>{names[0]}/{names[1]}</span>
   }
-  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
+  return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }
 
 function toMinutes(hhmm: string): number {

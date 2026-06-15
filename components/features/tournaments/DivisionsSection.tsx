@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import FormatSettingsFields, {
   FORMAT_DEFAULTS, BracketType, FormatSettings,
@@ -14,6 +15,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
 import { isDoublesFormat, formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
+import SeedingPanel, { type MatchItem } from './SeedingPanel'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles:           "Men's Doubles",
@@ -39,6 +41,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   open:  'Open',
 }
 
+const BRACKET_LABELS: Record<string, string> = {
+  single_elimination:  'Single Elimination',
+  double_elimination:  'Double Elimination',
+  round_robin:         'Round Robin',
+  pool_play_playoffs:  'Pool Play',
+}
+
 const CATEGORY_OPTIONS = [
   { value: 'men',   label: 'Men' },
   { value: 'women', label: 'Women' },
@@ -51,6 +60,7 @@ const SKILL_OPTIONS = ['Beginner', 'Beginner Plus', 'Intermediate', 'Intermediat
 
 type Registration = {
   id: string
+  seed?: number | null
   user_id: string
   partner_user_id: string | null
   partner_registration_id: string | null
@@ -59,7 +69,17 @@ type Registration = {
   registration_type: 'team' | 'solo'
   payment_status?: string
   stripe_payment_intent_id?: string | null
-  user_profile: { name: string | null; is_stub?: boolean } | null
+  user_profile: {
+    name: string | null
+    is_stub?: boolean
+    dupr_rating?: number | null
+    estimated_rating?: number | null
+  } | null
+  partner_profile?: {
+    name: string | null
+    dupr_rating?: number | null
+    estimated_rating?: number | null
+  } | null
 }
 
 type Division = {
@@ -102,9 +122,11 @@ type Props = {
   defaultBracketType?: BracketType
   defaultLocationId?: string | null
   locations?: LocationOption[]
+  matchCountByDivision?: Record<string, number>
+  matchesByDivision?: Record<string, MatchItem[]>
 }
 
-export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [] }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [], matchCountByDivision = {}, matchesByDivision = {} }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
@@ -227,18 +249,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
 
-  // Add player state (organizer)
-  const [addingPlayerId, setAddingPlayerId] = useState<string | null>(null) // division id
-  const [playerSearch, setPlayerSearch] = useState('')
-  const [playerResults, setPlayerResults] = useState<{ id: string; name: string }[]>([])
-  const [addPlayerLoading, setAddPlayerLoading] = useState(false)
-  const [addPlayerError, setAddPlayerError] = useState<string | null>(null)
-  // Doubles team add state
-  const [selectedP1, setSelectedP1] = useState<{ id: string; name: string } | null>(null)
-  const [playerSearch2, setPlayerSearch2] = useState('')
-  const [playerResults2, setPlayerResults2] = useState<{ id: string; name: string }[]>([])
-  const [addTeamName, setAddTeamName] = useState('')
-
   // QR check-in modal
   const [qrDivision, setQrDivision] = useState<{ id: string; name: string } | null>(null)
 
@@ -259,18 +269,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [payBothEmails, setPayBothEmails] = useState<Record<string, string>>({})
   const [showPayBothInput, setShowPayBothInput] = useState<string | null>(null)
 
-  // Move player state (per reg)
-  const [movingRegId, setMovingRegId] = useState<string | null>(null)
-  const [moveTargetId, setMoveTargetId] = useState<string>('')
-  const [moveLoading, setMoveLoading] = useState(false)
-  const [moveError, setMoveError] = useState<string | null>(null)
-
-  // Pair solo players state (per reg)
-  const [pairingRegId, setPairingRegId] = useState<string | null>(null)
-  const [pairTargetId, setPairTargetId] = useState<string>('')
-  const [pairLoading, setPairLoading] = useState(false)
-  const [pairError, setPairError] = useState<string | null>(null)
-
   // ── Add division ──────────────────────────────────────────────────
   async function handleAddDivision(e: React.FormEvent) {
     e.preventDefault()
@@ -280,8 +278,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setFLoading(true)
     setFError(null)
 
-    const autoName = fName.trim() ||
-      [CATEGORY_LABELS[fCategory], fTeamType === 'singles' ? 'Singles' : 'Doubles', fSkill].filter(Boolean).join(' — ')
+    const autoName = fName.trim() || fAutoName
 
     // partner_mode is only meaningful for doubles + round_robin; force 'fixed'
     // otherwise so we never store a value that the match generator would reject.
@@ -354,8 +351,13 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditFormatError(null)
 
     const newCostCents = editCostDollars !== '' ? Math.round(parseFloat(editCostDollars) * 100) : null
+    const ageSegForSave = editMinAge && editMaxAge
+      ? `Age ${editMinAge}–${editMaxAge}`
+      : editMinAge ? `Age ${editMinAge} & Over`
+      : editMaxAge ? `Under ${editMaxAge}`
+      : null
     const autoName = editName.trim() ||
-      [CATEGORY_LABELS[editCategory], editTeamType === 'singles' ? 'Singles' : 'Doubles', editSkill].filter(Boolean).join(' — ')
+      [CATEGORY_LABELS[editCategory], editTeamType === 'singles' ? 'Singles' : 'Doubles', editSkill, ageSegForSave, BRACKET_LABELS[editBracketType]].filter(Boolean).join(' — ')
 
     const updatePayload = {
       name: autoName,
@@ -468,59 +470,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     router.refresh()
   }
 
-  // ── Organizer: remove registrant ──────────────────────────────────
-  async function handleRemove(divisionId: string, regId: string) {
-    await handleCancel(divisionId, regId)
-  }
-
-  // ── Organizer: comp a registration (manual override, not real payment) ──
-  async function handleMarkComped(divisionId: string, regId: string) {
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update({ payment_status: 'comped' })
-      .eq('id', regId)
-    if (error) { alert(error.message); return }
-    setDivisions(prev => prev.map(d =>
-      d.id !== divisionId ? d : {
-        ...d,
-        tournament_registrations: d.tournament_registrations.map(r =>
-          r.id === regId ? { ...r, payment_status: 'comped' } : r
-        ),
-      }
-    ))
-  }
-
-  // ── Organizer: refund a paid registration ────────────────────────
-  async function handleRefund(divisionId: string, regId: string) {
-    if (!confirm('Issue a full refund to this player via Stripe?')) return
-    const res = await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}/refund`, { method: 'POST' })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      alert(body.error ?? 'Refund failed')
-      return
-    }
-    setDivisions(prev => prev.map(d =>
-      d.id !== divisionId ? d : {
-        ...d,
-        tournament_registrations: d.tournament_registrations.map(r =>
-          r.id === regId ? { ...r, payment_status: 'refunded' } : r
-        ),
-      }
-    ))
-  }
-
-  // ── Organizer: promote waitlisted → registered ────────────────────
-  async function handlePromote(divisionId: string, regId: string) {
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update({ status: 'registered' })
-      .eq('id', regId)
-    if (error) { alert(error.message); return }
-    updateReg(divisionId, regId, 'registered')
-  }
-
   // ── Organizer: assign fixed partner ──────────────────────────────
   async function handleAssignPartner(divisionId: string, reg1Id: string) {
     const reg2Id = partnerSelections[reg1Id] || null
@@ -566,12 +515,13 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   async function handleDeleteDivision(divisionId: string) {
     setDeleteDivLoading(true)
     setDeleteDivError(null)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_divisions')
-      .delete()
-      .eq('id', divisionId)
-    if (error) { setDeleteDivError(error.message); setDeleteDivLoading(false); return }
+    const res = await fetch(`/api/tournaments/${tournamentId}/divisions/${divisionId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setDeleteDivError(data.error ?? 'Failed to delete division')
+      setDeleteDivLoading(false)
+      return
+    }
     setDivisions(prev => prev.filter(d => d.id !== divisionId))
     setDeleteDivPending(null)
     setDeleteDivLoading(false)
@@ -586,100 +536,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .eq('id', divisionId)
     if (error) { alert(error.message); return }
     setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'closed' } : d))
-  }
-
-  // ── Organizer: search players ─────────────────────────────────────
-  async function searchPlayers(
-    query: string,
-    excludeUserIds: string[] = [],
-    format?: string,
-    setSearch: (v: string) => void = setPlayerSearch,
-    setResults: (v: { id: string; name: string }[]) => void = setPlayerResults,
-  ) {
-    setSearch(query)
-    const supabase = createClient()
-    let q = supabase.from('profiles').select('id, name, gender').order('name').limit(500)
-    if (query.trim().length >= 1) q = (q as any).ilike('name', `%${query}%`)
-    const excludeIds = Array.from(new Set((currentUserId ? [currentUserId] : []).concat(excludeUserIds)))
-    if (excludeIds.length > 0) q = q.not('id', 'in', `(${excludeIds.join(',')})`)
-    if (format === 'mens_doubles' || format === 'mens_singles') q = (q as any).eq('gender', 'male')
-    else if (format === 'womens_doubles' || format === 'womens_singles') q = (q as any).eq('gender', 'female')
-    const { data } = await q
-    setResults(data ?? [])
-  }
-
-  // ── Organizer: add player to division ─────────────────────────────
-  async function handleAddPlayer(divisionId: string, userId: string, userName: string) {
-    setAddPlayerLoading(true)
-    setAddPlayerError(null)
-    const res = await fetch(
-      `/api/tournaments/${tournamentId}/divisions/${divisionId}/register`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }) }
-    )
-    const json = await res.json()
-    if (!res.ok) { setAddPlayerError(json.error ?? 'Failed to add player'); setAddPlayerLoading(false); return }
-
-    const reg = { ...json.registration, user_profile: { name: userName } }
-    setDivisions(prev => prev.map(d =>
-      d.id === divisionId
-        ? { ...d, tournament_registrations: [...d.tournament_registrations, reg] }
-        : d
-    ))
-    setAddingPlayerId(null)
-    setPlayerSearch('')
-    setPlayerResults([])
-    setAddPlayerLoading(false)
-    router.refresh()
-  }
-
-  // ── Organizer: add doubles team (calls register_doubles_pair RPC via route) ──
-  async function handleAddTeam(
-    divisionId: string,
-    p1: { id: string; name: string },
-    p2: { id: string; name: string },
-    teamName: string,
-  ) {
-    setAddPlayerLoading(true)
-    setAddPlayerError(null)
-    const res = await fetch(
-      `/api/tournaments/${tournamentId}/divisions/${divisionId}/register`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: p1.id, partner_user_id: p2.id, team_name: teamName || null }),
-      }
-    )
-    const json = await res.json()
-    if (!res.ok) {
-      const errorMessages: Record<string, string> = {
-        division_full: 'Division is full',
-        division_closed: 'Registration is closed for this division',
-        already_registered: `${p1.name} or ${p2.name} is already registered in this division`,
-        gender_mismatch: "Both players must match the division's gender requirement",
-        not_doubles_format: 'This division is singles — use the singles add flow',
-      }
-      setAddPlayerError(errorMessages[json.error as string] ?? (json.error ?? 'Failed to add team'))
-      setAddPlayerLoading(false)
-      return
-    }
-
-    const reg1 = { ...json.reg1, user_profile: { name: p1.name } }
-    const reg2 = { ...json.reg2, user_profile: { name: p2.name } }
-    setDivisions(prev => prev.map(d =>
-      d.id === divisionId
-        ? { ...d, tournament_registrations: [...d.tournament_registrations, reg1, reg2] }
-        : d
-    ))
-    setAddingPlayerId(null)
-    setSelectedP1(null)
-    setPlayerSearch('')
-    setPlayerSearch2('')
-    setPlayerResults([])
-    setPlayerResults2([])
-    setAddTeamName('')
-    setAddPlayerLoading(false)
-    router.refresh()
   }
 
   // ── Merge division into another ────────────────────────────────────
@@ -723,63 +579,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     router.refresh()
   }
 
-  // ── Pair two solo registrants ──────────────────────────────────────
-  async function handlePairSolo(divisionId: string, reg1Id: string, reg2Id: string) {
-    if (!pairTargetId) return
-    setPairLoading(true)
-    setPairError(null)
-    const res = await fetch(
-      `/api/tournaments/${tournamentId}/divisions/${divisionId}/pair-solos`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reg1_id: reg1Id, reg2_id: reg2Id }) }
-    )
-    const json = await res.json()
-    if (!res.ok) { setPairError(json.error ?? 'Pairing failed'); setPairLoading(false); return }
-
-    // Optimistic update: set partner links on both rows in local state
-    setDivisions(prev => prev.map(d => {
-      if (d.id !== divisionId) return d
-      const r1 = d.tournament_registrations.find(r => r.id === reg1Id)
-      const r2 = d.tournament_registrations.find(r => r.id === reg2Id)
-      if (!r1 || !r2) return d
-      return {
-        ...d,
-        tournament_registrations: d.tournament_registrations.map(r => {
-          if (r.id === reg1Id) return { ...r, partner_user_id: r2.user_id, partner_registration_id: reg2Id }
-          if (r.id === reg2Id) return { ...r, partner_user_id: r1.user_id, partner_registration_id: reg1Id }
-          return r
-        }),
-      }
-    }))
-    setPairingRegId(null)
-    setPairTargetId('')
-    setPairLoading(false)
-  }
-
-  // ── Move single player to another division ─────────────────────────
-  async function handleMovePlayer(fromDivisionId: string, regId: string) {
-    if (!moveTargetId || moveTargetId === fromDivisionId) return
-    setMoveLoading(true)
-    setMoveError(null)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update({ division_id: moveTargetId })
-      .eq('id', regId)
-    if (error) { setMoveError(error.message); setMoveLoading(false); return }
-
-    setDivisions(prev => {
-      const movedReg = prev.find(d => d.id === fromDivisionId)?.tournament_registrations.find(r => r.id === regId)
-      return prev.map(d => {
-        if (d.id === fromDivisionId) return { ...d, tournament_registrations: d.tournament_registrations.filter(r => r.id !== regId) }
-        if (d.id === moveTargetId && movedReg) return { ...d, tournament_registrations: [...d.tournament_registrations, { ...movedReg, division_id: moveTargetId }] }
-        return d
-      })
-    })
-    setMovingRegId(null)
-    setMoveTargetId('')
-    setMoveLoading(false)
-  }
-
   // ── Pay for registration via Stripe Checkout ─────────────────────
   async function handlePay(regId: string, divisionId: string, payForPartner = false, partnerEmailArg?: string) {
     try {
@@ -817,6 +616,21 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       }
     ))
   }
+
+  // Live-preview name while the organizer fills out the add form
+  const fAgeSegment = fMinAge && fMaxAge
+    ? `Age ${fMinAge}–${fMaxAge}`
+    : fMinAge ? `Age ${fMinAge} & Over`
+    : fMaxAge ? `Under ${fMaxAge}`
+    : null
+  const fAutoName = [CATEGORY_LABELS[fCategory], fTeamType === 'singles' ? 'Singles' : 'Doubles', fSkill, fAgeSegment, BRACKET_LABELS[fBracketType]].filter(Boolean).join(' — ')
+
+  const editAgeSegment = editMinAge && editMaxAge
+    ? `Age ${editMinAge}–${editMaxAge}`
+    : editMinAge ? `Age ${editMinAge} & Over`
+    : editMaxAge ? `Under ${editMaxAge}`
+    : null
+  const editAutoName = [CATEGORY_LABELS[editCategory], editTeamType === 'singles' ? 'Singles' : 'Doubles', editSkill, editAgeSegment, BRACKET_LABELS[editBracketType]].filter(Boolean).join(' — ')
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -860,26 +674,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         <form onSubmit={handleAddDivision} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
           <h3 className="font-heading text-sm font-bold text-brand-dark">New Division</h3>
 
-          <div>
-            <label className="block text-xs font-medium text-brand-muted mb-1">Division Name</label>
-            <input
-              type="text"
-              value={fName}
-              onChange={e => setFName(e.target.value)}
-              placeholder="Auto-generated if blank"
-              className="w-full input"
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
-              <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
-                {CATEGORY_OPTIONS.filter(o => fTeamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Team Type</label>
               <select
@@ -891,9 +686,17 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                 <option value="singles">Singles</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
+              <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="w-full input">
+                {CATEGORY_OPTIONS.filter(o => fTeamType === 'doubles' || !['mixed', 'coed'].includes(o.value)).map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {fTeamType === 'doubles' && fBracketType === 'round_robin' && (
+          {fTeamType === 'doubles' && (
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Partner Mode</label>
               <div className="grid grid-cols-2 gap-2">
@@ -903,15 +706,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'fixed' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
                 >
                   <div className="text-sm font-semibold text-brand-dark">Fixed</div>
-                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Captains pick partner at registration. Teams stay together every match.</div>
+                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Teams register together and stay paired every match.</div>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFPartnerMode('rotating')}
-                  className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                  onClick={() => fBracketType === 'round_robin' ? setFPartnerMode('rotating') : undefined}
+                  disabled={fBracketType !== 'round_robin'}
+                  className={`p-2.5 rounded-lg border text-left ${fPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'} ${fBracketType !== 'round_robin' ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <div className="text-sm font-semibold text-brand-dark">Rotating</div>
-                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Players register solo. New partner every round across the bracket.</div>
+                  <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">
+                    {fBracketType !== 'round_robin' ? 'Round robin only.' : 'Players register solo. New partner every round.'}
+                  </div>
                 </button>
               </div>
             </div>
@@ -926,7 +732,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Max Entries</label>
+              <label className="block text-xs font-medium text-brand-muted mb-1">
+                {fTeamType === 'doubles' ? 'Max Teams' : 'Max Players'}
+              </label>
               <input
                 type="number"
                 value={fMax}
@@ -1028,6 +836,17 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             />
           </div>
 
+          <div className="border-t border-brand-border pt-3">
+            <label className="block text-xs font-medium text-brand-muted mb-1">Division Name <span className="font-normal">(optional — auto-generated from selections above)</span></label>
+            <input
+              type="text"
+              value={fName}
+              onChange={e => setFName(e.target.value)}
+              placeholder={fAutoName}
+              className="w-full input"
+            />
+          </div>
+
           {fError && <p className="text-sm text-red-600">{fError}</p>}
 
           <div className="flex gap-2 pt-1">
@@ -1061,7 +880,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         </div>
       ) : (
         <div className="space-y-3">
-          {divisions.map(div => {
+          {[...divisions].sort((a, b) => a.name.localeCompare(b.name)).map(div => {
             const active       = div.tournament_registrations.filter(r => r.status === 'registered')
             const waitlist     = div.tournament_registrations.filter(r => r.status === 'waitlisted')
             const teamRegs     = active.filter(r => !r.registration_type || r.registration_type === 'team').length
@@ -1072,13 +891,22 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const myReg     = currentUserId
               ? div.tournament_registrations.find(r => r.user_id === currentUserId && r.status !== 'cancelled')
               : undefined
-            const maxPlayers = isDoublesFormat(div.format) ? div.max_entries * 2 : div.max_entries
-            const isFull    = active.length >= maxPlayers
+            const isDoubles  = isDoublesFormat(div.format)
+            const maxPlayers = isDoubles ? div.max_entries * 2 : div.max_entries
+            const isFull     = active.length >= maxPlayers
+            // Display counts in teams for doubles (2 registrations per team), players for singles
+            const displayCount = isDoubles ? Math.floor(active.length / 2) : active.length
+            const displayMax   = div.max_entries
+            const displayUnit  = isDoubles ? 'teams' : 'players'
+            // Unmatched solo in a doubles division: one player registered without a partner
+            const unpairedInDoubles = isDoubles ? active.length % 2 : 0
             const isClosed  = div.status === 'closed'
             const canReg    = !isOrganizer && !myReg && !isClosed && (!isFull || div.waitlist_enabled)
             const isManaging = managingId === div.id
             const isEditingFormat = editingFormatId === div.id
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
+            const isBracket = div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination'
+            const hasMatches = (matchCountByDivision[div.id] ?? 0) > 0
 
             const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
@@ -1102,12 +930,22 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       </p>
                     )}
                     {isOrganizer && !isEditingFormat && (
-                      <button
-                        onClick={() => openFormatEdit(div)}
-                        className="text-xs text-brand-active hover:underline mt-0.5"
-                      >
-                        Edit Division
-                      </button>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <button
+                          onClick={() => openFormatEdit(div)}
+                          className="text-xs text-brand-active hover:underline"
+                        >
+                          Edit Division
+                        </button>
+                        <button
+                          onClick={() => { setDeleteDivError(null); setDeleteDivPending({ divId: div.id, divName: div.name }) }}
+                          disabled={hasRegistrants}
+                          title={hasRegistrants ? 'Remove all registrants before deleting' : 'Delete this division'}
+                          className="text-xs text-red-500 hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </div>
                   <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
@@ -1127,17 +965,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         This division has registrants. Changes to category, team type, or format may affect existing registrations and match generation.
                       </p>
                     )}
-
-                    <div>
-                      <label className="block text-xs font-medium text-brand-muted mb-1">Division Name</label>
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        placeholder="Auto-generated if blank"
-                        className="w-full input"
-                      />
-                    </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1161,7 +988,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       </div>
                     </div>
 
-                    {editTeamType === 'doubles' && editBracketType === 'round_robin' && (
+                    {editTeamType === 'doubles' && (
                       <div>
                         <label className="block text-xs font-medium text-brand-muted mb-1">Partner Mode</label>
                         <div className="grid grid-cols-2 gap-2">
@@ -1171,15 +998,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                             className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'fixed' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
                           >
                             <div className="text-sm font-semibold text-brand-dark">Fixed</div>
-                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Captains pick partner at registration. Teams stay together every match.</div>
+                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Teams register together and stay paired every match.</div>
                           </button>
                           <button
                             type="button"
-                            onClick={() => setEditPartnerMode('rotating')}
-                            className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                            onClick={() => editBracketType === 'round_robin' ? setEditPartnerMode('rotating') : undefined}
+                            disabled={editBracketType !== 'round_robin'}
+                            className={`p-2.5 rounded-lg border text-left ${editPartnerMode === 'rotating' ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'} ${editBracketType !== 'round_robin' ? 'opacity-40 cursor-not-allowed' : ''}`}
                           >
                             <div className="text-sm font-semibold text-brand-dark">Rotating</div>
-                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">Players register solo. New partner every round across the bracket.</div>
+                            <div className="text-[11px] text-brand-muted mt-0.5 leading-snug">
+                              {editBracketType !== 'round_robin' ? 'Round robin only.' : 'Players register solo. New partner every round.'}
+                            </div>
                           </button>
                         </div>
                       </div>
@@ -1194,7 +1024,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-brand-muted mb-1">Max Entries</label>
+                        <label className="block text-xs font-medium text-brand-muted mb-1">
+                          {editTeamType === 'doubles' ? 'Max Teams' : 'Max Players'}
+                        </label>
                         <input
                           type="number"
                           value={editMax}
@@ -1296,6 +1128,17 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       />
                     </div>
 
+                    <div className="border-t border-brand-border pt-3">
+                      <label className="block text-xs font-medium text-brand-muted mb-1">Division Name <span className="font-normal">(optional — auto-generated from selections above)</span></label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        placeholder={editAutoName}
+                        className="w-full input"
+                      />
+                    </div>
+
                     {editFormatError && <p className="text-xs text-red-600">{editFormatError}</p>}
                     <div className="flex gap-2 pt-1">
                       <button
@@ -1317,14 +1160,13 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
                 {/* Counts */}
                 {(() => {
-                  const maxPlayers = isDoublesFormat(div.format) ? div.max_entries * 2 : div.max_entries
                   return (
                     <div className="flex items-center gap-3 text-xs text-brand-muted">
                       <span>
-                        <span className="font-semibold text-brand-dark">{active.length}</span>
-                        {' / '}{maxPlayers}{' players'}
-                        {unmatchedSolos > 0 && (
-                          <span className="text-amber-600 ml-1">(+{unmatchedSolos} seeking partner)</span>
+                        <span className="font-semibold text-brand-dark">{displayCount}</span>
+                        {' / '}{displayMax}{' '}{displayUnit}
+                        {unpairedInDoubles > 0 && (
+                          <span className="text-amber-600 ml-1">(+{unpairedInDoubles} seeking partner)</span>
                         )}
                       </span>
                       {waitlist.length > 0 && <span>· {waitlist.length} waitlisted</span>}
@@ -1332,8 +1174,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   )
                 })()}
 
-                {/* Fixed partner assignment — organizer only, fixed-mode doubles */}
-                {isOrganizer && div.partner_mode === 'fixed' && isDoublesFormat(div.format) && (() => {
+                {/* Fixed partner assignment — organizer only, fixed-mode doubles, visible after "Manage" is clicked */}
+                {isManaging && isOrganizer && div.partner_mode === 'fixed' && isDoublesFormat(div.format) && (() => {
                   const settled = active.filter(r =>
                     ['paid', 'waived', 'comped'].includes(r.payment_status ?? '')
                   )
@@ -1604,10 +1446,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                     )}
                     {isOrganizer && (
                       <button
-                        onClick={() => setManagingId(isManaging ? null : div.id)}
+                        onClick={() => setManagingId(managingId === div.id ? null : div.id)}
                         className="px-3 py-2 rounded-xl border border-brand-border text-xs text-brand-muted hover:bg-brand-soft transition-colors"
                       >
-                        {isManaging ? 'Done' : 'Manage'}
+                        {isManaging ? 'Close' : 'Manage →'}
                       </button>
                     )}
                   </div>
@@ -1619,6 +1461,12 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-3">
                         <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Registrants</p>
+                        <Link
+                          href={`/tournaments/${tournamentId}/divisions/${div.id}`}
+                          className="text-xs text-brand-active hover:underline"
+                        >
+                          Full view →
+                        </Link>
                         <button
                           onClick={() => setQrDivision({ id: div.id, name: div.name })}
                           className="text-xs text-brand-active hover:underline"
@@ -1682,348 +1530,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                           </button>
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {isManaging && (
-                  <div className="space-y-2">
-
-                    {div.tournament_registrations.filter(r => r.status !== 'cancelled').length === 0 ? (
-                      <p className="text-xs text-brand-muted">No registrants yet.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {(() => {
-                          const nonCancelled = div.tournament_registrations.filter(r => r.status !== 'cancelled')
-                          const isConfirmed = (r: typeof nonCancelled[0]) => ['paid', 'waived', 'comped'].includes(r.payment_status ?? '')
-                          const confirmed = nonCancelled.filter(isConfirmed)
-                          const awaiting = nonCancelled.filter(r => !isConfirmed(r))
-                          const sorted = [...confirmed, ...awaiting]
-                          return sorted.map((reg, idx) => {
-                            const isUnpaid = !isConfirmed(reg)
-                            return (
-                              <Fragment key={reg.id}>
-                                {isUnpaid && idx === confirmed.length && confirmed.length > 0 && (
-                                  <li className="py-0.5">
-                                    <div className="flex items-center gap-2">
-                                      <div className="flex-1 border-t border-brand-border/60" />
-                                      <span className="text-[10px] font-semibold text-brand-muted whitespace-nowrap">
-                                        Awaiting payment · {awaiting.length}
-                                      </span>
-                                      <div className="flex-1 border-t border-brand-border/60" />
-                                    </div>
-                                  </li>
-                                )}
-                                <li className={`text-xs border border-brand-border rounded-xl px-3 py-2 space-y-1.5 ${isUnpaid ? 'opacity-60' : ''}`}>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className="font-medium text-brand-dark truncate">
-                                    {reg.user_profile?.name ?? (reg.user_id?.slice(0, 8) ?? '—')}
-                                  </span>
-                                  {reg.user_profile?.is_stub && (
-                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">
-                                      Invited
-                                    </span>
-                                  )}
-                                  {reg.team_name && (
-                                    <span className="text-brand-muted truncate">· {reg.team_name}</span>
-                                  )}
-                                </div>
-                                <div className="flex shrink-0 items-center gap-2">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                    reg.status === 'registered' ? 'bg-brand-soft text-brand-active' : 'bg-yellow-50 text-yellow-700'
-                                  }`}>
-                                    {reg.status === 'registered' ? 'Registered' : 'Waitlisted'}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  {(() => {
-                                    const awaitingPartner =
-                                      reg.payment_status === 'unpaid' &&
-                                      reg.registration_type === 'team' &&
-                                      isDoublesFormat(div.format) &&
-                                      !reg.partner_registration_id
-                                    const colorClass =
-                                      reg.payment_status === 'paid'     ? 'bg-green-100 text-green-700'     :
-                                      reg.payment_status === 'waived'   ? 'bg-gray-100 text-gray-500'       :
-                                      reg.payment_status === 'comped'   ? 'bg-blue-50 text-blue-600'        :
-                                      reg.payment_status === 'refunded' ? 'bg-purple-100 text-purple-700'   :
-                                      awaitingPartner                   ? 'bg-amber-50 text-amber-700'      :
-                                                                          'bg-red-50 text-red-600'
-                                    const label =
-                                      reg.payment_status === 'paid'     ? '$ Paid'          :
-                                      reg.payment_status === 'waived'   ? 'Waived'          :
-                                      reg.payment_status === 'comped'   ? 'Comped'          :
-                                      reg.payment_status === 'refunded' ? 'Refunded'        :
-                                      awaitingPartner                   ? 'Awaiting Partner' :
-                                                                          '$ Unpaid'
-                                    return (
-                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${colorClass}`}>
-                                        {label}
-                                      </span>
-                                    )
-                                  })()}
-                                  {reg.partner_user_id ? (
-                                    <span className="text-brand-muted">Partner ✓</span>
-                                  ) : isDoublesFormat(div.format) ? (
-                                    <span className="text-amber-600">No partner</span>
-                                  ) : null}
-                                </div>
-                                <div className="flex shrink-0 gap-2 flex-wrap justify-end">
-                                  {reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped' && (
-                                    <button onClick={() => handleMarkComped(div.id, reg.id)} className="text-brand-active hover:underline">
-                                      Mark Comped
-                                    </button>
-                                  )}
-                                  {reg.payment_status === 'paid' && reg.stripe_payment_intent_id && (
-                                    <button onClick={() => handleRefund(div.id, reg.id)} className="text-purple-600 hover:underline">
-                                      Refund
-                                    </button>
-                                  )}
-                                  {reg.status === 'waitlisted' && !isFull && (
-                                    <button onClick={() => handlePromote(div.id, reg.id)} className="text-brand-active hover:underline">
-                                      Promote
-                                    </button>
-                                  )}
-                                  {divisions.filter(d => d.id !== div.id && d.status !== 'closed').length > 0 && (
-                                    <button
-                                      onClick={() => { setMovingRegId(movingRegId === reg.id ? null : reg.id); setMoveTargetId(''); setMoveError(null) }}
-                                      className="text-brand-muted hover:underline"
-                                    >
-                                      Move
-                                    </button>
-                                  )}
-                                  {isDoublesFormat(div.format) && reg.registration_type === 'solo' && !reg.partner_registration_id && reg.status === 'registered' && (
-                                    <button
-                                      onClick={() => { setPairingRegId(pairingRegId === reg.id ? null : reg.id); setPairTargetId(''); setPairError(null) }}
-                                      className="text-brand-active hover:underline"
-                                    >
-                                      Pair
-                                    </button>
-                                  )}
-                                  <button onClick={() => handleRemove(div.id, reg.id)} className="text-red-500 hover:underline">
-                                    Remove
-                                  </button>
-                                </div>
-                              </div>
-                              {/* Move-to-division inline picker */}
-                              {movingRegId === reg.id && (
-                                <div className="flex gap-2 pt-1">
-                                  <select
-                                    value={moveTargetId}
-                                    onChange={e => setMoveTargetId(e.target.value)}
-                                    className="flex-1 input text-xs"
-                                  >
-                                    <option value="">Move to…</option>
-                                    {divisions.filter(d => d.id !== div.id && d.status !== 'closed').map(d => (
-                                      <option key={d.id} value={d.id}>{d.name}</option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => handleMovePlayer(div.id, reg.id)}
-                                    disabled={!moveTargetId || moveLoading}
-                                    className="px-2 py-1 rounded-lg bg-brand-dark text-white text-xs font-semibold disabled:opacity-50"
-                                  >
-                                    {moveLoading ? '…' : 'Move'}
-                                  </button>
-                                </div>
-                              )}
-                              {movingRegId === reg.id && moveError && <p className="text-xs text-red-600">{moveError}</p>}
-                              {/* Pair-solo inline picker */}
-                              {pairingRegId === reg.id && (() => {
-                                const availablePartners = div.tournament_registrations.filter(r =>
-                                  r.id !== reg.id &&
-                                  r.registration_type === 'solo' &&
-                                  !r.partner_registration_id &&
-                                  r.status === 'registered'
-                                )
-                                return (
-                                  <div className="space-y-1 pt-1">
-                                    {availablePartners.length === 0 ? (
-                                      <p className="text-xs text-brand-muted">No other unpaired solos in this division.</p>
-                                    ) : (
-                                      <div className="flex gap-2">
-                                        <select
-                                          value={pairTargetId}
-                                          onChange={e => setPairTargetId(e.target.value)}
-                                          className="flex-1 input text-xs"
-                                        >
-                                          <option value="">Pair with…</option>
-                                          {availablePartners.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                              {p.user_profile?.name ?? (p.user_id?.slice(0, 8) ?? '—')}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        <button
-                                          onClick={() => handlePairSolo(div.id, reg.id, pairTargetId)}
-                                          disabled={!pairTargetId || pairLoading}
-                                          className="px-2 py-1 rounded-lg bg-brand-dark text-white text-xs font-semibold disabled:opacity-50"
-                                        >
-                                          {pairLoading ? '…' : 'Pair'}
-                                        </button>
-                                      </div>
-                                    )}
-                                    {pairError && <p className="text-xs text-red-600">{pairError}</p>}
-                                  </div>
-                                )
-                              })()}
-                                </li>
-                              </Fragment>
-                            )
-                          })
-                        })()}
-                      </ul>
-                    )}
-
-                    {/* Add Player / Add Team */}
-                    {addingPlayerId === div.id ? (
-                      <div className="pt-2 space-y-2">
-                        {isDoublesFormat(div.format) && div.partner_mode !== 'fixed' ? (
-                          /* ── Rotating doubles: two-phase player selection ── */
-                          selectedP1 ? (
-                            /* Phase 2: P1 locked, pick P2 + team name */
-                            <>
-                              <div className="flex items-center gap-2 px-3 py-2 bg-brand-soft rounded-lg text-xs text-brand-dark">
-                                <span className="font-medium">{selectedP1.name}</span>
-                                <button
-                                  onClick={() => { setSelectedP1(null); setPlayerSearch(''); setPlayerResults([]); setPlayerSearch2(''); setPlayerResults2([]) }}
-                                  className="text-brand-muted hover:text-red-500 ml-auto"
-                                  aria-label="Remove player 1"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                              <input
-                                type="text"
-                                value={playerSearch2}
-                                onChange={e => searchPlayers(e.target.value, [...div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), selectedP1.id], div.format, setPlayerSearch2, setPlayerResults2)}
-                                onFocus={() => searchPlayers(playerSearch2, [...div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), selectedP1.id], div.format, setPlayerSearch2, setPlayerResults2)}
-                                placeholder="Search partner by name…"
-                                className="w-full input text-xs"
-                                autoFocus
-                              />
-                              {playerResults2.length > 0 && (
-                                <ul className="border border-brand-border rounded-xl overflow-y-auto max-h-48">
-                                  {playerResults2.map(p2 => (
-                                    <li key={p2.id}>
-                                      <button
-                                        onClick={() => handleAddTeam(div.id, selectedP1, p2, addTeamName)}
-                                        disabled={addPlayerLoading}
-                                        className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors"
-                                      >
-                                        {p2.name}
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                              <input
-                                type="text"
-                                value={addTeamName}
-                                onChange={e => setAddTeamName(e.target.value)}
-                                placeholder="Team name (optional)"
-                                className="w-full input text-xs"
-                              />
-                            </>
-                          ) : (
-                            /* Phase 1: pick P1 */
-                            <>
-                              <input
-                                type="text"
-                                value={playerSearch}
-                                onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)}
-                                onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)}
-                                placeholder="Search player 1 by name…"
-                                className="w-full input text-xs"
-                                autoFocus
-                              />
-                              {playerResults.length > 0 && (
-                                <ul className="border border-brand-border rounded-xl overflow-y-auto max-h-64">
-                                  {playerResults.map(p => (
-                                    <li key={p.id}>
-                                      <button
-                                        onClick={() => { setSelectedP1(p); setPlayerSearch(''); setPlayerResults([]); setPlayerSearch2(''); setPlayerResults2([]) }}
-                                        disabled={addPlayerLoading}
-                                        className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors"
-                                      >
-                                        {p.name}
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </>
-                          )
-                        ) : (
-                          /* ── Singles: existing single-player search ── */
-                          <>
-                            <input
-                              type="text"
-                              value={playerSearch}
-                              onChange={e => searchPlayers(e.target.value, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)}
-                              onFocus={() => searchPlayers(playerSearch, div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)}
-                              placeholder="Search player by name…"
-                              className="w-full input text-xs"
-                              autoFocus
-                            />
-                            {playerResults.length > 0 && (
-                              <ul className="border border-brand-border rounded-xl overflow-y-auto max-h-64">
-                                {playerResults.map(p => (
-                                  <li key={p.id}>
-                                    <button
-                                      onClick={() => handleAddPlayer(div.id, p.id, p.name)}
-                                      disabled={addPlayerLoading}
-                                      className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors"
-                                    >
-                                      {p.name}
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </>
-                        )}
-                        {addPlayerError && <p className="text-xs text-red-600">{addPlayerError}</p>}
-                        <button
-                          onClick={() => {
-                            setAddingPlayerId(null)
-                            setSelectedP1(null)
-                            setPlayerSearch('')
-                            setPlayerSearch2('')
-                            setPlayerResults([])
-                            setPlayerResults2([])
-                            setAddTeamName('')
-                            setAddPlayerError(null)
-                          }}
-                          className="text-xs text-brand-muted hover:underline"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : isFull ? (
-                      <p className="text-xs text-brand-muted pt-1">
-                        Division full ({active.length}/{maxPlayers}) — increase Max Entries to add more.
-                      </p>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setAddingPlayerId(div.id)
-                          setSelectedP1(null)
-                          setPlayerSearch('')
-                          setPlayerSearch2('')
-                          setPlayerResults([])
-                          setPlayerResults2([])
-                          setAddTeamName('')
-                          setAddPlayerError(null)
-                          searchPlayers('', div.tournament_registrations.filter(r => r.status !== 'cancelled').map(r => r.user_id), div.format)
-                        }}
-                        className="text-xs text-brand-active font-medium hover:underline pt-1"
-                      >
-                        {isDoublesFormat(div.format) && div.partner_mode !== 'fixed' ? '+ Add Team' : '+ Add Player'}
-                      </button>
                     )}
                   </div>
                 )}
@@ -2123,8 +1629,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                 className="flex-1 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
               >
                 {regLoading ? 'Registering…' : (() => {
-                  const active = registeringDiv.tournament_registrations.filter(r => r.status === 'registered').length
-                  return active >= registeringDiv.max_entries && registeringDiv.waitlist_enabled
+                  const activeRows = registeringDiv.tournament_registrations.filter(r => r.status === 'registered').length
+                  const activeTeams = isDoublesFormat(registeringDiv.format) ? Math.floor(activeRows / 2) : activeRows
+                  return activeTeams >= registeringDiv.max_entries && registeringDiv.waitlist_enabled
                     ? 'Join Waitlist' : 'Confirm Registration'
                 })()}
               </button>

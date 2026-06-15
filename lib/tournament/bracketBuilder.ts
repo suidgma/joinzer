@@ -19,6 +19,29 @@ function shuffle<T>(arr: T[]): T[] {
   return arr
 }
 
+/**
+ * Returns slot positions for standard bracket seeding.
+ * bracketPositions(8) = [0,7,3,4,1,6,2,5] so that consecutive pairs are
+ * (S1 vs S8), (S4 vs S5), (S2 vs S7), (S3 vs S6) — top two seeds can only
+ * meet in the final.
+ */
+function bracketPositions(n: number): number[] {
+  if (n <= 1) return [0]
+  const half = bracketPositions(n / 2)
+  return half.flatMap(pos => [pos, n - 1 - pos])
+}
+
+/**
+ * Arranges teams (sorted by seed ascending) into standard bracket seeding
+ * order. Teams beyond the array length become null (BYE slots), distributed
+ * so top seeds receive byes.
+ */
+export function arrangeSeedsForBracket(seededTeams: string[]): (string | null)[] {
+  const size = nextPow2(seededTeams.length)
+  const positions = bracketPositions(size)
+  return positions.map(i => (i < seededTeams.length ? seededTeams[i] : null))
+}
+
 // ── Single Elimination ────────────────────────────────────────────────────────
 
 /**
@@ -34,16 +57,17 @@ export function singleEliminationBracket(
   teams: string[],
   stage: 'single_elimination' | 'winners_bracket' | 'playoffs',
   base: BaseMatch,
-  startMatchNum = 1
+  startMatchNum = 1,
+  skipShuffle = false
 ): { rows: BaseMatch[]; nextMatchNum: number } {
-  const shuffled = shuffle([...teams])
-  const size = nextPow2(shuffled.length)
-
-  // Pad with nulls for byes
-  const seeded: (string | null)[] = [
-    ...shuffled,
-    ...Array(size - shuffled.length).fill(null),
-  ]
+  // When skipShuffle=true, teams are pre-sorted by seed; use standard bracket
+  // seeding order so top seeds receive byes and meet each other late.
+  const seeded: (string | null)[] = skipShuffle
+    ? arrangeSeedsForBracket(teams)
+    : (() => {
+        const shuffled = shuffle([...teams])
+        return [...shuffled, ...Array(nextPow2(shuffled.length) - shuffled.length).fill(null)]
+      })()
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum
@@ -107,14 +131,15 @@ export function singleEliminationBracket(
 export function doubleEliminationBracket(
   teams: string[],
   base: BaseMatch,
-  startMatchNum = 1
+  startMatchNum = 1,
+  skipShuffle = false
 ): BaseMatch[] {
-  const shuffled = shuffle([...teams])
-  const size = nextPow2(shuffled.length)
-  const seeded: (string | null)[] = [
-    ...shuffled,
-    ...Array(size - shuffled.length).fill(null),
-  ]
+  const seeded: (string | null)[] = skipShuffle
+    ? arrangeSeedsForBracket(teams)
+    : (() => {
+        const shuffled = shuffle([...teams])
+        return [...shuffled, ...Array(nextPow2(shuffled.length) - shuffled.length).fill(null)]
+      })()
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum
@@ -501,6 +526,12 @@ export function computeAdvancement(
   if (!winner) return null
 
   const stage = completedMatch.match_stage
+
+  // Round robin and pool play schedules are fixed up front — winners never
+  // advance into later rounds. Without this guard, scoring a round-N match
+  // overwrites the pre-assigned teams of round N+1, corrupting the schedule.
+  if (stage === 'round_robin' || stage === 'pool_play') return null
+
   const roundNum = completedMatch.round_number ?? 1
 
   // Matches in the same stage and same round, sorted by match_number
@@ -523,4 +554,100 @@ export function computeAdvancement(
 
   const field = posInRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
   return { matchId: nextMatch.id, field, value: winner }
+}
+
+/**
+ * For double elimination, the WB Final winner and LB Final winner both need to
+ * advance to the Championship match. computeAdvancement only moves within the
+ * same stage, so we handle the cross-stage hop here.
+ *
+ * Returns the DB update to place the WB/LB champion into the Championship, or
+ * null if there is no championship match or the given match isn't the stage final.
+ */
+export function computeChampionshipAdvancement(
+  completedMatch: MatchRow,
+  allMatches: MatchRow[]
+): { matchId: string; field: 'team_1_registration_id' | 'team_2_registration_id'; value: string } | null {
+  const winner = completedMatch.winner_registration_id
+  if (!winner) return null
+
+  const stage = completedMatch.match_stage
+  if (stage !== 'winners_bracket' && stage !== 'losers_bracket') return null
+
+  const championship = allMatches.find(m => m.match_stage === 'championship')
+  if (!championship) return null
+
+  // Only the last round of this stage advances to the Championship
+  const stageMatches = allMatches.filter(m => m.match_stage === stage)
+  const maxRound = Math.max(...stageMatches.map(m => m.round_number ?? 1))
+  if ((completedMatch.round_number ?? 1) !== maxRound) return null
+
+  // WB champion → team_1 (they come in undefeated)
+  // LB champion → team_2 (they have one loss)
+  const field = stage === 'winners_bracket' ? 'team_1_registration_id' : 'team_2_registration_id'
+  return { matchId: championship.id, field, value: winner }
+}
+
+/**
+ * Given a completed WB match, returns the DB update to drop the LOSER into the
+ * correct Losers Bracket slot.
+ *
+ * WB round N losers drop into LB round (N===1 ? 1 : N*2-1):
+ *   - WB R1 → LB R1: pairs of 2 WB losers share one LB match
+ *   - WB R2 → LB R3: each WB loser takes one LB match slot as team_2
+ *   - WB R3 → LB R5: same pattern
+ *
+ * Returns null for BYE matches (no loser), non-WB matches, or when no matching
+ * LB slot exists.
+ */
+export function computeLbDrop(
+  completedMatch: MatchRow,
+  allMatches: MatchRow[]
+): { matchId: string; field: 'team_1_registration_id' | 'team_2_registration_id'; value: string } | null {
+  if (completedMatch.match_stage !== 'winners_bracket') return null
+
+  const winner = completedMatch.winner_registration_id
+  if (!winner) return null
+
+  // BYE match — no loser
+  const loser = winner === completedMatch.team_1_registration_id
+    ? completedMatch.team_2_registration_id
+    : completedMatch.team_1_registration_id
+  if (!loser) return null
+
+  const wbRound = completedMatch.round_number ?? 1
+
+  // WB R1 → LB R1; WB R2 → LB R3; WB RN → LB R(2N-1)
+  const lbTargetRound = wbRound === 1 ? 1 : wbRound * 2 - 1
+
+  const sameWbRound = allMatches
+    .filter(m => m.match_stage === 'winners_bracket' && m.round_number === wbRound)
+    .sort((a, b) => a.match_number - b.match_number)
+
+  const posInWbRound = sameWbRound.findIndex(m => m.id === completedMatch.id)
+  if (posInWbRound === -1) return null
+
+  const lbTargetMatches = allMatches
+    .filter(m => m.match_stage === 'losers_bracket' && m.round_number === lbTargetRound)
+    .sort((a, b) => a.match_number - b.match_number)
+
+  if (lbTargetMatches.length === 0) return null
+
+  let lbMatchIdx: number
+  let lbField: 'team_1_registration_id' | 'team_2_registration_id'
+
+  if (wbRound === 1) {
+    // Pair WB R1 losers together: positions 0&1 → LB match 0, 2&3 → LB match 1, etc.
+    lbMatchIdx = Math.floor(posInWbRound / 2)
+    lbField = posInWbRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
+  } else {
+    // One WB loser per LB match, as team_2 (LB survivor fills team_1 via advancement)
+    lbMatchIdx = posInWbRound
+    lbField = 'team_2_registration_id'
+  }
+
+  const targetLbMatch = lbTargetMatches[lbMatchIdx]
+  if (!targetLbMatch) return null
+
+  return { matchId: targetLbMatch.id, field: lbField, value: loser }
 }

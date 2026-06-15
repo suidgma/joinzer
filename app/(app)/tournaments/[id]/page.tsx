@@ -8,7 +8,6 @@ import Link from 'next/link'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
-import MatchesSection from '@/components/features/tournaments/MatchesSection'
 import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
@@ -73,7 +72,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .order('created_at', { ascending: true }),
     db
       .from('tournament_registrations')
-      .select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, payment_status, stripe_payment_intent_id, checked_in')
+      .select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, payment_status, stripe_payment_intent_id, checked_in, seed')
       .eq('tournament_id', params.id),
     db
       .from('tournament_matches')
@@ -83,6 +82,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         team_1_score, team_2_score, winner_registration_id, status
       `)
       .eq('tournament_id', params.id)
+      .eq('is_draft', false)
       .order('match_number', { ascending: true }),
     db
       .from('tournament_messages')
@@ -114,6 +114,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     { label: 'Overview', href: `/tournaments/${params.id}` },
     ...(canEdit ? [
       { label: 'Schedule', href: `/tournaments/${params.id}/schedule` },
+      { label: 'Schedule Builder', href: `/tournaments/${params.id}/schedule/builder` },
       { label: 'Standings', href: `/tournaments/${params.id}/standings` },
       { label: 'Players', href: `/tournaments/${params.id}/players` },
       { label: 'Edit', href: `/tournaments/${params.id}/edit` },
@@ -136,13 +137,15 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     ...(regsRaw ?? []).map((r: any) => r.partner_user_id),
   ].filter(Boolean)))
   const { data: profilesRaw } = allUserIds.length > 0
-    ? await db.from('profiles').select('id, name, is_stub').in('id', allUserIds)
+    ? await db.from('profiles').select('id, name, is_stub, dupr_rating, estimated_rating').in('id', allUserIds)
     : { data: [] }
   const profileNames: Record<string, string> = {}
   const profileStubs: Record<string, boolean> = {}
+  const profileRatings: Record<string, { dupr_rating: number | null; estimated_rating: number | null }> = {}
   for (const p of profilesRaw ?? []) {
     profileNames[p.id] = p.name
     if (p.is_stub) profileStubs[p.id] = true
+    profileRatings[p.id] = { dupr_rating: p.dupr_rating ?? null, estimated_rating: p.estimated_rating ?? null }
   }
 
   // Shared page header — used by both organizer and player views
@@ -252,8 +255,17 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       if (!regsByDivisionOrg[reg.division_id]) regsByDivisionOrg[reg.division_id] = []
       regsByDivisionOrg[reg.division_id].push({
         ...reg,
-        user_profile: { name: profileNames[reg.user_id] ?? null, is_stub: profileStubs[reg.user_id] ?? false },
-        partner_profile: reg.partner_user_id ? { name: profileNames[reg.partner_user_id] ?? null } : null,
+        user_profile: {
+          name: profileNames[reg.user_id] ?? null,
+          is_stub: profileStubs[reg.user_id] ?? false,
+          ...(profileRatings[reg.user_id] ?? {}),
+        },
+        partner_profile: reg.partner_user_id
+          ? {
+              name: profileNames[reg.partner_user_id] ?? null,
+              ...(profileRatings[reg.partner_user_id] ?? {}),
+            }
+          : null,
       })
     }
     const divisionsForOrg = (divisionsRaw ?? []).map((div: any) => ({
@@ -261,6 +273,14 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       tournament_registrations: regsByDivisionOrg[div.id] ?? [],
     }))
     const matchesForOrg = (matchesData ?? []) as any[]
+
+    const matchCountByDivision: Record<string, number> = {}
+    const matchesByDivision: Record<string, any[]> = {}
+    for (const m of matchesForOrg) {
+      matchCountByDivision[m.division_id] = (matchCountByDivision[m.division_id] ?? 0) + 1
+      if (!matchesByDivision[m.division_id]) matchesByDivision[m.division_id] = []
+      matchesByDivision[m.division_id].push(m)
+    }
 
     const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => ({
       id: r.id,
@@ -270,6 +290,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       status: r.status,
       player_name: profileNames[r.user_id] ?? null,
       partner_user_id: r.partner_user_id ?? null,
+      partner_registration_id: r.partner_registration_id ?? null,
       checked_in: r.checked_in ?? false,
     }))
 
@@ -340,6 +361,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             defaultBracketType={(tournament as any).default_bracket_type ?? 'round_robin'}
             defaultLocationId={(tournament as any).location_id ?? null}
             locations={(locationsData ?? []) as any[]}
+            matchCountByDivision={matchCountByDivision}
+            matchesByDivision={matchesByDivision}
           />
 
           {/* Discount codes */}
@@ -349,22 +372,6 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
               initialCodes={(discountCodes ?? []) as any[]}
             />
           </div>
-
-          {/* Match generation + schedule manager */}
-          {divisionsForOrg.length > 0 && (
-            <MatchesSection
-              tournamentId={tournament.id}
-              divisions={divisionsForOrg}
-              initialMatches={matchesForOrg}
-              isOrganizer={true}
-              tournamentDate={tournament.start_date}
-              defaultStartTime={tournament.start_time ?? '08:00'}
-              defaultEndTime={tournament.estimated_end_time ?? null}
-              additionalDays={tournament.additional_days ?? []}
-              locationCourtCount={(tournament.location as any)?.court_count ?? null}
-              locationName={(tournament.location as any)?.name ?? null}
-            />
-          )}
 
           {/* Operational day-of tabs — useful once matches exist */}
           {orgMatches.length > 0 && (
@@ -445,18 +452,6 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             currentUserId={user.id}
             matches={matches}
             divisions={divisions}
-          />
-        )}
-
-        {divisions.length > 0 && (
-          <MatchesSection
-            tournamentId={tournament.id}
-            divisions={divisions}
-            initialMatches={matches}
-            isOrganizer={false}
-            tournamentDate={tournament.start_date}
-            defaultStartTime={tournament.start_time ?? '08:00'}
-            defaultEndTime={tournament.estimated_end_time ?? null}
           />
         )}
 

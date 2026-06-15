@@ -43,11 +43,12 @@ export default function LiveTab({ tournamentId, matches, registrations, division
     })
     .slice(0, 5)
 
-  const completed = matches.filter(m => m.status === 'completed')
+  const playable = matches.filter(m => m.team_1_registration_id != null || m.team_2_registration_id != null)
+  const completed = playable.filter(m => m.status === 'completed')
   const playerCount = Array.from(
     new Set(registrations.filter(r => r.status === 'registered').map(r => r.user_id))
   ).length
-  const pct = Math.round((completed.length / Math.max(matches.length, 1)) * 100)
+  const pct = Math.round((completed.length / Math.max(playable.length, 1)) * 100)
 
   return (
     <div className="space-y-5">
@@ -100,7 +101,7 @@ export default function LiveTab({ tournamentId, matches, registrations, division
 
       <section>
         <div className="flex items-center justify-between text-xs text-brand-muted mb-1.5">
-          <span>{completed.length} of {matches.length} matches complete</span>
+          <span>{completed.length} of {playable.length} matches complete</span>
           <span>{pct}%</span>
         </div>
         <div className="w-full h-2 bg-brand-border rounded-full overflow-hidden">

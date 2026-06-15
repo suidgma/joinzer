@@ -49,10 +49,9 @@ type Props = {
   divisions: Division[]
 }
 
-function lastName(name: string | null | undefined): string {
+function firstName(name: string | null | undefined): string {
   if (!name) return ''
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1]
+  return name.trim().split(/\s+/)[0]
 }
 
 function TeamNameDisplay({ regId, regs, isDoubles }: {
@@ -63,12 +62,13 @@ function TeamNameDisplay({ regId, regs, isDoubles }: {
   if (!regId) return <span>TBD</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>TBD</span>
-  if (!isDoubles) return <span>{r.team_name || r.user_profile?.name || 'Unknown'}</span>
-  const p1 = lastName(r.user_profile?.name) || r.team_name || 'Unknown'
+  if (!isDoubles) return <span>{r.team_name || firstName(r.user_profile?.name) || 'Unknown'}</span>
+  const p1 = firstName(r.user_profile?.name) || r.team_name || 'Unknown'
   if (r.partner_profile?.name) {
-    return <span>{p1} / {lastName(r.partner_profile.name)}</span>
+    const names = [p1, firstName(r.partner_profile.name)].sort((a, b) => a.localeCompare(b))
+    return <span>{names[0]}/{names[1]}</span>
   }
-  return <span>{p1} / <span className="text-yellow-500 font-bold">?</span></span>
+  return <span>{p1}/<span className="text-yellow-500 font-bold">?</span></span>
 }
 
 const STATUS_LABEL: Record<string, string> = {

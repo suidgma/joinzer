@@ -18,6 +18,7 @@ export default async function TournamentSchedulePage(props: { params: Promise<{ 
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/tournaments/${id}` },
     { label: 'Schedule', href: `/tournaments/${id}/schedule` },
+    { label: 'Schedule Builder', href: `/tournaments/${id}/schedule/builder` },
     { label: 'Standings', href: `/tournaments/${id}/standings` },
     { label: 'Players', href: `/tournaments/${id}/players` },
     { label: 'Edit', href: `/tournaments/${id}/edit` },

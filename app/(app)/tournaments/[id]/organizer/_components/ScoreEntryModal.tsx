@@ -3,11 +3,16 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { OrgMatch, OrgRegistration } from './types'
 
+function firstName(name: string | null | undefined): string {
+  if (!name) return ''
+  return name.trim().split(/\s+/)[0]
+}
+
 export function teamLabel(regId: string | null, regs: OrgRegistration[]): string {
   if (!regId) return 'BYE'
   const r = regs.find(x => x.id === regId)
   if (!r) return '—'
-  return r.team_name || r.player_name || regId.slice(0, 8)
+  return r.team_name || firstName(r.player_name) || regId.slice(0, 8)
 }
 
 type Props = {

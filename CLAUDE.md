@@ -100,6 +100,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 ### In progress
 
 - **Two-form-factor QA** — code complete and deployed. Public routes QA'd via Playwright. Authenticated desktop routes (tournaments/create, leagues/create, standings, roster) still need eyes with a real logged-in session at 375/768/1280px.
+- **Advanced Schedule Builder** — built on branch `feat/advanced-schedule-builder` (not yet merged to main / not on Vercel). Organizer surface at `/tournaments/[id]/schedule/builder`: define date/time/court "blocks", drag divisions into them, see capacity + player-conflict warnings, then generate a draft match schedule (greedy per-block scheduler), preview by time/court/division, and publish. Draft matches carry `tournament_matches.is_draft=true` and are filtered out of all participant/organizer reads until published. **Schema is already applied to prod Supabase** (migration `20260615000001_advanced_schedule_builder`: `tournament_schedule_blocks`, `tournament_division_blocks`, `tournaments.schedule_settings_json`, `tournament_matches.schedule_block_id`+`is_draft`). MVP limitation: elimination BYE auto-advance not applied to drafts. The legacy one-click per-division "Generate Matches" flow is unchanged and coexists.
 
 ---
 
@@ -167,4 +168,4 @@ When a query uses a foreign-key join (e.g. `profile:profiles!user_id(...)`), Typ
 
 ---
 
-*Last verified against repo: June 5, 2026*
+*Last verified against repo: June 15, 2026*

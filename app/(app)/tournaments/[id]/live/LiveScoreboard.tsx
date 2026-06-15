@@ -16,6 +16,7 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  is_draft?: boolean
 }
 type Reg = {
   id: string
@@ -24,31 +25,65 @@ type Reg = {
   team_name: string | null
   status: string
   partner_user_id: string | null
+  partner_registration_id: string | null
   profiles: { name: string } | null
+  partner_name: string | null
 }
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
 
+function firstName(name: string | null | undefined): string {
+  if (!name) return ''
+  return name.trim().split(/\s+/)[0]
+}
+
 function teamLabel(regId: string, regs: Reg[]): string {
   const reg = regs.find(r => r.id === regId)
   if (!reg) return 'TBD'
-  return reg.team_name ?? reg.profiles?.name ?? 'Player'
+  if (reg.team_name) return reg.team_name
+  const p1 = reg.profiles?.name ?? null
+  const p2 = reg.partner_name ?? null
+  if (p1 && p2) return `${firstName(p1)}/${firstName(p2)}`
+  return firstName(p1) || 'Player'
 }
 
 function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
+  const active = regs.filter(r => r.status === 'registered')
+
+  // Doubles teams have two cross-linked registrations (one per player), but the
+  // bracket only references one of them per team. Without folding the pair into a
+  // single row, every team shows twice (with partner names reversed) and the
+  // phantom twin carries 0 stats. Build a canonical-ID map so both partners' reg
+  // IDs resolve to one standings row.
+  const canonicalId = new Map<string, string>()
+  const rowRegs: Reg[] = []
+  const seen = new Set<string>()
+  for (const r of active) {
+    if (seen.has(r.id)) continue
+    rowRegs.push(r)
+    seen.add(r.id)
+    canonicalId.set(r.id, r.id)
+    if (r.partner_registration_id) {
+      seen.add(r.partner_registration_id)
+      canonicalId.set(r.partner_registration_id, r.id)
+    }
+  }
+  const canon = (id: string) => canonicalId.get(id) ?? id
+
   const map = new Map<string, StandingRow>()
-  for (const r of regs) {
+  for (const r of rowRegs) {
     map.set(r.id, { regId: r.id, name: teamLabel(r.id, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
   }
   for (const m of matches) {
     if (m.status !== 'completed' || !m.team_1_registration_id || !m.team_2_registration_id) continue
-    const t1 = m.team_1_registration_id, t2 = m.team_2_registration_id
+    const t1 = canon(m.team_1_registration_id), t2 = canon(m.team_2_registration_id)
     const s1 = m.team_1_score ?? 0, s2 = m.team_2_score ?? 0
     if (!map.has(t1)) map.set(t1, { regId: t1, name: teamLabel(t1, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
     if (!map.has(t2)) map.set(t2, { regId: t2, name: teamLabel(t2, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
     const r1 = map.get(t1)!, r2 = map.get(t2)!
-    if (m.winner_registration_id === t1) { r1.wins++; r2.losses++ }
-    else if (m.winner_registration_id === t2) { r2.wins++; r1.losses++ }
+    const winner = m.winner_registration_id ? canon(m.winner_registration_id) : null
+    if (winner === t1) { r1.wins++; r2.losses++ }
+    else if (winner === t2) { r2.wins++; r1.losses++ }
     r1.pf += s1; r1.pa += s2
     r2.pf += s2; r2.pa += s1
   }
@@ -87,6 +122,13 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
           setMatches(prev => prev.filter(m => m.id !== deletedId))
         } else {
           const updated = payload.new as Match
+          // Unpublished draft matches must never surface on the live board. A
+          // publish flips is_draft → false and arrives as an UPDATE, which falls
+          // through and gets added.
+          if (updated.is_draft) {
+            setMatches(prev => prev.filter(m => m.id !== updated.id))
+            return
+          }
           setMatches(prev =>
             prev.some(m => m.id === updated.id)
               ? prev.map(m => m.id === updated.id ? updated : m)
@@ -98,9 +140,12 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
     return () => { supabase.removeChannel(channel) }
   }, [tournamentId])
 
-  const inProgress = matches.filter(m => m.status === 'in_progress')
-  const completed = matches.filter(m => m.status === 'completed')
-  const total = matches.length
+  // Exclude null-null phantom matches (structural BYE slots in double elimination)
+  // from the progress counter — they can never be played or scored.
+  const playable = matches.filter(m => m.team_1_registration_id != null || m.team_2_registration_id != null)
+  const inProgress = playable.filter(m => m.status === 'in_progress')
+  const completed = playable.filter(m => m.status === 'completed')
+  const total = playable.length
 
   // Only show the pulsing "Live" indicator when the tournament is actually under
   // way — otherwise a draft or upcoming event misleadingly reads as live.
@@ -168,7 +213,7 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
       )}
 
       {/* Standings per division */}
-      {initialDivisions.map(div => {
+      {[...initialDivisions].sort((a, b) => a.name.localeCompare(b.name)).map(div => {
         const divRegs = initialRegistrations.filter(r => r.division_id === div.id)
         const divMatches = matches.filter(m => m.division_id === div.id)
         const rows = computeStandings(divMatches, divRegs)
