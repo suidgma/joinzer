@@ -61,6 +61,33 @@ export function divisionCourtMinutes(matchCount: number, settings: ScheduleSetti
   return matchCount * (settings.match_duration_minutes + settings.buffer_minutes)
 }
 
+export type DivisionEstimate = {
+  teamCount: number
+  matches: number | null      // null = estimate unavailable
+  courtMinutes: number | null
+}
+
+/**
+ * Estimate a single division's match count and court-time. Rotating partner mode
+ * uses a different match formula than the static bracket types, so we mark it
+ * unavailable for the MVP rather than reporting a wrong number.
+ */
+export function estimateDivision(
+  bracketType: string,
+  partnerMode: string,
+  teamCount: number,
+  formatSettings: Record<string, unknown> | null | undefined,
+  settings: ScheduleSettings,
+): DivisionEstimate {
+  if (partnerMode === 'rotating') return { teamCount, matches: null, courtMinutes: null }
+  const matches = estimateMatchCount(bracketType, teamCount, formatSettings)
+  return {
+    teamCount,
+    matches,
+    courtMinutes: matches == null ? null : divisionCourtMinutes(matches, settings),
+  }
+}
+
 export type BlockCapacity = {
   courtCount: number
   durationMinutes: number    // raw window length

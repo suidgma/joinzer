@@ -8,9 +8,10 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { canManage } from '@/lib/tournament/access'
+import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 import { DEFAULT_SCHEDULE_SETTINGS, type ScheduleSettings, type ScheduleBlock } from '@/lib/types'
 import ScheduleBuilderView from '@/components/features/tournaments/schedule/ScheduleBuilderView'
-import type { BuilderDay, BuilderLocation, BuilderDivision } from '@/components/features/tournaments/schedule/types'
+import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink } from '@/components/features/tournaments/schedule/types'
 
 export default async function ScheduleBuilderPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
@@ -24,13 +25,19 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const [{ data: tournament }, { data: divisionsRaw }, { data: blocksRaw }] = await Promise.all([
+  const [
+    { data: tournament },
+    { data: divisionsRaw },
+    { data: blocksRaw },
+    { data: regsRaw },
+    { data: assignmentsRaw },
+  ] = await Promise.all([
     db.from('tournaments')
       .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json')
       .eq('id', id)
       .single(),
     db.from('tournament_divisions')
-      .select('id, name, category, team_type, format, bracket_type, format_settings_json, skill_min, skill_max, min_age, max_age, location_id')
+      .select('id, name, category, team_type, format, bracket_type, partner_mode, format_settings_json, skill_min, skill_max, min_age, max_age, location_id')
       .eq('tournament_id', id)
       .order('created_at', { ascending: true }),
     db.from('tournament_schedule_blocks')
@@ -38,6 +45,14 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
       .eq('tournament_id', id)
       .order('block_date', { ascending: true })
       .order('start_time', { ascending: true }),
+    db.from('tournament_registrations')
+      .select('id, division_id, user_id, partner_registration_id, status, payment_status')
+      .eq('tournament_id', id)
+      .eq('status', 'registered')
+      .in('payment_status', ['paid', 'waived', 'comped']),
+    db.from('tournament_division_blocks')
+      .select('division_id, block_id')
+      .eq('tournament_id', id),
   ])
 
   if (!tournament) notFound()
@@ -68,12 +83,41 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     team_type: d.team_type ?? null,
     format: d.format ?? null,
     bracket_type: d.bracket_type,
+    partner_mode: d.partner_mode ?? 'fixed',
     format_settings_json: d.format_settings_json ?? null,
     skill_min: d.skill_min ?? null,
     skill_max: d.skill_max ?? null,
     min_age: d.min_age ?? null,
     max_age: d.max_age ?? null,
     location_id: d.location_id ?? null,
+  }))
+
+  // Per-division settled registration stats: team count (doubles pairs folded to
+  // one) for match estimates, and the set of player user ids for conflict checks.
+  const regsByDivision = new Map<string, { id: string; user_id: string; partner_registration_id: string | null }[]>()
+  for (const r of (regsRaw ?? []) as any[]) {
+    if (!regsByDivision.has(r.division_id)) regsByDivision.set(r.division_id, [])
+    regsByDivision.get(r.division_id)!.push(r)
+  }
+  const divisionStats: Record<string, DivisionStats> = {}
+  for (const d of divisions) {
+    const regs = regsByDivision.get(d.id) ?? []
+    divisionStats[d.id] = {
+      teamCount: dedupeRegistrationsToTeams(regs).length,
+      playerIds: Array.from(new Set(regs.map(r => r.user_id))),
+    }
+  }
+
+  // Names for conflict detail rows.
+  const allPlayerIds = Array.from(new Set((regsRaw ?? []).map((r: any) => r.user_id)))
+  const { data: profilesRaw } = allPlayerIds.length > 0
+    ? await db.from('profiles').select('id, name').in('id', allPlayerIds)
+    : { data: [] }
+  const playerNames: Record<string, string> = {}
+  for (const p of (profilesRaw ?? []) as any[]) playerNames[p.id] = p.name
+
+  const assignments: DivisionBlockLink[] = (assignmentsRaw ?? []).map((a: any) => ({
+    division_id: a.division_id, block_id: a.block_id,
   }))
 
   const settings: ScheduleSettings = { ...DEFAULT_SCHEDULE_SETTINGS, ...(t.schedule_settings_json ?? {}) }
@@ -101,7 +145,10 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
           days={days}
           locations={locations}
           divisions={divisions}
+          divisionStats={divisionStats}
+          playerNames={playerNames}
           initialBlocks={blocks}
+          initialAssignments={assignments}
           initialSettings={settings}
         />
       </div>

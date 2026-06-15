@@ -19,6 +19,7 @@ export type BuilderDivision = {
   team_type: string | null
   format: string | null
   bracket_type: string
+  partner_mode: string
   format_settings_json: Record<string, unknown> | null
   skill_min: number | null
   skill_max: number | null
@@ -26,3 +27,11 @@ export type BuilderDivision = {
   max_age: number | null
   location_id: string | null
 }
+
+// Derived per-division registration data used for estimates + conflict detection.
+export type DivisionStats = {
+  teamCount: number     // settled teams (doubles pairs folded to one)
+  playerIds: string[]   // unique user ids registered (both partners count)
+}
+
+export type DivisionBlockLink = { division_id: string; block_id: string }
