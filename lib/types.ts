@@ -53,6 +53,56 @@ export type TournamentDay = {
   end_time: string
 }
 
+// ── Advanced Schedule Builder ──────────────────────────────────────────────────
+
+export type ConflictPolicy = 'warning' | 'error'
+
+export type ScheduleSettings = {
+  match_duration_minutes: number
+  buffer_minutes: number
+  min_rest_minutes: number
+  conflict_policy: ConflictPolicy
+  keep_divisions_grouped: boolean
+  allow_division_overlap: boolean
+  leave_end_buffer: boolean
+  end_buffer_minutes: number
+}
+
+export const DEFAULT_SCHEDULE_SETTINGS: ScheduleSettings = {
+  match_duration_minutes: 25,
+  buffer_minutes: 5,
+  min_rest_minutes: 10,
+  conflict_policy: 'warning',
+  keep_divisions_grouped: true,
+  allow_division_overlap: true,
+  leave_end_buffer: false,
+  end_buffer_minutes: 0,
+}
+
+export type ScheduleBlock = {
+  id: string
+  tournament_id: string
+  name: string
+  block_date: string          // 'YYYY-MM-DD'
+  start_time: string          // 'HH:MM' / 'HH:MM:SS'
+  end_time: string
+  location_id: string | null
+  court_numbers: number[]
+  notes: string | null
+  priority: number
+  max_divisions: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type DivisionBlockAssignment = {
+  id: string
+  tournament_id: string
+  division_id: string
+  block_id: string
+  created_at: string
+}
+
 export type TournamentDetail = {
   id: string
   name: string
