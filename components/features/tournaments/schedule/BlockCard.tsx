@@ -1,7 +1,7 @@
 'use client'
 import { Pencil, Copy, Trash2, MapPin, Clock, X, AlertTriangle } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
-import { blockCapacity } from '@/lib/tournament/scheduleEstimates'
+import { blockCapacity, estimateBlockFinishMinutes, minutesToLabel, timeToMinutes } from '@/lib/tournament/scheduleEstimates'
 
 export type AssignedDivision = { id: string; name: string; matches: number | null }
 
@@ -42,6 +42,12 @@ export default function BlockCard({
   const loadColor = assigned.length === 0
     ? 'text-brand-muted'
     : over ? 'text-amber-600' : 'text-brand-active'
+
+  const finishMin = assigned.length > 0 && !noCourts
+    ? estimateBlockFinishMinutes(block.court_numbers.length, block.start_time, assignedMatches, settings)
+    : null
+  const endMin = timeToMinutes(block.end_time)
+  const finishLate = finishMin != null && finishMin > endMin
 
   return (
     <div
@@ -97,12 +103,22 @@ export default function BlockCard({
       </div>
 
       {/* Load vs capacity */}
-      <div className="border-t border-brand-border pt-2.5 flex items-center justify-between text-[11px]">
-        <span className="text-brand-muted">Load / capacity</span>
-        <span className={`font-bold tabular-nums ${loadColor}`}>
-          {assignedMatches}{hasUnknown ? '+' : ''} / ~{cap.matchCapacity} matches
-          {over && <span className="ml-1 font-semibold">· over by ~{assignedMatches - cap.matchCapacity}</span>}
-        </span>
+      <div className="border-t border-brand-border pt-2.5 space-y-1">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-brand-muted">Load / capacity</span>
+          <span className={`font-bold tabular-nums ${loadColor}`}>
+            {assignedMatches}{hasUnknown ? '+' : ''} / ~{cap.matchCapacity} matches
+            {over && <span className="ml-1 font-semibold">· over by ~{assignedMatches - cap.matchCapacity}</span>}
+          </span>
+        </div>
+        {finishMin != null && (
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-brand-muted">Est. finish</span>
+            <span className={`font-semibold tabular-nums ${finishLate ? 'text-amber-600' : 'text-brand-muted'}`}>
+              ~{minutesToLabel(finishMin)}{hasUnknown ? '+' : ''}{finishLate ? ` · past ${minutesToLabel(endMin)}` : ''}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
