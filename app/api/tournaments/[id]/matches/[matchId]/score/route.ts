@@ -57,6 +57,17 @@ export async function POST(
     ? match.team_1_registration_id
     : match.team_2_registration_id
 
+  // Idempotency guard: identical re-submit (double-click, retry, two devices) —
+  // return without re-advancing or re-notifying.
+  if (
+    match.status === 'completed' &&
+    match.winner_registration_id === winner_registration_id &&
+    match.team_1_score === team_1_score &&
+    match.team_2_score === team_2_score
+  ) {
+    return NextResponse.json({ match })
+  }
+
   const { data: updated, error } = await service
     .from('tournament_matches')
     .update({ team_1_score, team_2_score, winner_registration_id, status: 'completed' })
@@ -129,10 +140,13 @@ export async function POST(
     const completedMatch: MatchRow = { ...match, winner_registration_id, status: 'completed' }
     const advancement = computeAdvancement(completedMatch, divisionMatches as MatchRow[])
     if (advancement) {
+      // Only fill the slot if still empty — guards against a concurrent write
+      // or re-score double-filling the next-round slot.
       await service
         .from('tournament_matches')
         .update({ [advancement.field]: advancement.value })
         .eq('id', advancement.matchId)
+        .is(advancement.field, null)
     }
   }
 

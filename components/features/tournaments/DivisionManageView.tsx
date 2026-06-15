@@ -172,14 +172,26 @@ export default function DivisionManageView({
 
   const summaryLines = formatSummaryLines(division.bracket_type as any, division.format_settings_json as any)
 
-  async function handleGenerateMatches(durationMinutes: number) {
+  async function handleGenerateMatches(durationMinutes: number, confirmDiscard = false) {
     const res = await fetch(
       `/api/tournaments/${tournamentId}/divisions/${division.id}/generate-matches`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force: hasMatches }) }
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: hasMatches, confirmDiscardScores: confirmDiscard }),
+      }
     )
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
-      throw new Error(d.error ?? 'Failed to generate matches')
+      // Re-generating over a bracket that already has scored matches needs explicit
+      // confirmation — the server blocks it until confirmDiscardScores is set.
+      if (d.error === 'has_completed_matches' && !confirmDiscard) {
+        if (typeof window !== 'undefined' && window.confirm(`${d.message}\n\nDelete them and re-generate?`)) {
+          return handleGenerateMatches(durationMinutes, true)
+        }
+        return
+      }
+      throw new Error(d.message ?? d.error ?? 'Failed to generate matches')
     }
     const { matches: newMatches } = await res.json()
 

@@ -23,6 +23,8 @@ export async function POST(
 
   const body = await req.json().catch(() => ({}))
   const force = body.force === true
+  // Extra confirmation required to wipe a division that already has scored matches.
+  const confirmDiscardScores = body.confirmDiscardScores === true
 
   const service = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,6 +49,20 @@ export async function POST(
   if (existing && existing > 0) {
     if (!force) {
       return NextResponse.json({ error: 'Matches already generated for this division' }, { status: 409 })
+    }
+    // Don't silently destroy entered results. If any match has been completed,
+    // require an explicit confirmDiscardScores flag before deleting.
+    const { count: completedCount } = await service
+      .from('tournament_matches')
+      .select('id', { count: 'exact', head: true })
+      .eq('division_id', params.divisionId)
+      .eq('status', 'completed')
+    if (completedCount && completedCount > 0 && !confirmDiscardScores) {
+      return NextResponse.json({
+        error: 'has_completed_matches',
+        message: `This division has ${completedCount} completed match${completedCount === 1 ? '' : 'es'} with entered scores. Re-generating will permanently delete those results.`,
+        completedCount,
+      }, { status: 409 })
     }
     const { error: deleteError } = await service
       .from('tournament_matches')
