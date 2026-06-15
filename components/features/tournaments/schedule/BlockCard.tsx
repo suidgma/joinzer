@@ -59,7 +59,14 @@ export default function BlockCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-brand-dark truncate">{block.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold text-brand-dark truncate">{block.name}</p>
+            {block.priority > 0 && (
+              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-brand-active bg-brand-soft rounded px-1.5 py-0.5">
+                P{block.priority}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-brand-muted mt-0.5">{fmtDate(block.block_date)}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -78,6 +85,12 @@ export default function BlockCard({
       {noCourts && (
         <p className="flex items-center gap-1 text-[11px] text-amber-600 font-medium">
           <AlertTriangle size={11} /> No courts selected
+        </p>
+      )}
+
+      {block.max_divisions != null && (
+        <p className={`text-[10px] font-medium ${assigned.length > block.max_divisions ? 'text-amber-600' : 'text-brand-muted'}`}>
+          {assigned.length} / {block.max_divisions} divisions
         </p>
       )}
 

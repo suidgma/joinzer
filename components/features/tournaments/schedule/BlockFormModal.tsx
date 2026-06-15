@@ -37,6 +37,10 @@ export default function BlockFormModal({
     block?.court_numbers ?? Array.from({ length: initialCourtCount }, (_, i) => i + 1)
   )
   const [notes, setNotes] = useState(block?.notes ?? '')
+  const [priority, setPriority] = useState<number>(block?.priority ?? 0)
+  const [maxDivisions, setMaxDivisions] = useState<string>(
+    block?.max_divisions != null ? String(block.max_divisions) : ''
+  )
   const [saving, setSaving] = useState(false)
 
   const selectedLocation = locations.find(l => l.id === locationId)
@@ -80,6 +84,8 @@ export default function BlockFormModal({
         location_id: locationId,
         court_numbers: courts,
         notes: notes.trim() || null,
+        priority,
+        max_divisions: maxDivisions.trim() === '' ? null : Math.max(1, Number(maxDivisions) || 1),
       }
       const url = mode === 'create'
         ? `/api/tournaments/${tournamentId}/schedule-blocks`
@@ -180,6 +186,27 @@ export default function BlockFormModal({
         <div>
           <label className="block text-xs font-medium text-brand-muted mb-1">Notes (optional)</label>
           <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Championship court" className="w-full input" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Priority</label>
+            <input
+              type="number" min={0} value={priority}
+              onChange={e => setPriority(Math.max(0, Number(e.target.value) || 0))}
+              className="w-full input"
+            />
+            <p className="text-[10px] text-brand-muted mt-1">Higher shows first.</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Max divisions (optional)</label>
+            <input
+              type="number" min={1} value={maxDivisions} placeholder="No limit"
+              onChange={e => setMaxDivisions(e.target.value)}
+              className="w-full input"
+            />
+            <p className="text-[10px] text-brand-muted mt-1">Warn if exceeded.</p>
+          </div>
         </div>
 
         {cap && (

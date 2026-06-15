@@ -118,6 +118,12 @@ export default function ScheduleBuilderView({
       if (needCourts > b.court_numbers.length) bits.push(`needs ~${needCourts} courts (has ${b.court_numbers.length})`)
       warnings.push({ level: 'amber', text: `“${b.name}” — ${bits.join('; ')}.` })
     }
+    if (b.max_divisions != null && divs.length > b.max_divisions) {
+      warnings.push({ level: 'amber', text: `“${b.name}” has ${divs.length} divisions but its max is ${b.max_divisions}.` })
+    }
+    if (!settings.allow_court_sharing && divs.length > b.court_numbers.length) {
+      warnings.push({ level: 'amber', text: `“${b.name}” has ${divs.length} divisions but only ${b.court_numbers.length} court${b.court_numbers.length === 1 ? '' : 's'} — with court-sharing off, some divisions will share a court.` })
+    }
   }
   for (const d of unassigned) {
     const stats = divisionStats[d.id]
@@ -305,7 +311,13 @@ export default function ScheduleBuilderView({
     if (!byDate.has(b.block_date)) byDate.set(b.block_date, [])
     byDate.get(b.block_date)!.push(b)
   }
-  const dateGroups = Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b))
+  // Group by date; within a date, higher-priority blocks first, then by start time.
+  const dateGroups = Array.from(byDate.entries())
+    .map(([date, group]) => [
+      date,
+      [...group].sort((x, y) => (y.priority - x.priority) || x.start_time.localeCompare(y.start_time)),
+    ] as [string, ScheduleBlock[]])
+    .sort(([a], [b]) => a.localeCompare(b))
 
   return (
     <div className="space-y-5">
@@ -363,7 +375,11 @@ export default function ScheduleBuilderView({
                     <div className="mt-1 space-y-1">
                       {conflicts.map((c, i) => (
                         <div key={i} className="text-[11px] text-amber-800">
-                          <span className="font-medium">{divisionById.get(c.divisionAId)?.name} ↔ {divisionById.get(c.divisionBId)?.name}:</span>{' '}
+                          <span className="font-medium">
+                            {divisionById.get(c.divisionAId)?.name} ({blockById.get(c.blockAId)?.name ?? 'block'})
+                            {' ↔ '}
+                            {divisionById.get(c.divisionBId)?.name} ({blockById.get(c.blockBId)?.name ?? 'block'}):
+                          </span>{' '}
                           {c.sharedPlayerIds.map(pid => playerNames[pid] ?? 'Unknown').join(', ')}
                         </div>
                       ))}

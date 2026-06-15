@@ -146,6 +146,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       blockRows,
       settings,
       settings.keep_divisions_grouped,
+      settings.allow_court_sharing,
     )
     overflowTotal += overflowCount
     allRows.push(...blockRows)
