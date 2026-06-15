@@ -116,12 +116,16 @@ async function cascadeWinner(
     const advancement = computeAdvancement(currentCompleted, allDivMatches)
     if (!advancement) break
 
+    // Guard: only fill the slot if it's still empty. If a concurrent write
+    // (or a re-score) already filled it, this matches 0 rows and returns null,
+    // so we stop rather than double-advancing.
     const { data: nextMatch } = await service
       .from('tournament_matches')
       .update({ [advancement.field]: advancement.value })
       .eq('id', advancement.matchId)
+      .is(advancement.field, null)
       .select(MATCH_SELECT)
-      .single()
+      .maybeSingle()
 
     if (!nextMatch) break
 
@@ -326,6 +330,18 @@ export async function PATCH(
     ? match.team_1_registration_id
     : match.team_2_registration_id
 
+  // Idempotency guard: if this exact result was already recorded (double-click,
+  // retry, or two devices submitting the same score), return without re-running
+  // the advancement cascade. Re-cascading could double-fill downstream slots.
+  if (
+    match.status === 'completed' &&
+    match.winner_registration_id === winner_registration_id &&
+    match.team_1_score === team_1_score &&
+    match.team_2_score === team_2_score
+  ) {
+    return NextResponse.json({ match, advancedMatches: [] })
+  }
+
   const { data: updated, error } = await service
     .from('tournament_matches')
     .update({ team_1_score, team_2_score, winner_registration_id, status: 'completed' })
@@ -389,8 +405,9 @@ export async function PATCH(
           .from('tournament_matches')
           .update({ [lbDrop.field]: lbDrop.value })
           .eq('id', lbDrop.matchId)
+          .is(lbDrop.field, null)
           .select(MATCH_SELECT)
-          .single()
+          .maybeSingle()
 
         if (lbMatch) {
           advancedMatches.push(lbMatch)
@@ -435,8 +452,9 @@ export async function PATCH(
             .from('tournament_matches')
             .update({ [champAdv.field]: champAdv.value })
             .eq('id', champAdv.matchId)
+            .is(champAdv.field, null)
             .select(MATCH_SELECT)
-            .single()
+            .maybeSingle()
           if (champMatch) advancedMatches.push(champMatch)
         }
       }
