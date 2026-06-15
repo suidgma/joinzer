@@ -1,14 +1,15 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown } from 'lucide-react'
+import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown, Wand2, Send, RefreshCw, Trash2 } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
-import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink } from './types'
+import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink, DraftMatch } from './types'
 import { estimateDivision, blockCapacity, type DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
 import { detectPlayerConflicts } from '@/lib/tournament/scheduleConflicts'
 import SettingsPanel from './SettingsPanel'
 import BlockCard from './BlockCard'
 import BlockFormModal from './BlockFormModal'
 import DivisionCard from './DivisionCard'
+import SchedulePreview from './SchedulePreview'
 
 type Props = {
   tournamentId: string
@@ -18,24 +19,28 @@ type Props = {
   divisions: BuilderDivision[]
   divisionStats: Record<string, DivisionStats>
   playerNames: Record<string, string>
+  teamLabels: Record<string, string>
   initialBlocks: ScheduleBlock[]
   initialAssignments: DivisionBlockLink[]
   initialSettings: ScheduleSettings
+  initialDraftMatches: DraftMatch[]
 }
 
 type ModalState = { mode: 'create' } | { mode: 'edit'; block: ScheduleBlock } | null
 
 export default function ScheduleBuilderView({
-  tournamentId, primaryLocationId, days, locations, divisions, divisionStats, playerNames,
-  initialBlocks, initialAssignments, initialSettings,
+  tournamentId, primaryLocationId, days, locations, divisions, divisionStats, playerNames, teamLabels,
+  initialBlocks, initialAssignments, initialSettings, initialDraftMatches,
 }: Props) {
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(initialBlocks)
   const [settings, setSettings] = useState<ScheduleSettings>(initialSettings)
   const [assignments, setAssignments] = useState<DivisionBlockLink[]>(initialAssignments)
+  const [draftMatches, setDraftMatches] = useState<DraftMatch[]>(initialDraftMatches)
   const [modal, setModal] = useState<ModalState>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [showConflicts, setShowConflicts] = useState(false)
+  const [busy, setBusy] = useState<null | 'generate' | 'publish' | 'discard'>(null)
 
   function flash(msg: string) {
     setToast(msg)
@@ -180,6 +185,68 @@ export default function ScheduleBuilderView({
       flash('Block deleted')
     } catch { flash('Network error') }
   }
+
+  async function generate(force = false) {
+    setBusy('generate')
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }),
+      })
+      const json = await res.json()
+      if (res.status === 409 && json.error === 'existing_matches') {
+        const parts = []
+        if (json.publishedCount) parts.push(`${json.publishedCount} published`)
+        if (json.draftCount) parts.push(`${json.draftCount} draft`)
+        if (window.confirm(`This will replace existing matches (${parts.join(', ')}) for the assigned divisions. Continue?`)) {
+          await generate(true)
+        }
+        return
+      }
+      if (!res.ok) { flash(json.error ?? 'Failed to generate'); return }
+      setDraftMatches(json.matches as DraftMatch[])
+      const skip = (json.skipped ?? []).length
+      flash(`Draft generated — ${json.generated} matches${skip ? `, ${skip} division${skip === 1 ? '' : 's'} skipped` : ''}`)
+    } catch {
+      flash('Network error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function publish() {
+    if (!window.confirm('Publish this schedule? Matches become visible to players on the live board, standings, and schedule.')) return
+    setBusy('publish')
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/schedule-publish`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) { flash(json.error ?? 'Failed to publish'); return }
+      setDraftMatches([])
+      flash(`Published — ${json.published} matches are now live`)
+    } catch {
+      flash('Network error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function discard() {
+    if (!window.confirm('Discard the draft schedule? This deletes the generated draft matches.')) return
+    setBusy('discard')
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) { flash(json.error ?? 'Failed to discard'); return }
+      setDraftMatches([])
+      flash('Draft discarded')
+    } catch {
+      flash('Network error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const hasDraft = draftMatches.length > 0
+  const canGenerate = blocks.length > 0 && assignments.length > 0
 
   const byDate = new Map<string, ScheduleBlock[]>()
   for (const b of blocks) {
@@ -334,6 +401,63 @@ export default function ScheduleBuilderView({
           )}
         </section>
       </div>
+
+      {/* Draft schedule: generate → preview → publish */}
+      <section className="space-y-3 border-t border-brand-border pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">Draft Schedule</h2>
+          <div className="flex items-center gap-2">
+            {hasDraft ? (
+              <>
+                <button
+                  onClick={() => generate(false)}
+                  disabled={busy !== null}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-brand-border text-brand-muted hover:bg-brand-soft disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw size={13} /> Regenerate
+                </button>
+                <button
+                  onClick={discard}
+                  disabled={busy !== null}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-brand-border text-brand-muted hover:text-red-600 disabled:opacity-50 transition-colors"
+                >
+                  <Trash2 size={13} /> Discard
+                </button>
+                <button
+                  onClick={publish}
+                  disabled={busy !== null}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-brand text-brand-dark hover:bg-brand-hover disabled:opacity-50 transition-colors"
+                >
+                  <Send size={13} /> {busy === 'publish' ? 'Publishing…' : 'Publish schedule'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => generate(false)}
+                disabled={!canGenerate || busy !== null}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-brand text-brand-dark hover:bg-brand-hover disabled:opacity-50 transition-colors"
+              >
+                <Wand2 size={13} /> {busy === 'generate' ? 'Generating…' : 'Generate draft schedule'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {hasDraft ? (
+          <>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-[11px] text-amber-800 font-medium">
+              Draft only — these {draftMatches.length} matches are hidden from players until you publish.
+            </div>
+            <SchedulePreview draftMatches={draftMatches} blocks={blocks} divisions={divisions} teamLabels={teamLabels} />
+          </>
+        ) : (
+          <p className="text-xs text-brand-muted">
+            {canGenerate
+              ? 'Generating lays out every assigned division’s matches across its block’s courts and time window. You can preview and publish, or regenerate.'
+              : 'Add blocks and assign divisions to them, then generate a draft schedule here.'}
+          </p>
+        )}
+      </section>
 
       {modal && (
         <BlockFormModal

@@ -34,7 +34,7 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
       'id, division_id, round_number, match_number, match_stage, pool_number, ' +
       'court_number, scheduled_time, team_1_registration_id, team_2_registration_id, ' +
       'team_1_score, team_2_score, winner_registration_id, status'
-    ).eq('tournament_id', tournamentId).order('match_number', { ascending: true }),
+    ).eq('tournament_id', tournamentId).eq('is_draft', false).order('match_number', { ascending: true }),
     user
       ? db.from('tournament_staff').select('role').eq('tournament_id', tournamentId).eq('user_id', user.id).maybeSingle()
       : Promise.resolve({ data: null }),

@@ -19,7 +19,7 @@ export default async function PublicLiveScoreboardPage(
     await Promise.all([
       db.from('tournaments').select('id, name, start_date, status').eq('id', params.id).single(),
       db.from('tournament_divisions').select('id, name').eq('tournament_id', params.id).eq('status', 'active'),
-      db.from('tournament_matches').select('*').eq('tournament_id', params.id),
+      db.from('tournament_matches').select('*').eq('tournament_id', params.id).eq('is_draft', false),
       db.from('tournament_registrations')
         .select('id, user_id, division_id, team_name, status, partner_user_id, partner_registration_id')
         .eq('tournament_id', params.id)

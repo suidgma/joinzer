@@ -82,6 +82,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         team_1_score, team_2_score, winner_registration_id, status
       `)
       .eq('tournament_id', params.id)
+      .eq('is_draft', false)
       .order('match_number', { ascending: true }),
     db
       .from('tournament_messages')

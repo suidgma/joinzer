@@ -39,6 +39,7 @@ export default async function DivisionManagePage(
     db.from('tournament_matches')
       .select('id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status')
       .eq('division_id', params.divisionId)
+      .eq('is_draft', false)
       .order('match_number', { ascending: true }),
     user
       ? db.from('tournament_staff').select('role').eq('tournament_id', params.id).eq('user_id', user.id).maybeSingle()

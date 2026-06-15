@@ -16,6 +16,7 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  is_draft?: boolean
 }
 type Reg = {
   id: string
@@ -121,6 +122,13 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
           setMatches(prev => prev.filter(m => m.id !== deletedId))
         } else {
           const updated = payload.new as Match
+          // Unpublished draft matches must never surface on the live board. A
+          // publish flips is_draft → false and arrives as an UPDATE, which falls
+          // through and gets added.
+          if (updated.is_draft) {
+            setMatches(prev => prev.filter(m => m.id !== updated.id))
+            return
+          }
           setMatches(prev =>
             prev.some(m => m.id === updated.id)
               ? prev.map(m => m.id === updated.id ? updated : m)

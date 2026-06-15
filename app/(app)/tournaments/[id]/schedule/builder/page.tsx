@@ -11,7 +11,7 @@ import { canManage } from '@/lib/tournament/access'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 import { DEFAULT_SCHEDULE_SETTINGS, type ScheduleSettings, type ScheduleBlock } from '@/lib/types'
 import ScheduleBuilderView from '@/components/features/tournaments/schedule/ScheduleBuilderView'
-import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink } from '@/components/features/tournaments/schedule/types'
+import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink, DraftMatch } from '@/components/features/tournaments/schedule/types'
 
 export default async function ScheduleBuilderPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
@@ -31,6 +31,7 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     { data: blocksRaw },
     { data: regsRaw },
     { data: assignmentsRaw },
+    { data: draftRaw },
   ] = await Promise.all([
     db.from('tournaments')
       .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json')
@@ -53,6 +54,11 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     db.from('tournament_division_blocks')
       .select('division_id, block_id')
       .eq('tournament_id', id),
+    db.from('tournament_matches')
+      .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, status')
+      .eq('tournament_id', id)
+      .eq('is_draft', true)
+      .order('scheduled_time', { ascending: true }),
   ])
 
   if (!tournament) notFound()
@@ -116,9 +122,22 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
   const playerNames: Record<string, string> = {}
   for (const p of (profilesRaw ?? []) as any[]) playerNames[p.id] = p.name
 
+  // Team labels (registration id → "Alex/Blake") for the draft preview.
+  const regById = new Map((regsRaw ?? []).map((r: any) => [r.id, r]))
+  const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
+  const teamLabels: Record<string, string> = {}
+  for (const r of (regsRaw ?? []) as any[]) {
+    const p1 = playerNames[r.user_id]
+    const partner = r.partner_registration_id ? regById.get(r.partner_registration_id) : null
+    const p2 = partner ? playerNames[(partner as any).user_id] : null
+    teamLabels[r.id] = p1 ? (p2 ? `${firstName(p1)}/${firstName(p2)}` : firstName(p1)) : 'Player'
+  }
+
   const assignments: DivisionBlockLink[] = (assignmentsRaw ?? []).map((a: any) => ({
     division_id: a.division_id, block_id: a.block_id,
   }))
+
+  const draftMatches = (draftRaw ?? []) as DraftMatch[]
 
   const settings: ScheduleSettings = { ...DEFAULT_SCHEDULE_SETTINGS, ...(t.schedule_settings_json ?? {}) }
   const blocks = (blocksRaw ?? []) as ScheduleBlock[]
@@ -147,9 +166,11 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
           divisions={divisions}
           divisionStats={divisionStats}
           playerNames={playerNames}
+          teamLabels={teamLabels}
           initialBlocks={blocks}
           initialAssignments={assignments}
           initialSettings={settings}
+          initialDraftMatches={draftMatches}
         />
       </div>
     </DesktopShell>
