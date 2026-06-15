@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown, Wand2, Send, RefreshCw, Trash2 } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink, DraftMatch } from './types'
-import { estimateDivision, blockCapacity, type DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
+import { estimateDivision, blockCapacity, estimateBlockFinishMinutes, recommendedCourts, minutesToLabel, timeToMinutes, type DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
 import { detectPlayerConflicts, blocksOverlap } from '@/lib/tournament/scheduleConflicts'
 import SettingsPanel from './SettingsPanel'
 import BlockCard from './BlockCard'
@@ -13,6 +13,7 @@ import SchedulePreview from './SchedulePreview'
 
 type Props = {
   tournamentId: string
+  registrationOpen: boolean
   primaryLocationId: string | null
   days: BuilderDay[]
   locations: BuilderLocation[]
@@ -29,7 +30,7 @@ type Props = {
 type ModalState = { mode: 'create' } | { mode: 'edit'; block: ScheduleBlock } | null
 
 export default function ScheduleBuilderView({
-  tournamentId, primaryLocationId, days, locations, divisions, divisionStats, playerNames, teamLabels,
+  tournamentId, registrationOpen, primaryLocationId, days, locations, divisions, divisionStats, playerNames, teamLabels,
   initialBlocks, initialAssignments, initialSettings, initialDraftMatches,
 }: Props) {
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(initialBlocks)
@@ -102,12 +103,20 @@ export default function ScheduleBuilderView({
   const warnings: { level: 'red' | 'amber'; text: string }[] = []
   for (const b of blocks) {
     const divs = assignedByBlock.get(b.id) ?? []
-    if (b.court_numbers.length === 0 && divs.length > 0) {
+    if (divs.length === 0) continue
+    if (b.court_numbers.length === 0) {
       warnings.push({ level: 'red', text: `“${b.name}” has divisions assigned but no courts selected.` })
+      continue
     }
     const load = blockLoad(b)
     if (load.over) {
-      warnings.push({ level: 'amber', text: `“${b.name}” is over capacity by ~${load.matches - load.capacity} matches.` })
+      const finish = estimateBlockFinishMinutes(b.court_numbers.length, b.start_time, load.matches, settings)
+      const endMin = timeToMinutes(b.end_time)
+      const needCourts = recommendedCourts(load.matches, b.start_time, b.end_time, settings)
+      const bits = [`over capacity by ~${load.matches - load.capacity} matches`]
+      if (finish != null && finish > endMin) bits.push(`est. finish ~${minutesToLabel(finish)} runs past the ${minutesToLabel(endMin)} end`)
+      if (needCourts > b.court_numbers.length) bits.push(`needs ~${needCourts} courts (has ${b.court_numbers.length})`)
+      warnings.push({ level: 'amber', text: `“${b.name}” — ${bits.join('; ')}.` })
     }
   }
   for (const d of unassigned) {
@@ -311,6 +320,13 @@ export default function ScheduleBuilderView({
         </p>
       </div>
 
+      {registrationOpen && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 font-medium flex items-start gap-2">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <span>Registration is still open — division sizes may still change. Schedules you generate now can go stale; finalize registration before you publish.</span>
+        </div>
+      )}
+
       <SettingsPanel
         tournamentId={tournamentId}
         settings={settings}
@@ -496,7 +512,7 @@ export default function ScheduleBuilderView({
                 ⚠️ {lastOverflow} match{lastOverflow === 1 ? '' : 'es'} are scheduled past their block’s end time. Widen the block, add courts, or shorten match duration, then regenerate.
               </div>
             )}
-            <SchedulePreview draftMatches={draftMatches} blocks={blocks} divisions={divisions} teamLabels={teamLabels} />
+            <SchedulePreview draftMatches={draftMatches} blocks={blocks} divisions={divisions} teamLabels={teamLabels} matchDurationMinutes={settings.match_duration_minutes} />
           </>
         ) : (
           <p className="text-xs text-brand-muted">

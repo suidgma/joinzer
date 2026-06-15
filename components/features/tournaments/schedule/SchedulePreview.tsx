@@ -10,13 +10,21 @@ type Props = {
   blocks: ScheduleBlock[]
   divisions: BuilderDivision[]
   teamLabels: Record<string, string>
+  matchDurationMinutes: number
 }
 
-function fmtTime(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString('en-US', {
+function fmtClock(d: Date): string {
+  return d.toLocaleTimeString('en-US', {
     hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles',
   })
+}
+
+/** "1:00 – 1:25 PM" — start to estimated end (start + match duration). */
+function fmtRange(iso: string | null, durationMin: number): string {
+  if (!iso) return '—'
+  const start = new Date(iso)
+  const end = new Date(start.getTime() + durationMin * 60000)
+  return `${fmtClock(start)} – ${fmtClock(end)}`
 }
 
 function fmtDate(iso: string | null): string {
@@ -26,7 +34,7 @@ function fmtDate(iso: string | null): string {
   })
 }
 
-export default function SchedulePreview({ draftMatches, blocks, divisions, teamLabels }: Props) {
+export default function SchedulePreview({ draftMatches, blocks, divisions, teamLabels, matchDurationMinutes }: Props) {
   const [view, setView] = useState<View>('time')
 
   const divisionName = (id: string) => divisions.find(d => d.id === id)?.name ?? 'Division'
@@ -37,7 +45,7 @@ export default function SchedulePreview({ draftMatches, blocks, divisions, teamL
   function MatchRow({ m, show }: { m: DraftMatch; show: ('time' | 'court' | 'division')[] }) {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        {show.includes('time') && <span className="w-16 shrink-0 text-brand-muted tabular-nums">{fmtTime(m.scheduled_time)}</span>}
+        {show.includes('time') && <span className="w-28 shrink-0 text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, matchDurationMinutes)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {label(m.team_1_registration_id)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id)}

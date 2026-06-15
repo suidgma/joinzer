@@ -34,7 +34,7 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     { data: draftRaw },
   ] = await Promise.all([
     db.from('tournaments')
-      .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json')
+      .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json, registration_closes_at')
       .eq('id', id)
       .single(),
     db.from('tournament_divisions')
@@ -142,6 +142,10 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
   const settings: ScheduleSettings = { ...DEFAULT_SCHEDULE_SETTINGS, ...(t.schedule_settings_json ?? {}) }
   const blocks = (blocksRaw ?? []) as ScheduleBlock[]
 
+  // Registration is "open" if there's no deadline yet or the deadline is still
+  // in the future. Scheduling before it closes risks division sizes changing.
+  const registrationOpen = !t.registration_closes_at || new Date(t.registration_closes_at) > new Date()
+
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/tournaments/${id}` },
     { label: 'Schedule', href: `/tournaments/${id}/schedule` },
@@ -160,6 +164,7 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
         </Link>
         <ScheduleBuilderView
           tournamentId={id}
+          registrationOpen={registrationOpen}
           primaryLocationId={t.location_id ?? null}
           days={days}
           locations={locations}

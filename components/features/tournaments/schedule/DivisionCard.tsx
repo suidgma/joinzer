@@ -16,8 +16,25 @@ type Props = {
   dragging: boolean
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  men: 'Men', women: 'Women', mixed: 'Mixed', coed: 'Coed', open: 'Open',
+}
+
+// "Men Doubles", "Mixed Doubles", "Open Singles" — falls back to the format slug.
+function eventType(d: BuilderDivision): string | null {
+  const cat = d.category ? CATEGORY_LABELS[d.category] ?? null : null
+  const tt = d.team_type === 'singles' ? 'Singles' : d.team_type === 'doubles' ? 'Doubles' : null
+  if (cat && tt) return `${cat} ${tt}`
+  if (cat) return cat
+  if (tt) return tt
+  if (d.format) return d.format.replace(/_/g, ' ')
+  return null
+}
+
 function metaLine(d: BuilderDivision): string {
   const parts: string[] = []
+  const et = eventType(d)
+  if (et) parts.push(et)
   if (d.bracket_type) parts.push(d.bracket_type.replace(/_/g, ' '))
   if (d.skill_min != null || d.skill_max != null) {
     parts.push(d.skill_min != null && d.skill_max != null ? `${d.skill_min}–${d.skill_max}` : `${d.skill_min ?? d.skill_max}+`)

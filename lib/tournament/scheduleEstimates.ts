@@ -96,6 +96,12 @@ export type BlockCapacity = {
   matchCapacity: number      // how many matches fit
 }
 
+/** Window minutes available for play, minus the configured end buffer if enabled. */
+export function usableBlockMinutes(startTime: string, endTime: string, settings: ScheduleSettings): number {
+  const d = blockDurationMinutes(startTime, endTime)
+  return settings.leave_end_buffer ? Math.max(0, d - settings.end_buffer_minutes) : d
+}
+
 /** Estimated match capacity of a block from its courts, window, and settings. */
 export function blockCapacity(
   courtCount: number,
@@ -104,11 +110,46 @@ export function blockCapacity(
   settings: ScheduleSettings,
 ): BlockCapacity {
   const durationMinutes = blockDurationMinutes(startTime, endTime)
-  const usableMinutes = settings.leave_end_buffer
-    ? Math.max(0, durationMinutes - settings.end_buffer_minutes)
-    : durationMinutes
+  const usableMinutes = usableBlockMinutes(startTime, endTime, settings)
   const perMatch = settings.match_duration_minutes + settings.buffer_minutes
   const courtMinutes = courtCount * usableMinutes
   const matchCapacity = perMatch > 0 ? Math.floor(courtMinutes / perMatch) : 0
   return { courtCount, durationMinutes, usableMinutes, courtMinutes, matchCapacity }
+}
+
+/** 'HH:MM' minutes-since-midnight → "1:45 PM". */
+export function minutesToLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = Math.max(0, minutes % 60)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const hr = h % 12 === 0 ? 12 : h % 12
+  return `${hr}:${String(m).padStart(2, '0')} ${ampm}`
+}
+
+/**
+ * Rough wall-clock finish time for a block, assuming matches run `courtCount` at
+ * a time in successive waves. Estimate only — the real scheduler also honors
+ * round order and rest. Returns minutes-since-midnight, or null if no courts.
+ */
+export function estimateBlockFinishMinutes(
+  courtCount: number, startTime: string, matchCount: number, settings: ScheduleSettings,
+): number | null {
+  const start = timeToMinutes(startTime)
+  if (matchCount <= 0) return start
+  if (courtCount <= 0) return null
+  const perMatch = settings.match_duration_minutes + settings.buffer_minutes
+  const waves = Math.ceil(matchCount / courtCount)
+  return start + waves * perMatch
+}
+
+/** Minimum courts to fit `matchCount` matches inside the block's usable window. */
+export function recommendedCourts(
+  matchCount: number, startTime: string, endTime: string, settings: ScheduleSettings,
+): number {
+  if (matchCount <= 0) return 0
+  const perMatch = settings.match_duration_minutes + settings.buffer_minutes
+  const usable = usableBlockMinutes(startTime, endTime, settings)
+  const wavesPerCourt = perMatch > 0 ? Math.floor(usable / perMatch) : 0
+  if (wavesPerCourt <= 0) return matchCount // window too short for even one match per court
+  return Math.ceil(matchCount / wavesPerCourt)
 }
