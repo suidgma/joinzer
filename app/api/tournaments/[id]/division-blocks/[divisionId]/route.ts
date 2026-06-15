@@ -11,7 +11,8 @@ const service = () => createServiceClient(
 )
 
 // PUT /api/tournaments/[id]/division-blocks/[divisionId]
-// Body: { block_id }. Assigns a division to a block. MVP enforces one block per
+// Body: { block_id, priority? }. Assigns a division to a block (and optionally
+// sets its scheduling priority within that block). MVP enforces one block per
 // division, so any prior assignment for this division is replaced.
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string; divisionId: string }> }) {
   const { id, divisionId } = await props.params
@@ -25,6 +26,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   if (typeof blockId !== 'string' || !blockId) {
     return NextResponse.json({ error: 'block_id is required' }, { status: 400 })
   }
+  const priority = Number.isFinite(Number(body.priority)) ? Math.max(0, Math.round(Number(body.priority))) : 0
 
   const db = service()
 
@@ -42,7 +44,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 
   const { data, error } = await db
     .from('tournament_division_blocks')
-    .insert({ tournament_id: id, division_id: divisionId, block_id: blockId })
+    .insert({ tournament_id: id, division_id: divisionId, block_id: blockId, priority })
     .select()
     .single()
 

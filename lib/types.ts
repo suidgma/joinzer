@@ -64,6 +64,8 @@ export type ScheduleSettings = {
   conflict_policy: ConflictPolicy
   keep_divisions_grouped: boolean
   allow_division_overlap: boolean
+  allow_court_sharing: boolean
+  schedule_by_priority: boolean
   leave_end_buffer: boolean
   end_buffer_minutes: number
 }
@@ -75,6 +77,8 @@ export const DEFAULT_SCHEDULE_SETTINGS: ScheduleSettings = {
   conflict_policy: 'warning',
   keep_divisions_grouped: true,
   allow_division_overlap: true,
+  allow_court_sharing: true,
+  schedule_by_priority: false,
   leave_end_buffer: false,
   end_buffer_minutes: 0,
 }

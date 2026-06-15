@@ -79,6 +79,11 @@ export default function ScheduleBuilderView({
     [assignments]
   )
 
+  const priorityByDivision = useMemo(
+    () => new Map(assignments.map(a => [a.division_id, a.priority])),
+    [assignments]
+  )
+
   const assignedByBlock = useMemo(() => {
     const m = new Map<string, BuilderDivision[]>()
     for (const d of divisions) {
@@ -117,6 +122,12 @@ export default function ScheduleBuilderView({
       if (finish != null && finish > endMin) bits.push(`est. finish ~${minutesToLabel(finish)} runs past the ${minutesToLabel(endMin)} end`)
       if (needCourts > b.court_numbers.length) bits.push(`needs ~${needCourts} courts (has ${b.court_numbers.length})`)
       warnings.push({ level: 'amber', text: `“${b.name}” — ${bits.join('; ')}.` })
+    }
+    if (b.max_divisions != null && divs.length > b.max_divisions) {
+      warnings.push({ level: 'amber', text: `“${b.name}” has ${divs.length} divisions but its max is ${b.max_divisions}.` })
+    }
+    if (!settings.allow_court_sharing && divs.length > b.court_numbers.length) {
+      warnings.push({ level: 'amber', text: `“${b.name}” has ${divs.length} divisions but only ${b.court_numbers.length} court${b.court_numbers.length === 1 ? '' : 's'} — with court-sharing off, some divisions will share a court.` })
     }
   }
   for (const d of unassigned) {
@@ -166,7 +177,7 @@ export default function ScheduleBuilderView({
 
   async function assign(divisionId: string, blockId: string) {
     const prev = assignments
-    setAssignments(a => [...a.filter(x => x.division_id !== divisionId), { division_id: divisionId, block_id: blockId }])
+    setAssignments(a => [...a.filter(x => x.division_id !== divisionId), { division_id: divisionId, block_id: blockId, priority: 0 }])
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/division-blocks/${divisionId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_id: blockId }),
@@ -181,6 +192,20 @@ export default function ScheduleBuilderView({
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/division-blocks/${divisionId}`, { method: 'DELETE' })
       if (!res.ok) { const j = await res.json(); flash(j.error ?? 'Failed to unassign'); setAssignments(prev) }
+    } catch { flash('Network error'); setAssignments(prev) }
+  }
+
+  async function setPriority(divisionId: string, priority: number) {
+    const link = assignments.find(a => a.division_id === divisionId)
+    if (!link) return
+    const prev = assignments
+    setAssignments(a => a.map(x => (x.division_id === divisionId ? { ...x, priority } : x)))
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/division-blocks/${divisionId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ block_id: link.block_id, priority }),
+      })
+      if (!res.ok) { const j = await res.json(); flash(j.error ?? 'Failed to set priority'); setAssignments(prev) }
     } catch { flash('Network error'); setAssignments(prev) }
   }
 
@@ -305,7 +330,13 @@ export default function ScheduleBuilderView({
     if (!byDate.has(b.block_date)) byDate.set(b.block_date, [])
     byDate.get(b.block_date)!.push(b)
   }
-  const dateGroups = Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b))
+  // Group by date; within a date, higher-priority blocks first, then by start time.
+  const dateGroups = Array.from(byDate.entries())
+    .map(([date, group]) => [
+      date,
+      [...group].sort((x, y) => (y.priority - x.priority) || x.start_time.localeCompare(y.start_time)),
+    ] as [string, ScheduleBlock[]])
+    .sort(([a], [b]) => a.localeCompare(b))
 
   return (
     <div className="space-y-5">
@@ -363,7 +394,11 @@ export default function ScheduleBuilderView({
                     <div className="mt-1 space-y-1">
                       {conflicts.map((c, i) => (
                         <div key={i} className="text-[11px] text-amber-800">
-                          <span className="font-medium">{divisionById.get(c.divisionAId)?.name} ↔ {divisionById.get(c.divisionBId)?.name}:</span>{' '}
+                          <span className="font-medium">
+                            {divisionById.get(c.divisionAId)?.name} ({blockById.get(c.blockAId)?.name ?? 'block'})
+                            {' ↔ '}
+                            {divisionById.get(c.divisionBId)?.name} ({blockById.get(c.blockBId)?.name ?? 'block'}):
+                          </span>{' '}
                           {c.sharedPlayerIds.map(pid => playerNames[pid] ?? 'Unknown').join(', ')}
                         </div>
                       ))}
@@ -444,7 +479,9 @@ export default function ScheduleBuilderView({
                         block={b}
                         locationName={locationName(b.location_id)}
                         settings={settings}
-                        assigned={divs.map(d => ({ id: d.id, name: d.name, matches: estimates.get(d.id)?.matches ?? null }))}
+                        assigned={divs.map(d => ({ id: d.id, name: d.name, matches: estimates.get(d.id)?.matches ?? null, priority: priorityByDivision.get(d.id) ?? 0 }))}
+                        showPriority={settings.schedule_by_priority}
+                        onChangePriority={setPriority}
                         onEdit={() => setModal({ mode: 'edit', block: b })}
                         onDuplicate={() => duplicate(b)}
                         onDelete={() => removeBlock(b)}

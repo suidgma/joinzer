@@ -1,15 +1,17 @@
 'use client'
-import { Pencil, Copy, Trash2, MapPin, Clock, X, AlertTriangle } from 'lucide-react'
+import { Pencil, Copy, Trash2, MapPin, Clock, X, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import { blockCapacity, estimateBlockFinishMinutes, minutesToLabel, timeToMinutes } from '@/lib/tournament/scheduleEstimates'
 
-export type AssignedDivision = { id: string; name: string; matches: number | null }
+export type AssignedDivision = { id: string; name: string; matches: number | null; priority: number }
 
 type Props = {
   block: ScheduleBlock
   locationName: string | null
   settings: ScheduleSettings
   assigned: AssignedDivision[]
+  showPriority: boolean
+  onChangePriority: (divisionId: string, priority: number) => void
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -31,7 +33,7 @@ function fmtDate(d: string): string {
 }
 
 export default function BlockCard({
-  block, locationName, settings, assigned, onEdit, onDuplicate, onDelete, onDropDivision, onRemoveDivision, dragActive,
+  block, locationName, settings, assigned, showPriority, onChangePriority, onEdit, onDuplicate, onDelete, onDropDivision, onRemoveDivision, dragActive,
 }: Props) {
   const cap = blockCapacity(block.court_numbers.length, block.start_time, block.end_time, settings)
   const noCourts = block.court_numbers.length === 0
@@ -59,7 +61,14 @@ export default function BlockCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-brand-dark truncate">{block.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold text-brand-dark truncate">{block.name}</p>
+            {block.priority > 0 && (
+              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-brand-active bg-brand-soft rounded px-1.5 py-0.5">
+                P{block.priority}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-brand-muted mt-0.5">{fmtDate(block.block_date)}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -81,6 +90,12 @@ export default function BlockCard({
         </p>
       )}
 
+      {block.max_divisions != null && (
+        <p className={`text-[10px] font-medium ${assigned.length > block.max_divisions ? 'text-amber-600' : 'text-brand-muted'}`}>
+          {assigned.length} / {block.max_divisions} divisions
+        </p>
+      )}
+
       {/* Assigned divisions */}
       <div className="space-y-1.5">
         {assigned.length === 0 ? (
@@ -92,6 +107,13 @@ export default function BlockCard({
             <div key={d.id} className="flex items-center justify-between gap-2 bg-brand-soft rounded-lg px-2.5 py-1.5">
               <span className="text-xs font-medium text-brand-dark truncate">{d.name}</span>
               <span className="flex items-center gap-2 shrink-0">
+                {showPriority && (
+                  <span className="flex items-center gap-0.5" title="Scheduling priority (higher goes first)">
+                    <button onClick={() => onChangePriority(d.id, Math.max(0, d.priority - 1))} className="text-brand-muted hover:text-brand-dark transition-colors"><ChevronDown size={12} /></button>
+                    <span className="text-[10px] font-semibold tabular-nums w-3 text-center text-brand-dark">{d.priority}</span>
+                    <button onClick={() => onChangePriority(d.id, d.priority + 1)} className="text-brand-muted hover:text-brand-dark transition-colors"><ChevronUp size={12} /></button>
+                  </span>
+                )}
                 <span className="text-[10px] text-brand-muted">{d.matches == null ? 'n/a' : `~${d.matches}m`}</span>
                 <button onClick={() => onRemoveDivision(d.id)} title="Unassign" className="text-brand-muted hover:text-red-600 transition-colors">
                   <X size={13} />

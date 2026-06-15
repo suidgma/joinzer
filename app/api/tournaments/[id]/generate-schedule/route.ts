@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const [{ data: tournamentRow }, { data: blocks }, { data: assignments }] = await Promise.all([
     db.from('tournaments').select('schedule_settings_json').eq('id', id).single(),
     db.from('tournament_schedule_blocks').select('id, block_date, start_time, end_time, court_numbers').eq('tournament_id', id),
-    db.from('tournament_division_blocks').select('division_id, block_id').eq('tournament_id', id),
+    db.from('tournament_division_blocks').select('division_id, block_id, priority').eq('tournament_id', id),
   ])
 
   if (!assignments || assignments.length === 0) {
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
   const settings: ScheduleSettings = { ...DEFAULT_SCHEDULE_SETTINGS, ...(tournamentRow?.schedule_settings_json ?? {}) }
   const assignedDivisionIds = Array.from(new Set(assignments.map(a => a.division_id)))
+  const divisionPriority = new Map<string, number>(assignments.map(a => [a.division_id, (a as any).priority ?? 0]))
 
   // Load everything needed for validation up front, so nothing is deleted until
   // every guard below has passed.
@@ -146,6 +147,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       blockRows,
       settings,
       settings.keep_divisions_grouped,
+      settings.allow_court_sharing,
+      divisionPriority,
     )
     overflowTotal += overflowCount
     allRows.push(...blockRows)
@@ -161,7 +164,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const { data: inserted, error } = await db
     .from('tournament_matches')
     .insert(allRows)
-    .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, status')
+    .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, status')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ generated: inserted?.length ?? 0, skipped, blocks: divisionsByBlock.size, overflow: overflowTotal, matches: inserted ?? [] })

@@ -52,10 +52,10 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
       .eq('status', 'registered')
       .in('payment_status', ['paid', 'waived', 'comped']),
     db.from('tournament_division_blocks')
-      .select('division_id, block_id')
+      .select('division_id, block_id, priority')
       .eq('tournament_id', id),
     db.from('tournament_matches')
-      .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, status')
+      .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, status')
       .eq('tournament_id', id)
       .eq('is_draft', true)
       .order('scheduled_time', { ascending: true }),
@@ -134,7 +134,7 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
   }
 
   const assignments: DivisionBlockLink[] = (assignmentsRaw ?? []).map((a: any) => ({
-    division_id: a.division_id, block_id: a.block_id,
+    division_id: a.division_id, block_id: a.block_id, priority: a.priority ?? 0,
   }))
 
   const draftMatches = (draftRaw ?? []) as DraftMatch[]
