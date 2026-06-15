@@ -5,6 +5,7 @@ import { canManage } from '@/lib/tournament/access'
 import { DEFAULT_SCHEDULE_SETTINGS, type ScheduleSettings } from '@/lib/types'
 import { buildDivisionMatchRows } from '@/lib/tournament/buildMatches'
 import { scheduleBlockMatches, type SchedulableMatch } from '@/lib/tournament/scheduleGenerator'
+import { detectPlayerConflicts } from '@/lib/tournament/scheduleConflicts'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
   const body = await req.json().catch(() => ({}))
   const force = body.force === true
+  const replacePublished = body.replacePublished === true
   const db = service()
 
   const [{ data: tournamentRow }, { data: blocks }, { data: assignments }] = await Promise.all([
@@ -41,24 +43,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const settings: ScheduleSettings = { ...DEFAULT_SCHEDULE_SETTINGS, ...(tournamentRow?.schedule_settings_json ?? {}) }
   const assignedDivisionIds = Array.from(new Set(assignments.map(a => a.division_id)))
 
-  // Guard against clobbering existing matches unless the caller confirmed.
-  const { data: existing } = await db
-    .from('tournament_matches')
-    .select('id, is_draft')
-    .in('division_id', assignedDivisionIds)
-  const draftCount = (existing ?? []).filter(m => m.is_draft).length
-  const publishedCount = (existing ?? []).filter(m => !m.is_draft).length
-  if ((draftCount > 0 || publishedCount > 0) && !force) {
-    return NextResponse.json(
-      { error: 'existing_matches', draftCount, publishedCount },
-      { status: 409 },
-    )
-  }
-  if (force && (existing?.length ?? 0) > 0) {
-    await db.from('tournament_matches').delete().in('division_id', assignedDivisionIds)
-  }
-
-  const [{ data: divisions }, { data: regs }] = await Promise.all([
+  // Load everything needed for validation up front, so nothing is deleted until
+  // every guard below has passed.
+  const [{ data: existing }, { data: divisions }, { data: regs }] = await Promise.all([
+    db.from('tournament_matches').select('id, is_draft').in('division_id', assignedDivisionIds),
     db.from('tournament_divisions')
       .select('id, format, bracket_type, format_settings_json, partner_mode')
       .in('id', assignedDivisionIds),
@@ -69,6 +57,45 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       .in('payment_status', ['paid', 'waived', 'comped'])
       .order('created_at', { ascending: true }),
   ])
+
+  // Hard-stop on player conflicts when the organizer set conflict handling to
+  // "error": a player in two divisions whose blocks overlap can't be in both.
+  if (settings.conflict_policy === 'error') {
+    const divisionPlayers: Record<string, string[]> = {}
+    for (const r of regs ?? []) (divisionPlayers[r.division_id] ??= []).push(r.user_id)
+    const conflicts = detectPlayerConflicts(
+      assignments.map(a => ({ division_id: a.division_id, block_id: a.block_id })),
+      (blocks ?? []).map(b => ({ id: b.id, block_date: b.block_date, start_time: b.start_time, end_time: b.end_time })),
+      divisionPlayers,
+    )
+    if (conflicts.length > 0) {
+      const playerCount = new Set(conflicts.flatMap(c => c.sharedPlayerIds)).size
+      return NextResponse.json(
+        { error: 'player_conflicts', conflictCount: conflicts.length, playerCount },
+        { status: 409 },
+      )
+    }
+  }
+
+  const draftCount = (existing ?? []).filter(m => m.is_draft).length
+  const publishedCount = (existing ?? []).filter(m => !m.is_draft).length
+
+  // Published matches are live to players. Replacing them unpublishes the
+  // schedule, so it takes its own explicit confirmation — never just `force`.
+  if (publishedCount > 0 && !replacePublished) {
+    return NextResponse.json({ error: 'published_exists', draftCount, publishedCount }, { status: 409 })
+  }
+  if (draftCount > 0 && !force && !replacePublished) {
+    return NextResponse.json({ error: 'existing_matches', draftCount, publishedCount }, { status: 409 })
+  }
+
+  // Delete only what was confirmed: published rows fall only under replacePublished;
+  // `force` alone clears drafts and leaves any published matches untouched.
+  if (replacePublished) {
+    await db.from('tournament_matches').delete().in('division_id', assignedDivisionIds)
+  } else if (force && draftCount > 0) {
+    await db.from('tournament_matches').delete().in('division_id', assignedDivisionIds).eq('is_draft', true)
+  }
 
   const divisionById = new Map((divisions ?? []).map(d => [d.id, d]))
   const blockById = new Map((blocks ?? []).map(b => [b.id, b]))
@@ -88,6 +115,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
   const allRows: object[] = []
   const skipped: { divisionId: string; reason: string }[] = []
+  let overflowTotal = 0
 
   for (const [blockId, divisionIds] of divisionsByBlock) {
     const block = blockById.get(blockId)
@@ -113,12 +141,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
 
     if (blockRows.length === 0) continue
-    scheduleBlockMatches(
+    const { overflowCount } = scheduleBlockMatches(
       { block_date: block.block_date, start_time: block.start_time, end_time: block.end_time, court_numbers: block.court_numbers ?? [] },
       blockRows,
       settings,
       settings.keep_divisions_grouped,
     )
+    overflowTotal += overflowCount
     allRows.push(...blockRows)
   }
 
@@ -135,7 +164,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, status')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ generated: inserted?.length ?? 0, skipped, blocks: divisionsByBlock.size, matches: inserted ?? [] })
+  return NextResponse.json({ generated: inserted?.length ?? 0, skipped, blocks: divisionsByBlock.size, overflow: overflowTotal, matches: inserted ?? [] })
 }
 
 // DELETE /api/tournaments/[id]/generate-schedule — discard the draft schedule.
