@@ -29,7 +29,7 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
   ] = await Promise.all([
     db.from('tournaments').select('id, name, status, organizer_id').eq('id', tournamentId).single(),
     db.from('tournament_divisions').select('id, name, bracket_type').eq('tournament_id', tournamentId).order('created_at', { ascending: true }),
-    db.from('tournament_registrations').select('id, division_id, user_id, partner_user_id, team_name, status, checked_in').eq('tournament_id', tournamentId),
+    db.from('tournament_registrations').select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, checked_in').eq('tournament_id', tournamentId),
     db.from('tournament_matches').select(
       'id, division_id, round_number, match_number, match_stage, pool_number, ' +
       'court_number, scheduled_time, team_1_registration_id, team_2_registration_id, ' +
@@ -66,6 +66,7 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
     status: r.status,
     player_name: profileNames[r.user_id] ?? null,
     partner_user_id: r.partner_user_id ?? null,
+    partner_registration_id: r.partner_registration_id ?? null,
     checked_in: r.checked_in ?? false,
   }))
 

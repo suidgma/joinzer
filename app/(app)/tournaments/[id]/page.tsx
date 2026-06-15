@@ -289,6 +289,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       status: r.status,
       player_name: profileNames[r.user_id] ?? null,
       partner_user_id: r.partner_user_id ?? null,
+      partner_registration_id: r.partner_registration_id ?? null,
       checked_in: r.checked_in ?? false,
     }))
 

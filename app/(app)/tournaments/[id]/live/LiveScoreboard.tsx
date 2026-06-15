@@ -47,19 +47,42 @@ function teamLabel(regId: string, regs: Reg[]): string {
 }
 
 function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
+  const active = regs.filter(r => r.status === 'registered')
+
+  // Doubles teams have two cross-linked registrations (one per player), but the
+  // bracket only references one of them per team. Without folding the pair into a
+  // single row, every team shows twice (with partner names reversed) and the
+  // phantom twin carries 0 stats. Build a canonical-ID map so both partners' reg
+  // IDs resolve to one standings row.
+  const canonicalId = new Map<string, string>()
+  const rowRegs: Reg[] = []
+  const seen = new Set<string>()
+  for (const r of active) {
+    if (seen.has(r.id)) continue
+    rowRegs.push(r)
+    seen.add(r.id)
+    canonicalId.set(r.id, r.id)
+    if (r.partner_registration_id) {
+      seen.add(r.partner_registration_id)
+      canonicalId.set(r.partner_registration_id, r.id)
+    }
+  }
+  const canon = (id: string) => canonicalId.get(id) ?? id
+
   const map = new Map<string, StandingRow>()
-  for (const r of regs) {
+  for (const r of rowRegs) {
     map.set(r.id, { regId: r.id, name: teamLabel(r.id, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
   }
   for (const m of matches) {
     if (m.status !== 'completed' || !m.team_1_registration_id || !m.team_2_registration_id) continue
-    const t1 = m.team_1_registration_id, t2 = m.team_2_registration_id
+    const t1 = canon(m.team_1_registration_id), t2 = canon(m.team_2_registration_id)
     const s1 = m.team_1_score ?? 0, s2 = m.team_2_score ?? 0
     if (!map.has(t1)) map.set(t1, { regId: t1, name: teamLabel(t1, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
     if (!map.has(t2)) map.set(t2, { regId: t2, name: teamLabel(t2, regs), wins: 0, losses: 0, pf: 0, pa: 0 })
     const r1 = map.get(t1)!, r2 = map.get(t2)!
-    if (m.winner_registration_id === t1) { r1.wins++; r2.losses++ }
-    else if (m.winner_registration_id === t2) { r2.wins++; r1.losses++ }
+    const winner = m.winner_registration_id ? canon(m.winner_registration_id) : null
+    if (winner === t1) { r1.wins++; r2.losses++ }
+    else if (winner === t2) { r2.wins++; r1.losses++ }
     r1.pf += s1; r1.pa += s2
     r2.pf += s2; r2.pa += s1
   }
