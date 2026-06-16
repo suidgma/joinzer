@@ -1,3 +1,4 @@
+'use client'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
 import { teamLabel } from './ScoreEntryModal'
 

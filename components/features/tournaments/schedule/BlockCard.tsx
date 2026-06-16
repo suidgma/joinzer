@@ -1,4 +1,5 @@
 'use client'
+import { useDroppable } from '@dnd-kit/core'
 import { Pencil, Copy, Trash2, MapPin, Clock, X, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import { blockCapacity, estimateBlockFinishMinutes, minutesToLabel, timeToMinutes } from '@/lib/tournament/scheduleEstimates'
@@ -15,7 +16,6 @@ type Props = {
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
-  onDropDivision: () => void
   onRemoveDivision: (divisionId: string) => void
   dragActive: boolean
 }
@@ -33,8 +33,9 @@ function fmtDate(d: string): string {
 }
 
 export default function BlockCard({
-  block, locationName, settings, assigned, showPriority, onChangePriority, onEdit, onDuplicate, onDelete, onDropDivision, onRemoveDivision, dragActive,
+  block, locationName, settings, assigned, showPriority, onChangePriority, onEdit, onDuplicate, onDelete, onRemoveDivision, dragActive,
 }: Props) {
+  const { setNodeRef, isOver } = useDroppable({ id: block.id })
   const cap = blockCapacity(block.court_numbers.length, block.start_time, block.end_time, settings)
   const noCourts = block.court_numbers.length === 0
 
@@ -53,10 +54,11 @@ export default function BlockCard({
 
   return (
     <div
-      onDragOver={e => { e.preventDefault() }}
-      onDrop={e => { e.preventDefault(); onDropDivision() }}
+      ref={setNodeRef}
       className={`bg-white rounded-xl border p-4 space-y-3 transition-colors ${
-        dragActive ? 'border-brand border-dashed bg-brand-soft/40' : 'border-brand-border'
+        isOver
+          ? 'border-brand bg-brand-soft ring-2 ring-brand/40'
+          : dragActive ? 'border-brand border-dashed bg-brand-soft/40' : 'border-brand-border'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -99,8 +101,8 @@ export default function BlockCard({
       {/* Assigned divisions */}
       <div className="space-y-1.5">
         {assigned.length === 0 ? (
-          <div className={`rounded-lg border border-dashed py-3 text-center text-[11px] ${dragActive ? 'border-brand text-brand-active' : 'border-brand-border text-brand-muted'}`}>
-            {dragActive ? 'Drop division here' : 'No divisions assigned — drag one here'}
+          <div className={`rounded-lg border border-dashed py-3 text-center text-[11px] ${isOver || dragActive ? 'border-brand text-brand-active' : 'border-brand-border text-brand-muted'}`}>
+            {isOver ? 'Drop to assign here' : dragActive ? 'Drop a division here' : 'No divisions assigned — drag one here'}
           </div>
         ) : (
           assigned.map(d => (

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useDraggable } from '@dnd-kit/core'
 import { GripVertical, AlertTriangle, ChevronDown } from 'lucide-react'
 import type { ScheduleBlock } from '@/lib/types'
 import type { BuilderDivision, DivisionStats } from './types'
@@ -11,8 +12,6 @@ type Props = {
   estimate: DivisionEstimate
   blocks: ScheduleBlock[]
   onAssign: (blockId: string) => void
-  onDragStart: () => void
-  onDragEnd: () => void
   dragging: boolean
 }
 
@@ -45,21 +44,29 @@ function metaLine(d: BuilderDivision): string {
   return parts.join(' · ')
 }
 
-export default function DivisionCard({ division, stats, estimate, blocks, onAssign, onDragStart, onDragEnd, dragging }: Props) {
+export default function DivisionCard({ division, stats, estimate, blocks, onAssign, dragging }: Props) {
   const [assignOpen, setAssignOpen] = useState(false)
   const noTeams = stats.teamCount < 2
+  // Drag handled by @dnd-kit (pointer/touch/keyboard); grip below is the handle.
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: division.id })
 
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      className={`bg-white rounded-xl border p-3 cursor-grab active:cursor-grabbing transition-shadow ${
+      ref={setNodeRef}
+      className={`bg-white rounded-xl border p-3 transition-shadow ${
         dragging ? 'border-brand opacity-50' : 'border-brand-border hover:shadow-sm'
       }`}
     >
       <div className="flex items-start gap-2">
-        <GripVertical size={15} className="text-brand-muted/60 mt-0.5 shrink-0" />
+        <button
+          type="button"
+          {...listeners}
+          {...attributes}
+          aria-label={`Drag ${division.name} to a block`}
+          className="touch-none cursor-grab active:cursor-grabbing text-brand-muted/60 mt-0.5 shrink-0"
+        >
+          <GripVertical size={15} />
+        </button>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-brand-dark truncate">{division.name}</p>
           <p className="text-[11px] text-brand-muted mt-0.5 capitalize">{metaLine(division)}</p>

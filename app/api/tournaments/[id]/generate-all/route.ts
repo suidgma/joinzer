@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import {
-  singleEliminationBracket,
-  doubleEliminationBracket,
-  poolPlayMatches,
-  roundRobinMatches,
-  rotatingDoublesMatches,
-} from '@/lib/tournament/bracketBuilder'
-import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
+import { buildDivisionMatchRows } from '@/lib/tournament/buildMatches'
 
 // POST /api/tournaments/[id]/generate-all
 // Generates brackets for every division that doesn't have matches yet.
@@ -35,7 +28,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
   const { data: divisions } = await service
     .from('tournament_divisions')
-    .select('id, name, bracket_type, format_settings_json, partner_mode')
+    .select('id, name, format, bracket_type, format_settings_json, partner_mode')
     .eq('tournament_id', params.id)
     .order('created_at', { ascending: true })
 
@@ -60,54 +53,24 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: registrations } = await service
       .from('tournament_registrations')
-      .select('id, partner_registration_id')
+      .select('id, user_id, partner_registration_id, seed')
       .eq('division_id', division.id)
       .eq('status', 'registered')
       .in('payment_status', ['paid', 'waived', 'comped'])
       .order('created_at', { ascending: true })
 
-    const ft = division.bracket_type as string
-    const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
+    // Shared with the Advanced Schedule Builder: honors locked seeds, dedupes
+    // doubles pairs, distributes byes, and dispatches by bracket type.
     const base = { tournament_id: params.id, division_id: division.id, status: 'scheduled' }
-    const isRotating = division.partner_mode === 'rotating'
-
-    if (isRotating && ft !== 'round_robin') {
-      results.push({ divisionId: division.id, name: division.name, matchCount: 0, skipped: `rotating partner mode requires round_robin (this division uses ${ft})` })
+    const built = buildDivisionMatchRows(division as any, registrations ?? [], base)
+    if ('error' in built) {
+      results.push({ divisionId: division.id, name: division.name, matchCount: 0, skipped: built.error })
       continue
-    }
-
-    let matchRows: object[]
-
-    if (isRotating) {
-      const playerIds = (registrations ?? []).map(r => r.id)
-      if (playerIds.length < 4) {
-        results.push({ divisionId: division.id, name: division.name, matchCount: 0, skipped: `rotating doubles needs 4+ solo registrations (${playerIds.length} found)` })
-        continue
-      }
-      matchRows = rotatingDoublesMatches(playerIds, base).rows
-    } else {
-      const teams = dedupeRegistrationsToTeams(registrations ?? [])
-      if (teams.length < 2) {
-        results.push({ divisionId: division.id, name: division.name, matchCount: 0, skipped: `fewer than 2 settled registrations (${teams.length} found)` })
-        continue
-      }
-
-      if (ft === 'single_elimination') {
-        matchRows = singleEliminationBracket(teams, 'single_elimination', base).rows
-      } else if (ft === 'double_elimination') {
-        matchRows = doubleEliminationBracket(teams, base)
-      } else if (ft === 'pool_play_playoffs') {
-        const numPools = (fs.number_of_pools as number) ?? 2
-        matchRows = poolPlayMatches(teams, numPools, base).rows
-      } else {
-        // round_robin: circle-method scheduling — see roundRobinMatches() for why.
-        matchRows = roundRobinMatches(teams, base).rows
-      }
     }
 
     const { data: inserted, error } = await service
       .from('tournament_matches')
-      .insert(matchRows)
+      .insert(built.rows)
       .select()
 
     if (error || !inserted) {

@@ -1,5 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
+import { DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown, Wand2, Send, RefreshCw, Trash2 } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink, DraftMatch } from './types'
@@ -47,6 +49,25 @@ export default function ScheduleBuilderView({
   function flash(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(null), 2600)
+  }
+
+  // Pointer for mouse/trackpad (small distance so clicks on the card's dropdown
+  // still register), Touch with a short press-delay so the page can still scroll
+  // on phones, and Keyboard for accessibility.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    useSensor(KeyboardSensor),
+  )
+
+  function onDragStart(e: DragStartEvent) {
+    setDraggingId(String(e.active.id))
+  }
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    setDraggingId(null)
+    // active.id = division id, over.id = block id. Dropped outside any block → no-op.
+    if (over) assign(String(active.id), String(over.id))
   }
 
   const divisionById = useMemo(() => new Map(divisions.map(d => [d.id, d])), [divisions])
@@ -412,6 +433,7 @@ export default function ScheduleBuilderView({
       )}
 
       {/* Two-pane: unassigned divisions (left) + blocks (right) */}
+      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <div className="grid lg:grid-cols-3 gap-5 items-start">
         {/* Unassigned divisions */}
         <section className="space-y-2 lg:sticky lg:top-4">
@@ -435,8 +457,6 @@ export default function ScheduleBuilderView({
                   estimate={estimates.get(d.id)!}
                   blocks={blocks}
                   onAssign={(blockId) => assign(d.id, blockId)}
-                  onDragStart={() => setDraggingId(d.id)}
-                  onDragEnd={() => setDraggingId(null)}
                   dragging={draggingId === d.id}
                 />
               ))}
@@ -485,7 +505,6 @@ export default function ScheduleBuilderView({
                         onEdit={() => setModal({ mode: 'edit', block: b })}
                         onDuplicate={() => duplicate(b)}
                         onDelete={() => removeBlock(b)}
-                        onDropDivision={() => { if (draggingId) assign(draggingId, b.id); setDraggingId(null) }}
                         onRemoveDivision={(divId) => unassign(divId)}
                         dragActive={draggingId != null}
                       />
@@ -497,6 +516,15 @@ export default function ScheduleBuilderView({
           )}
         </section>
       </div>
+
+      <DragOverlay dropAnimation={null}>
+        {draggingId ? (
+          <div className="bg-white rounded-xl border border-brand shadow-lg px-3 py-2 text-sm font-semibold text-brand-dark cursor-grabbing">
+            {divisionById.get(draggingId)?.name ?? 'Division'}
+          </div>
+        ) : null}
+      </DragOverlay>
+      </DndContext>
 
       {/* Draft schedule: generate → preview → publish */}
       <section className="space-y-3 border-t border-brand-border pt-5">

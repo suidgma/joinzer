@@ -60,14 +60,11 @@ export function singleEliminationBracket(
   startMatchNum = 1,
   skipShuffle = false
 ): { rows: BaseMatch[]; nextMatchNum: number } {
-  // When skipShuffle=true, teams are pre-sorted by seed; use standard bracket
-  // seeding order so top seeds receive byes and meet each other late.
-  const seeded: (string | null)[] = skipShuffle
-    ? arrangeSeedsForBracket(teams)
-    : (() => {
-        const shuffled = shuffle([...teams])
-        return [...shuffled, ...Array(nextPow2(shuffled.length) - shuffled.length).fill(null)]
-      })()
+  // Always lay teams into standard bracket positions so missing slots become
+  // distributed byes ("player vs BYE", auto-advanced) instead of clustering at
+  // the end as phantom "BYE vs BYE" matches. skipShuffle=true keeps seed order
+  // (top seeds get the byes); otherwise we shuffle first for a random draw.
+  const seeded: (string | null)[] = arrangeSeedsForBracket(skipShuffle ? teams : shuffle([...teams]))
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum
@@ -134,12 +131,8 @@ export function doubleEliminationBracket(
   startMatchNum = 1,
   skipShuffle = false
 ): BaseMatch[] {
-  const seeded: (string | null)[] = skipShuffle
-    ? arrangeSeedsForBracket(teams)
-    : (() => {
-        const shuffled = shuffle([...teams])
-        return [...shuffled, ...Array(nextPow2(shuffled.length) - shuffled.length).fill(null)]
-      })()
+  // Distributed byes (see singleEliminationBracket) — no phantom BYE-vs-BYE.
+  const seeded: (string | null)[] = arrangeSeedsForBracket(skipShuffle ? teams : shuffle([...teams]))
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum

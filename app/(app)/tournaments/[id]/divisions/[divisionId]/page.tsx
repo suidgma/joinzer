@@ -21,6 +21,7 @@ export default async function DivisionManagePage(
     { data: division },
     { data: regsRaw },
     { data: matchesRaw },
+    { count: draftCount },
     { data: staffRow },
   ] = await Promise.all([
     db.from('tournaments')
@@ -41,6 +42,12 @@ export default async function DivisionManagePage(
       .eq('division_id', params.divisionId)
       .eq('is_draft', false)
       .order('match_number', { ascending: true }),
+    // Draft matches live only in the Schedule Builder; counted so this page can
+    // explain why generation is blocked when an unpublished draft exists.
+    db.from('tournament_matches')
+      .select('id', { count: 'exact', head: true })
+      .eq('division_id', params.divisionId)
+      .eq('is_draft', true),
     user
       ? db.from('tournament_staff').select('role').eq('tournament_id', params.id).eq('user_id', user.id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -76,6 +83,7 @@ export default async function DivisionManagePage(
       division={division as any}
       initialRegistrations={registrations}
       initialMatches={matchesRaw ?? []}
+      draftMatchCount={draftCount ?? 0}
       isOrganizer={canManage}
       currentUserId={user?.id ?? null}
       locationCourtCount={(tournament as any).location?.court_count ?? null}
