@@ -182,56 +182,28 @@ export function doubleEliminationBracket(
   }
 
   // ── Losers bracket ────────────────────────────────────────────────────────
-  // Number of LB rounds = 2 * (number of WB rounds - 1)
-  // Rounds alternate: drop-in (WB losers feed in) and elimination
+  // Canonical structure for an N = 2^R bracket (R winners-bracket rounds):
+  // 2·(R−1) LB rounds holding N/4, N/4, N/8, N/8, … , 1, 1 matches.
+  //   - "minor" rounds (1, and every even round) receive dropped WB losers:
+  //       WB round k losers → LB round 1 (k=1) or 2k−2 (k≥2)
+  //   - "major" rounds (odd ≥ 3) are LB survivors playing each other
+  // Every slot starts TBD; computeLbDrop + computeAdvancement fill them as the
+  // bracket plays out. The last LB round's winner is the LB champion, advanced
+  // to the Championship by computeChampionshipAdvancement.
   const wbRounds = wbRoundCounts.length
-  let lbSurvivors = 0 // grows as we progress
-  let lbRound = 1
-
-  for (let wbR = 1; wbR <= wbRounds - 1; wbR++) {
-    const wbLosersCount = wbRoundCounts[wbR - 1] // losers from WB round wbR
-
-    // Drop-in round: WB losers pair against LB survivors
-    const dropInCount = wbR === 1
-      ? Math.floor(wbLosersCount / 2) // first LB round: pair WB R1 losers together
-      : Math.min(wbLosersCount, lbSurvivors)    // later: WB losers vs LB survivors
-
-    const dropInMatches = wbR === 1
-      ? Math.floor(wbLosersCount / 2)
-      : wbLosersCount // one match per WB loser feeding into LB
-
-    const dropInCount2 = wbR === 1
-      ? Math.floor(wbLosersCount / 2)
-      : wbLosersCount
-
-    for (let i = 0; i < dropInCount2; i++) {
+  const bracketSize = wbRoundCounts[0] * 2     // N — power of two
+  const totalLbRounds = Math.max(0, 2 * (wbRounds - 1))
+  for (let r = 1; r <= totalLbRounds; r++) {
+    const count = bracketSize / Math.pow(2, Math.ceil(r / 2) + 1)
+    for (let i = 0; i < count; i++) {
       rows.push({
         ...base,
         match_stage: 'losers_bracket',
-        round_number: lbRound,
+        round_number: r,
         match_number: matchNum++,
         team_1_registration_id: null,
         team_2_registration_id: null,
       })
-    }
-    lbSurvivors = dropInCount2
-    lbRound++
-
-    // Elimination round: LB survivors play each other
-    if (lbSurvivors > 1) {
-      const elimCount = Math.ceil(lbSurvivors / 2)
-      for (let i = 0; i < elimCount; i++) {
-        rows.push({
-          ...base,
-          match_stage: 'losers_bracket',
-          round_number: lbRound,
-          match_number: matchNum++,
-          team_1_registration_id: null,
-          team_2_registration_id: null,
-        })
-      }
-      lbSurvivors = elimCount
-      lbRound++
     }
   }
 
@@ -541,11 +513,19 @@ export function computeAdvancement(
 
   if (nextRound.length === 0) return null
 
-  const nextMatchIdx = Math.floor(posInRound / 2)
+  // Within the losers bracket, advancement alternates. Into a "major" round
+  // (odd ≥ 3 — LB survivors play each other) winners pair up; into a "minor"
+  // round (where a dropped WB loser fills team_2) each survivor takes its own
+  // match as team_1. Everywhere else (WB, playoffs) it's the standard pairing.
+  const nextRoundNum = roundNum + 1
+  const lbMinorNext = stage === 'losers_bracket' && !(nextRoundNum % 2 === 1 && nextRoundNum >= 3)
+  const nextMatchIdx = lbMinorNext ? posInRound : Math.floor(posInRound / 2)
   const nextMatch = nextRound[nextMatchIdx]
   if (!nextMatch) return null
 
-  const field = posInRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
+  const field = lbMinorNext
+    ? 'team_1_registration_id'
+    : (posInRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id')
   return { matchId: nextMatch.id, field, value: winner }
 }
 
@@ -628,10 +608,11 @@ export function computeBracketReset(completed: MatchRow, allMatches: MatchRow[])
  * Given a completed WB match, returns the DB update to drop the LOSER into the
  * correct Losers Bracket slot.
  *
- * WB round N losers drop into LB round (N===1 ? 1 : N*2-1):
+ * WB round N losers drop into LB round (N===1 ? 1 : 2N-2):
  *   - WB R1 → LB R1: pairs of 2 WB losers share one LB match
- *   - WB R2 → LB R3: each WB loser takes one LB match slot as team_2
- *   - WB R3 → LB R5: same pattern
+ *   - WB R2 → LB R2: each WB loser takes one LB match slot as team_2
+ *   - WB R3 → LB R4, WB R4 → LB R6: same pattern (the WB-final loser lands in
+ *     the last LB round — its decider)
  *
  * Returns null for BYE matches (no loser), non-WB matches, or when no matching
  * LB slot exists.
@@ -653,8 +634,8 @@ export function computeLbDrop(
 
   const wbRound = completedMatch.round_number ?? 1
 
-  // WB R1 → LB R1; WB R2 → LB R3; WB RN → LB R(2N-1)
-  const lbTargetRound = wbRound === 1 ? 1 : wbRound * 2 - 1
+  // WB R1 → LB R1; WB RN → LB R(2N-2). The WB-final loser lands in the last LB round.
+  const lbTargetRound = wbRound === 1 ? 1 : wbRound * 2 - 2
 
   const sameWbRound = allMatches
     .filter(m => m.match_stage === 'winners_bracket' && m.round_number === wbRound)

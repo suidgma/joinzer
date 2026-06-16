@@ -65,12 +65,14 @@ function checkPendingFeeder(
   // "waiting for their own WB R1 feeders" still count as real pending feeders.
   if (nextMatch.match_stage === 'losers_bracket') {
     const lbRound = nextMatch.round_number ?? 1
-    if (lbRound % 2 === 1) {
-      const expectedWbRound = (lbRound + 1) / 2
+    // Minor (drop-in) LB rounds are round 1 and the even rounds; WB round k
+    // drops into LB round 1 (k=1) or 2k-2 (k>=2).
+    if (lbRound === 1 || lbRound % 2 === 0) {
+      const expectedWbRound = lbRound === 1 ? 1 : lbRound / 2 + 1
       const wbRoundMatches = allDivMatches
         .filter(m => m.match_stage === 'winners_bracket' && m.round_number === expectedWbRound)
         .sort((a, b) => a.match_number - b.match_number)
-      const lbTargetRound = expectedWbRound === 1 ? 1 : expectedWbRound * 2 - 1
+      const lbTargetRound = expectedWbRound === 1 ? 1 : expectedWbRound * 2 - 2
       const lbTargetMatches = allDivMatches
         .filter(m => m.match_stage === 'losers_bracket' && m.round_number === lbTargetRound)
         .sort((a, b) => a.match_number - b.match_number)
@@ -233,9 +235,13 @@ async function cascadeLbDropInducedByes(
     const nextRound = allMatches
       .filter(x => x.match_stage === m.match_stage && x.round_number === (m.round_number ?? 1) + 1)
       .sort((a, b) => a.match_number - b.match_number)
-    const candidateNext = nextRound[Math.floor(posInRound / 2)]
+    // Mirror computeAdvancement's LB rule: into a "minor" round each survivor
+    // takes its own match as team_1; into a "major" round (odd >= 3) they pair.
+    const intoRound = (m.round_number ?? 1) + 1
+    const minorInto = m.match_stage === 'losers_bracket' && !(intoRound % 2 === 1 && intoRound >= 3)
+    const candidateNext = minorInto ? nextRound[posInRound] : nextRound[Math.floor(posInRound / 2)]
     const candidateField: 'team_1_registration_id' | 'team_2_registration_id' =
-      posInRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
+      minorInto ? 'team_1_registration_id' : (posInRound % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id')
     return candidateNext?.id === (lbMatch.id as string) && candidateField === emptyField
   })
 
