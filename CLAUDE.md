@@ -59,7 +59,7 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 
 ---
 
-## 5. Current State — Verified June 15, 2026
+## 5. Current State — Verified June 16, 2026
 
 For specific schema details, check Supabase Table Editor. For specific route details, check the codebase. This section captures **what's shipped vs. not** at the phase level — not column-level detail.
 
@@ -83,7 +83,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Players directory** — `/players` with search, skill/gender filters, availability. `/players/[id]` individual profile page. Cards link to profiles; invite-tap still works when player is available.
 - **Public browse pages** — `/browse/leagues` and `/browse/tournaments` accessible without auth. LandingNav/Footer shell. Middleware allowlisted. CTAs on landing page link directly to browse.
 - **Marketing site** — updated hero ("Play. Compete. Find your game."), trust strip, CompeteSection CTAs, login tagline. OrganizersSection added (PR #39).
-- **Advanced Schedule Builder** — merged to main and live on Vercel (PR #58). Organizer surface at `/tournaments/[id]/schedule/builder`: define date/time/court "blocks", drag divisions into them, see capacity + player-conflict warnings, then generate a draft match schedule (greedy per-block scheduler), preview by time/court/division, and publish. Draft matches carry `tournament_matches.is_draft=true` and are filtered out of all participant/organizer reads until published. Schema migration `20260615000001_advanced_schedule_builder` applied to prod (`tournament_schedule_blocks`, `tournament_division_blocks`, `tournaments.schedule_settings_json`, `tournament_matches.schedule_block_id`+`is_draft`). MVP limitation: elimination BYE auto-advance not applied to drafts. The legacy one-click per-division "Generate Matches" flow is unchanged and coexists.
+- **Advanced Schedule Builder** — merged to main and live on Vercel (PR #58). Organizer surface at `/tournaments/[id]/schedule/builder`: define date/time/court "blocks", drag divisions into them, see capacity + player-conflict warnings, then generate a draft match schedule (greedy per-block scheduler), preview by time/court/division, and publish. Draft matches carry `tournament_matches.is_draft=true` and are filtered out of all participant/organizer reads until published. Schema migration `20260615000001_advanced_schedule_builder` applied to prod (`tournament_schedule_blocks`, `tournament_division_blocks`, `tournaments.schedule_settings_json`, `tournament_matches.schedule_block_id`+`is_draft`). MVP limitation: elimination BYE auto-advance not applied to drafts. Builder division drag-and-drop uses `@dnd-kit` (pointer + touch + keyboard sensors; dropdown fallback retained) — the old native HTML5 DnD didn't work on touch and was unreliable cross-browser. The legacy one-click per-division "Generate Matches" flow is unchanged and coexists. A tournament-level one-click **"Generate Full Tournament"** (builds all brackets + packs courts/times in one action, goes live immediately — the simple-mode counterpart to the block builder) lives on the organizer overview as `ScheduleGenerator`; it was orphaned by the two-form-factor refactor (button stranded in the unmounted `ScheduleManager`/`MatchesSection`, both now deleted) and was restored June 16, 2026.
 
 ### Not yet built
 
@@ -168,4 +168,4 @@ When a query uses a foreign-key join (e.g. `profile:profiles!user_id(...)`), Typ
 
 ---
 
-*Last verified against repo: June 15, 2026*
+*Last verified against repo: June 16, 2026*
