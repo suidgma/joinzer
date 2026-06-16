@@ -124,7 +124,9 @@ function TeamNameDisplay({ regId, regs, isDoubles, showSeeds }: {
 }
 
 function getRoundLabel(roundNum: number, totalRounds: number, stage: string): string {
-  if (stage === 'championship') return 'Final'
+  // Round 2 of the Championship is the double-elim bracket reset (the decider
+  // played only when the losers-bracket champion wins the first final).
+  if (stage === 'championship') return roundNum >= 2 ? 'Final (Reset)' : 'Final'
   if (stage === 'winners_bracket' || stage === 'losers_bracket') {
     // label by stage
     if (totalRounds - roundNum === 0) return 'Final'

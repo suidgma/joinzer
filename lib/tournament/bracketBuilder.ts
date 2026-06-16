@@ -581,6 +581,49 @@ export function computeChampionshipAdvancement(
   return { matchId: championship.id, field, value: winner }
 }
 
+export type ResetMatch = {
+  match_stage: 'championship'
+  round_number: 2
+  match_number: number
+  team_1_registration_id: string | null
+  team_2_registration_id: string | null
+  status: 'scheduled'
+}
+
+/**
+ * Double-elimination bracket reset (the "if-necessary" decider).
+ *
+ * The Championship pits the winners-bracket champion (team_1, 0 losses) against
+ * the losers-bracket champion (team_2, 1 loss). If the WB champ wins, the title
+ * is decided. If the LB champ wins, BOTH teams now have one loss, so a second
+ * Championship match (round 2) must be played to decide it fairly — the WB champ
+ * has earned that rematch by going undefeated.
+ *
+ * Returns the reset match row to insert, or null when no reset is needed: the
+ * WB champ won, the completed match isn't the first Championship, or a reset
+ * already exists (idempotent — safe to call on any championship completion).
+ */
+export function computeBracketReset(completed: MatchRow, allMatches: MatchRow[]): ResetMatch | null {
+  if (completed.match_stage !== 'championship') return null
+  if ((completed.round_number ?? 1) !== 1) return null
+  const winner = completed.winner_registration_id
+  if (!winner) return null
+  // Reset only when the losers-bracket champion (team_2) wins the first final.
+  if (winner !== completed.team_2_registration_id) return null
+  // Never create a second reset.
+  if (allMatches.some(m => m.match_stage === 'championship' && (m.round_number ?? 1) === 2)) return null
+
+  const maxMatchNum = allMatches.reduce((mx, m) => Math.max(mx, m.match_number ?? 0), 0)
+  return {
+    match_stage: 'championship',
+    round_number: 2,
+    match_number: maxMatchNum + 1,
+    team_1_registration_id: completed.team_1_registration_id,   // WB champ
+    team_2_registration_id: completed.team_2_registration_id,   // LB champ
+    status: 'scheduled',
+  }
+}
+
 /**
  * Given a completed WB match, returns the DB update to drop the LOSER into the
  * correct Losers Bracket slot.

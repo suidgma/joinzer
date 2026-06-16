@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { computeAdvancement, computeLbDrop, computeChampionshipAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { computeAdvancement, computeLbDrop, computeChampionshipAdvancement, computeBracketReset, type MatchRow } from '@/lib/tournament/bracketBuilder'
 import { logAudit } from '@/lib/audit/log'
 
 const MATCH_SELECT = 'id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status'
@@ -458,6 +458,28 @@ export async function PATCH(
           if (champMatch) advancedMatches.push(champMatch)
         }
       }
+    }
+  }
+
+  // Double-elim bracket reset: if the losers-bracket champion won the first
+  // Championship, both teams now have one loss — create the decider (round 2) so
+  // the undefeated winners-bracket champion gets their earned rematch.
+  if (match.match_stage === 'championship') {
+    const { data: allDivMatches } = await service
+      .from('tournament_matches')
+      .select(SLIM_SELECT)
+      .eq('division_id', match.division_id)
+    const reset = computeBracketReset(
+      { ...match, winner_registration_id, status: 'completed' } as MatchRow,
+      (allDivMatches ?? []) as MatchRow[],
+    )
+    if (reset) {
+      const { data: resetMatch } = await service
+        .from('tournament_matches')
+        .insert({ tournament_id: match.tournament_id, division_id: match.division_id, ...reset })
+        .select(MATCH_SELECT)
+        .single()
+      if (resetMatch) advancedMatches.push(resetMatch)
     }
   }
 
