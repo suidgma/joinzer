@@ -174,8 +174,11 @@ function initScheduleEdits(
     if (m.scheduled_time) {
       const d = new Date(m.scheduled_time)
       if (!isNaN(d.getTime())) {
-        timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-        dateStr = d.toISOString().slice(0, 10)
+        // Display the tournament's Pacific wall-clock time, not the browser's
+        // local zone — matches the bracket and the -07:00 the save path writes
+        // back. en-GB gives 24h "HH:MM"; en-CA gives ISO "YYYY-MM-DD".
+        timeStr = d.toLocaleTimeString('en-GB', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', hour12: false })
+        dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
       }
     }
     result[m.id] = { court: m.court_number != null ? String(m.court_number) : '', time: timeStr, date: dateStr }
