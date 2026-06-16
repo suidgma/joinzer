@@ -47,6 +47,7 @@ function metaLine(d: BuilderDivision): string {
 export default function DivisionCard({ division, stats, estimate, blocks, onAssign, dragging }: Props) {
   const [assignOpen, setAssignOpen] = useState(false)
   const noTeams = stats.teamCount < 2
+  // Drag handled by @dnd-kit (pointer/touch/keyboard); grip below is the handle.
   const { attributes, listeners, setNodeRef } = useDraggable({ id: division.id })
 
   return (
