@@ -15,6 +15,7 @@ type Match = {
   round_number: number | null
   match_number: number
   match_stage: string
+  status: string
   court_number: number | null
   scheduled_time: string | null
   team_1_registration_id: string | null
@@ -52,8 +53,11 @@ function formatTime12(hhmm: string): string {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`
 }
 
-// Place each match into the earliest time slot where neither team is already
-// booked and a court is free. Pure: returns the assignments without mutating input.
+// Greedy court/time packer. Assigns each schedulable match to the earliest free
+// court, processing matches in round order so later rounds (including TBD
+// winner-of-X placeholders) land after the rounds they depend on — every round
+// starts only once all earlier rounds have finished. Completed byes need no slot.
+// A team is never double-booked. Pure: returns assignments without mutating input.
 function generateSchedule(
   matches: Match[],
   date: string,
@@ -62,59 +66,50 @@ function generateSchedule(
   firstCourt: number,
   lastCourt: number,
 ): { id: string; court_number: number; scheduled_time: string }[] {
-  const courts = Array.from({ length: lastCourt - firstCourt + 1 }, (_, i) => firstCourt + i)
+  const courts = Array.from({ length: Math.max(0, lastCourt - firstCourt + 1) }, (_, i) => firstCourt + i)
   if (courts.length === 0) return []
-  const numCourts = courts.length
   const startMin = toMinutes(startTime)
 
-  // Sort: stage priority → round → match_number.
   const stagePriority: Record<string, number> = {
     pool_play: 0, round_robin: 0,
     winners_bracket: 1, single_elimination: 1,
     losers_bracket: 2, playoffs: 3, championship: 4,
   }
-  const sorted = [...matches].sort((a, b) => {
-    const sa = stagePriority[a.match_stage] ?? 1
-    const sb = stagePriority[b.match_stage] ?? 1
-    if (sa !== sb) return sa - sb
-    const ra = a.round_number ?? 999
-    const rb = b.round_number ?? 999
-    if (ra !== rb) return ra - rb
-    return a.match_number - b.match_number
-  })
+  // Monotonic key so all of round N sorts before round N+1, across stages.
+  const phaseOf = (m: Match) => (stagePriority[m.match_stage] ?? 1) * 1000 + (m.round_number ?? 1)
 
-  const waveSlots: Match[][] = []
+  // Byes are already decided (status 'completed') — they occupy no court/time.
+  const sorted = matches
+    .filter(m => m.status !== 'completed')
+    .sort((a, b) => phaseOf(a) - phaseOf(b) || a.match_number - b.match_number)
+
+  const courtFree = new Map(courts.map(c => [c, startMin]))
+  const teamLastEnd = new Map<string, number>()
   const result: { id: string; court_number: number; scheduled_time: string }[] = []
 
-  for (const m of sorted) {
-    const p1 = m.team_1_registration_id
-    const p2 = m.team_2_registration_id
-    // Bye matches (p2 === null) are auto-completed — skip court/time assignment.
-    if (!p2) continue
+  let floor = startMin          // no match in this round may start before `floor`
+  let phase = sorted.length ? phaseOf(sorted[0]) : 0
+  let phaseMaxEnd = startMin
 
-    // Earliest wave with a free court and no player conflict.
-    let wave = 0
-    while (true) {
-      const slot = waveSlots[wave] ?? []
-      const courtFree = slot.length < numCourts
-      const playerBusy = slot.some(existing =>
-        (p1 && (existing.team_1_registration_id === p1 || existing.team_2_registration_id === p1)) ||
-        (p2 && (existing.team_1_registration_id === p2 || existing.team_2_registration_id === p2))
-      )
-      if (courtFree && !playerBusy) break
-      wave++
+  for (const m of sorted) {
+    const p = phaseOf(m)
+    if (p !== phase) { floor = phaseMaxEnd; phase = p }   // advance to the next round
+
+    const teams = [m.team_1_registration_id, m.team_2_registration_id].filter(Boolean) as string[]
+    const restReady = teams.reduce((mx, t) => Math.max(mx, teamLastEnd.get(t) ?? startMin), startMin)
+
+    let bestCourt = courts[0]
+    let bestStart = Infinity
+    for (const c of courts) {
+      const s = Math.max(courtFree.get(c)!, restReady, floor)
+      if (s < bestStart) { bestStart = s; bestCourt = c }
     }
 
-    if (!waveSlots[wave]) waveSlots[wave] = []
-    const courtIndex = waveSlots[wave].length
-    waveSlots[wave].push(m)
-
-    const timeMin = startMin + wave * matchDuration
-    result.push({
-      id: m.id,
-      court_number: courts[courtIndex],
-      scheduled_time: `${date}T${fromMinutes(timeMin)}:00-07:00`,
-    })
+    result.push({ id: m.id, court_number: bestCourt, scheduled_time: `${date}T${fromMinutes(bestStart)}:00-07:00` })
+    const end = bestStart + matchDuration
+    courtFree.set(bestCourt, end)
+    for (const t of teams) teamLastEnd.set(t, end)
+    phaseMaxEnd = Math.max(phaseMaxEnd, end)
   }
 
   return result
@@ -141,14 +136,10 @@ export default function ScheduleGenerator({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
-  const playableMatches = useMemo(
-    () => matches.filter(m => m.team_1_registration_id || m.team_2_registration_id),
-    [matches]
-  )
-
   const numCourts = Math.max(1, genLastCourt - genFirstCourt + 1)
-  const realMatches = playableMatches.filter(m => m.team_2_registration_id)
-  const numWaves = Math.ceil(realMatches.length / numCourts)
+  // Everything except already-decided byes needs a slot (real matches + TBD rounds).
+  const toScheduleCount = useMemo(() => matches.filter(m => m.status !== 'completed').length, [matches])
+  const numWaves = Math.ceil(toScheduleCount / numCourts)
   const estimatedEndMin = toMinutes(genStartTime) + numWaves * genDuration
   const estimatedEndTime = fromMinutes(estimatedEndMin)
   const overrun = estimatedEndMin > toMinutes(genEndTime)
@@ -193,8 +184,7 @@ export default function ScheduleGenerator({
       setGenerateResult(data.divisions)
     }
 
-    const playable = allMatches.filter(m => m.team_1_registration_id || m.team_2_registration_id)
-    const generated = generateSchedule(playable, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
+    const generated = generateSchedule(allMatches, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
     const genMap = new Map(generated.map(g => [g.id, g]))
     setMatches(allMatches.map(m => {
       const g = genMap.get(m.id)
@@ -212,7 +202,7 @@ export default function ScheduleGenerator({
   async function handleReschedule() {
     setGenerating(true)
     setSaveError(null)
-    const generated = generateSchedule(playableMatches, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
+    const generated = generateSchedule(matches, genDate, genStartTime, genDuration, genFirstCourt, genLastCourt)
     const genMap = new Map(generated.map(g => [g.id, g]))
     setMatches(matches.map(m => {
       const g = genMap.get(m.id)
