@@ -52,7 +52,7 @@ All four surfaces share users, profiles, locations. Bottom nav: Home / Play / Le
 | Auth | Production: email/password + Google OAuth |
 | Hosting | Vercel (frontend) + Supabase (backend) |
 | Transactional email | Resend (registration / payment / refund / partner-match / sub-request / session-reminder / organizer announce) |
-| In-app notifications | Implemented — `notifications` table, bell + panel in app header, deep links, 12+ triggers wired. No browser push yet. |
+| In-app notifications | Implemented — `notifications` table, bell + panel in app header, deep links, 12+ triggers wired. Browser push is code-complete but **not enabled** (VAPID keys unset — see Current State). |
 | Payments | Stripe Checkout for tournaments / leagues / events; Stripe Connect Express for organizer payouts; refunds with reverse-transfer; tournament discount codes |
 
 **Do not introduce:** shadcn/ui, Radix, Redux, tRPC, Prisma, custom ORMs, Docker, CI pipelines beyond Vercel default.
@@ -79,7 +79,8 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Tournament division defaults** — Create Tournament sets default format (round robin/single/double elim), points-to-win (11/15/21), win-by (1/2), and primary venue. Divisions inherit all and can override. Columns: `tournaments.default_win_by`, `tournaments.default_games_to`, `tournaments.default_bracket_type`, `tournament_divisions.location_id`.
 - **Gender validation** — All tournament registration paths enforce gender for mens/womens divisions (RPC + route + auto-pairing). League roster add-player dropdown filters by gender for gender-specific formats.
 
-- **In-app notification center** — `notifications` table + RLS + indexes. Bell + panel in app header (all breakpoints). Deep links per notification. 12+ triggers wired across tournaments, leagues, Stripe webhook, cron. No browser push.
+- **In-app notification center** — `notifications` table + RLS + indexes. Bell + panel in app header (all breakpoints). Deep links per notification. 12+ triggers wired across tournaments, leagues, Stripe webhook, cron.
+- **Browser push — code-complete but NOT enabled** — full implementation exists: `profiles.push_subscription` column (migration `20260601000001`), service worker (`public/sw.js`), subscribe/unsubscribe API (`app/api/push/subscribe`), VAPID sender with expired-subscription cleanup (`lib/push/send.ts`), `PushSubscribeButton` mounted in Profile + NotificationPanel, and `sendPush`/`sendPushBatch` wired into `lib/notifications/create.ts` so every in-app notification also fires a push. **It silently no-ops because VAPID env vars are unset** (`NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` — absent from `.env.local.example`). To turn on: generate VAPID keys, set the three env vars in Vercel + local, add them to `.env.local.example`.
 - **Players directory** — `/players` with search, skill/gender filters, availability. `/players/[id]` individual profile page. Cards link to profiles; invite-tap still works when player is available.
 - **Public browse pages** — `/browse/leagues` and `/browse/tournaments` accessible without auth. LandingNav/Footer shell. Middleware allowlisted. CTAs on landing page link directly to browse.
 - **Marketing site** — updated hero ("Play. Compete. Find your game."), trust strip, CompeteSection CTAs, login tagline. OrganizersSection added (PR #39).
@@ -96,7 +97,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 - **Per-court SEO pages** — ~65 courts in DB, no public `/courts/[slug]` pages yet
 - **Public browse** — full-featured (per-court pages, deep filtering, map view) is future; basic `/browse/leagues` and `/browse/tournaments` are shipped
 - **Organization / business layer** — every tournament + league is owned by a single individual organizer; no `organizations` table, no multi-tournament business accounts
-- **Browser push notifications** — in-app inbox is built; `profiles.push_subscription` column doesn't exist yet
+- **Browser push notifications (enablement only)** — all code is built and wired (see Shipped); only the VAPID env keys remain to turn it on. Not a build task — a config task.
 
 ### In progress
 
