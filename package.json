@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "cross-env WATCHPACK_POLLING=1000 next dev --webpack",
+    "dev:turbo": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -33,6 +34,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/web-push": "^3.6.4",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
     "eslint": "^8",
     "eslint-config-next": "^14.2.0",
