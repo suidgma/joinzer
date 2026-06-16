@@ -66,6 +66,7 @@ type Props = {
   division: Division
   initialRegistrations: Registration[]
   initialMatches: Match[]
+  draftMatchCount?: number
   isOrganizer: boolean
   currentUserId: string | null
   locationCourtCount?: number | null
@@ -126,7 +127,7 @@ const FORMAT_LABELS: Record<string, string> = {
 
 export default function DivisionManageView({
   tournamentId, tournamentName, tournamentStartDate, tournamentStartTime,
-  division, initialRegistrations, initialMatches,
+  division, initialRegistrations, initialMatches, draftMatchCount = 0,
   isOrganizer, currentUserId, locationCourtCount,
 }: Props) {
   const router = useRouter()
@@ -387,6 +388,26 @@ export default function DivisionManageView({
             {' / '}{division.max_entries}{' '}{isDoubles ? 'teams' : 'players'}
           </p>
         </div>
+
+        {/* ── Draft schedule notice ── */}
+        {isOrganizer && draftMatchCount > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-900">
+              This division has an unpublished draft schedule
+            </p>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              {draftMatchCount} draft match{draftMatchCount === 1 ? '' : 'es'} {matches.length === 0 ? 'were' : 'are also'} generated from the Schedule Builder. Draft matches stay hidden here (and from players) until you publish them — which is why
+              {matches.length === 0 ? ' this page looks empty and ' : ' '}
+              re-generating is blocked. Publish the draft to go live, or discard it to generate here instead.
+            </p>
+            <Link
+              href={`/tournaments/${tournamentId}/schedule/builder`}
+              className="inline-block mt-1 py-2 px-4 rounded-xl bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+            >
+              Open Schedule Builder →
+            </Link>
+          </div>
+        )}
 
         {/* ── Seeding, schedule, match generation — all divisions ── */}
         {isOrganizer && (
