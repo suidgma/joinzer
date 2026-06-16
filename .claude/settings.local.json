@@ -34,7 +34,10 @@
       "Bash(netstat -ano)",
       "Bash(taskkill *)",
       "Bash(powershell *)",
-      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000)"
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "Bash(gh pr *)"
     ]
   }
 }
