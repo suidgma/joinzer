@@ -10,11 +10,27 @@ export type SchedulableMatch = {
   division_id: string
   round_number: number | null
   match_number: number
+  match_stage?: string | null
   team_1_registration_id?: string | null
   team_2_registration_id?: string | null
   court_number?: number | null
   scheduled_time?: string | null
   scheduled_end_time?: string | null
+}
+
+// Bracket dependency phases. A match can't start until every earlier-phase match
+// in its OWN division has finished: round N feeds round N+1, and in double elim
+// the losers bracket is fed by the winners bracket and the championship by both.
+// round_robin / pool play are a single phase (no inter-round dependency).
+const STAGE_PRIORITY: Record<string, number> = {
+  pool_play: 0, round_robin: 0,
+  single_elimination: 1, winners_bracket: 1,
+  losers_bracket: 2, playoffs: 3, consolation: 3, championship: 4,
+}
+// Monotonic key so, within a division, a lower (stage, round) always sorts and
+// schedules before a higher one — later-round "winner-of TBD" matches included.
+function phaseOf(m: SchedulableMatch): number {
+  return (STAGE_PRIORITY[m.match_stage ?? ''] ?? 1) * 1000 + (m.round_number ?? 1)
 }
 
 export type BlockWindow = {
@@ -66,16 +82,16 @@ export function scheduleBlockMatches(
     for (const d of divIds) if (allowedCourts.get(d)!.length === 0) allowedCourts.set(d, courts)
   }
 
-  // Earlier rounds first so later rounds (which depend on winners) land later.
-  // Within a round, schedule larger divisions first; grouping keeps a division's
-  // matches clustered when courts allow.
+  // Earlier phases first so later rounds (which depend on earlier results) land
+  // later. Within a phase, schedule larger divisions first; grouping keeps a
+  // division's matches clustered when courts allow.
   const ordered = [...matches].sort((a, b) => {
-    const ra = a.round_number ?? 1, rb = b.round_number ?? 1
-    if (ra !== rb) return ra - rb
+    const pa = phaseOf(a), pb = phaseOf(b)
+    if (pa !== pb) return pa - pb
     if (keepDivisionsGrouped && a.division_id !== b.division_id) {
       if (byPriority) {
-        const pa = prio(a.division_id), pb = prio(b.division_id)
-        if (pa !== pb) return pb - pa             // higher priority first
+        const qa = prio(a.division_id), qb = prio(b.division_id)
+        if (qa !== qb) return qb - qa             // higher priority first
       }
       const ca = divCount.get(a.division_id) ?? 0, cb = divCount.get(b.division_id) ?? 0
       if (ca !== cb) return cb - ca               // then largest division first
@@ -86,22 +102,42 @@ export function scheduleBlockMatches(
 
   const courtFree = new Map<number, number>(courts.map(c => [c, startMin]))
   const teamLastEnd = new Map<string, number>()
+  // Per-division dependency floor: no match in a division may start before the
+  // last match of that division's previous phase has ended. This is what stops a
+  // later-round "winner-of TBD" match (which has no team IDs to rest-gate it)
+  // from being packed into the same slot as the matches that feed it.
+  const divPhase = new Map<string, number>()       // current phase being placed
+  const divFloor = new Map<string, number>()        // earliest start for that phase
+  const divPhaseEnd = new Map<string, number>()     // latest end seen within it
   let overflow = 0
 
   for (const m of ordered) {
+    const div = m.division_id
+    const p = phaseOf(m)
+    if (!divPhase.has(div)) {
+      divPhase.set(div, p); divFloor.set(div, startMin); divPhaseEnd.set(div, startMin)
+    } else if (p > divPhase.get(div)!) {
+      // Advanced to a new round/stage for this division — it can't begin until the
+      // previous phase has fully finished. (ordered is phase-monotonic per division.)
+      const floor = divPhaseEnd.get(div)!
+      divPhase.set(div, p); divFloor.set(div, floor); divPhaseEnd.set(div, floor)
+    }
+    const phaseFloor = divFloor.get(div)!
+
     const teams = [m.team_1_registration_id, m.team_2_registration_id].filter(Boolean) as string[]
     // A team can't start its next match until it has rested.
     const restReady = teams.reduce(
       (mx, t) => Math.max(mx, (teamLastEnd.get(t) ?? -Infinity) + rest),
       startMin,
     )
+    const earliest = Math.max(restReady, phaseFloor)
     // Pick the court that lets this match start earliest (restricted to the
     // division's own courts when court-sharing is off).
     const usable = shareCourts ? courts : (allowedCourts.get(m.division_id) ?? courts)
     let bestCourt = usable[0]
     let bestStart = Infinity
     for (const c of usable) {
-      const s = Math.max(courtFree.get(c)!, restReady)
+      const s = Math.max(courtFree.get(c)!, earliest)
       if (s < bestStart) { bestStart = s; bestCourt = c }
     }
 
@@ -109,8 +145,10 @@ export function scheduleBlockMatches(
     m.scheduled_time = toIso(block.block_date, bestStart)
     m.scheduled_end_time = toIso(block.block_date, bestStart + duration)
     courtFree.set(bestCourt, bestStart + perMatch)
-    for (const t of teams) teamLastEnd.set(t, bestStart + duration)
-    if (bestStart + duration > endMin) overflow++
+    const end = bestStart + duration
+    for (const t of teams) teamLastEnd.set(t, end)
+    if (divPhaseEnd.get(div)! < end) divPhaseEnd.set(div, end)
+    if (end > endMin) overflow++
   }
 
   return { overflowCount: overflow }
