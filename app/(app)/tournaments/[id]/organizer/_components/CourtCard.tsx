@@ -1,6 +1,6 @@
 'use client'
 import type { OrgMatch, OrgRegistration } from './types'
-import { teamLabel } from './ScoreEntryModal'
+import { slotLabel } from './ScoreEntryModal'
 
 function elapsed(scheduledTime: string | null): string {
   if (!scheduledTime) return ''
@@ -30,8 +30,8 @@ export default function CourtCard({ courtNumber, match, registrations, onUpdateS
     )
   }
 
-  const t1 = teamLabel(match.team_1_registration_id, registrations)
-  const t2 = teamLabel(match.team_2_registration_id, registrations)
+  const t1 = slotLabel(match.team_1_registration_id, match.team_2_registration_id, match.status, registrations)
+  const t2 = slotLabel(match.team_2_registration_id, match.team_1_registration_id, match.status, registrations)
   const elapsedStr = elapsed(match.scheduled_time)
 
   return (
