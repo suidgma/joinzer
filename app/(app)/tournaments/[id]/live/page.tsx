@@ -53,7 +53,7 @@ export default async function PublicLiveScoreboardPage(
     <main className="min-h-screen bg-brand-page">
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-2">
           <p className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">Live Scoreboard</p>
           <h1 className="font-heading text-xl font-bold text-brand-dark">{tournament.name}</h1>
           <p className="text-xs text-brand-muted">
@@ -61,6 +61,12 @@ export default async function PublicLiveScoreboardPage(
               weekday: 'long', month: 'long', day: 'numeric',
             })}
           </p>
+          <Link
+            href={`/tournaments/${params.id}`}
+            className="inline-flex items-center gap-1 rounded-full border border-brand-active/30 bg-brand-active/10 px-4 py-1.5 text-xs font-semibold text-brand-active hover:bg-brand-active/20 transition-colors"
+          >
+            View full tournament →
+          </Link>
         </div>
 
         <LiveScoreboard

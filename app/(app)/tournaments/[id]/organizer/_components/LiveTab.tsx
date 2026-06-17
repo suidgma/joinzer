@@ -54,10 +54,6 @@ export default function LiveTab({ tournamentId, matches, registrations, division
     <div className="space-y-5">
       <QuickActionsBar
         onAnnounce={() => setShowAnnounce(true)}
-        onReschedule={() => {
-          // TODO: implement reschedule flow (reschedule_match RPC)
-          showToast('Reschedule coming soon')
-        }}
         onExport={() => {
           // TODO: implement CSV/PDF export
           showToast('Export coming soon')

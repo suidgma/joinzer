@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
-import { teamLabel } from './ScoreEntryModal'
+import { slotLabel } from './ScoreEntryModal'
 import RescheduleModal from './RescheduleModal'
 import { Toast, useToast } from './Toast'
 
@@ -160,8 +160,8 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
 function MatchRow({
   match, registrations, playerView, onReschedule,
 }: { match: OrgMatch; registrations: OrgRegistration[]; playerView: boolean; onReschedule?: () => void }) {
-  const t1 = teamLabel(match.team_1_registration_id, registrations)
-  const t2 = teamLabel(match.team_2_registration_id, registrations)
+  const t1 = slotLabel(match.team_1_registration_id, match.team_2_registration_id, match.status, registrations)
+  const t2 = slotLabel(match.team_2_registration_id, match.team_1_registration_id, match.status, registrations)
   const badgeClass = STATUS_BADGE[match.status] ?? 'bg-gray-100 text-gray-500'
   const statusLabel = match.status === 'in_progress' ? 'Live' : match.status
   const canReschedule = onReschedule && match.status !== 'completed'

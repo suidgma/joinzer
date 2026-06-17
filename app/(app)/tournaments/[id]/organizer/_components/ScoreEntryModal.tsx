@@ -15,6 +15,20 @@ export function teamLabel(regId: string | null, regs: OrgRegistration[]): string
   return r.team_name || firstName(r.player_name) || regId.slice(0, 8)
 }
 
+// Label for one side of a match, aware of the match's state. A filled slot shows
+// the team name. An empty slot is either a genuine BYE — a round-1 elimination
+// pairing that auto-advanced (match already completed, opponent present) — or a
+// future-round placeholder still waiting on an earlier result, shown as "TBD".
+export function slotLabel(
+  regId: string | null,
+  opponentRegId: string | null,
+  status: string,
+  regs: OrgRegistration[],
+): string {
+  if (regId) return teamLabel(regId, regs)
+  return status === 'completed' && opponentRegId ? 'BYE' : 'TBD'
+}
+
 type Props = {
   tournamentId: string
   match: OrgMatch
