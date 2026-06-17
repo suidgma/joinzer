@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
-import { teamLabel } from './ScoreEntryModal'
+import { slotLabel } from './ScoreEntryModal'
 import RescheduleModal from './RescheduleModal'
 import { Toast, useToast } from './Toast'
 
@@ -127,13 +127,13 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
           <p className="text-2xl mb-2">📅</p>
           <p className="text-sm font-semibold text-brand-dark">No matches scheduled yet</p>
           <p className="text-xs text-brand-muted mt-1 mb-4 max-w-xs mx-auto">
-            Once players have registered, generate the bracket and assign courts from the overview.
+            Once players have registered, set up courts and times in the Schedule Builder — or generate a single division’s bracket from its Manage page.
           </p>
           <Link
-            href={`/tournaments/${tournamentId}`}
+            href={`/tournaments/${tournamentId}/schedule/builder`}
             className="inline-block py-2 px-4 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
           >
-            Generate from Overview →
+            Open Schedule Builder →
           </Link>
         </div>
       )}
@@ -160,8 +160,8 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
 function MatchRow({
   match, registrations, playerView, onReschedule,
 }: { match: OrgMatch; registrations: OrgRegistration[]; playerView: boolean; onReschedule?: () => void }) {
-  const t1 = teamLabel(match.team_1_registration_id, registrations)
-  const t2 = teamLabel(match.team_2_registration_id, registrations)
+  const t1 = slotLabel(match.team_1_registration_id, match.team_2_registration_id, match.status, registrations)
+  const t2 = slotLabel(match.team_2_registration_id, match.team_1_registration_id, match.status, registrations)
   const badgeClass = STATUS_BADGE[match.status] ?? 'bg-gray-100 text-gray-500'
   const statusLabel = match.status === 'in_progress' ? 'Live' : match.status
   const canReschedule = onReschedule && match.status !== 'completed'

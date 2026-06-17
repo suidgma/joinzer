@@ -1,6 +1,6 @@
 'use client'
 import type { OrgMatch, OrgRegistration } from './types'
-import { teamLabel } from './ScoreEntryModal'
+import { slotLabel } from './ScoreEntryModal'
 
 function fmtTime(scheduled: string | null): string {
   if (!scheduled) return '—'
@@ -18,8 +18,8 @@ type Props = {
 }
 
 export default function UpNextRow({ match, registrations, tournamentId, onMarkedReady, onError }: Props) {
-  const t1 = teamLabel(match.team_1_registration_id, registrations)
-  const t2 = teamLabel(match.team_2_registration_id, registrations)
+  const t1 = slotLabel(match.team_1_registration_id, match.team_2_registration_id, match.status, registrations)
+  const t2 = slotLabel(match.team_2_registration_id, match.team_1_registration_id, match.status, registrations)
 
   async function handleMarkReady() {
     onMarkedReady(match.id) // optimistic

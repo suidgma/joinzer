@@ -12,7 +12,6 @@ import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
 import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection'
-import ScheduleGenerator from '@/components/features/tournaments/ScheduleGenerator'
 import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
@@ -365,21 +364,6 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             matchCountByDivision={matchCountByDivision}
             matchesByDivision={matchesByDivision}
           />
-
-          {/* One-click schedule generation (simple mode). For block-by-block
-              control, organizers use the Schedule Builder tab. */}
-          {divisionsForOrg.length > 0 && (
-            <ScheduleGenerator
-              tournamentId={tournament.id}
-              initialMatches={matchesForOrg as any}
-              tournamentDate={tournament.start_date ?? ''}
-              defaultStartTime={(tournament.start_time ?? '08:00').slice(0, 5)}
-              defaultEndTime={tournament.estimated_end_time ? tournament.estimated_end_time.slice(0, 5) : null}
-              additionalDays={((tournament as any).additional_days ?? []) as { date: string; start_time: string; end_time: string }[]}
-              locationCourtCount={(tournament.location as any)?.court_count ?? null}
-              locationName={(tournament.location as any)?.name ?? null}
-            />
-          )}
 
           {/* Discount codes */}
           <div className="bg-white border border-brand-border rounded-2xl p-4">
