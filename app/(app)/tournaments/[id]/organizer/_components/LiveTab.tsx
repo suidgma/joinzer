@@ -55,8 +55,8 @@ export default function LiveTab({ tournamentId, matches, registrations, division
       <QuickActionsBar
         onAnnounce={() => setShowAnnounce(true)}
         onExport={() => {
-          // TODO: implement CSV/PDF export
-          showToast('Export coming soon')
+          // Print-ready bracket sheet for every division (browser "Save as PDF").
+          window.open(`/tournaments/${tournamentId}/print`, '_blank')
         }}
       />
 
