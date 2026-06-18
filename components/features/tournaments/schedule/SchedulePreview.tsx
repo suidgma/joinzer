@@ -55,6 +55,17 @@ function buildIso(date: string, hhmm: string): string {
   return `${date}T${hhmm}:00-07:00`
 }
 
+// The stored timestamp comes back as UTC. Convert to tournament-local (LA) date +
+// HH:MM so the edit inputs show the same time the organizer sees in the rows —
+// otherwise opening the editor shows UTC and saving shifts the match by the offset.
+function laParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso)
+  return {
+    date: d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),          // YYYY-MM-DD
+    time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Los_Angeles' }),
+  }
+}
+
 export default function SchedulePreview({
   draftMatches, blocks, divisions, teamLabels, matchDurationMinutes,
   tournamentId, onMatchUpdated, onDraftRefresh, onFlash,
@@ -77,7 +88,7 @@ export default function SchedulePreview({
   function startEdit(m: DraftMatch) {
     setEditingId(m.id)
     setEditCourt(m.court_number != null ? String(m.court_number) : '')
-    setEditTime(m.scheduled_time ? m.scheduled_time.slice(11, 16) : '')
+    setEditTime(m.scheduled_time ? laParts(m.scheduled_time).time : '')
   }
 
   async function saveEdit(m: DraftMatch) {
@@ -85,7 +96,7 @@ export default function SchedulePreview({
     if (court != null && (!Number.isInteger(court) || court < 1)) {
       onFlash?.('Enter a valid court number'); return
     }
-    const date = m.scheduled_time ? m.scheduled_time.slice(0, 10) : blockOf(m)?.block_date ?? null
+    const date = m.scheduled_time ? laParts(m.scheduled_time).date : blockOf(m)?.block_date ?? null
     let scheduled_time = m.scheduled_time
     let scheduled_end_time = m.scheduled_end_time
     if (editTime && date) {
@@ -96,6 +107,31 @@ export default function SchedulePreview({
       const em = String(endMin % 60).padStart(2, '0')
       scheduled_end_time = buildIso(date, `${eh}:${em}`)
     }
+
+    // Prevent double-booking: reject a court+time that overlaps another match on
+    // the same court. Absolute timestamps cover the same-day check inherently.
+    if (court != null && scheduled_time) {
+      const newStart = new Date(scheduled_time).getTime()
+      const newEnd = scheduled_end_time
+        ? new Date(scheduled_end_time).getTime()
+        : newStart + matchDurationMinutes * 60000
+      const clash = draftMatches.find(o => {
+        if (o.id === m.id || o.court_number !== court || !o.scheduled_time) return false
+        const os = new Date(o.scheduled_time).getTime()
+        const oe = o.scheduled_end_time
+          ? new Date(o.scheduled_end_time).getTime()
+          : os + matchDurationMinutes * 60000
+        return newStart < oe && os < newEnd
+      })
+      if (clash) {
+        onFlash?.(
+          `Court ${court} is already booked ${fmtRange(clash.scheduled_time, clash.scheduled_end_time, matchDurationMinutes)} ` +
+          `(${label(clash.team_1_registration_id)} vs ${label(clash.team_2_registration_id)}). Pick another court or time.`
+        )
+        return
+      }
+    }
+
     setSavingId(m.id)
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/schedule`, {
@@ -180,8 +216,8 @@ export default function SchedulePreview({
     }
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        {show.includes('date') && <span className="w-20 shrink-0 text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
-        {show.includes('time') && <span className="w-28 shrink-0 text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, m.scheduled_end_time, matchDurationMinutes)}</span>}
+        {show.includes('date') && <span className="w-20 shrink-0 whitespace-nowrap text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
+        {show.includes('time') && <span className="w-36 shrink-0 whitespace-nowrap text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, m.scheduled_end_time, matchDurationMinutes)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {label(m.team_1_registration_id)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id)}
