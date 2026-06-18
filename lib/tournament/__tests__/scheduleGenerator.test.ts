@@ -105,6 +105,19 @@ describe('scheduleBlockMatches dependency floor', () => {
     }
   })
 
+  it('keeps a small division on its own courts for later rounds', () => {
+    // 4-team single elim: round 1 fills two courts; the final should reuse one of
+    // them rather than spilling onto a fresh court to shave the turnaround buffer.
+    const r1a = elim('D', 'single_elimination', 1, 1, true)
+    const r1b = elim('D', 'single_elimination', 1, 2, true)
+    const final = elim('D', 'single_elimination', 2, 3, false)
+
+    scheduleBlockMatches(block, [r1a, r1b, final], DEFAULT_SCHEDULE_SETTINGS)
+
+    const r1Courts = new Set([r1a.court_number, r1b.court_number])
+    expect(r1Courts.has(final.court_number!)).toBe(true)
+  })
+
   it('leaves an independent round-robin division on the early slots (no false floor)', () => {
     // A single-phase RR division should still pack from the block start.
     const rr: SchedulableMatch[] = [1, 2, 3, 4].map(n => ({

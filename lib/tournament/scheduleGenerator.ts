@@ -129,6 +129,7 @@ export function scheduleBlockMatches(
   const divPhase = new Map<string, number>()       // current phase being placed
   const divFloor = new Map<string, number>()        // earliest start for that phase
   const divPhaseEnd = new Map<string, number>()     // latest end seen within it
+  const divCourts = new Map<string, Set<number>>()  // courts each division has used
   let overflow = 0
 
   for (const m of ordered) {
@@ -161,6 +162,27 @@ export function scheduleBlockMatches(
       if (s < bestStart) { bestStart = s; bestCourt = c }
     }
 
+    // Court locality: keep a division on the courts it's already playing on
+    // instead of spilling onto a fresh court just to skip the turnaround buffer.
+    // Reuse an own court when it frees within `buffer_minutes` of the earliest
+    // option — so a 4-team division's final stays on Court 1/2, not Court 3.
+    if (keepDivisionsGrouped) {
+      const used = divCourts.get(div)
+      if (used && used.size > 0) {
+        let ownCourt = -1
+        let ownStart = Infinity
+        for (const c of usable) {
+          if (!used.has(c)) continue
+          const s = Math.max(courtFree.get(c)!, earliest)
+          if (s < ownStart) { ownStart = s; ownCourt = c }
+        }
+        if (ownCourt !== -1 && ownStart <= bestStart + settings.buffer_minutes) {
+          bestCourt = ownCourt
+          bestStart = ownStart
+        }
+      }
+    }
+
     m.court_number = bestCourt
     m.scheduled_time = toIso(block.block_date, bestStart)
     m.scheduled_end_time = toIso(block.block_date, bestStart + duration)
@@ -169,6 +191,9 @@ export function scheduleBlockMatches(
     const end = bestStart + duration
     for (const t of teams) teamLastEnd.set(t, end)
     if (divPhaseEnd.get(div)! < end) divPhaseEnd.set(div, end)
+    let dc = divCourts.get(div)
+    if (!dc) { dc = new Set(); divCourts.set(div, dc) }
+    dc.add(bestCourt)
     if (end > endMin) overflow++
   }
 
