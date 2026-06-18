@@ -73,6 +73,7 @@ export default function SchedulePreview({
   const [view, setView] = useState<View>('time')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editCourt, setEditCourt] = useState('')
+  const [editDate, setEditDate] = useState('')
   const [editTime, setEditTime] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
   const [regenId, setRegenId] = useState<string | null>(null)
@@ -89,6 +90,7 @@ export default function SchedulePreview({
     setEditingId(m.id)
     setEditCourt(m.court_number != null ? String(m.court_number) : '')
     setEditTime(m.scheduled_time ? laParts(m.scheduled_time).time : '')
+    setEditDate(m.scheduled_time ? laParts(m.scheduled_time).date : (blockOf(m)?.block_date ?? ''))
   }
 
   async function saveEdit(m: DraftMatch) {
@@ -96,7 +98,7 @@ export default function SchedulePreview({
     if (court != null && (!Number.isInteger(court) || court < 1)) {
       onFlash?.('Enter a valid court number'); return
     }
-    const date = m.scheduled_time ? laParts(m.scheduled_time).date : blockOf(m)?.block_date ?? null
+    const date = editDate || (m.scheduled_time ? laParts(m.scheduled_time).date : blockOf(m)?.block_date ?? null)
     let scheduled_time = m.scheduled_time
     let scheduled_end_time = m.scheduled_end_time
     if (editTime && date) {
@@ -185,6 +187,10 @@ export default function SchedulePreview({
     if (editingId === m.id) {
       return (
         <div className="flex items-center gap-2 px-3 py-2 text-xs bg-brand-soft/40">
+          <input
+            type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+            className="w-32 shrink-0 border border-brand-border rounded px-1 py-0.5"
+          />
           <input
             type="time" value={editTime} onChange={e => setEditTime(e.target.value)}
             className="w-24 shrink-0 border border-brand-border rounded px-1 py-0.5"
@@ -332,7 +338,7 @@ export default function SchedulePreview({
       </div>
 
       <p className="text-[11px] text-brand-muted">
-        Click ✎ on a match to change its court or time
+        Click ✎ on a match to change its date, time, or court
         {view === 'division' ? ', or use Regenerate to rebuild a division’s draft.' : '.'}
       </p>
 
