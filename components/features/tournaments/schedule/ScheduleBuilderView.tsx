@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown, Wand2, Send, RefreshCw, Trash2 } from 'lucide-react'
+import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown, Wand2, Send, RefreshCw, Trash2, Lightbulb, Wrench } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink, DraftMatch } from './types'
 import { estimateDivision, blockCapacity, estimateBlockFinishMinutes, recommendedCourts, minutesToLabel, timeToMinutes, type DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
@@ -45,6 +45,7 @@ export default function ScheduleBuilderView({
   const [showConflicts, setShowConflicts] = useState(false)
   const [busy, setBusy] = useState<null | 'generate' | 'publish' | 'discard'>(null)
   const [lastOverflow, setLastOverflow] = useState(0)
+  const [fixing, setFixing] = useState(false)
 
   function flash(msg: string) {
     setToast(msg)
@@ -125,13 +126,27 @@ export default function ScheduleBuilderView({
     return { matches, capacity, over: matches > capacity }
   }
 
-  // ── Warnings ────────────────────────────────────────────────────────────────
-  const warnings: { level: 'red' | 'amber'; text: string }[] = []
+  // ── Warnings (each may carry a suggestion + a one-click fix) ─────────────────
+  type WarningAction = { label: string; run: () => void; secondary?: boolean }
+  type Warning = {
+    level: 'red' | 'amber'
+    text: string
+    suggestion?: string
+    actions?: WarningAction[]
+  }
+  const warnings: Warning[] = []
   for (const b of blocks) {
     const divs = assignedByBlock.get(b.id) ?? []
     if (divs.length === 0) continue
     if (b.court_numbers.length === 0) {
-      warnings.push({ level: 'red', text: `“${b.name}” has divisions assigned but no courts selected.` })
+      const load = blockLoad(b)
+      const need = Math.max(1, recommendedCourts(load.matches, b.start_time, b.end_time, settings))
+      warnings.push({
+        level: 'red',
+        text: `“${b.name}” has divisions assigned but no courts selected.`,
+        suggestion: `Add ${need} court${need === 1 ? '' : 's'} so its matches have somewhere to play.`,
+        actions: [{ label: `Add ${need} court${need === 1 ? '' : 's'}`, run: () => patchBlock(b, { court_numbers: courtsToReach([], need) }, 'Courts added') }],
+      })
       continue
     }
     const load = blockLoad(b)
@@ -142,28 +157,114 @@ export default function ScheduleBuilderView({
       const bits = [`over capacity by ~${load.matches - load.capacity} matches`]
       if (finish != null && finish > endMin) bits.push(`est. finish ~${minutesToLabel(finish)} runs past the ${minutesToLabel(endMin)} end`)
       if (needCourts > b.court_numbers.length) bits.push(`needs ~${needCourts} courts (has ${b.court_numbers.length})`)
-      warnings.push({ level: 'amber', text: `“${b.name}” — ${bits.join('; ')}.` })
+      const extra = needCourts - b.court_numbers.length
+
+      // End time that would let the matches finish with the *current* courts.
+      // Only offered when it stays inside the same day (≤ 11:59 PM) — otherwise
+      // "extend" would silently roll past midnight, which the block can't span.
+      const newEnd = finish != null
+        ? Math.ceil((finish + (settings.leave_end_buffer ? settings.end_buffer_minutes : 0)) / 5) * 5
+        : null
+      const canExtend = newEnd != null && newEnd > endMin && newEnd <= 1439
+
+      const actions: WarningAction[] = []
+      if (extra > 0) {
+        actions.push({ label: `Add ${extra} court${extra === 1 ? '' : 's'} → ${needCourts}`, run: () => patchBlock(b, { court_numbers: courtsToReach(b.court_numbers, needCourts) }, 'Courts added') })
+      }
+      if (canExtend) {
+        actions.push({ label: `Extend end to ${minutesToLabel(newEnd!)}`, secondary: true, run: () => patchBlock(b, { end_time: minutesToClock(newEnd!) }, 'End time extended') })
+      }
+
+      let suggestion: string
+      if (extra > 0 && needCourts > 16) {
+        suggestion = `That’s ~${needCourts} courts — likely too many for one venue. Consider splitting this division across more blocks/days, or a format with fewer matches.${canExtend ? ` Or extend the end time to ${minutesToLabel(newEnd!)}.` : ' You can still add the courts:'}`
+      } else if (extra > 0 && canExtend) {
+        suggestion = `Add ${extra} court${extra === 1 ? '' : 's'} (to ${needCourts}) to keep the same end time, or push the end time to ${minutesToLabel(newEnd!)} to fit on the courts you have.`
+      } else if (extra > 0) {
+        suggestion = `Add ${extra} more court${extra === 1 ? '' : 's'} (to ${needCourts}) to fit it inside the time window.`
+      } else if (canExtend) {
+        suggestion = `Extend the block’s end time to ${minutesToLabel(newEnd!)} to give the matches room.`
+      } else {
+        suggestion = `Add courts or extend the end time to give the matches more room.`
+      }
+      warnings.push({ level: 'amber', text: `“${b.name}” — ${bits.join('; ')}.`, suggestion, actions })
     }
     if (b.max_divisions != null && divs.length > b.max_divisions) {
-      warnings.push({ level: 'amber', text: `“${b.name}” has ${divs.length} divisions but its max is ${b.max_divisions}.` })
+      warnings.push({
+        level: 'amber',
+        text: `“${b.name}” has ${divs.length} divisions but its max is ${b.max_divisions}.`,
+        suggestion: `Raise this block’s division limit to ${divs.length}, or move a division to another block.`,
+        actions: [{ label: `Raise limit to ${divs.length}`, run: () => patchBlock(b, { max_divisions: divs.length }, 'Division limit raised') }],
+      })
     }
     if (!settings.allow_court_sharing && divs.length > b.court_numbers.length) {
-      warnings.push({ level: 'amber', text: `“${b.name}” has ${divs.length} divisions but only ${b.court_numbers.length} court${b.court_numbers.length === 1 ? '' : 's'} — with court-sharing off, some divisions will share a court.` })
+      warnings.push({
+        level: 'amber',
+        text: `“${b.name}” has ${divs.length} divisions but only ${b.court_numbers.length} court${b.court_numbers.length === 1 ? '' : 's'} — with court-sharing off, some divisions will share a court.`,
+        suggestion: `Add courts so each division has its own (needs ${divs.length}), or turn on court-sharing in Settings.`,
+        actions: [{ label: `Add courts → ${divs.length}`, run: () => patchBlock(b, { court_numbers: courtsToReach(b.court_numbers, divs.length) }, 'Courts added') }],
+      })
     }
   }
   for (const d of unassigned) {
     const stats = divisionStats[d.id]
     if (stats && stats.teamCount >= 2) {
-      warnings.push({ level: 'amber', text: `“${d.name}” isn’t assigned to a block.` })
+      const best = bestBlockFor(d)
+      warnings.push({
+        level: 'amber',
+        text: `“${d.name}” isn’t assigned to a block.`,
+        suggestion: best
+          ? `Drag it into a block on the right, or assign it to “${best.name}” (the block with the most room).`
+          : 'Create a block above, then drag this division into it.',
+        actions: best ? [{ label: `Assign to “${best.name}”`, run: () => assign(d.id, best.id) }] : undefined,
+      })
+    }
+  }
+  // Two blocks that overlap in time AND share courts will have their matches
+  // compete for the same physical courts. The scheduler avoids double-booking,
+  // but two blocks on the same courts at once is usually unintended (e.g. a
+  // second day that wasn't given its own date). Only flag when both actually
+  // produce matches.
+  for (let i = 0; i < blocks.length; i++) {
+    for (let j = i + 1; j < blocks.length; j++) {
+      const ba = blocks[i], bb = blocks[j]
+      if (!blocksOverlap(ba, bb)) continue
+      const shared = ba.court_numbers.filter(c => bb.court_numbers.includes(c))
+      if (shared.length === 0) continue
+      if ((assignedByBlock.get(ba.id)?.length ?? 0) === 0 || (assignedByBlock.get(bb.id)?.length ?? 0) === 0) continue
+      const s = shared.length === 1 ? '' : 's'
+      const courtList = shared.join(', ')
+      // Offer to pull the shared courts off whichever block keeps ≥1 court after.
+      const trim = bb.court_numbers.length > shared.length ? bb
+        : ba.court_numbers.length > shared.length ? ba
+        : null
+      warnings.push({
+        level: 'amber',
+        text: `“${ba.name}” and “${bb.name}” overlap in time and share court${s} ${courtList} — their matches will compete for those courts.`,
+        suggestion: trim
+          ? `Give one block its own courts or a different date/time — or pull the shared court${s} off “${trim.name}”.`
+          : `Give one block its own courts, or move it to a different date/time.`,
+        actions: trim
+          ? [{ label: `Remove court${s} ${courtList} from “${trim.name}”`, run: () => patchBlock(trim, { court_numbers: trim.court_numbers.filter(c => !shared.includes(c)) }, 'Courts updated') }]
+          : undefined,
+      })
     }
   }
   const conflictIsError = settings.conflict_policy === 'error'
   for (const c of conflicts) {
     const a = divisionById.get(c.divisionAId)?.name ?? 'A'
     const b = divisionById.get(c.divisionBId)?.name ?? 'B'
+    const moveTarget = bestMoveBlockFor(c.divisionBId)
+    const actions: WarningAction[] = []
+    if (moveTarget) actions.push({ label: `Move “${b}” to “${moveTarget.name}”`, run: () => assign(c.divisionBId, moveTarget.id) })
+    actions.push({ label: `Unassign “${b}”`, secondary: actions.length > 0, run: () => unassign(c.divisionBId) })
     warnings.push({
       level: conflictIsError ? 'red' : 'amber',
       text: `${c.sharedPlayerIds.length} player${c.sharedPlayerIds.length === 1 ? '' : 's'} in both “${a}” and “${b}”, which overlap in time.`,
+      suggestion: moveTarget
+        ? `Move “${b}” to “${moveTarget.name}” — no time overlap there, so the shared players are fine. Or set player conflicts to “Warnings” in Settings.`
+        : `Unassign “${b}” and drop it in a non-overlapping block, or set player conflicts to “Warnings” in Settings.`,
+      actions,
     })
   }
   // Overlap turned off: flag any two divisions in overlapping blocks that aren't
@@ -179,7 +280,18 @@ export default function ScheduleBuilderView({
         if (conflictPairs.has([a.division_id, b.division_id].sort().join('|'))) continue
         const na = divisionById.get(a.division_id)?.name ?? 'A'
         const nb = divisionById.get(b.division_id)?.name ?? 'B'
-        warnings.push({ level: 'amber', text: `“${na}” and “${nb}” are in overlapping time blocks, but division overlap is turned off.` })
+        const moveTarget = bestMoveBlockFor(b.division_id)
+        const overlapActions: WarningAction[] = []
+        if (moveTarget) overlapActions.push({ label: `Move “${nb}” to “${moveTarget.name}”`, run: () => assign(b.division_id, moveTarget.id) })
+        overlapActions.push({ label: `Unassign “${nb}”`, secondary: overlapActions.length > 0, run: () => unassign(b.division_id) })
+        warnings.push({
+          level: 'amber',
+          text: `“${na}” and “${nb}” are in overlapping time blocks, but division overlap is turned off.`,
+          suggestion: moveTarget
+            ? `Move “${nb}” to “${moveTarget.name}” — no overlap there. Or allow division overlap in Settings.`
+            : `Unassign “${nb}” and drop it in a non-overlapping block, or allow division overlap in Settings.`,
+          actions: overlapActions,
+        })
       }
     }
   }
@@ -259,13 +371,103 @@ export default function ScheduleBuilderView({
     } catch { flash('Network error') }
   }
 
-  async function generate(opts: { force?: boolean; replacePublished?: boolean } = {}) {
+  // Build a court-number list that extends the existing courts up to `target`,
+  // appending the next sequential numbers above the current highest.
+  function courtsToReach(current: number[], target: number): number[] {
+    const set = [...current].sort((a, b) => a - b)
+    let next = set.length ? set[set.length - 1] + 1 : 1
+    while (set.length < target) set.push(next++)
+    return set
+  }
+
+  // minutes-since-midnight → 'HH:MM:SS' for persisting a block's end_time.
+  function minutesToClock(min: number): string {
+    const h = Math.floor(min / 60)
+    const m = min % 60
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`
+  }
+
+  // Block with the most remaining capacity after adding this division — the
+  // default target for the "assign" one-click fix on an unassigned division.
+  function bestBlockFor(d: BuilderDivision): ScheduleBlock | null {
+    let best: ScheduleBlock | null = null
+    let bestRemaining = -Infinity
+    const est = estimates.get(d.id)?.matches ?? 0
+    for (const b of blocks) {
+      const load = blockLoad(b)
+      const remaining = load.capacity - (load.matches + est)
+      if (remaining > bestRemaining) { bestRemaining = remaining; best = b }
+    }
+    return best
+  }
+
+  // For a division currently causing a conflict/overlap: find another block it
+  // can move to that (a) introduces no player conflict for it and (b) respects
+  // the division-overlap setting. Among valid blocks, pick the roomiest. Returns
+  // null when no clean home exists (caller falls back to plain unassign).
+  function bestMoveBlockFor(divisionId: string): ScheduleBlock | null {
+    const currentBlockId = assignmentByDivision.get(divisionId)
+    const est = estimates.get(divisionId)?.matches ?? 0
+    let best: ScheduleBlock | null = null
+    let bestRemaining = -Infinity
+    for (const cand of blocks) {
+      if (cand.id === currentBlockId) continue
+      // Simulate the division living in this candidate block.
+      const sim = [
+        ...assignments.filter(x => x.division_id !== divisionId),
+        { division_id: divisionId, block_id: cand.id, priority: priorityByDivision.get(divisionId) ?? 0 },
+      ]
+      const stillConflicts = detectPlayerConflicts(sim, blocks, divisionPlayers)
+        .some(c => c.divisionAId === divisionId || c.divisionBId === divisionId)
+      if (stillConflicts) continue
+      if (!settings.allow_division_overlap) {
+        const overlapsAnother = sim.some(x => {
+          if (x.division_id === divisionId) return false
+          const ob = blockById.get(x.block_id)
+          return ob ? blocksOverlap(cand, ob) : false
+        })
+        if (overlapsAnother) continue
+      }
+      const load = blockLoad(cand)
+      const remaining = load.capacity - (load.matches + est)
+      if (remaining > bestRemaining) { bestRemaining = remaining; best = cand }
+    }
+    return best
+  }
+
+  // One-click fix runner used by the warning CTAs. Optimistically updates the
+  // block, then persists via PATCH and reconciles with the server's row.
+  async function patchBlock(
+    block: ScheduleBlock,
+    patch: Partial<Pick<ScheduleBlock, 'court_numbers' | 'max_divisions' | 'end_time'>>,
+    successMsg: string,
+  ) {
+    if (fixing) return
+    setFixing(true)
+    const prev = blocks
+    upsertBlock({ ...block, ...patch } as ScheduleBlock)
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/schedule-blocks/${block.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+      })
+      const json = await res.json()
+      if (!res.ok) { flash(json.error ?? 'Failed to apply fix'); setBlocks(prev); return }
+      upsertBlock(json.block as ScheduleBlock)
+      flash(successMsg)
+    } catch {
+      flash('Network error'); setBlocks(prev)
+    } finally {
+      setFixing(false)
+    }
+  }
+
+  async function generate(opts: { force?: boolean; replacePublished?: boolean; confirmOverflow?: boolean } = {}) {
     setBusy('generate')
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: !!opts.force, replacePublished: !!opts.replacePublished }),
+        body: JSON.stringify({ force: !!opts.force, replacePublished: !!opts.replacePublished, confirmOverflow: !!opts.confirmOverflow }),
       })
       const json = await res.json()
 
@@ -289,13 +491,29 @@ export default function ScheduleBuilderView({
       if (res.status === 409 && json.error === 'existing_matches') {
         const n = json.draftCount
         if (window.confirm(`Replace the existing draft (${n} match${n === 1 ? '' : 'es'}) for these divisions?`)) {
-          await generate({ force: true })
+          await generate({ ...opts, force: true })
+        }
+        return
+      }
+      // Many matches won't fit their blocks — warn before committing.
+      if (res.status === 409 && json.error === 'large_overflow') {
+        const pct = json.total ? Math.round((json.overflow / json.total) * 100) : 0
+        if (window.confirm(
+          `Heads up: ~${json.overflow} of ${json.total} matches (${pct}%) won't fit in their blocks and will be scheduled past the end time — some spilling onto later dates.\n\n` +
+          `This usually means a division is too large for its window (e.g. a big round-robin). You can add courts/time or shrink the division first.\n\nGenerate the draft anyway?`
+        )) {
+          await generate({ ...opts, confirmOverflow: true })
         }
         return
       }
       if (!res.ok) { flash(json.error ?? 'Failed to generate'); return }
 
-      setDraftMatches(json.matches as DraftMatch[])
+      // POST returns a lean summary now — refetch the draft matches for the preview.
+      try {
+        const dRes = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`)
+        const dJson = await dRes.json()
+        setDraftMatches((dJson.matches ?? []) as DraftMatch[])
+      } catch { /* preview will populate on next page load */ }
       setLastOverflow(json.overflow ?? 0)
       const parts = [`${json.generated} matches`]
       const skip = (json.skipped ?? []).length
@@ -399,10 +617,36 @@ export default function ScheduleBuilderView({
               <p className="flex items-center gap-2 text-xs font-bold text-amber-800">
                 <AlertTriangle size={14} /> {warnings.length} thing{warnings.length === 1 ? '' : 's'} to review
               </p>
-              <ul className="space-y-1 pl-6 list-disc">
+              <ul className="space-y-2 pl-6 list-disc">
                 {warnings.map((w, i) => (
-                  <li key={i} className={`text-[11px] ${w.level === 'red' ? 'text-red-700 font-medium' : 'text-amber-800'}`}>
-                    {w.text}
+                  <li key={i} className="text-[11px]">
+                    <span className={w.level === 'red' ? 'text-red-700 font-medium' : 'text-amber-800'}>
+                      {w.text}
+                    </span>
+                    {(w.suggestion || (w.actions && w.actions.length > 0)) && (
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                        {w.suggestion && (
+                          <span className="text-[10px] text-amber-700/90 italic flex items-start gap-1">
+                            <Lightbulb size={11} className="shrink-0 mt-px" /> {w.suggestion}
+                          </span>
+                        )}
+                        {w.actions?.map((act, ai) => (
+                          <button
+                            key={ai}
+                            type="button"
+                            onClick={() => act.run()}
+                            disabled={fixing}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold disabled:opacity-50 transition-colors shrink-0 ${
+                              act.secondary
+                                ? 'border border-amber-400 text-amber-800 hover:bg-amber-100'
+                                : 'bg-amber-600 text-white hover:bg-amber-700'
+                            }`}
+                          >
+                            <Wrench size={10} /> {act.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

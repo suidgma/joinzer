@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, XCircle, AlertCircle, Upload, FileUp, Info } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle, Upload, FileUp, Info, Download, HelpCircle, ChevronDown } from 'lucide-react'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 type PlayerData = {
   email: string
@@ -147,7 +148,8 @@ export default function ImportPage() {
   const tournamentId = params.id
 
   const [tournamentName, setTournamentName] = useState<string | null>(null)
-  const [knownDivisions, setKnownDivisions] = useState<string[]>([])
+  const [knownDivisions, setKnownDivisions] = useState<{ name: string; isDoubles: boolean }[]>([])
+  const [showGuide, setShowGuide] = useState(false)
 
   const [csv, setCsv] = useState('')
   const [fileName, setFileName] = useState<string | null>(null)
@@ -167,7 +169,9 @@ export default function ImportPage() {
     ]).then(([t, d]) => {
       const name = t?.tournament?.name ?? t?.name ?? null
       if (name) setTournamentName(name)
-      const divs = (d?.divisions ?? []).map((x: { name: string }) => x.name).filter(Boolean)
+      const divs = (d?.divisions ?? [])
+        .filter((x: { name?: string }) => x.name)
+        .map((x: { name: string; format?: string }) => ({ name: x.name, isDoubles: isDoublesFormat(x.format) }))
       setKnownDivisions(divs)
     })
   }, [tournamentId])
@@ -181,6 +185,36 @@ export default function ImportPage() {
   const invalidCount = rows?.filter(r => r.status === 'invalid').length ?? 0
   const committableCount = okCount + newCount
   const needsTypedConfirm = newCount > 25
+
+  // Build a ready-to-edit CSV using THIS tournament's real divisions, shaped
+  // correctly for each (doubles get both player columns, singles only player1).
+  // Falls back to the generic sample when divisions haven't loaded yet.
+  function buildTemplateCsv(): string {
+    const header = 'division,player1_email,player1_name,player1_skill,player1_gender,player2_email,player2_name,player2_skill,player2_gender,team_name'
+    if (knownDivisions.length === 0) return SAMPLE_CSV
+    const lines = knownDivisions.map((d, i) =>
+      d.isDoubles
+        ? `${d.name},player1.${i + 1}@example.com,Player One,3.5,male,player2.${i + 1}@example.com,Player Two,3.5,female,Team ${i + 1}`
+        : `${d.name},player${i + 1}@example.com,Player One,3.5,male,,,,,`
+    )
+    return [header, ...lines].join('\n')
+  }
+
+  function downloadTemplate() {
+    // Prepend a UTF-8 BOM so Excel reads the file as UTF-8 — without it Excel
+    // assumes Windows-1252 and the em-dashes in division names render as garbled text.
+    const BOM = '﻿'
+    const blob = new Blob([BOM + buildTemplateCsv()], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const slug = (tournamentName ?? 'tournament').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${slug || 'tournament'}-import-template.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -239,11 +273,85 @@ export default function ImportPage() {
         )}
       </div>
 
+      {/* How-to guide — collapsible so it stays out of the way once learned.
+          Inline spacing after <strong> uses explicit {' '} to survive JSX trimming. */}
+      <div className="bg-brand-soft border border-brand-border rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowGuide(v => !v)}
+          className="w-full flex items-center justify-between gap-2 px-5 py-3.5 text-left"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-brand-dark">
+            <HelpCircle size={16} className="text-brand-active" />
+            How does importing work?
+          </span>
+          <ChevronDown size={16} className={`text-brand-muted transition-transform ${showGuide ? 'rotate-180' : ''}`} />
+        </button>
+        {showGuide && (
+          <div className="px-5 pb-5 pt-1 space-y-4 text-xs text-brand-dark">
+            <p className="text-brand-muted">
+              Add many players at once from a spreadsheet. Nothing is saved until you preview and confirm.
+            </p>
+            <ol className="space-y-2.5">
+              <li className="flex gap-2.5">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-brand text-brand-dark text-[10px] font-bold flex items-center justify-center">1</span>
+                <span>
+                  <strong>Download the template.</strong>{' '}It comes pre-filled with this tournament&apos;s exact
+                  division names so they always match. Open it in Excel or Google Sheets.
+                  <button type="button" onClick={downloadTemplate} className="ml-1 inline-flex items-center gap-1 text-brand-active hover:underline font-medium">
+                    <Download size={11} /> Download now
+                  </button>
+                </span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-brand text-brand-dark text-[10px] font-bold flex items-center justify-center">2</span>
+                <span>
+                  <strong>Fill in your players.</strong>{' '}One row per entry — a single player for singles
+                  divisions, or both partners on the same row for doubles. Only <code>division</code> and{' '}
+                  <code>player1_email</code> are required; name, skill (DUPR), phone, gender, and{' '}
+                  <code>team_name</code> are optional.
+                </span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-brand text-brand-dark text-[10px] font-bold flex items-center justify-center">3</span>
+                <span>
+                  <strong>Upload or paste</strong>{' '}the finished file, then press <strong>Preview</strong>{' '}to
+                  check it. We&apos;ll flag any problems first — nothing is registered yet.
+                </span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-brand text-brand-dark text-[10px] font-bold flex items-center justify-center">4</span>
+                <span>
+                  <strong>Review &amp; import.</strong>{' '}Each row is color-coded —{' '}
+                  <span className="text-green-700 font-medium">ready</span>,{' '}
+                  <span className="text-amber-700 font-medium">new account</span>,{' '}
+                  <span className="text-yellow-700 font-medium">duplicate</span>, or{' '}
+                  <span className="text-red-700 font-medium">invalid</span>. Hit <strong>Import</strong>{' '}to
+                  register everyone.
+                </span>
+              </li>
+            </ol>
+            <p className="text-[11px] text-brand-muted border-t border-brand-border pt-3">
+              Players who don&apos;t have a Joinzer account yet are created automatically and emailed a magic-link
+              invite to claim their spot. Division names must match exactly, including spacing.
+            </p>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white border border-brand-border rounded-2xl p-5 space-y-4">
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-medium text-brand-muted">CSV Data</label>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                className="flex items-center gap-1 text-[10px] text-brand-active hover:underline"
+              >
+                <Download size={11} />
+                Download template
+              </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -297,9 +405,9 @@ export default function ImportPage() {
           </p>
           {knownDivisions.length > 0 && (
             <p className="text-[10px] text-brand-muted mt-1">
-              Use these division names: {knownDivisions.map((n, i) => (
-                <span key={n}>
-                  <code>{n}</code>{i < knownDivisions.length - 1 ? ', ' : ''}
+              Use these division names: {knownDivisions.map((d, i) => (
+                <span key={d.name}>
+                  <code>{d.name}</code>{i < knownDivisions.length - 1 ? ', ' : ''}
                 </span>
               ))}
             </p>

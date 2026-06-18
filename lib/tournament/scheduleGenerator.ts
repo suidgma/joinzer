@@ -42,10 +42,21 @@ export type BlockWindow = {
 
 // Las Vegas is America/Los_Angeles; June is PDT (UTC-7). Matches the offset used
 // by the existing per-division auto-scheduler so times render consistently.
+// `minutes` may exceed 1440 when a block's matches overflow past midnight — roll
+// the date forward and wrap the clock so we never emit an invalid hour like
+// "24:35" (which Postgres rejects, failing the whole insert).
 function toIso(date: string, minutes: number): string {
-  const hh = String(Math.floor(minutes / 60)).padStart(2, '0')
-  const mm = String(minutes % 60).padStart(2, '0')
-  return `${date}T${hh}:${mm}:00-07:00`
+  const dayOffset = Math.floor(minutes / 1440)
+  const mins = minutes - dayOffset * 1440
+  const hh = String(Math.floor(mins / 60)).padStart(2, '0')
+  const mm = String(mins % 60).padStart(2, '0')
+  let isoDate = date
+  if (dayOffset !== 0) {
+    const [y, m, d] = date.split('-').map(Number)
+    const dt = new Date(Date.UTC(y, m - 1, d + dayOffset))
+    isoDate = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+  }
+  return `${isoDate}T${hh}:${mm}:00-07:00`
 }
 
 export function scheduleBlockMatches(
@@ -55,6 +66,10 @@ export function scheduleBlockMatches(
   keepDivisionsGrouped = true,
   shareCourts = true,
   divisionPriority?: Map<string, number>,
+  // Cross-block court occupancy, keyed `${date}|${court}` → next-free minute.
+  // When several blocks share physical courts at overlapping times, threading
+  // one map through every block keeps a court from being double-booked.
+  courtReservations?: Map<string, number>,
 ): { overflowCount: number } {
   // Higher organizer-set priority schedules a division's matches first.
   const byPriority = settings.schedule_by_priority && divisionPriority != null
@@ -100,7 +115,12 @@ export function scheduleBlockMatches(
     return a.match_number - b.match_number
   })
 
-  const courtFree = new Map<number, number>(courts.map(c => [c, startMin]))
+  // Seed each court's first-free time from any cross-block reservation so this
+  // block schedules around courts already claimed by other blocks.
+  const resKey = (c: number) => `${block.block_date}|${c}`
+  const courtFree = new Map<number, number>(
+    courts.map(c => [c, Math.max(startMin, courtReservations?.get(resKey(c)) ?? startMin)])
+  )
   const teamLastEnd = new Map<string, number>()
   // Per-division dependency floor: no match in a division may start before the
   // last match of that division's previous phase has ended. This is what stops a
@@ -145,6 +165,7 @@ export function scheduleBlockMatches(
     m.scheduled_time = toIso(block.block_date, bestStart)
     m.scheduled_end_time = toIso(block.block_date, bestStart + duration)
     courtFree.set(bestCourt, bestStart + perMatch)
+    courtReservations?.set(resKey(bestCourt), bestStart + perMatch)
     const end = bestStart + duration
     for (const t of teams) teamLastEnd.set(t, end)
     if (divPhaseEnd.get(div)! < end) divPhaseEnd.set(div, end)
