@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -133,9 +133,12 @@ export default function DivisionManageView({
   const router = useRouter()
   const [registrations, setRegistrations] = useState<Registration[]>(initialRegistrations)
   const [matches, setMatches] = useState<Match[]>(initialMatches)
-  const [showSeeds, setShowSeeds] = useState<boolean>(() => {
-    try { return localStorage.getItem(`seeds-${division.id}`) === 'true' } catch { return false }
-  })
+  // Default false so the server and first client render agree (no hydration
+  // mismatch); the stored preference is applied after mount.
+  const [showSeeds, setShowSeeds] = useState<boolean>(false)
+  useEffect(() => {
+    try { setShowSeeds(localStorage.getItem(`seeds-${division.id}`) === 'true') } catch { /* */ }
+  }, [division.id])
 
   function handleToggleShowSeeds(val: boolean) {
     setShowSeeds(val)
