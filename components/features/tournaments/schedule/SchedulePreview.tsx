@@ -122,7 +122,7 @@ export default function SchedulePreview({ draftMatches, blocks, divisions, teamL
         title={divisionName(divId)}
         sub={`${ms.length} matches`}
         matches={[...ms].sort((a, b) => (a.round_number ?? 0) - (b.round_number ?? 0) || a.match_number - b.match_number)}
-        show={['time', 'court']}
+        show={['date', 'time', 'court']}
       />
     ))
   }
