@@ -296,7 +296,7 @@ export default function SchedulePreview({
         key={divId}
         title={divisionName(divId)}
         sub={`${ms.length} matches`}
-        matches={[...ms].sort((a, b) => (a.round_number ?? 0) - (b.round_number ?? 0) || a.match_number - b.match_number)}
+        matches={[...ms].sort(sortByTime)}
         show={['date', 'time', 'court']}
         editable
         headerAction={
