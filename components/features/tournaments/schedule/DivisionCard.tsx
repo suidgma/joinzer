@@ -5,6 +5,7 @@ import { GripVertical, AlertTriangle, ChevronDown } from 'lucide-react'
 import type { ScheduleBlock } from '@/lib/types'
 import type { BuilderDivision, DivisionStats } from './types'
 import type { DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 type Props = {
   division: BuilderDivision
@@ -47,6 +48,10 @@ function metaLine(d: BuilderDivision): string {
 export default function DivisionCard({ division, stats, estimate, blocks, onAssign, dragging }: Props) {
   const [assignOpen, setAssignOpen] = useState(false)
   const noTeams = stats.teamCount < 2
+  // Singles divisions count players, not teams — label the unit accordingly.
+  const isDoubles = division.team_type === 'doubles' || isDoublesFormat(division.format)
+  const unit = isDoubles ? 'team' : 'player'
+  const unitPlural = isDoubles ? 'teams' : 'players'
   // Drag handled by @dnd-kit (pointer/touch/keyboard); grip below is the handle.
   const { attributes, listeners, setNodeRef } = useDraggable({ id: division.id })
 
@@ -72,7 +77,7 @@ export default function DivisionCard({ division, stats, estimate, blocks, onAssi
           <p className="text-[11px] text-brand-muted mt-0.5 capitalize">{metaLine(division)}</p>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-[11px] text-brand-muted">
-            <span>{stats.teamCount} {stats.teamCount === 1 ? 'team' : 'teams'}</span>
+            <span>{stats.teamCount} {stats.teamCount === 1 ? unit : unitPlural}</span>
             <span>·</span>
             <span>{estimate.matches == null ? 'est. n/a' : `~${estimate.matches} matches`}</span>
             {estimate.courtMinutes != null && (
@@ -85,7 +90,7 @@ export default function DivisionCard({ division, stats, estimate, blocks, onAssi
 
           {noTeams && (
             <p className="flex items-center gap-1 mt-1.5 text-[11px] text-amber-600 font-medium">
-              <AlertTriangle size={11} /> {stats.teamCount === 0 ? 'No teams registered' : 'Only 1 team — needs 2+'}
+              <AlertTriangle size={11} /> {stats.teamCount === 0 ? `No ${unitPlural} registered` : `Only 1 ${unit} — needs 2+`}
             </p>
           )}
 
