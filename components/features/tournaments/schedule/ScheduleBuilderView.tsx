@@ -461,6 +461,16 @@ export default function ScheduleBuilderView({
     }
   }
 
+  // The generate/regenerate POSTs return a lean summary — refetch the draft
+  // matches so the preview reflects the new schedule.
+  async function refreshDraft() {
+    try {
+      const dRes = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`)
+      const dJson = await dRes.json()
+      setDraftMatches((dJson.matches ?? []) as DraftMatch[])
+    } catch { /* preview will populate on next page load */ }
+  }
+
   async function generate(opts: { force?: boolean; replacePublished?: boolean; confirmOverflow?: boolean } = {}) {
     setBusy('generate')
     try {
@@ -509,11 +519,7 @@ export default function ScheduleBuilderView({
       if (!res.ok) { flash(json.error ?? 'Failed to generate'); return }
 
       // POST returns a lean summary now — refetch the draft matches for the preview.
-      try {
-        const dRes = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`)
-        const dJson = await dRes.json()
-        setDraftMatches((dJson.matches ?? []) as DraftMatch[])
-      } catch { /* preview will populate on next page load */ }
+      await refreshDraft()
       setLastOverflow(json.overflow ?? 0)
       const parts = [`${json.generated} matches`]
       const skip = (json.skipped ?? []).length
@@ -821,7 +827,19 @@ export default function ScheduleBuilderView({
                 ⚠️ {lastOverflow} match{lastOverflow === 1 ? '' : 'es'} are scheduled past their block’s end time. Widen the block, add courts, or shorten match duration, then regenerate.
               </div>
             )}
-            <SchedulePreview draftMatches={draftMatches} blocks={blocks} divisions={divisions} teamLabels={teamLabels} matchDurationMinutes={settings.match_duration_minutes} />
+            <SchedulePreview
+              draftMatches={draftMatches}
+              blocks={blocks}
+              divisions={divisions}
+              teamLabels={teamLabels}
+              matchDurationMinutes={settings.match_duration_minutes}
+              tournamentId={tournamentId}
+              onFlash={flash}
+              onMatchUpdated={updated =>
+                setDraftMatches(prev => prev.map(m => (m.id === updated.id ? updated : m)))
+              }
+              onDraftRefresh={refreshDraft}
+            />
           </>
         ) : (
           <p className="text-xs text-brand-muted">

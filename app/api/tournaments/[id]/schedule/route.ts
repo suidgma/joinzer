@@ -31,12 +31,17 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
   }
 
-  // Apply updates in parallel
+  // Apply updates in parallel. scheduled_end_time is optional — callers that
+  // change a start time pass it so the displayed range stays correct.
   const results = await Promise.all(
-    updates.map((u: { id: string; court_number: number | null; scheduled_time: string | null }) =>
+    updates.map((u: { id: string; court_number: number | null; scheduled_time: string | null; scheduled_end_time?: string | null }) =>
       service
         .from('tournament_matches')
-        .update({ court_number: u.court_number, scheduled_time: u.scheduled_time })
+        .update({
+          court_number: u.court_number,
+          scheduled_time: u.scheduled_time,
+          ...(u.scheduled_end_time !== undefined ? { scheduled_end_time: u.scheduled_end_time } : {}),
+        })
         .eq('id', u.id)
         .eq('tournament_id', params.id)
     )

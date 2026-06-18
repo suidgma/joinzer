@@ -29,16 +29,28 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const force = body.force === true
   const replacePublished = body.replacePublished === true
   const confirmOverflow = body.confirmOverflow === true
+  // When set, regenerate only this division — by re-packing the whole block it
+  // sits in, so its matches never overlap the siblings sharing its courts/window.
+  const onlyDivisionId: string | null = body.divisionId ?? null
   const db = service()
 
-  const [{ data: tournamentRow }, { data: blocks }, { data: assignments }] = await Promise.all([
+  const [{ data: tournamentRow }, { data: blocks }, { data: assignmentsAll }] = await Promise.all([
     db.from('tournaments').select('schedule_settings_json').eq('id', id).single(),
     db.from('tournament_schedule_blocks').select('id, block_date, start_time, end_time, court_numbers').eq('tournament_id', id),
     db.from('tournament_division_blocks').select('division_id, block_id, priority').eq('tournament_id', id),
   ])
 
-  if (!assignments || assignments.length === 0) {
+  if (!assignmentsAll || assignmentsAll.length === 0) {
     return NextResponse.json({ error: 'Assign at least one division to a block first.' }, { status: 400 })
+  }
+
+  let assignments = assignmentsAll
+  if (onlyDivisionId) {
+    const targetBlockId = assignmentsAll.find(a => a.division_id === onlyDivisionId)?.block_id
+    if (!targetBlockId) {
+      return NextResponse.json({ error: 'That division is not assigned to a block.' }, { status: 400 })
+    }
+    assignments = assignmentsAll.filter(a => a.block_id === targetBlockId)
   }
 
   const settings: ScheduleSettings = { ...DEFAULT_SCHEDULE_SETTINGS, ...(tournamentRow?.schedule_settings_json ?? {}) }
