@@ -104,7 +104,18 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const skipped: { divisionId: string; reason: string }[] = []
   let overflowTotal = 0
 
-  for (const [blockId, divisionIds] of divisionsByBlock) {
+  // Shared court occupancy across blocks (`${date}|${court}` → next-free minute)
+  // so blocks that share physical courts at overlapping times don't double-book.
+  // Schedule blocks chronologically so earlier ones claim shared courts first.
+  const courtReservations = new Map<string, number>()
+  const orderedBlockIds = [...divisionsByBlock.keys()].sort((a, b) => {
+    const ba = blockById.get(a), bb = blockById.get(b)
+    if (!ba || !bb) return 0
+    return ba.block_date.localeCompare(bb.block_date) || ba.start_time.localeCompare(bb.start_time)
+  })
+
+  for (const blockId of orderedBlockIds) {
+    const divisionIds = divisionsByBlock.get(blockId)!
     const block = blockById.get(blockId)
     if (!block) continue
     const blockRows: SchedulableMatch[] = []
@@ -135,6 +146,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       settings.keep_divisions_grouped,
       settings.allow_court_sharing,
       divisionPriority,
+      courtReservations,
     )
     overflowTotal += overflowCount
     allRows.push(...blockRows)

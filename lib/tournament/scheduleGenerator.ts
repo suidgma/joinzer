@@ -66,6 +66,10 @@ export function scheduleBlockMatches(
   keepDivisionsGrouped = true,
   shareCourts = true,
   divisionPriority?: Map<string, number>,
+  // Cross-block court occupancy, keyed `${date}|${court}` → next-free minute.
+  // When several blocks share physical courts at overlapping times, threading
+  // one map through every block keeps a court from being double-booked.
+  courtReservations?: Map<string, number>,
 ): { overflowCount: number } {
   // Higher organizer-set priority schedules a division's matches first.
   const byPriority = settings.schedule_by_priority && divisionPriority != null
@@ -111,7 +115,12 @@ export function scheduleBlockMatches(
     return a.match_number - b.match_number
   })
 
-  const courtFree = new Map<number, number>(courts.map(c => [c, startMin]))
+  // Seed each court's first-free time from any cross-block reservation so this
+  // block schedules around courts already claimed by other blocks.
+  const resKey = (c: number) => `${block.block_date}|${c}`
+  const courtFree = new Map<number, number>(
+    courts.map(c => [c, Math.max(startMin, courtReservations?.get(resKey(c)) ?? startMin)])
+  )
   const teamLastEnd = new Map<string, number>()
   // Per-division dependency floor: no match in a division may start before the
   // last match of that division's previous phase has ended. This is what stops a
@@ -156,6 +165,7 @@ export function scheduleBlockMatches(
     m.scheduled_time = toIso(block.block_date, bestStart)
     m.scheduled_end_time = toIso(block.block_date, bestStart + duration)
     courtFree.set(bestCourt, bestStart + perMatch)
+    courtReservations?.set(resKey(bestCourt), bestStart + perMatch)
     const end = bestStart + duration
     for (const t of teams) teamLastEnd.set(t, end)
     if (divPhaseEnd.get(div)! < end) divPhaseEnd.set(div, end)
