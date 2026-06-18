@@ -40,7 +40,9 @@ export default function SchedulePreview({ draftMatches, blocks, divisions, teamL
   const divisionName = (id: string) => divisions.find(d => d.id === id)?.name ?? 'Division'
   const label = (regId: string | null) => (regId ? teamLabels[regId] ?? 'TBD' : 'TBD')
   const sortByTime = (a: DraftMatch, b: DraftMatch) =>
-    (a.scheduled_time ?? '~').localeCompare(b.scheduled_time ?? '~') || a.match_number - b.match_number
+    (a.scheduled_time ?? '~').localeCompare(b.scheduled_time ?? '~') ||
+    (a.court_number ?? Infinity) - (b.court_number ?? Infinity) ||
+    a.match_number - b.match_number
 
   function MatchRow({ m, show }: { m: DraftMatch; show: ('time' | 'court' | 'division')[] }) {
     return (
