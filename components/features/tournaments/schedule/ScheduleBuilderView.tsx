@@ -220,6 +220,36 @@ export default function ScheduleBuilderView({
       })
     }
   }
+  // Two blocks that overlap in time AND share courts will have their matches
+  // compete for the same physical courts. The scheduler avoids double-booking,
+  // but two blocks on the same courts at once is usually unintended (e.g. a
+  // second day that wasn't given its own date). Only flag when both actually
+  // produce matches.
+  for (let i = 0; i < blocks.length; i++) {
+    for (let j = i + 1; j < blocks.length; j++) {
+      const ba = blocks[i], bb = blocks[j]
+      if (!blocksOverlap(ba, bb)) continue
+      const shared = ba.court_numbers.filter(c => bb.court_numbers.includes(c))
+      if (shared.length === 0) continue
+      if ((assignedByBlock.get(ba.id)?.length ?? 0) === 0 || (assignedByBlock.get(bb.id)?.length ?? 0) === 0) continue
+      const s = shared.length === 1 ? '' : 's'
+      const courtList = shared.join(', ')
+      // Offer to pull the shared courts off whichever block keeps ≥1 court after.
+      const trim = bb.court_numbers.length > shared.length ? bb
+        : ba.court_numbers.length > shared.length ? ba
+        : null
+      warnings.push({
+        level: 'amber',
+        text: `“${ba.name}” and “${bb.name}” overlap in time and share court${s} ${courtList} — their matches will compete for those courts.`,
+        suggestion: trim
+          ? `Give one block its own courts or a different date/time — or pull the shared court${s} off “${trim.name}”.`
+          : `Give one block its own courts, or move it to a different date/time.`,
+        actions: trim
+          ? [{ label: `Remove court${s} ${courtList} from “${trim.name}”`, run: () => patchBlock(trim, { court_numbers: trim.court_numbers.filter(c => !shared.includes(c)) }, 'Courts updated') }]
+          : undefined,
+      })
+    }
+  }
   const conflictIsError = settings.conflict_policy === 'error'
   for (const c of conflicts) {
     const a = divisionById.get(c.divisionAId)?.name ?? 'A'
