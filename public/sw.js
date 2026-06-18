@@ -69,6 +69,12 @@ self.addEventListener('fetch', (e) => {
     url.hostname.includes('supabase')
   ) return
 
+  // In local development, don't intercept anything. Next.js dev chunk URLs are
+  // stable, so the cache-first asset path below would serve stale JS after every
+  // edit (and you'd have to manually unregister the SW to see changes). Let the
+  // network handle everything locally. Production (hashed asset URLs) is unaffected.
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return
+
   // Navigation (HTML pages) — network first, fall back to cache
   if (request.mode === 'navigate') {
     e.respondWith(
