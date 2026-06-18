@@ -7,6 +7,7 @@ export type OrgMatch = {
   pool_number: number | null
   court_number: number | null
   scheduled_time: string | null
+  scheduled_end_time?: string | null
   team_1_registration_id: string | null
   team_2_registration_id: string | null
   team_1_score: number | null
