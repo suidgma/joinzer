@@ -28,6 +28,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const body = await req.json().catch(() => ({}))
   const force = body.force === true
   const replacePublished = body.replacePublished === true
+  const confirmOverflow = body.confirmOverflow === true
   const db = service()
 
   const [{ data: tournamentRow }, { data: blocks }, { data: assignments }] = await Promise.all([
@@ -81,23 +82,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const draftCount = (existing ?? []).filter(m => m.is_draft).length
   const publishedCount = (existing ?? []).filter(m => !m.is_draft).length
 
-  // Published matches are live to players. Replacing them unpublishes the
-  // schedule, so it takes its own explicit confirmation — never just `force`.
-  if (publishedCount > 0 && !replacePublished) {
-    return NextResponse.json({ error: 'published_exists', draftCount, publishedCount }, { status: 409 })
-  }
-  if (draftCount > 0 && !force && !replacePublished) {
-    return NextResponse.json({ error: 'existing_matches', draftCount, publishedCount }, { status: 409 })
-  }
-
-  // Delete only what was confirmed: published rows fall only under replacePublished;
-  // `force` alone clears drafts and leaves any published matches untouched.
-  if (replacePublished) {
-    await db.from('tournament_matches').delete().in('division_id', assignedDivisionIds)
-  } else if (force && draftCount > 0) {
-    await db.from('tournament_matches').delete().in('division_id', assignedDivisionIds).eq('is_draft', true)
-  }
-
+  // ── Build + schedule everything FIRST (pure, no DB writes) ───────────────────
+  // Done before any delete so we can gate on overflow / existing matches and
+  // never destroy a prior schedule unless generation actually succeeds.
   const divisionById = new Map((divisions ?? []).map(d => [d.id, d]))
   const blockById = new Map((blocks ?? []).map(b => [b.id, b]))
   const regsByDivision = new Map<string, any[]>()
@@ -105,7 +92,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     if (!regsByDivision.has(r.division_id)) regsByDivision.set(r.division_id, [])
     regsByDivision.get(r.division_id)!.push(r)
   }
-  const blockOfDivision = new Map(assignments.map(a => [a.division_id, a.block_id]))
 
   // Group assigned divisions by block so each block is scheduled as a unit.
   const divisionsByBlock = new Map<string, string[]>()
@@ -161,13 +147,55 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     )
   }
 
-  const { data: inserted, error } = await db
-    .from('tournament_matches')
-    .insert(allRows)
-    .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, status')
+  // ── Confirmation gates (all BEFORE any destructive delete) ───────────────────
+  // Published matches are live to players. Replacing them unpublishes the
+  // schedule, so it takes its own explicit confirmation — never just `force`.
+  if (publishedCount > 0 && !replacePublished) {
+    return NextResponse.json({ error: 'published_exists', draftCount, publishedCount }, { status: 409 })
+  }
+  if (draftCount > 0 && !force && !replacePublished) {
+    return NextResponse.json({ error: 'existing_matches', draftCount, publishedCount }, { status: 409 })
+  }
+  // Significant overflow means many matches won't fit their block window (usually
+  // a division too large for it). Surface it once before committing the schedule.
+  const overflowThreshold = Math.max(10, Math.floor(allRows.length * 0.1))
+  if (overflowTotal > overflowThreshold && !confirmOverflow) {
+    return NextResponse.json({ error: 'large_overflow', overflow: overflowTotal, total: allRows.length }, { status: 409 })
+  }
+
+  // ── Commit: delete only what was confirmed, then insert ──────────────────────
+  // `force` alone clears drafts and leaves published matches untouched.
+  if (replacePublished) {
+    await db.from('tournament_matches').delete().in('division_id', assignedDivisionIds)
+  } else if (force && draftCount > 0) {
+    await db.from('tournament_matches').delete().in('division_id', assignedDivisionIds).eq('is_draft', true)
+  }
+
+  // Lean insert — no `.select()`. The builder refetches via GET, keeping this
+  // response small even when thousands of matches are generated.
+  const { error } = await db.from('tournament_matches').insert(allRows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ generated: inserted?.length ?? 0, skipped, blocks: divisionsByBlock.size, overflow: overflowTotal, matches: inserted ?? [] })
+  return NextResponse.json({ generated: allRows.length, skipped, blocks: divisionsByBlock.size, overflow: overflowTotal })
+}
+
+// GET /api/tournaments/[id]/generate-schedule — current draft matches. Lets the
+// builder refetch the preview after a (now lean) POST generate.
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!(await canManage(id, user.id))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { data, error } = await service()
+    .from('tournament_matches')
+    .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, status')
+    .eq('tournament_id', id)
+    .eq('is_draft', true)
+    .order('scheduled_time', { ascending: true })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ matches: data ?? [] })
 }
 
 // DELETE /api/tournaments/[id]/generate-schedule — discard the draft schedule.

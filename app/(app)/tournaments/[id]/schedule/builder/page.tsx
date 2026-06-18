@@ -125,12 +125,48 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
   // Team labels (registration id → "Alex/Blake") for the draft preview.
   const regById = new Map((regsRaw ?? []).map((r: any) => [r.id, r]))
   const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
+  const lastInitial = (n?: string | null) => {
+    const parts = (n ?? '').trim().split(/\s+/)
+    const last = parts.length > 1 ? parts[parts.length - 1] : ''
+    return last ? last[0].toUpperCase() : ''
+  }
+
+  // Count distinct players per division by first name, so we only disambiguate
+  // with a last initial ("Kira E.") when two players in the SAME division share
+  // a first name — otherwise the compact first-name label stays.
+  const divFirstNameCounts = new Map<string, Map<string, number>>()
+  const countedPlayer = new Set<string>()                  // "divId|userId" — once each
+  const notePlayer = (divId: string, userId?: string | null) => {
+    if (!userId || countedPlayer.has(`${divId}|${userId}`)) return
+    countedPlayer.add(`${divId}|${userId}`)
+    const fn = firstName(playerNames[userId])
+    if (!fn) return
+    let m = divFirstNameCounts.get(divId)
+    if (!m) { m = new Map(); divFirstNameCounts.set(divId, m) }
+    m.set(fn, (m.get(fn) ?? 0) + 1)
+  }
+  for (const r of (regsRaw ?? []) as any[]) {
+    notePlayer(r.division_id, r.user_id)
+    const partner = r.partner_registration_id ? regById.get(r.partner_registration_id) : null
+    if (partner) notePlayer(r.division_id, (partner as any).user_id)
+  }
+  const display = (divId: string, fullName?: string | null) => {
+    const fn = firstName(fullName)
+    if ((divFirstNameCounts.get(divId)?.get(fn) ?? 0) > 1) {
+      const li = lastInitial(fullName)
+      return li ? `${fn} ${li}.` : fn
+    }
+    return fn
+  }
+
   const teamLabels: Record<string, string> = {}
   for (const r of (regsRaw ?? []) as any[]) {
-    const p1 = playerNames[r.user_id]
+    const p1full = playerNames[r.user_id]
     const partner = r.partner_registration_id ? regById.get(r.partner_registration_id) : null
-    const p2 = partner ? playerNames[(partner as any).user_id] : null
-    teamLabels[r.id] = p1 ? (p2 ? `${firstName(p1)}/${firstName(p2)}` : firstName(p1)) : 'Player'
+    const p2full = partner ? playerNames[(partner as any).user_id] : null
+    const p1 = p1full ? display(r.division_id, p1full) : null
+    const p2 = p2full ? display(r.division_id, p2full) : null
+    teamLabels[r.id] = p1 ? (p2 ? `${p1}/${p2}` : p1) : 'Player'
   }
 
   const assignments: DivisionBlockLink[] = (assignmentsRaw ?? []).map((a: any) => ({

@@ -42,10 +42,21 @@ export type BlockWindow = {
 
 // Las Vegas is America/Los_Angeles; June is PDT (UTC-7). Matches the offset used
 // by the existing per-division auto-scheduler so times render consistently.
+// `minutes` may exceed 1440 when a block's matches overflow past midnight — roll
+// the date forward and wrap the clock so we never emit an invalid hour like
+// "24:35" (which Postgres rejects, failing the whole insert).
 function toIso(date: string, minutes: number): string {
-  const hh = String(Math.floor(minutes / 60)).padStart(2, '0')
-  const mm = String(minutes % 60).padStart(2, '0')
-  return `${date}T${hh}:${mm}:00-07:00`
+  const dayOffset = Math.floor(minutes / 1440)
+  const mins = minutes - dayOffset * 1440
+  const hh = String(Math.floor(mins / 60)).padStart(2, '0')
+  const mm = String(mins % 60).padStart(2, '0')
+  let isoDate = date
+  if (dayOffset !== 0) {
+    const [y, m, d] = date.split('-').map(Number)
+    const dt = new Date(Date.UTC(y, m - 1, d + dayOffset))
+    isoDate = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+  }
+  return `${isoDate}T${hh}:${mm}:00-07:00`
 }
 
 export function scheduleBlockMatches(
