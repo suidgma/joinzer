@@ -34,6 +34,15 @@ function fmtDate(iso: string | null): string {
   })
 }
 
+/** Compact date like "MON 6/29" for per-row display in court/division views. */
+function fmtDateShort(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const wd = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Los_Angeles' }).toUpperCase()
+  const md = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', timeZone: 'America/Los_Angeles' })
+  return `${wd} ${md}`
+}
+
 export default function SchedulePreview({ draftMatches, blocks, divisions, teamLabels, matchDurationMinutes }: Props) {
   const [view, setView] = useState<View>('time')
 
@@ -44,9 +53,10 @@ export default function SchedulePreview({ draftMatches, blocks, divisions, teamL
     (a.court_number ?? Infinity) - (b.court_number ?? Infinity) ||
     a.match_number - b.match_number
 
-  function MatchRow({ m, show }: { m: DraftMatch; show: ('time' | 'court' | 'division')[] }) {
+  function MatchRow({ m, show }: { m: DraftMatch; show: ('date' | 'time' | 'court' | 'division')[] }) {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
+        {show.includes('date') && <span className="w-20 shrink-0 text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
         {show.includes('time') && <span className="w-28 shrink-0 text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, m.scheduled_end_time, matchDurationMinutes)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
@@ -57,7 +67,7 @@ export default function SchedulePreview({ draftMatches, blocks, divisions, teamL
     )
   }
 
-  function Group({ title, sub, matches, show }: { title: string; sub?: string; matches: DraftMatch[]; show: ('time' | 'court' | 'division')[] }) {
+  function Group({ title, sub, matches, show }: { title: string; sub?: string; matches: DraftMatch[]; show: ('date' | 'time' | 'court' | 'division')[] }) {
     return (
       <div className="bg-white rounded-xl border border-brand-border overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 border-b border-brand-border bg-brand-soft/40">
@@ -95,7 +105,7 @@ export default function SchedulePreview({ draftMatches, blocks, divisions, teamL
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
       .map(([court, ms]) => (
-        <Group key={court} title={court} sub={`${ms.length} matches`} matches={[...ms].sort(sortByTime)} show={['time', 'division']} />
+        <Group key={court} title={court} sub={`${ms.length} matches`} matches={[...ms].sort(sortByTime)} show={['date', 'time', 'division']} />
       ))
   }
 
