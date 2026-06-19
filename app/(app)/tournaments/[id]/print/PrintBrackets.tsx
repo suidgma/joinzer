@@ -79,7 +79,17 @@ export default function PrintBrackets({ tournamentId, tournamentName, startDate,
 
       {/* Controls — hidden on paper */}
       <div className="no-print mb-6 flex items-center justify-between">
-        <button onClick={() => window.history.back()} className="text-sm text-brand-muted hover:text-brand-dark">
+        <button
+          onClick={() => {
+            // This page opens in its own tab (organizer Export → window.open),
+            // so there's no history to go back to. Close the print tab to return
+            // to the Live view; if it wasn't script-opened (direct navigation),
+            // window.close() no-ops, so fall back to the tournament page.
+            window.close()
+            setTimeout(() => { if (!window.closed) window.location.href = `/tournaments/${tournamentId}` }, 50)
+          }}
+          className="text-sm text-brand-muted hover:text-brand-dark"
+        >
           ← Back
         </button>
         <button
