@@ -15,7 +15,7 @@ export default async function PlayerProfilePage(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, display_name, profile_photo_url, bio, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender, home_location_id')
+    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender')
     .eq('id', id)
     .single()
 
@@ -78,14 +78,7 @@ export default async function PlayerProfilePage(
             </div>
           )}
 
-          {profile.bio && (
-            <div>
-              <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">About</p>
-              <p className="text-sm text-brand-dark leading-relaxed">{profile.bio as string}</p>
-            </div>
-          )}
-
-          {!profile.bio && !profile.gender && (
+          {!profile.gender && (
             <p className="text-sm text-brand-muted text-center py-4">This player hasn't added any details yet.</p>
           )}
         </div>
