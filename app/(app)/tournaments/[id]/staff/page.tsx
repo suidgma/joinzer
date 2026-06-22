@@ -122,7 +122,6 @@ export default function StaffPage() {
 
         {/* Player combobox */}
         <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1">Player</label>
           <div ref={comboboxRef} className="relative">
             <input
               type="text"
