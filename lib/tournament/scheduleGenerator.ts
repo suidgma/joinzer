@@ -27,10 +27,20 @@ const STAGE_PRIORITY: Record<string, number> = {
   single_elimination: 1, winners_bracket: 1,
   losers_bracket: 2, playoffs: 3, consolation: 3, championship: 4,
 }
+// Single-phase stages have NO inter-round dependency: round N+1 doesn't consume
+// round N's results, so a player is only held back by the per-team rest gate, not
+// by the whole previous round finishing. Folding round_number into their phase —
+// the way elimination needs — would wrongly serialize the rounds, idling courts
+// while a nearly-finished round blocks the next. So these collapse to one phase.
+const SINGLE_PHASE_STAGES = new Set(['round_robin', 'pool_play'])
 // Monotonic key so, within a division, a lower (stage, round) always sorts and
 // schedules before a higher one — later-round "winner-of TBD" matches included.
+// Elimination folds in round_number so the per-division floor serializes its
+// rounds; single-phase stages share one phase (no floor between their rounds).
 function phaseOf(m: SchedulableMatch): number {
-  return (STAGE_PRIORITY[m.match_stage ?? ''] ?? 1) * 1000 + (m.round_number ?? 1)
+  const stage = m.match_stage ?? ''
+  const base = (STAGE_PRIORITY[stage] ?? 1) * 1000
+  return SINGLE_PHASE_STAGES.has(stage) ? base : base + (m.round_number ?? 1)
 }
 
 export type BlockWindow = {

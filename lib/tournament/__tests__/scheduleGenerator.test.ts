@@ -133,4 +133,24 @@ describe('scheduleBlockMatches dependency floor', () => {
     const blockStart = 8 * 60
     expect(Math.min(...rr.map(m => startMin(m.scheduled_time)))).toBe(blockStart)
   })
+
+  it('packs round-robin rounds in parallel — no inter-round floor', () => {
+    // Round robin has no inter-round dependency: round 2 doesn't consume round 1's
+    // results. With only 2 courts and null teams (no rest gate), a later round must
+    // be free to fill a court the moment one opens, NOT wait for the whole previous
+    // round to finish. Folding round_number into the phase (elimination's behavior)
+    // would serialize them and idle courts — the bug this pins.
+    const narrow: BlockWindow = { ...block, court_numbers: [1, 2] }
+    const mk = (round: number, n: number): SchedulableMatch => ({
+      division_id: 'RR', match_stage: 'round_robin', round_number: round, match_number: n,
+      team_1_registration_id: null, team_2_registration_id: null,
+    })
+    const r1 = [1, 2, 3].map(n => mk(1, n))
+    const r2 = [4, 5, 6].map(n => mk(2, n))
+    scheduleBlockMatches(narrow, [...r1, ...r2], DEFAULT_SCHEDULE_SETTINGS)
+
+    const r1End = Math.max(...r1.map(endMin))
+    const r2Start = Math.min(...r2.map(m => startMin(m.scheduled_time)))
+    expect(r2Start).toBeLessThan(r1End)
+  })
 })
