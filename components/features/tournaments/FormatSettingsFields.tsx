@@ -92,10 +92,7 @@ export default function FormatSettingsFields({ bracketType, formatSettings, onTy
               name="bracket_type"
               value={ft}
               checked={bracketType === ft}
-              onChange={() => {
-                onTypeChange(ft)
-                onSettingsChange(FORMAT_DEFAULTS[ft])
-              }}
+              onChange={() => onTypeChange(ft)}
               className="mt-0.5 accent-brand"
             />
             <div>

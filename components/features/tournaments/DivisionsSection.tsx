@@ -48,6 +48,31 @@ const BRACKET_LABELS: Record<string, string> = {
   pool_play_playoffs:  'Pool Play',
 }
 
+const ageSegmentLabel = (
+  min: string | number | null | undefined,
+  max: string | number | null | undefined,
+): string | null => {
+  const lo = min ? String(min) : ''
+  const hi = max ? String(max) : ''
+  if (lo && hi) return `Age ${lo}–${hi}`
+  if (lo) return `Age ${lo} & Over`
+  if (hi) return `Under ${hi}`
+  return null
+}
+
+// Single source of truth for the auto-generated division name. Used live in the
+// add/edit forms and on save when the organizer hasn't typed a custom name.
+const buildAutoName = (
+  category: string,
+  teamType: string,
+  skill: string,
+  ageSegment: string | null,
+  bracketType: string,
+): string =>
+  [CATEGORY_LABELS[category], teamType === 'singles' ? 'Singles' : 'Doubles', skill, ageSegment, BRACKET_LABELS[bracketType]]
+    .filter(Boolean)
+    .join(' — ')
+
 const CATEGORY_OPTIONS = [
   { value: 'men',   label: 'Men' },
   { value: 'women', label: 'Women' },
@@ -200,6 +225,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
   // Add-division form state
   const [fName, setFName] = useState('')
+  // true once the organizer types a custom name; while false the name tracks fAutoName live
+  const [fNameDirty, setFNameDirty] = useState(false)
   const [fCategory, setFCategory] = useState('mixed')
   const [fSkill, setFSkill] = useState('')
   const [fTeamType, setFTeamType] = useState('doubles')
@@ -225,6 +252,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // Inline division edit state (per division) — mirrors the add-division form
   // so an organizer can change any field after creation, not just format.
   const [editName, setEditName] = useState('')
+  // true when the division's saved name is a custom one (differs from the auto-name);
+  // while false the name tracks editAutoName live as selections change
+  const [editNameDirty, setEditNameDirty] = useState(false)
   const [editCategory, setEditCategory] = useState('mixed')
   const [editSkill, setEditSkill] = useState('')
   const [editTeamType, setEditTeamType] = useState('doubles')
@@ -311,7 +341,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
     setDivisions(prev => [...prev, { ...data, tournament_registrations: [] }])
     setShowAddForm(false)
-    setFName(''); setFCategory('mixed'); setFSkill('')
+    setFName(''); setFNameDirty(false); setFCategory('mixed'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFBracketType(defaultBracketType)
     setFFormatSettings({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
@@ -323,7 +353,18 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // ── Open division editor (full form) ─────────────────────────────
   function openFormatEdit(div: Division) {
     // Populate every field from the existing row so the organizer sees current values.
+    // If the saved name is just the auto-generated one, keep the name in "auto" mode
+    // so it re-syncs as selections change; only a truly custom name is preserved.
+    const savedName = (div.name ?? '').trim()
+    const divAutoName = buildAutoName(
+      div.category ?? 'mixed',
+      div.team_type ?? 'doubles',
+      skillRangeToLevel(div.skill_min, div.skill_max) ?? '',
+      ageSegmentLabel(div.min_age, div.max_age),
+      div.bracket_type,
+    )
     setEditName(div.name ?? '')
+    setEditNameDirty(savedName !== '' && savedName !== divAutoName)
     setEditCategory(div.category ?? 'mixed')
     setEditTeamType(div.team_type ?? 'doubles')
     setEditPartnerMode((div.partner_mode === 'rotating' ? 'rotating' : 'fixed'))
@@ -351,13 +392,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditFormatError(null)
 
     const newCostCents = editCostDollars !== '' ? Math.round(parseFloat(editCostDollars) * 100) : null
-    const ageSegForSave = editMinAge && editMaxAge
-      ? `Age ${editMinAge}–${editMaxAge}`
-      : editMinAge ? `Age ${editMinAge} & Over`
-      : editMaxAge ? `Under ${editMaxAge}`
-      : null
-    const autoName = editName.trim() ||
-      [CATEGORY_LABELS[editCategory], editTeamType === 'singles' ? 'Singles' : 'Doubles', editSkill, ageSegForSave, BRACKET_LABELS[editBracketType]].filter(Boolean).join(' — ')
+    const autoName = editNameDirty ? (editName.trim() || editAutoName) : editAutoName
 
     const updatePayload = {
       name: autoName,
@@ -617,20 +652,9 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     ))
   }
 
-  // Live-preview name while the organizer fills out the add form
-  const fAgeSegment = fMinAge && fMaxAge
-    ? `Age ${fMinAge}–${fMaxAge}`
-    : fMinAge ? `Age ${fMinAge} & Over`
-    : fMaxAge ? `Under ${fMaxAge}`
-    : null
-  const fAutoName = [CATEGORY_LABELS[fCategory], fTeamType === 'singles' ? 'Singles' : 'Doubles', fSkill, fAgeSegment, BRACKET_LABELS[fBracketType]].filter(Boolean).join(' — ')
-
-  const editAgeSegment = editMinAge && editMaxAge
-    ? `Age ${editMinAge}–${editMaxAge}`
-    : editMinAge ? `Age ${editMinAge} & Over`
-    : editMaxAge ? `Under ${editMaxAge}`
-    : null
-  const editAutoName = [CATEGORY_LABELS[editCategory], editTeamType === 'singles' ? 'Singles' : 'Doubles', editSkill, editAgeSegment, BRACKET_LABELS[editBracketType]].filter(Boolean).join(' — ')
+  // Live-preview name while the organizer fills out the add/edit forms
+  const fAutoName = buildAutoName(fCategory, fTeamType, fSkill, ageSegmentLabel(fMinAge, fMaxAge), fBracketType)
+  const editAutoName = buildAutoName(editCategory, editTeamType, editSkill, ageSegmentLabel(editMinAge, editMaxAge), editBracketType)
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -831,7 +855,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             <FormatSettingsFields
               bracketType={fBracketType}
               formatSettings={fFormatSettings}
-              onTypeChange={t => { setFBracketType(t); setFFormatSettings({ ...FORMAT_DEFAULTS[t], win_by: defaultWinBy, games_to: defaultGamesTo }) }}
+              onTypeChange={t => { setFBracketType(t); setFFormatSettings(s => ({ ...FORMAT_DEFAULTS[t], win_by: s.win_by, games_to: s.games_to })) }}
               onSettingsChange={setFFormatSettings}
             />
           </div>
@@ -840,8 +864,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             <label className="block text-xs font-medium text-brand-muted mb-1">Division Name <span className="font-normal">(optional — auto-generated from selections above)</span></label>
             <input
               type="text"
-              value={fName}
-              onChange={e => setFName(e.target.value)}
+              value={fNameDirty ? fName : fAutoName}
+              onChange={e => { setFName(e.target.value); setFNameDirty(e.target.value.trim().length > 0) }}
               placeholder={fAutoName}
               className="w-full input"
             />
@@ -1123,7 +1147,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       <FormatSettingsFields
                         bracketType={editBracketType}
                         formatSettings={editFormatSettings}
-                        onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(FORMAT_DEFAULTS[t]) }}
+                        onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(s => ({ ...FORMAT_DEFAULTS[t], win_by: s.win_by, games_to: s.games_to })) }}
                         onSettingsChange={setEditFormatSettings}
                       />
                     </div>
@@ -1132,8 +1156,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       <label className="block text-xs font-medium text-brand-muted mb-1">Division Name <span className="font-normal">(optional — auto-generated from selections above)</span></label>
                       <input
                         type="text"
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
+                        value={editNameDirty ? editName : editAutoName}
+                        onChange={e => { setEditName(e.target.value); setEditNameDirty(e.target.value.trim().length > 0) }}
                         placeholder={editAutoName}
                         className="w-full input"
                       />
