@@ -757,6 +757,7 @@ export default function ScheduleBuilderView({
                         onDelete={() => removeBlock(b)}
                         onRemoveDivision={(divId) => unassign(divId)}
                         dragActive={draggingId != null}
+                        outOfRange={!days.some(d => d.date === b.block_date)}
                       />
                     )
                   })}

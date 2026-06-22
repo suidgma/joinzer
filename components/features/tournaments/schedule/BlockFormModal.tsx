@@ -70,9 +70,12 @@ export default function BlockFormModal({
     ? blockCapacity(courts.length, startTime, endTime, settings)
     : null
 
+  const dateOutOfRange = !!date && !days.some(d => d.date === date)
+
   async function save() {
     if (!name.trim()) { onError('Block name is required'); return }
     if (!date) { onError('Pick a date'); return }
+    if (dateOutOfRange) { onError("Pick a date within your tournament's dates"); return }
     if (!startTime || !endTime || endTime <= startTime) { onError('End time must be after start time'); return }
     setSaving(true)
     try {
@@ -127,12 +130,15 @@ export default function BlockFormModal({
 
         <div>
           <label className="block text-xs font-medium text-brand-muted mb-1">Date</label>
-          {days.length > 1 ? (
-            <select value={date} onChange={e => onDateChange(e.target.value)} className="w-full input">
-              {days.map(d => <option key={d.date} value={d.date}>{d.date}</option>)}
-            </select>
-          ) : (
-            <input type="date" value={date} onChange={e => onDateChange(e.target.value)} className="w-full input" />
+          {/* Always a select over the tournament's own dates so a block can't be
+              scheduled outside the event. An existing out-of-range date (e.g. a
+              legacy block) is shown as a flagged option so the organizer can fix it. */}
+          <select value={date} onChange={e => onDateChange(e.target.value)} className="w-full input">
+            {dateOutOfRange && <option value={date}>{date} — outside tournament dates</option>}
+            {days.map(d => <option key={d.date} value={d.date}>{d.date}</option>)}
+          </select>
+          {dateOutOfRange && (
+            <p className="mt-1 text-[11px] text-amber-600">This date is outside your tournament’s dates — pick a listed date.</p>
           )}
         </div>
 
