@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { canManage } from '@/lib/tournament/access'
+import { tournamentValidDates } from '@/lib/tournament/tournamentDays'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +53,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const body = await req.json().catch(() => ({}))
   const invalid = validateBlock(body)
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 })
+
+  const validDates = await tournamentValidDates(id)
+  if (validDates && !validDates.includes(body.block_date as string)) {
+    return NextResponse.json(
+      { error: `Block date must be one of the tournament's dates (${validDates.join(', ')}).` },
+      { status: 400 },
+    )
+  }
 
   const { data, error } = await service()
     .from('tournament_schedule_blocks')

@@ -18,6 +18,7 @@ type Props = {
   onDelete: () => void
   onRemoveDivision: (divisionId: string) => void
   dragActive: boolean
+  outOfRange?: boolean
 }
 
 function fmtTime(t: string): string {
@@ -33,7 +34,7 @@ function fmtDate(d: string): string {
 }
 
 export default function BlockCard({
-  block, locationName, settings, assigned, showPriority, onChangePriority, onEdit, onDuplicate, onDelete, onRemoveDivision, dragActive,
+  block, locationName, settings, assigned, showPriority, onChangePriority, onEdit, onDuplicate, onDelete, onRemoveDivision, dragActive, outOfRange,
 }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: block.id })
   const cap = blockCapacity(block.court_numbers.length, block.start_time, block.end_time, settings)
@@ -85,6 +86,12 @@ export default function BlockCard({
         {locationName && <span className="flex items-center gap-1"><MapPin size={12} /> {locationName}</span>}
         <span>{block.court_numbers.length} {block.court_numbers.length === 1 ? 'court' : 'courts'}</span>
       </div>
+
+      {outOfRange && (
+        <p className="flex items-center gap-1 text-[11px] text-amber-600 font-medium">
+          <AlertTriangle size={11} /> This date is outside your tournament’s dates
+        </p>
+      )}
 
       {noCourts && (
         <p className="flex items-center gap-1 text-[11px] text-amber-600 font-medium">

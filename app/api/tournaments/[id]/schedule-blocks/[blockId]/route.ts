@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { canManage } from '@/lib/tournament/access'
+import { tournamentValidDates } from '@/lib/tournament/tournamentDays'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,15 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   }
   if (typeof patch.start_time === 'string' && typeof patch.end_time === 'string' && patch.end_time <= patch.start_time) {
     return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
+  }
+  if (typeof patch.block_date === 'string') {
+    const validDates = await tournamentValidDates(id)
+    if (validDates && !validDates.includes(patch.block_date)) {
+      return NextResponse.json(
+        { error: `Block date must be one of the tournament's dates (${validDates.join(', ')}).` },
+        { status: 400 },
+      )
+    }
   }
   if (typeof patch.name === 'string') patch.name = patch.name.trim()
   patch.updated_at = new Date().toISOString()
