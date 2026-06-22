@@ -176,6 +176,39 @@ export default function DivisionManageView({
 
   const summaryLines = formatSummaryLines(division.bracket_type as any, division.format_settings_json as any)
 
+  // ── Schedule staleness ──────────────────────────────────────────────────────
+  // Matches are a snapshot from generation time. A player who cancels afterward
+  // lingers as a "—" slot; players who register later aren't added. Flag both so
+  // the organizer knows to re-generate. Eligibility mirrors generate-matches
+  // (status 'registered' + paid/waived/comped) so we don't false-flag waitlisted
+  // or unpaid players who legitimately wouldn't be scheduled anyway.
+  const scheduleStale = (() => {
+    if (!hasMatches) return null
+    const scheduled = new Set<string>()
+    for (const m of matches) {
+      if (m.team_1_registration_id) scheduled.add(m.team_1_registration_id)
+      if (m.team_2_registration_id) scheduled.add(m.team_2_registration_id)
+    }
+    const eligible = registrations.filter(
+      r => r.status === 'registered' && ['paid', 'waived', 'comped'].includes(r.payment_status ?? ''),
+    )
+    const eligibleIds = new Set(eligible.map(r => r.id))
+    // In the schedule but no longer an eligible entrant (cancelled / withdrawn) → "—".
+    const removed = [...scheduled].filter(id => !eligibleIds.has(id)).length
+    // Eligible but absent from every match (registered after generation). Count each
+    // doubles team once — a reg is "covered" if it or its partner is scheduled.
+    const counted = new Set<string>()
+    let added = 0
+    for (const r of eligible) {
+      if (scheduled.has(r.id) || (r.partner_registration_id && scheduled.has(r.partner_registration_id))) continue
+      if (counted.has(r.id)) continue
+      counted.add(r.id)
+      if (r.partner_registration_id) counted.add(r.partner_registration_id)
+      added++
+    }
+    return removed > 0 || added > 0 ? { removed, added } : null
+  })()
+
   async function handleGenerateMatches(durationMinutes: number, confirmDiscard = false) {
     const res = await fetch(
       `/api/tournaments/${tournamentId}/divisions/${division.id}/generate-matches`,
@@ -409,6 +442,28 @@ export default function DivisionManageView({
             >
               Open Schedule Builder →
             </Link>
+          </div>
+        )}
+
+        {/* ── Stale-schedule warning: roster changed since matches were generated ── */}
+        {isOrganizer && scheduleStale && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+            <p className="font-semibold">This schedule is out of date.</p>
+            <ul className="mt-1 list-disc list-inside space-y-0.5">
+              {scheduleStale.removed > 0 && (
+                <li>
+                  {scheduleStale.removed} scheduled {scheduleStale.removed === 1 ? 'player is' : 'players are'} no
+                  longer registered — {scheduleStale.removed === 1 ? 'it shows' : 'they show'} as “—” in the matches below.
+                </li>
+              )}
+              {scheduleStale.added > 0 && (
+                <li>
+                  {scheduleStale.added} newly-registered {scheduleStale.added === 1 ? 'player is' : 'players are'} not
+                  in the schedule.
+                </li>
+              )}
+            </ul>
+            <p className="mt-1">Re-generate the matches to rebuild for the current field.</p>
           </div>
         )}
 
