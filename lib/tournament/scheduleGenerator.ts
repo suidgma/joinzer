@@ -13,6 +13,10 @@ export type SchedulableMatch = {
   match_stage?: string | null
   team_1_registration_id?: string | null
   team_2_registration_id?: string | null
+  // Rotating doubles spreads its four players across these partner columns too —
+  // they must be conflict-checked or a player gets booked into two matches at once.
+  team_1_partner_registration_id?: string | null
+  team_2_partner_registration_id?: string | null
   court_number?: number | null
   scheduled_time?: string | null
   scheduled_end_time?: string | null
@@ -155,9 +159,15 @@ export function scheduleBlockMatches(
     }
     const phaseFloor = divFloor.get(div)!
 
-    const teams = [m.team_1_registration_id, m.team_2_registration_id].filter(Boolean) as string[]
-    // A team can't start its next match until it has rested.
-    const restReady = teams.reduce(
+    // Every player registration in this match — including rotating-doubles partners —
+    // so a player is never booked into two matches at once (and rests between theirs).
+    // Fixed doubles uses one team registration covering both partners; singles has one
+    // per side; rotating doubles spreads four players across all four columns.
+    const participants = [
+      m.team_1_registration_id, m.team_1_partner_registration_id,
+      m.team_2_registration_id, m.team_2_partner_registration_id,
+    ].filter(Boolean) as string[]
+    const restReady = participants.reduce(
       (mx, t) => Math.max(mx, (teamLastEnd.get(t) ?? -Infinity) + rest),
       startMin,
     )
@@ -199,7 +209,7 @@ export function scheduleBlockMatches(
     courtFree.set(bestCourt, bestStart + perMatch)
     courtReservations?.set(resKey(bestCourt), bestStart + perMatch)
     const end = bestStart + duration
-    for (const t of teams) teamLastEnd.set(t, end)
+    for (const t of participants) teamLastEnd.set(t, end)
     if (divPhaseEnd.get(div)! < end) divPhaseEnd.set(div, end)
     let dc = divCourts.get(div)
     if (!dc) { dc = new Set(); divCourts.set(div, dc) }

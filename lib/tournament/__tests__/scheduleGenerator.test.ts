@@ -153,4 +153,21 @@ describe('scheduleBlockMatches dependency floor', () => {
     const r2Start = Math.min(...r2.map(m => startMin(m.scheduled_time)))
     expect(r2Start).toBeLessThan(r1End)
   })
+
+  it('does not double-book a player across rotating-doubles matches (counts partners)', () => {
+    // Two rotating-doubles matches share all four players, rotated between the team
+    // and partner slots. The conflict gate must see the partner columns too — else a
+    // player gets booked into two matches at once (the over-packing / stranded-court bug).
+    const rot = (n: number, t1: string, t1p: string, t2: string, t2p: string): SchedulableMatch => ({
+      division_id: 'RD', match_stage: 'round_robin', round_number: n, match_number: n,
+      team_1_registration_id: t1, team_1_partner_registration_id: t1p,
+      team_2_registration_id: t2, team_2_partner_registration_id: t2p,
+    })
+    const m1 = rot(1, 'p1', 'p2', 'p3', 'p4')
+    const m2 = rot(2, 'p2', 'p1', 'p4', 'p3') // same four players, rotated slots
+    scheduleBlockMatches(block, [m1, m2], DEFAULT_SCHEDULE_SETTINGS)
+
+    // They share players, so the second can't start until the first has finished.
+    expect(startMin(m2.scheduled_time)).toBeGreaterThanOrEqual(endMin(m1))
+  })
 })
