@@ -181,6 +181,11 @@ function BracketMatchCard({
   // — team_2 is just TBD (waiting for the other half of the bracket to produce a winner).
   const isBye = isDone && !match.team_2_registration_id && !!match.team_1_registration_id
   const w = match.winner_registration_id
+  // A slot is "resolved" only if its registration is still in the active set. A
+  // cancelled player keeps their id on the match row but drops out of `regs`, so it
+  // renders as "—" — don't offer to score a match against a no-longer-present player.
+  const team1Resolved = !!match.team_1_registration_id && regs.some(r => r.id === match.team_1_registration_id)
+  const team2Resolved = !!match.team_2_registration_id && regs.some(r => r.id === match.team_2_registration_id)
 
   async function saveScore() {
     const n1 = Number(s1), n2 = Number(s2)
@@ -292,7 +297,7 @@ function BracketMatchCard({
       <div className="flex-1" />
 
       {/* Score entry controls */}
-      {isOrganizer && !isDone && !isBye && match.team_1_registration_id && match.team_2_registration_id && (
+      {isOrganizer && !isDone && !isBye && team1Resolved && team2Resolved && (
         scoring ? (
           <div className="px-2 py-1 border-t border-brand-border/60 bg-gray-50 space-y-1">
             {err && <p className="text-[9px] text-red-600">{err}</p>}
