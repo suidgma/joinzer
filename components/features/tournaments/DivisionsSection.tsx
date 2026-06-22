@@ -353,18 +353,11 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   // ── Open division editor (full form) ─────────────────────────────
   function openFormatEdit(div: Division) {
     // Populate every field from the existing row so the organizer sees current values.
-    // If the saved name is just the auto-generated one, keep the name in "auto" mode
-    // so it re-syncs as selections change; only a truly custom name is preserved.
-    const savedName = (div.name ?? '').trim()
-    const divAutoName = buildAutoName(
-      div.category ?? 'mixed',
-      div.team_type ?? 'doubles',
-      skillRangeToLevel(div.skill_min, div.skill_max) ?? '',
-      ageSegmentLabel(div.min_age, div.max_age),
-      div.bracket_type,
-    )
+    // Start the name in "auto" mode so it reflects the current selections and tracks
+    // any changes (this also corrects a stale saved name whose selections have since
+    // changed). Typing a custom name overrides; clearing it returns to auto.
     setEditName(div.name ?? '')
-    setEditNameDirty(savedName !== '' && savedName !== divAutoName)
+    setEditNameDirty(false)
     setEditCategory(div.category ?? 'mixed')
     setEditTeamType(div.team_type ?? 'doubles')
     setEditPartnerMode((div.partner_mode === 'rotating' ? 'rotating' : 'fixed'))
