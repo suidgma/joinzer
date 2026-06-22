@@ -157,9 +157,22 @@ export default function BlockFormModal({
         )}
 
         <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1">
-            Courts ({courts.length} of {courtCount} selected)
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-brand-muted">
+              Courts ({courts.length} of {courtCount} selected)
+            </label>
+            {courtCount > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setCourts(courts.length > 0 ? [] : Array.from({ length: courtCount }, (_, i) => i + 1))
+                }
+                className="text-xs font-medium text-brand-active hover:underline"
+              >
+                {courts.length > 0 ? 'Uncheck all' : 'Select all'}
+              </button>
+            )}
+          </div>
           {courtCount > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {Array.from({ length: courtCount }, (_, i) => i + 1).map(n => {
