@@ -10,6 +10,7 @@ import {
   type MatchRow,
 } from '@/lib/tournament/bracketBuilder'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
+import { applyByeAdvancements } from '@/lib/tournament/advanceByes'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 export async function POST(
@@ -182,85 +183,12 @@ export async function POST(
     return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 })
   }
 
-  // For double elimination: cascade WB R1 BYE auto-wins into R2, and resolve any
-  // induced BYEs in R2 (when the only feeder is a null-null phantom match).
-  // This ensures the bracket displays correctly from the start instead of showing
-  // "TBD vs TBD" in Semis slots that a BYE winner should already occupy.
+  // Advance round-1 BYE winners into the next round so the bracket is correct from
+  // the start — no dropped bye recipients, no phantom "TBD vs TBD" in slots a bye
+  // winner should already occupy. Shared with the Schedule Builder draft path.
   if (ft === 'double_elimination' || ft === 'single_elimination') {
-    const slim = 'id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status'
-    // Single elim uses 'single_elimination' stage; double elim uses 'winners_bracket'
     const wbStage = ft === 'single_elimination' ? 'single_elimination' : 'winners_bracket'
-
-    const r1Matches = (inserted as MatchRow[])
-      .filter(m => m.match_stage === wbStage && m.round_number === 1)
-      .sort((a, b) => a.match_number - b.match_number)
-
-    const r2Matches = (inserted as MatchRow[])
-      .filter(m => m.match_stage === wbStage && m.round_number === 2)
-      .sort((a, b) => a.match_number - b.match_number)
-
-    const r3Matches = (inserted as MatchRow[])
-      .filter(m => m.match_stage === wbStage && m.round_number === 3)
-      .sort((a, b) => a.match_number - b.match_number)
-
-    // Step 1: advance WB R1 BYE winners into their R2 slots
-    const updatedR2 = r2Matches.map(m => ({ ...m }))
-    for (let i = 0; i < r1Matches.length; i++) {
-      const m = r1Matches[i]
-      if (m.status !== 'completed' || !m.winner_registration_id) continue
-      const r2Idx = Math.floor(i / 2)
-      const r2Field = i % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
-      const r2Match = updatedR2[r2Idx]
-      if (!r2Match) continue
-      await service.from('tournament_matches')
-        .update({ [r2Field]: m.winner_registration_id })
-        .eq('id', r2Match.id)
-      ;(updatedR2[r2Idx] as Record<string, unknown>)[r2Field] = m.winner_registration_id
-    }
-
-    // Step 2: resolve induced BYEs in WB R2 whose null slot comes from a phantom R1 match
-    const updatedR3 = r3Matches.map(m => ({ ...m }))
-    for (let j = 0; j < updatedR2.length; j++) {
-      const m = updatedR2[j]
-      const t1 = m.team_1_registration_id
-      const t2 = m.team_2_registration_id
-      if ((!t1 && !t2) || (t1 && t2)) continue  // phantom or real match
-
-      const emptyIsTeam2 = !!t1 && !t2
-      // The feeder for the empty slot in WB R2 position j is WB R1 position (j*2 + (emptyIsTeam2 ? 1 : 0))
-      const feederIdx = j * 2 + (emptyIsTeam2 ? 1 : 0)
-      const feeder = r1Matches[feederIdx]
-
-      // Feeder is a phantom if it's null-null (both slots empty from bracket gen)
-      const feederIsPhantom = !feeder ||
-        (!feeder.team_1_registration_id && !feeder.team_2_registration_id)
-
-      if (!feederIsPhantom) continue
-
-      // Genuine induced BYE — auto-complete this R2 match.
-      // Write the team field too (in case Step 1's update was a no-op) so the
-      // match renders as "Thompson vs BYE" rather than "TBD vs TBD".
-      const byeWinner = t1 ?? t2
-      const byeTeamField = emptyIsTeam2 ? 'team_1_registration_id' : 'team_2_registration_id'
-      const { data: byeCompleted } = await service
-        .from('tournament_matches')
-        .update({ [byeTeamField]: byeWinner, winner_registration_id: byeWinner, status: 'completed' })
-        .eq('id', m.id)
-        .select(slim)
-        .single()
-
-      if (!byeCompleted) continue
-
-      // Advance the BYE winner into WB R3
-      const r3Idx = Math.floor(j / 2)
-      const r3Field = j % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
-      const r3Match = updatedR3[r3Idx]
-      if (r3Match) {
-        await service.from('tournament_matches')
-          .update({ [r3Field]: byeWinner })
-          .eq('id', r3Match.id)
-      }
-    }
+    await applyByeAdvancements(service, inserted as MatchRow[], wbStage)
   }
 
   return NextResponse.json({ matches: inserted })
