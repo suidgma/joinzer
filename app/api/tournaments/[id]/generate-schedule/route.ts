@@ -6,6 +6,8 @@ import { DEFAULT_SCHEDULE_SETTINGS, type ScheduleSettings } from '@/lib/types'
 import { buildDivisionMatchRows } from '@/lib/tournament/buildMatches'
 import { scheduleBlockMatches, type SchedulableMatch } from '@/lib/tournament/scheduleGenerator'
 import { detectPlayerConflicts } from '@/lib/tournament/scheduleConflicts'
+import { applyByeAdvancements } from '@/lib/tournament/advanceByes'
+import type { MatchRow } from '@/lib/tournament/bracketBuilder'
 
 export const dynamic = 'force-dynamic'
 
@@ -199,6 +201,33 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   // response small even when thousands of matches are generated.
   const { error } = await db.from('tournament_matches').insert(allRows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Advance round-1 BYE winners for elimination divisions. The per-division
+  // generate route does this inline; the draft path must too, or a bye
+  // recipient's empty next-round slot auto-resolves as a walkover and drops them
+  // from the bracket. The insert above is lean (no ids returned), so re-fetch the
+  // just-inserted draft matches and run the shared cascade per division.
+  const elimDivisionIds = assignedDivisionIds.filter(d => {
+    const bt = divisionById.get(d)?.bracket_type
+    return bt === 'single_elimination' || bt === 'double_elimination'
+  })
+  if (elimDivisionIds.length > 0) {
+    const { data: elimMatches } = await db
+      .from('tournament_matches')
+      .select('id, division_id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status')
+      .in('division_id', elimDivisionIds)
+      .eq('is_draft', true)
+    const byDivision = new Map<string, MatchRow[]>()
+    for (const m of (elimMatches ?? []) as (MatchRow & { division_id: string })[]) {
+      if (!byDivision.has(m.division_id)) byDivision.set(m.division_id, [])
+      byDivision.get(m.division_id)!.push(m)
+    }
+    for (const [divId, ms] of byDivision) {
+      const wbStage = divisionById.get(divId)?.bracket_type === 'single_elimination'
+        ? 'single_elimination' : 'winners_bracket'
+      await applyByeAdvancements(db, ms, wbStage)
+    }
+  }
 
   return NextResponse.json({ generated: allRows.length, skipped, blocks: divisionsByBlock.size, overflow: overflowTotal })
 }
