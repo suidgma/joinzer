@@ -79,7 +79,14 @@ export default function SchedulePreview({
   const [regenId, setRegenId] = useState<string | null>(null)
 
   const divisionName = (id: string) => divisions.find(d => d.id === id)?.name ?? 'Division'
-  const label = (regId: string | null) => (regId ? teamLabels[regId] ?? 'TBD' : 'TBD')
+  // A structural BYE is a match auto-completed with a winner but no opponent —
+  // the same detection BracketView uses, so the preview and the bracket agree.
+  const isByeMatch = (m: DraftMatch) =>
+    m.status === 'completed' && !!m.team_1_registration_id && !m.team_2_registration_id
+  // Empty slots read "BYE" on a bye match (named player auto-advances), else
+  // "TBD" (an unresolved later-round feeder).
+  const label = (regId: string | null, m: DraftMatch) =>
+    regId ? teamLabels[regId] ?? 'TBD' : isByeMatch(m) ? 'BYE' : 'TBD'
   const blockOf = (m: DraftMatch) => blocks.find(b => b.id === m.schedule_block_id) ?? null
   const sortByTime = (a: DraftMatch, b: DraftMatch) =>
     (a.scheduled_time ?? '~').localeCompare(b.scheduled_time ?? '~') ||
@@ -128,7 +135,7 @@ export default function SchedulePreview({
       if (clash) {
         onFlash?.(
           `Court ${court} is already booked ${fmtRange(clash.scheduled_time, clash.scheduled_end_time, matchDurationMinutes)} ` +
-          `(${label(clash.team_1_registration_id)} vs ${label(clash.team_2_registration_id)}). Pick another court or time.`
+          `(${label(clash.team_1_registration_id, clash)} vs ${label(clash.team_2_registration_id, clash)}). Pick another court or time.`
         )
         return
       }
@@ -201,7 +208,7 @@ export default function SchedulePreview({
             placeholder="—" className="w-14 shrink-0 border border-brand-border rounded px-1 py-0.5 text-center"
           />
           <span className="flex-1 min-w-0 truncate text-brand-dark">
-            {label(m.team_1_registration_id)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id)}
+            {label(m.team_1_registration_id, m)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id, m)}
           </span>
           <button
             onClick={() => saveEdit(m)} disabled={savingId === m.id}
@@ -226,7 +233,7 @@ export default function SchedulePreview({
         {show.includes('time') && <span className="w-36 shrink-0 whitespace-nowrap text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, m.scheduled_end_time, matchDurationMinutes)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
-          {label(m.team_1_registration_id)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id)}
+          {label(m.team_1_registration_id, m)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id, m)}
         </span>
         {show.includes('division') && <span className="shrink-0 text-[10px] text-brand-muted truncate max-w-[40%]">{divisionName(m.division_id)}</span>}
         {editable && (
