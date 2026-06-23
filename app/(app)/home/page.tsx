@@ -325,7 +325,7 @@ export default async function HomePage() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-brand-dark">
-                        {league?.name ?? 'League'}
+                        <span className="text-brand-muted">League:</span> {league?.name ?? 'League'}
                         <span className="ml-1.5 text-brand-muted font-normal">· Session {s.session_number as number}</span>
                       </p>
                       <p className="text-xs text-brand-muted">{sessionDateLabel(s.session_date as string)}</p>
@@ -367,12 +367,9 @@ export default async function HomePage() {
                   href={`/tournaments/${t.id}`}
                   className="block bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-1 hover:border-brand-active transition-colors"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-brand-dark leading-snug">{t.name}</p>
-                    <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand/20 text-brand-dark">
-                      Tournament
-                    </span>
-                  </div>
+                  <p className="text-sm font-semibold text-brand-dark leading-snug">
+                    <span className="text-brand-muted">Tournament:</span> {t.name}
+                  </p>
                   {t.location?.name && <p className="text-xs text-brand-muted">{t.location.name}</p>}
                   <p className="text-xs text-brand-muted">{formatSessionDate(t.start_date)}</p>
                 </Link>
@@ -388,12 +385,9 @@ export default async function HomePage() {
                 href={`/play/${ev.id}`}
                 className="block bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-1 hover:border-brand-active transition-colors"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold text-brand-dark leading-snug">{ev.title}</p>
-                  <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand text-brand-dark capitalize">
-                    Play
-                  </span>
-                </div>
+                <p className="text-sm font-semibold text-brand-dark leading-snug">
+                  <span className="text-brand-muted">Play:</span> {ev.title}
+                </p>
                 {ev.location?.name && <p className="text-xs text-brand-muted">{ev.location.name}</p>}
                 <p className="text-xs text-brand-muted">{eventDateLabel(ev.starts_at)}</p>
                 <p className="text-xs text-brand-muted">{joinedCount} / {ev.max_players} players</p>
