@@ -190,12 +190,9 @@ export default async function SchedulePage() {
                 <div key={`s-${s.id}`} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-brand/20 text-brand-dark">League</span>
-                        <p className="text-sm font-semibold text-brand-dark truncate">
-                          {league?.name ?? 'League'}
-                        </p>
-                      </div>
+                      <p className="text-sm font-semibold text-brand-dark truncate">
+                        <span className="text-brand-muted">League:</span> {league?.name ?? 'League'}
+                      </p>
                       <p className="text-xs text-brand-muted mt-0.5">
                         Session {s.session_number as number} · {formatSessionDate(s.session_date as string)}
                       </p>
@@ -236,10 +233,9 @@ export default async function SchedulePage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Tournament</span>
-                        <p className="text-sm font-semibold text-brand-dark truncate">{t.name}</p>
-                      </div>
+                      <p className="text-sm font-semibold text-brand-dark truncate">
+                        <span className="text-brand-muted">Tournament:</span> {t.name}
+                      </p>
                       {t.location?.name && <p className="text-xs text-brand-muted mt-0.5">{t.location.name}</p>}
                       <p className="text-xs text-brand-muted">{formatSessionDate(t.start_date)}</p>
                     </div>
@@ -261,12 +257,9 @@ export default async function SchedulePage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-brand text-brand-dark">
-                        {isClinic ? 'Clinic' : 'Play'}
-                      </span>
-                      <p className="text-sm font-semibold text-brand-dark truncate">{ev.title}</p>
-                    </div>
+                    <p className="text-sm font-semibold text-brand-dark truncate">
+                      <span className="text-brand-muted">{isClinic ? 'Clinic' : 'Play'}:</span> {ev.title}
+                    </p>
                     {ev.location?.name && <p className="text-xs text-brand-muted mt-0.5">{ev.location.name}</p>}
                     <p className="text-xs text-brand-muted">{formatTimestamp(ev.starts_at)}</p>
                     <p className="text-xs text-brand-muted">{joinedCount} / {ev.max_players} players</p>
