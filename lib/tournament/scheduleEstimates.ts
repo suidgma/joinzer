@@ -117,6 +117,30 @@ export function blockCapacity(
   return { courtCount, durationMinutes, usableMinutes, courtMinutes, matchCapacity }
 }
 
+/**
+ * Max matches one division can run at the same time. A match has two sides and a
+ * single entrant (a singles player, or a doubles pair) can't be on two courts at
+ * once — so a division of N entrants tops out at floor(N / 2) simultaneous
+ * matches, no matter how many courts exist. `teamCount` is the entrant count
+ * (players for singles, pairs for doubles).
+ */
+export function divisionConcurrency(teamCount: number): number {
+  return Math.max(0, Math.floor(teamCount / 2))
+}
+
+/**
+ * The real simultaneous-match ceiling for a block: the lesser of its court count
+ * and how many independent matches its divisions can field at once. e.g. 20
+ * singles players (10 matches max) assigned to a 14-court block → 10, because the
+ * other 4 courts have no free players to fill them. Falls back to the court count
+ * when no team data is available so estimates don't collapse to zero.
+ */
+export function effectiveBlockCourts(courtCount: number, teamCounts: number[]): number {
+  const playerCeiling = teamCounts.reduce((sum, t) => sum + divisionConcurrency(t), 0)
+  if (playerCeiling <= 0) return courtCount
+  return Math.min(courtCount, playerCeiling)
+}
+
 /** 'HH:MM' minutes-since-midnight → "1:45 PM". */
 export function minutesToLabel(minutes: number): string {
   const h = Math.floor(minutes / 60)

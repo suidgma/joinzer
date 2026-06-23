@@ -2,9 +2,9 @@
 import { useDroppable } from '@dnd-kit/core'
 import { Pencil, Copy, Trash2, MapPin, Clock, X, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
-import { blockCapacity, estimateBlockFinishMinutes, minutesToLabel, timeToMinutes } from '@/lib/tournament/scheduleEstimates'
+import { blockCapacity, estimateBlockFinishMinutes, effectiveBlockCourts, minutesToLabel, timeToMinutes } from '@/lib/tournament/scheduleEstimates'
 
-export type AssignedDivision = { id: string; name: string; matches: number | null; priority: number }
+export type AssignedDivision = { id: string; name: string; matches: number | null; teamCount: number; priority: number }
 
 type Props = {
   block: ScheduleBlock
@@ -37,7 +37,10 @@ export default function BlockCard({
   block, locationName, settings, assigned, showPriority, onChangePriority, onEdit, onDuplicate, onDelete, onRemoveDivision, dragActive, outOfRange,
 }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: block.id })
-  const cap = blockCapacity(block.court_numbers.length, block.start_time, block.end_time, settings)
+  // Courts that can actually run at once — capped by player availability, since a
+  // division of N entrants fields at most floor(N/2) matches simultaneously.
+  const effectiveCourts = effectiveBlockCourts(block.court_numbers.length, assigned.map(d => d.teamCount))
+  const cap = blockCapacity(effectiveCourts, block.start_time, block.end_time, settings)
   const noCourts = block.court_numbers.length === 0
 
   const assignedMatches = assigned.reduce((sum, d) => sum + (d.matches ?? 0), 0)
@@ -48,7 +51,7 @@ export default function BlockCard({
     : over ? 'text-amber-600' : 'text-brand-active'
 
   const finishMin = assigned.length > 0 && !noCourts
-    ? estimateBlockFinishMinutes(block.court_numbers.length, block.start_time, assignedMatches, settings)
+    ? estimateBlockFinishMinutes(effectiveCourts, block.start_time, assignedMatches, settings)
     : null
   const endMin = timeToMinutes(block.end_time)
   const finishLate = finishMin != null && finishMin > endMin
