@@ -529,6 +529,110 @@ export function computeAdvancement(
   return { matchId: nextMatch.id, field, value: winner }
 }
 
+// Returns true if a match will eventually have real players — it already has at least
+// one team, or one of its same-stage predecessor matches is real (not phantom/padded).
+// Distinguishes "temporarily null-null, waiting for upstream results" from
+// "phantom null-null, a padded bracket slot that will never have players".
+export function matchWillBeReal(match: MatchRow, allMatches: MatchRow[], depth = 0): boolean {
+  if (depth > 6) return false
+  if (match.team_1_registration_id || match.team_2_registration_id) return true
+  const round = match.round_number ?? 1
+  if (round <= 1) return false  // R1 null-null with no teams = phantom
+  const sameRound = allMatches
+    .filter(m => m.match_stage === match.match_stage && m.round_number === round)
+    .sort((a, b) => a.match_number - b.match_number)
+  const idx = sameRound.findIndex(m => m.id === match.id)
+  if (idx === -1) return false
+  const prevRound = allMatches
+    .filter(m => m.match_stage === match.match_stage && m.round_number === round - 1)
+    .sort((a, b) => a.match_number - b.match_number)
+  const f1 = prevRound[idx * 2]
+  const f2 = prevRound[idx * 2 + 1]
+  return (
+    (f1 != null && matchWillBeReal(f1, allMatches, depth + 1)) ||
+    (f2 != null && matchWillBeReal(f2, allMatches, depth + 1))
+  )
+}
+
+// Returns true if the empty slot of nextMatch will eventually be filled by a real pending match.
+// Checks both same-stage feeders AND WB drop-in feeders for LB drop-in rounds.
+export function checkPendingFeeder(
+  nextMatch: { id: string; match_stage: string; round_number: number | null },
+  otherField: 'team_1_registration_id' | 'team_2_registration_id',
+  currentCompleted: MatchRow,
+  allDivMatches: MatchRow[],
+): boolean {
+  // Championship always waits — its two participants come from different stages
+  // (WB Final winner and LB Final winner). Never treat it as an induced BYE.
+  if (nextMatch.match_stage === 'championship') return true
+
+  // Same-stage feeder: a pending match in the same stage/round that advances here.
+  const hasSameStageFeeder = allDivMatches.some(m => {
+    if (m.match_stage !== currentCompleted.match_stage) return false
+    if (m.round_number !== currentCompleted.round_number) return false
+    if (m.status === 'completed') return false
+    if (m.id === currentCompleted.id) return false
+    // A still-empty (null-null) sibling is a REAL pending feeder when it will
+    // eventually have players — it's waiting on its own upstream results, not a
+    // phantom padded slot. Skipping it (the old behavior) made scoring one half of
+    // the bracket down to a match auto-complete it as an induced BYE while the
+    // other feeder was still resolving — e.g. the final "winning" before the
+    // second semifinal is even played.
+    const hasTeam = !!(m.team_1_registration_id || m.team_2_registration_id)
+    if (!hasTeam && !matchWillBeReal(m, allDivMatches)) return false
+    // Sentinel winner lets computeAdvancement resolve the target slot by position
+    // even when the feeder has no team yet (we compare only matchId + field).
+    const sentinel = m.team_1_registration_id ?? m.team_2_registration_id ?? '__pending__'
+    const adv = computeAdvancement(
+      { ...m, winner_registration_id: sentinel, status: 'completed' },
+      allDivMatches
+    )
+    return adv?.matchId === nextMatch.id && adv?.field === otherField
+  })
+  if (hasSameStageFeeder) return true
+
+  // For LB drop-in rounds (odd round numbers), also check if a pending WB match
+  // will eventually drop a loser into the empty slot.
+  // Use positional math (not computeLbDrop) so null-null WB matches that are
+  // "waiting for their own WB R1 feeders" still count as real pending feeders.
+  if (nextMatch.match_stage === 'losers_bracket') {
+    const lbRound = nextMatch.round_number ?? 1
+    // Minor (drop-in) LB rounds are round 1 and the even rounds; WB round k
+    // drops into LB round 1 (k=1) or 2k-2 (k>=2).
+    if (lbRound === 1 || lbRound % 2 === 0) {
+      const expectedWbRound = lbRound === 1 ? 1 : lbRound / 2 + 1
+      const wbRoundMatches = allDivMatches
+        .filter(m => m.match_stage === 'winners_bracket' && m.round_number === expectedWbRound)
+        .sort((a, b) => a.match_number - b.match_number)
+      const lbTargetRound = expectedWbRound === 1 ? 1 : expectedWbRound * 2 - 2
+      const lbTargetMatches = allDivMatches
+        .filter(m => m.match_stage === 'losers_bracket' && m.round_number === lbTargetRound)
+        .sort((a, b) => a.match_number - b.match_number)
+      return wbRoundMatches.some((wbM, wbIdx) => {
+        if (wbM.status === 'completed') return false
+        // Determine which LB slot this WB match's loser would drop into, by position
+        let lbMatchIdx: number
+        let lbField: 'team_1_registration_id' | 'team_2_registration_id'
+        if (expectedWbRound === 1) {
+          lbMatchIdx = Math.floor(wbIdx / 2)
+          lbField = wbIdx % 2 === 0 ? 'team_1_registration_id' : 'team_2_registration_id'
+        } else {
+          lbMatchIdx = wbIdx
+          lbField = 'team_2_registration_id'
+        }
+        const targetLbMatch = lbTargetMatches[lbMatchIdx]
+        if (!targetLbMatch || targetLbMatch.id !== nextMatch.id || lbField !== otherField) {
+          return false
+        }
+        // Correct drop target — only count if the WB match is real (not a phantom padded slot)
+        return matchWillBeReal(wbM, allDivMatches)
+      })
+    }
+  }
+
+  return false
+}
+
 /**
  * For double elimination, the WB Final winner and LB Final winner both need to
  * advance to the Championship match. computeAdvancement only moves within the
