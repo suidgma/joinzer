@@ -219,7 +219,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     return () => { supabase.removeChannel(channel) }
   }, [tournamentId, currentUserId])
   const [showAddForm, setShowAddForm] = useState(false)
-  const [managingId, setManagingId] = useState<string | null>(null)
   const [editingFormatId, setEditingFormatId] = useState<string | null>(null)
   const [registeringDiv, setRegisteringDiv] = useState<Division | null>(null)
 
@@ -919,7 +918,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const unpairedInDoubles = isDoubles ? active.length % 2 : 0
             const isClosed  = div.status === 'closed'
             const canReg    = !isOrganizer && !myReg && !isClosed && (!isFull || div.waitlist_enabled)
-            const isManaging = managingId === div.id
             const isEditingFormat = editingFormatId === div.id
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
             const isBracket = div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination'
@@ -945,24 +943,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       <p className="text-xs text-brand-muted mt-0.5">
                         Entry fee: ${(div.cost_cents / 100).toFixed(2)}
                       </p>
-                    )}
-                    {isOrganizer && !isEditingFormat && (
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <button
-                          onClick={() => openFormatEdit(div)}
-                          className="text-xs text-brand-active hover:underline"
-                        >
-                          Edit Division
-                        </button>
-                        <button
-                          onClick={() => { setDeleteDivError(null); setDeleteDivPending({ divId: div.id, divName: div.name }) }}
-                          disabled={hasRegistrants}
-                          title={hasRegistrants ? 'Remove all registrants before deleting' : 'Delete this division'}
-                          className="text-xs text-red-500 hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          Delete
-                        </button>
-                      </div>
                     )}
                   </div>
                   <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
@@ -1191,8 +1171,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   )
                 })()}
 
-                {/* Fixed partner assignment — organizer only, fixed-mode doubles, visible after "Manage" is clicked */}
-                {isManaging && isOrganizer && div.partner_mode === 'fixed' && isDoublesFormat(div.format) && (() => {
+                {/* Fixed partner assignment — organizer only, fixed-mode doubles. Renders only
+                    when there are settled registrations (returns null otherwise), so singles
+                    and empty divisions stay clean. */}
+                {isOrganizer && div.partner_mode === 'fixed' && isDoublesFormat(div.format) && (() => {
                   const settled = active.filter(r =>
                     ['paid', 'waived', 'comped'].includes(r.payment_status ?? '')
                   )
@@ -1442,8 +1424,8 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   </div>
                 )}
 
-                {/* Action buttons */}
-                {currentUserId && (
+                {/* Player actions */}
+                {currentUserId && (canReg || myReg) && (
                   <div className="flex gap-2">
                     {canReg && (
                       <button
@@ -1461,59 +1443,56 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         Cancel Registration
                       </button>
                     )}
-                    {isOrganizer && (
-                      <button
-                        onClick={() => setManagingId(managingId === div.id ? null : div.id)}
-                        className="px-3 py-2 rounded-xl border border-brand-border text-xs text-brand-muted hover:bg-brand-soft transition-colors"
-                      >
-                        {isManaging ? 'Close' : 'Manage →'}
-                      </button>
-                    )}
                   </div>
                 )}
 
-                {/* Organizer management panel */}
-                {isManaging && (
+                {/* Organizer actions — 3 primary CTAs + compact lifecycle row */}
+                {isOrganizer && !isEditingFormat && (
                   <div className="border-t border-brand-border pt-3 space-y-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-3">
-                        <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Registrants</p>
-                        <Link
-                          href={`/tournaments/${tournamentId}/divisions/${div.id}`}
-                          className="text-xs text-brand-active hover:underline"
-                        >
-                          Full view →
-                        </Link>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Link
+                        href={`/tournaments/${tournamentId}/divisions/${div.id}`}
+                        className="text-center py-2 rounded-xl border border-brand-border text-xs font-medium text-brand-dark hover:bg-brand-soft hover:border-brand-active transition-colors"
+                      >
+                        Full View
+                      </Link>
+                      <button
+                        onClick={() => openFormatEdit(div)}
+                        className="py-2 rounded-xl border border-brand-border text-xs font-medium text-brand-dark hover:bg-brand-soft hover:border-brand-active transition-colors"
+                      >
+                        Edit Division
+                      </button>
+                      <button
+                        onClick={() => setQrDivision({ id: div.id, name: div.name })}
+                        className="py-2 rounded-xl border border-brand-border text-xs font-medium text-brand-dark hover:bg-brand-soft hover:border-brand-active transition-colors"
+                      >
+                        QR Check-in
+                      </button>
+                    </div>
+
+                    {/* Secondary lifecycle actions */}
+                    <div className="flex items-center gap-3 text-xs pt-0.5">
+                      {!isClosed && divisions.filter(d => d.id !== div.id && d.status !== 'closed').length > 0 && (
                         <button
-                          onClick={() => setQrDivision({ id: div.id, name: div.name })}
-                          className="text-xs text-brand-active hover:underline"
+                          onClick={() => { setMergingFromId(mergingFromId === div.id ? null : div.id); setMergeTargetId(''); setMergeError(null) }}
+                          className="text-amber-600 hover:underline"
                         >
-                          QR Check-in
+                          Merge
                         </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!isClosed && divisions.filter(d => d.id !== div.id && d.status !== 'closed').length > 0 && (
-                          <button
-                            onClick={() => { setMergingFromId(mergingFromId === div.id ? null : div.id); setMergeTargetId(''); setMergeError(null) }}
-                            className="text-xs text-amber-600 hover:underline"
-                          >
-                            Merge
-                          </button>
-                        )}
-                        {!isClosed && (
-                          <button onClick={() => handleClose(div.id)} className="text-xs text-red-500 hover:underline">
-                            Close
-                          </button>
-                        )}
-                        <button
-                          onClick={() => { setDeleteDivError(null); setDeleteDivPending({ divId: div.id, divName: div.name }) }}
-                          disabled={hasRegistrants}
-                          title={hasRegistrants ? 'Cancel or remove all registrants before deleting' : undefined}
-                          className="text-xs text-red-700 hover:underline font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
-                        >
-                          Delete
+                      )}
+                      {!isClosed && (
+                        <button onClick={() => handleClose(div.id)} className="text-red-500 hover:underline">
+                          Close
                         </button>
-                      </div>
+                      )}
+                      <button
+                        onClick={() => { setDeleteDivError(null); setDeleteDivPending({ divId: div.id, divName: div.name }) }}
+                        disabled={hasRegistrants}
+                        title={hasRegistrants ? 'Cancel or remove all registrants before deleting' : undefined}
+                        className="text-red-700 hover:underline font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
+                      >
+                        Delete
+                      </button>
                     </div>
 
                     {/* Merge panel */}
