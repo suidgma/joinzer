@@ -215,7 +215,7 @@ export default function EditLeagueForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
 
-      <FormSection title="Basics" description="Public-facing league details." defaultOpen>
+      <FormSection title="Basics" description="League details, format, and scoring rules." defaultOpen>
         <FormRow label="League name" htmlFor="name" required>
           <input
             id="name"
@@ -289,6 +289,48 @@ export default function EditLeagueForm({
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
           </div>
+        </FormRow>
+        <FormRow label="Points to win" htmlFor="points-to-win" width="xs">
+          <input
+            id="points-to-win"
+            type="number"
+            min="1"
+            value={pointsToWin}
+            onChange={(e) => handlePointsToWinChange(e.target.value)}
+            placeholder="11"
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow label="Win by" width="sm">
+          <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
+            <button type="button" onClick={() => setWinBy(1)}
+              className={`flex-1 text-sm font-medium transition-colors ${winBy === 1 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
+              Win by 1
+            </button>
+            <button type="button" onClick={() => setWinBy(2)}
+              className={`flex-1 text-sm font-medium transition-colors ${winBy === 2 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
+              Win by 2
+            </button>
+          </div>
+        </FormRow>
+        <FormRow label="Standings method" width="md">
+          <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
+            <button type="button" onClick={() => setStandingsMethod('total_points')}
+              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'total_points' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
+              Total Points
+            </button>
+            <button type="button" onClick={() => setStandingsMethod('win_loss')}
+              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'win_loss' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
+              Win-Loss
+            </button>
+          </div>
+        </FormRow>
+        <FormRow label="Sub credit cap" width="sm" helpText="Max points credited to an absent player when a sub plays in their place.">
+          <select value={subCreditCap} onChange={(e) => setSubCreditCap(e.target.value)} className="w-full input">
+            {Array.from({ length: pointsToWinNum }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
+            ))}
+          </select>
         </FormRow>
         <FormRow label="Description" htmlFor="description">
           <textarea
@@ -429,51 +471,6 @@ export default function EditLeagueForm({
           </FormRow>
         )}
         <SessionManager leagueId={leagueId} sessions={sessions} />
-      </FormSection>
-
-      <FormSection title="Format & rules" description="How games are scored and standings calculated." defaultOpen>
-        <FormRow label="Points to win" htmlFor="points-to-win" width="xs">
-          <input
-            id="points-to-win"
-            type="number"
-            min="1"
-            value={pointsToWin}
-            onChange={(e) => handlePointsToWinChange(e.target.value)}
-            placeholder="11"
-            className="w-full input"
-          />
-        </FormRow>
-        <FormRow label="Win by" width="sm">
-          <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
-            <button type="button" onClick={() => setWinBy(1)}
-              className={`flex-1 text-sm font-medium transition-colors ${winBy === 1 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
-              Win by 1
-            </button>
-            <button type="button" onClick={() => setWinBy(2)}
-              className={`flex-1 text-sm font-medium transition-colors ${winBy === 2 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
-              Win by 2
-            </button>
-          </div>
-        </FormRow>
-        <FormRow label="Standings method" width="md">
-          <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
-            <button type="button" onClick={() => setStandingsMethod('total_points')}
-              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'total_points' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
-              Total Points
-            </button>
-            <button type="button" onClick={() => setStandingsMethod('win_loss')}
-              className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'win_loss' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
-              Win-Loss
-            </button>
-          </div>
-        </FormRow>
-        <FormRow label="Sub credit cap" width="sm" helpText="Max points credited to an absent player when a sub plays in their place.">
-          <select value={subCreditCap} onChange={(e) => setSubCreditCap(e.target.value)} className="w-full input">
-            {Array.from({ length: pointsToWinNum }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
-            ))}
-          </select>
-        </FormRow>
       </FormSection>
 
       <FormSection title="Registration" defaultOpen>
