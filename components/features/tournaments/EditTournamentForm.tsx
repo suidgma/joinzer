@@ -139,7 +139,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         <div className="px-1 pb-1">
           <p className="text-xs font-bold text-brand-dark mb-3">Day 1</p>
         </div>
-        <FormRow label="Date" htmlFor="start-date" required>
+        <FormRow label="Date" htmlFor="start-date" width="sm" required>
           <input
             id="start-date"
             required
@@ -149,7 +149,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Times">
+        <FormRow label="Times" width="md">
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
@@ -169,12 +169,12 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
               <button type="button" onClick={() => setAdditionalDays(prev => prev.filter((_, idx) => idx !== i))}
                 className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
             </div>
-            <FormRow label="Date">
+            <FormRow label="Date" width="sm">
               <input type="date" value={day.date}
                 onChange={e => setAdditionalDays(prev => prev.map((d, idx) => idx === i ? { ...d, date: e.target.value } : d))}
                 className="w-full input" />
             </FormRow>
-            <FormRow label="Times">
+            <FormRow label="Times" width="md">
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
@@ -202,6 +202,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         <FormRow
           label="Entry fee"
           htmlFor="cost"
+          width="sm"
           helpText="Leave at 0 for a free tournament."
         >
           <div className="relative">
@@ -221,6 +222,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         <FormRow
           label="Registration deadline"
           htmlFor="reg-closes"
+          width="md"
           helpText="Closes automatically at this time (Pacific). Leave blank to manage manually."
         >
           <input
@@ -231,7 +233,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Registration">
+        <FormRow label="Registration" width="sm">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {(['open', 'closed'] as const).map((r) => (
               <button
@@ -268,7 +270,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             ))}
           </div>
         </FormRow>
-        <FormRow label="Points to win">
+        <FormRow label="Points to win" width="xs">
           <input
             type="number"
             min="1"
@@ -278,7 +280,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Win By">
+        <FormRow label="Win By" width="sm">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {([{ value: 1, label: 'Win by 1' }, { value: 2, label: 'Win by 2' }] as const).map(opt => (
               <button key={opt.value} type="button" onClick={() => setDefaultWinBy(opt.value)}
@@ -291,7 +293,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
       </FormSection>
 
       <FormSection title="Visibility & Publishing" defaultOpen>
-        <FormRow label="Status">
+        <FormRow label="Status" width="md">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {([
               { value: 'draft',     label: 'Draft' },
@@ -312,7 +314,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             ))}
           </div>
         </FormRow>
-        <FormRow label="Visibility">
+        <FormRow label="Visibility" width="sm">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {(['public', 'private'] as const).map((v) => (
               <button
