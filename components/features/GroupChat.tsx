@@ -34,10 +34,14 @@ export default function GroupChat({
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Pin the chat to its latest message by scrolling the chat's OWN container —
+  // never the window. (scrollIntoView scrolls every ancestor, which dragged the
+  // whole page down to the chat when a tournament/league page first opened.)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [messages])
 
   useEffect(() => {
@@ -162,7 +166,7 @@ export default function GroupChat({
 
   return (
     <div className={fullscreen ? 'flex flex-col h-full' : 'border border-brand-border rounded-2xl overflow-hidden'}>
-      <div className={`overflow-y-auto p-3 space-y-2 bg-brand-surface ${fullscreen ? 'flex-1 min-h-0' : 'h-80'}`}>
+      <div ref={scrollRef} className={`overflow-y-auto p-3 space-y-2 bg-brand-surface ${fullscreen ? 'flex-1 min-h-0' : 'h-80'}`}>
         {messages.length === 0 ? (
           <p className="text-xs text-brand-muted text-center pt-10">
             No messages yet — start the conversation
@@ -193,7 +197,6 @@ export default function GroupChat({
             )
           })
         )}
-        <div ref={bottomRef} />
       </div>
       {inputArea()}
     </div>
