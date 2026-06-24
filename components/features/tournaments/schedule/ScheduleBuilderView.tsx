@@ -5,7 +5,7 @@ import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { CalendarRange, Plus, AlertTriangle, CheckCircle2, ChevronDown, Wand2, Send, RefreshCw, Trash2, Lightbulb, Wrench } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import type { BuilderDay, BuilderLocation, BuilderDivision, DivisionStats, DivisionBlockLink, DraftMatch } from './types'
-import { estimateDivision, blockCapacity, estimateBlockFinishMinutes, recommendedCourts, minutesToLabel, timeToMinutes, type DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
+import { estimateDivision, blockCapacity, estimateBlockFinishMinutes, effectiveBlockCourts, recommendedCourts, minutesToLabel, timeToMinutes, type DivisionEstimate } from '@/lib/tournament/scheduleEstimates'
 import { detectPlayerConflicts, blocksOverlap } from '@/lib/tournament/scheduleConflicts'
 import SettingsPanel from './SettingsPanel'
 import BlockCard from './BlockCard'
@@ -122,7 +122,10 @@ export default function ScheduleBuilderView({
   function blockLoad(block: ScheduleBlock) {
     const divs = assignedByBlock.get(block.id) ?? []
     const matches = divs.reduce((s, d) => s + (estimates.get(d.id)?.matches ?? 0), 0)
-    const capacity = blockCapacity(block.court_numbers.length, block.start_time, block.end_time, settings).matchCapacity
+    // Cap usable courts by player availability — extra courts can't be filled if
+    // every entrant is already on one (e.g. 20 singles players → 10 courts).
+    const effCourts = effectiveBlockCourts(block.court_numbers.length, divs.map(d => divisionStats[d.id]?.teamCount ?? 0))
+    const capacity = blockCapacity(effCourts, block.start_time, block.end_time, settings).matchCapacity
     return { matches, capacity, over: matches > capacity }
   }
 
@@ -151,7 +154,9 @@ export default function ScheduleBuilderView({
     }
     const load = blockLoad(b)
     if (load.over) {
-      const finish = estimateBlockFinishMinutes(b.court_numbers.length, b.start_time, load.matches, settings)
+      const divs = assignedByBlock.get(b.id) ?? []
+      const effCourts = effectiveBlockCourts(b.court_numbers.length, divs.map(d => divisionStats[d.id]?.teamCount ?? 0))
+      const finish = estimateBlockFinishMinutes(effCourts, b.start_time, load.matches, settings)
       const endMin = timeToMinutes(b.end_time)
       const needCourts = recommendedCourts(load.matches, b.start_time, b.end_time, settings)
       const bits = [`over capacity by ~${load.matches - load.capacity} matches`]
@@ -749,7 +754,7 @@ export default function ScheduleBuilderView({
                         block={b}
                         locationName={locationName(b.location_id)}
                         settings={settings}
-                        assigned={divs.map(d => ({ id: d.id, name: d.name, matches: estimates.get(d.id)?.matches ?? null, priority: priorityByDivision.get(d.id) ?? 0 }))}
+                        assigned={divs.map(d => ({ id: d.id, name: d.name, matches: estimates.get(d.id)?.matches ?? null, teamCount: divisionStats[d.id]?.teamCount ?? 0, priority: priorityByDivision.get(d.id) ?? 0 }))}
                         showPriority={settings.schedule_by_priority}
                         onChangePriority={setPriority}
                         onEdit={() => setModal({ mode: 'edit', block: b })}
