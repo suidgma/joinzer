@@ -487,12 +487,18 @@ export default function DivisionManageView({
           />
         )}
 
-        {/* ── Match view: bracket tree for elimination, flat list for round robin / other ── */}
+        {/* ── Match view: bracket tree for elimination, flat list for round robin / other.
+              id="scores" is the deep-link target from the division card's "Enter Scores". ── */}
         {hasMatches && (
-          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">
-              {isBracket ? 'Bracket' : 'Matches'}
-            </p>
+          <div id="scores" className="scroll-mt-20 bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">
+                {isBracket ? 'Bracket' : 'Matches'}
+              </p>
+              {isOrganizer && (
+                <p className="text-[11px] text-brand-muted">Tap “Score” on any match to enter the result</p>
+              )}
+            </div>
             <BracketView
               matches={matches}
               regs={active.map(r => ({

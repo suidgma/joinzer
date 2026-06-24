@@ -1446,9 +1446,17 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                   </div>
                 )}
 
-                {/* Organizer actions — 3 primary CTAs + compact lifecycle row */}
+                {/* Organizer actions — Enter Scores (when matches exist) + CTAs + lifecycle */}
                 {isOrganizer && !isEditingFormat && (
                   <div className="border-t border-brand-border pt-3 space-y-2">
+                    {hasMatches && (
+                      <Link
+                        href={`/tournaments/${tournamentId}/divisions/${div.id}#scores`}
+                        className="flex items-center justify-center w-full py-2 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+                      >
+                        Enter Scores →
+                      </Link>
+                    )}
                     <div className="grid grid-cols-3 gap-2">
                       <Link
                         href={`/tournaments/${tournamentId}/divisions/${div.id}`}
