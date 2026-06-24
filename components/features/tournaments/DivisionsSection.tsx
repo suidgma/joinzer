@@ -922,10 +922,15 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
             const isBracket = div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination'
             const hasMatches = (matchCountByDivision[div.id] ?? 0) > 0
-            // Division is "finished" once every published match has a result — the
-            // champion (or final standings) is settled.
+            // Division is "finished" once no match is still awaiting a score. A match
+            // without both teams assigned is a phantom/unplayed bracket slot (e.g. the
+            // losers-bracket byes in a non-power-of-2 double elim, or an if-necessary
+            // reset that never happened) — those never complete, so don't block the
+            // badge on them. Real, fully-seeded matches must all be completed.
             const divMatches = matchesByDivision[div.id] ?? []
-            const isFinished = divMatches.length > 0 && divMatches.every(m => m.status === 'completed')
+            const isFinished = divMatches.length > 0 && divMatches.every(
+              m => m.status === 'completed' || !(m.team_1_registration_id && m.team_2_registration_id)
+            )
 
             const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
