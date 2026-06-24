@@ -40,11 +40,12 @@ function firstName(name: string | null | undefined): string {
 function teamLabel(regId: string, regs: Reg[]): string {
   const reg = regs.find(r => r.id === regId)
   if (!reg) return 'TBD'
-  if (reg.team_name) return reg.team_name
-  const p1 = reg.profiles?.name ?? null
-  const p2 = reg.partner_name ?? null
-  if (p1 && p2) return `${firstName(p1)}/${firstName(p2)}`
-  return firstName(p1) || 'Player'
+  // Doubles: both partners' first names (sorted), matching the bracket. Prefer
+  // these over the stored team_name, which an import may set to anything.
+  const p1 = firstName(reg.profiles?.name)
+  const p2 = firstName(reg.partner_name)
+  if (p1 && p2) return [p1, p2].sort((a, b) => a.localeCompare(b)).join('/')
+  return reg.team_name || p1 || p2 || 'Player'
 }
 
 function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
