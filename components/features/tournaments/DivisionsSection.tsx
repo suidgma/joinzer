@@ -922,6 +922,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const hasRegistrants = div.tournament_registrations.filter(r => r.status !== 'cancelled').length > 0
             const isBracket = div.bracket_type === 'single_elimination' || div.bracket_type === 'double_elimination'
             const hasMatches = (matchCountByDivision[div.id] ?? 0) > 0
+            // Division is "finished" once every published match has a result — the
+            // champion (or final standings) is settled.
+            const divMatches = matchesByDivision[div.id] ?? []
+            const isFinished = divMatches.length > 0 && divMatches.every(m => m.status === 'completed')
 
             const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
@@ -946,11 +950,12 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                     )}
                   </div>
                   <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
+                    isFinished                           ? 'bg-green-100 text-green-700'     :
                     isClosed                             ? 'bg-gray-100 text-gray-500'       :
                     isFull && !div.waitlist_enabled      ? 'bg-red-100 text-red-700'         :
                                                           'bg-brand-soft text-brand-active'
                   }`}>
-                    {isClosed ? 'Closed' : isFull && !div.waitlist_enabled ? 'Full' : 'Open'}
+                    {isFinished ? '✓ Finished' : isClosed ? 'Closed' : isFull && !div.waitlist_enabled ? 'Full' : 'Open'}
                   </span>
                 </div>
 
