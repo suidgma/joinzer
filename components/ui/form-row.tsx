@@ -11,9 +11,13 @@ interface FormRowProps {
 
 /**
  * Standard field layout for organizer setup forms.
- * Desktop: label left (fixed 48), input right.
+ * Desktop: label left (fixed 48), input right (capped width — see below).
  * Mobile: label stacks above input.
  * Error supersedes helpText — both occupy the same space below the input.
+ *
+ * The input column is capped at max-w-xl on desktop so fields don't stretch the
+ * full content width (a date or number input doesn't need 900px). Multi-segment
+ * rows (time pickers, skill ranges) still fit comfortably.
  */
 export default function FormRow({
   label,
@@ -34,7 +38,7 @@ export default function FormRow({
           {required && <span className="ml-1 text-red-500" aria-hidden>*</span>}
         </label>
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 lg:max-w-xl">
         {children}
         {error ? (
           <p className="mt-1.5 text-sm text-red-600" role="alert">{error}</p>
