@@ -177,7 +177,7 @@ export default function EditEventForm({ event }: Props) {
         <select
           value={duration}
           onChange={(e) => setDuration(Number(e.target.value))}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full sm:max-w-[12rem] border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         >
           <option value={60}>1 hour</option>
           <option value={90}>1.5 hours</option>
@@ -234,7 +234,7 @@ export default function EditEventForm({ event }: Props) {
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full sm:max-w-[14rem] border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         >
           <option value="open">Open</option>
           <option value="full">Full</option>
@@ -341,7 +341,7 @@ export default function EditEventForm({ event }: Props) {
           type="datetime-local"
           value={registrationClosesAt}
           onChange={(e) => setRegistrationClosesAt(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full sm:max-w-[18rem] border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         />
       </div>
 
