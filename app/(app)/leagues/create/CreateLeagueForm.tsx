@@ -219,7 +219,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             ))}
           </div>
         </FormRow>
-        <FormRow label="Category" htmlFor="category" required>
+        <FormRow label="Category" htmlFor="category" width="sm" required>
           <select
             id="category"
             value={category}
@@ -264,7 +264,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             </div>
           </FormRow>
         )}
-        <FormRow label="Skill range" helpText="Leave blank max to open to all skill levels.">
+        <FormRow label="Skill range" width="md" helpText="Leave blank max to open to all skill levels.">
           <div className="flex items-center gap-3">
             <select value={skillMin} onChange={(e) => setSkillMin(e.target.value)} className="flex-1 input">
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
@@ -276,7 +276,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             </select>
           </div>
         </FormRow>
-        <FormRow label="Points to win" htmlFor="points-to-win">
+        <FormRow label="Points to win" htmlFor="points-to-win" width="xs">
           <input
             id="points-to-win"
             type="number"
@@ -287,7 +287,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Win by">
+        <FormRow label="Win by" width="sm">
           <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
             <button type="button" onClick={() => setWinBy(1)}
               className={`flex-1 text-sm font-medium transition-colors ${winBy === 1 ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
@@ -299,7 +299,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             </button>
           </div>
         </FormRow>
-        <FormRow label="Standings method">
+        <FormRow label="Standings method" width="md">
           <div className="flex rounded-xl overflow-hidden border border-brand-border h-[38px]">
             <button type="button" onClick={() => setStandingsMethod('total_points')}
               className={`flex-1 text-sm font-medium transition-colors ${standingsMethod === 'total_points' ? 'bg-brand text-brand-dark' : 'bg-white text-brand-muted hover:bg-brand-soft'}`}>
@@ -311,7 +311,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             </button>
           </div>
         </FormRow>
-        <FormRow label="Sub credit cap" helpText="Max points credited to an absent player when a sub plays in their place.">
+        <FormRow label="Sub credit cap" width="sm" helpText="Max points credited to an absent player when a sub plays in their place.">
           <select value={subCreditCap} onChange={(e) => setSubCreditCap(e.target.value)} className="w-full input">
             {Array.from({ length: pointsToWinNum }, (_, i) => i + 1).map((n) => (
               <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
@@ -341,7 +341,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             ))}
           </select>
         </FormRow>
-        <FormRow label="Start date" htmlFor="start-date" required>
+        <FormRow label="Start date" htmlFor="start-date" width="sm" required>
           <input
             id="start-date"
             type="date"
@@ -351,7 +351,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Times">
+        <FormRow label="Times" width="md">
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
@@ -365,6 +365,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         </FormRow>
         <FormRow
           label="Season length"
+          width="md"
           helpText="Play days = number of weekly sessions. Games per session controls rounds generated each night."
         >
           <div className="flex gap-3">
@@ -394,6 +395,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         </FormRow>
         <FormRow
           label="No-play dates"
+          width="md"
           helpText="Sessions on these dates shift one week forward. Season end extends by the number of skips."
         >
           <div className="space-y-2">
@@ -446,12 +448,12 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       </FormSection>
 
       <FormSection title="Registration" defaultOpen>
-        <FormRow label="Status">
+        <FormRow label="Status" width="sm">
           <select value={registrationStatus} onChange={(e) => setRegistrationStatus(e.target.value)} className="w-full input">
             {REG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </FormRow>
-        <FormRow label="Max players" htmlFor="max-players">
+        <FormRow label="Max players" htmlFor="max-players" width="xs">
           <input
             id="max-players"
             type="number"
@@ -465,6 +467,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         <FormRow
           label="Registration deadline"
           htmlFor="reg-closes"
+          width="md"
           helpText="Closes automatically at this time (Pacific). Auto-set to 7 days before start. Leave blank to manage manually."
         >
           <input
@@ -475,7 +478,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Entry fee" htmlFor="cost" helpText="Leave blank for a free league. Players pay via Stripe at registration.">
+        <FormRow label="Entry fee" htmlFor="cost" width="sm" helpText="Leave blank for a free league. Players pay via Stripe at registration.">
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">$</span>
             <input

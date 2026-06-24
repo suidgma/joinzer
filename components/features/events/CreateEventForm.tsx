@@ -225,7 +225,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           value={date}
           onChange={(e) => setDate(e.target.value)}
           min={todayStr}
-          className="w-full input"
+          className="w-full sm:max-w-[14rem] input"
         />
       </div>
 
@@ -241,7 +241,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
         <select
           value={durationMinutes}
           onChange={(e) => setDurationMinutes(Number(e.target.value))}
-          className="w-full input"
+          className="w-full sm:max-w-[12rem] input"
         >
           <option value={60}>1 hour</option>
           <option value={90}>1.5 hours</option>
@@ -417,7 +417,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           type="datetime-local"
           value={registrationClosesAt}
           onChange={(e) => { setRegistrationClosesAt(e.target.value); setDeadlineTouched(true) }}
-          className="w-full input"
+          className="w-full sm:max-w-[18rem] input"
         />
       </div>
 
