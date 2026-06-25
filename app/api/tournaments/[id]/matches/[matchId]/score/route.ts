@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { type MatchRow } from '@/lib/tournament/bracketBuilder'
 import { resolveCompletion } from '@/lib/tournament/resolveCompletion'
+import { resetDeciderSlot } from '@/lib/tournament/scheduleGenerator'
 import { logAudit } from '@/lib/audit/log'
 import { createNotifications } from '@/lib/notifications/create'
 
@@ -48,7 +49,7 @@ export async function POST(
   // Pull the pre-update state for the audit "before" snapshot.
   const { data: match } = await service
     .from('tournament_matches')
-    .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number, team_1_score, team_2_score, winner_registration_id, status')
+    .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number, court_number, scheduled_time, scheduled_end_time, team_1_score, team_2_score, winner_registration_id, status')
     .eq('id', params.matchId)
     .eq('tournament_id', params.id)
     .single()
@@ -156,7 +157,10 @@ export async function POST(
           .eq('id', mut.matchId)
           .neq('status', 'completed')
       } else {
+        // Bracket-reset decider — same court as the championship it follows, slotted
+        // right after, so it isn't left without a court/time.
         const m = mut.match
+        const slot = resetDeciderSlot(match.scheduled_time, match.scheduled_end_time)
         await service
           .from('tournament_matches')
           .insert({
@@ -167,6 +171,9 @@ export async function POST(
             match_number: m.match_number,
             team_1_registration_id: m.team_1_registration_id,
             team_2_registration_id: m.team_2_registration_id,
+            court_number: match.court_number ?? null,
+            scheduled_time: slot.scheduled_time,
+            scheduled_end_time: slot.scheduled_end_time,
             status: 'scheduled',
           })
       }

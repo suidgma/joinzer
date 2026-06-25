@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { scheduleBlockMatches, type SchedulableMatch, type BlockWindow } from '../scheduleGenerator'
+import { scheduleBlockMatches, resetDeciderSlot, type SchedulableMatch, type BlockWindow } from '../scheduleGenerator'
 import type { ScheduleSettings } from '@/lib/types'
 
 // Inlined defaults — kept in sync with DEFAULT_SCHEDULE_SETTINGS. Imported as a
@@ -180,6 +180,18 @@ describe('scheduleBlockMatches dependency floor', () => {
     const r1End = Math.max(...r1.map(endMin))
     const r2Start = Math.min(...r2.map(m => startMin(m.scheduled_time)))
     expect(r2Start).toBeLessThan(r1End)
+  })
+
+  it('reset decider plays right after the final on the same time format', () => {
+    const slot = resetDeciderSlot('2026-06-25T10:20:00-07:00', '2026-06-25T10:40:00-07:00')
+    expect(slot.scheduled_time).toBe('2026-06-25T10:40:00-07:00')      // starts at the final's end
+    expect(slot.scheduled_end_time).toBe('2026-06-25T11:00:00-07:00')  // same 20-min length, offset preserved
+  })
+
+  it('reset decider degrades gracefully when the final was never scheduled', () => {
+    expect(resetDeciderSlot(null, null)).toEqual({ scheduled_time: null, scheduled_end_time: null })
+    expect(resetDeciderSlot('2026-06-25T10:20:00-07:00', null))
+      .toEqual({ scheduled_time: '2026-06-25T10:20:00-07:00', scheduled_end_time: null })
   })
 
   it('does not double-book a player across rotating-doubles matches (counts partners)', () => {

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { resolveCompletion, type Mutation } from '@/lib/tournament/resolveCompletion'
 import { type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { resetDeciderSlot } from '@/lib/tournament/scheduleGenerator'
 import { logAudit } from '@/lib/audit/log'
 
 const MATCH_SELECT = 'id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status'
@@ -49,7 +50,7 @@ export async function PATCH(
   // Fetch match (incl. pre-update score state for the audit "before" snapshot)
   const { data: match } = await service
     .from('tournament_matches')
-    .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number, team_1_score, team_2_score, winner_registration_id, status')
+    .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number, court_number, scheduled_time, scheduled_end_time, team_1_score, team_2_score, winner_registration_id, status')
     .eq('id', params.matchId)
     .eq('tournament_id', params.id)
     .single()
@@ -140,8 +141,11 @@ export async function PATCH(
           .maybeSingle()
         if (data) advancedMatches.push(data)
       } else {
-        // insert — the bracket-reset decider (round 2 championship).
+        // insert — the bracket-reset decider (round 2 championship). It plays on the
+        // just-scored championship's court, right after it, so it isn't left without
+        // a court/time (the block packer never sees this reactively-created match).
         const m = mut.match
+        const slot = resetDeciderSlot(match.scheduled_time, match.scheduled_end_time)
         const { data } = await service
           .from('tournament_matches')
           .insert({
@@ -152,6 +156,9 @@ export async function PATCH(
             match_number: m.match_number,
             team_1_registration_id: m.team_1_registration_id,
             team_2_registration_id: m.team_2_registration_id,
+            court_number: match.court_number ?? null,
+            scheduled_time: slot.scheduled_time,
+            scheduled_end_time: slot.scheduled_end_time,
             status: 'scheduled',
           })
           .select(MATCH_SELECT)
