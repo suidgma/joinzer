@@ -220,9 +220,12 @@ export default function SeedingPanel({
   const awaiting  = dedupeForDoubles(registrations.filter(r => !isConfirmed(r)))
 
   const [order, setOrder] = useState<SeededReg[]>(() => {
+    // Saved seeds keep their order; unseeded players default to alphabetical by
+    // display name (so a fresh, never-seeded list reads A→Z instead of import order).
+    const byName = (a: SeededReg, b: SeededReg) => teamName(a, isDoubles).localeCompare(teamName(b, isDoubles))
     const withSeed = confirmed.filter(r => r.seed != null).sort((a, b) => (a.seed ?? 0) - (b.seed ?? 0))
-    const noSeed   = confirmed.filter(r => r.seed == null)
-    return withSeed.length > 0 ? [...withSeed, ...noSeed] : [...confirmed]
+    const noSeed   = confirmed.filter(r => r.seed == null).sort(byName)
+    return [...withSeed, ...noSeed]
   })
 
   const [locked, setLocked] = useState(() => confirmed.some(r => r.seed != null))
