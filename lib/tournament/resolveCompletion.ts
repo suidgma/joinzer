@@ -45,12 +45,15 @@ export function resolveCompletion(completed: MatchRow, allMatches: MatchRow[]): 
   return resolveBracket(clone)
 }
 
-export function resolveBracket(matches: MatchRow[]): Mutation[] {
+// Builds the explicit source-graph resolver for an elimination division: memoized
+// slot/winner/loser resolution over the standard single-/double-elim topology, plus
+// the structural metadata. Shared by resolveBracket (advancement) and
+// phantomMatchIds (which padded slots the bracket view should hide) so both speak
+// from the same topology instead of re-deriving it with positional heuristics.
+function buildResolver(matches: MatchRow[]) {
   const stages = new Set(matches.map(m => m.match_stage))
   const isDouble = stages.has('losers_bracket') || stages.has('championship')
   const isSingle = !isDouble && (stages.has('single_elimination') || stages.has('playoffs') || stages.has('winners_bracket'))
-  // Round robin and pool play are fixed schedules — nothing advances.
-  if (!isDouble && !isSingle) return []
 
   const wbStage = stages.has('winners_bracket') ? 'winners_bracket'
     : stages.has('single_elimination') ? 'single_elimination'
@@ -181,6 +184,14 @@ export function resolveBracket(matches: MatchRow[]): Mutation[] {
     return BYE                                  // a bye has no loser
   }
 
+  return { isDouble, isSingle, wbStage, groups, rowAt, slotTeam }
+}
+
+export function resolveBracket(matches: MatchRow[]): Mutation[] {
+  const { isDouble, isSingle, wbStage, groups, rowAt, slotTeam } = buildResolver(matches)
+  // Round robin and pool play are fixed schedules — nothing advances.
+  if (!isDouble && !isSingle) return []
+
   // ── Diff current rows against the resolved state ────────────────────────────
   const sets: Mutation[] = []
   const completes: Mutation[] = []
@@ -230,4 +241,33 @@ export function resolveBracket(matches: MatchRow[]): Mutation[] {
   }
 
   return muts
+}
+
+// Only these stages can hold padded "phantom" slots (a non-power-of-2 field padded
+// up to a bracket). Championship/playoffs/pool/round-robin never do.
+const PHANTOM_STAGES = new Set(['winners_bracket', 'losers_bracket', 'single_elimination'])
+
+// Ids of bracket slots that will never hold a real team — padded placeholders the
+// bracket view should hide so it doesn't render disconnected "TBD vs TBD" ghosts.
+// A slot is phantom when both its sides resolve to BYE through the source graph (or
+// it's an empty already-completed bye slot). Using the resolver instead of the old
+// positional predecessor heuristic fixes losers-bracket drop-in rounds, whose 1:1
+// feeders the heuristic mis-mapped — hiding a real round-2 match while it was TBD.
+export function phantomMatchIds(matches: MatchRow[]): Set<string> {
+  const out = new Set<string>()
+  const { isDouble, isSingle, groups, slotTeam } = buildResolver(matches)
+  if (!isDouble && !isSingle) return out
+
+  for (const m of matches) {
+    if (!PHANTOM_STAGES.has(m.match_stage)) continue
+    if (m.team_1_registration_id || m.team_2_registration_id) continue // has a team — real
+    if (m.status === 'completed') { out.add(m.id); continue }          // empty completed = bye slot
+    const round = m.round_number ?? 1
+    const idx = groups.get(`${m.match_stage}#${round}`)?.indexOf(m) ?? -1
+    if (idx === -1) continue
+    if (slotTeam(m.match_stage, round, idx, 't1') === BYE && slotTeam(m.match_stage, round, idx, 't2') === BYE) {
+      out.add(m.id)
+    }
+  }
+  return out
 }
