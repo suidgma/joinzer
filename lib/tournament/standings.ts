@@ -81,6 +81,16 @@ export function computeStandings(
   return Array.from(map.values())
     .sort((a, b) => {
       if (isElim) {
+        // Fewest losses ranks highest. This is the spine of elimination standings:
+        // an undefeated winners-bracket team must outrank a one-loss losers-bracket
+        // team, and at completion the champion (0 losses, or 1 via a bracket reset)
+        // outranks everyone eliminated at 2. Stage rank alone got this backwards —
+        // losers_bracket outranks winners_bracket, so deeper-in-the-LB looked
+        // "better" than still-undefeated.
+        if (a.losses !== b.losses) return a.losses - b.losses
+        // Within the same loss count, deeper finish is better — for eliminated teams
+        // that's where they took their final loss (later round = higher placement);
+        // for live teams it's how far they've advanced.
         if (b.exitPhase !== a.exitPhase) return b.exitPhase - a.exitPhase
         if (a.exitWon !== b.exitWon) return a.exitWon ? -1 : 1
       }
