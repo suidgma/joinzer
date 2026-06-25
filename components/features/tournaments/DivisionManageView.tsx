@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,6 +8,11 @@ import SeedingPanel, { type MatchItem } from './SeedingPanel'
 import BracketView from './BracketView'
 import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import { formatSummaryLines } from './FormatSettingsFields'
+import { computeStandings } from '@/lib/tournament/standings'
+
+function firstName(name: string | null | undefined): string {
+  return name ? name.trim().split(/\s+/)[0] : ''
+}
 
 type Registration = {
   id: string
@@ -160,6 +165,21 @@ export default function DivisionManageView({
   const isBracket = division.bracket_type === 'single_elimination' || division.bracket_type === 'double_elimination'
   const hasMatches = matches.length > 0
   const active = registrations.filter(r => r.status !== 'cancelled')
+
+  // Bracket ⇄ Standings toggle for this division's match section.
+  const [matchView, setMatchView] = useState<'bracket' | 'standings'>('bracket')
+  const standings = useMemo(() => computeStandings(matches, active), [matches, active])
+  const teamName = (regId: string) => {
+    const r = active.find(x => x.id === regId)
+    if (!r) return '—'
+    const a = firstName(r.user_profile?.name)
+    if (r.partner_registration_id) {
+      const p = active.find(x => x.id === r.partner_registration_id)
+      const b = firstName(p?.user_profile?.name)
+      if (a && b) return [a, b].sort((m, n) => m.localeCompare(n)).join('/')
+    }
+    return a || r.team_name || regId.slice(0, 8)
+  }
   const maxPlayers = isDoubles ? division.max_entries * 2 : division.max_entries
   const isFull = active.length >= maxPlayers
 
@@ -492,34 +512,69 @@ export default function DivisionManageView({
         {hasMatches && (
           <div id="scores" className="scroll-mt-20 bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">
-                {isBracket ? 'Bracket' : 'Matches'}
-              </p>
-              {isOrganizer && (
+              {/* Bracket ⇄ Standings toggle */}
+              <div className="flex items-center gap-1 bg-white rounded-full border border-brand-border p-0.5">
+                {([['bracket', isBracket ? 'Bracket' : 'Matches'], ['standings', 'Standings']] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    onClick={() => setMatchView(v)}
+                    className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-colors ${
+                      matchView === v ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:text-brand-dark'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {isOrganizer && matchView === 'bracket' && (
                 <p className="text-[11px] text-brand-muted">Tap “Score” on any match to enter the result</p>
               )}
             </div>
-            <BracketView
-              matches={matches}
-              regs={active.map(r => ({
-                id: r.id,
-                user_id: r.user_id,
-                team_name: r.team_name,
-                status: r.status,
-                seed: r.seed ?? null,
-                user_profile: r.user_profile ? { name: r.user_profile.name ?? '' } : null,
-                partner_user_id: r.partner_user_id,
-                partner_profile: r.partner_profile ? { name: r.partner_profile.name ?? '' } : null,
-              }))}
-              isOrganizer={isOrganizer}
-              isDoubles={isDoubles}
-              tournamentId={tournamentId}
-              divisionId={division.id}
-              onScoreUpdate={handleScoreUpdate}
-              listLayout={!isBracket}
-              pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
-              showSeeds={showSeeds}
-            />
+
+            {matchView === 'standings' ? (
+              <div className="overflow-hidden rounded-xl border border-brand-border">
+                <div className="grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-[10px] font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border">
+                  <span>#</span><span>Team</span>
+                  <span className="text-center">W</span><span className="text-center">L</span>
+                  <span className="text-center">PF</span><span className="text-center">+/−</span>
+                </div>
+                {standings.map((row, i) => {
+                  const diff = row.pf - row.pa
+                  return (
+                    <div key={row.regId} className={`grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-xs border-b border-brand-border last:border-0 ${i === 0 ? 'bg-brand-soft' : ''}`}>
+                      <span className="text-brand-muted font-medium">{i + 1}</span>
+                      <span className="font-semibold text-brand-dark truncate">{teamName(row.regId)}</span>
+                      <span className="text-center font-bold text-brand-dark">{row.wins}</span>
+                      <span className="text-center text-brand-dark">{row.losses}</span>
+                      <span className="text-center text-brand-muted">{row.pf}</span>
+                      <span className={`text-center font-bold tabular-nums ${diff >= 0 ? 'text-brand-active' : 'text-red-600'}`}>{diff >= 0 ? '+' : ''}{diff}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <BracketView
+                matches={matches}
+                regs={active.map(r => ({
+                  id: r.id,
+                  user_id: r.user_id,
+                  team_name: r.team_name,
+                  status: r.status,
+                  seed: r.seed ?? null,
+                  user_profile: r.user_profile ? { name: r.user_profile.name ?? '' } : null,
+                  partner_user_id: r.partner_user_id,
+                  partner_profile: r.partner_profile ? { name: r.partner_profile.name ?? '' } : null,
+                }))}
+                isOrganizer={isOrganizer}
+                isDoubles={isDoubles}
+                tournamentId={tournamentId}
+                divisionId={division.id}
+                onScoreUpdate={handleScoreUpdate}
+                listLayout={!isBracket}
+                pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
+                showSeeds={showSeeds}
+              />
+            )}
           </div>
         )}
 
