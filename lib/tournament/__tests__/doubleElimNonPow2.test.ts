@@ -1,7 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import { doubleEliminationBracket, type MatchRow } from '../bracketBuilder'
 import { computeByeAdvancements } from '../advanceByes'
-import { resolveCompletion, type Mutation } from '../resolveCompletion'
+import { resolveCompletion, phantomMatchIds, type Mutation } from '../resolveCompletion'
+
+function buildRows(n: number): MatchRow[] {
+  const teams = Array.from({ length: n }, (_, i) => `t${i}`)
+  return (doubleEliminationBracket(teams, {}, 1, true) as Array<Record<string, unknown>>).map((r, i) => ({
+    id: `m${i}`,
+    round_number: (r.round_number as number) ?? null,
+    match_number: r.match_number as number,
+    match_stage: r.match_stage as string,
+    team_1_registration_id: (r.team_1_registration_id as string) ?? null,
+    team_2_registration_id: (r.team_2_registration_id as string) ?? null,
+    winner_registration_id: (r.winner_registration_id as string) ?? null,
+    status: (r.status as string) ?? 'scheduled',
+  }))
+}
 
 // Full-fidelity play-out of the REAL production pipeline. Builds a double-elim
 // bracket and settles generation-time byes exactly as the generate route does
@@ -78,6 +92,28 @@ describe('double elimination — every field size resolves cleanly', () => {
       expect(r.twoPlusLoss).toBe(n - 1)
     })
   }
+})
+
+describe('phantomMatchIds — fresh bracket, no real match is hidden', () => {
+  it('8-team double elim: nothing is phantom (both losers-bracket round-2 matches stay)', () => {
+    const rows = buildRows(8)
+    const lb = rows.filter(m => m.match_stage === 'losers_bracket')
+    expect(lb.length).toBe(6)                                   // 2 + 2 + 1 + 1
+    expect(lb.filter(m => m.round_number === 2).length).toBe(2) // the round that was getting clipped
+    // No byes at a power-of-two size → no padded slots → nothing to hide.
+    expect(phantomMatchIds(rows).size).toBe(0)
+  })
+
+  it('non-power-of-2 (5 teams): hides only padded slots, never a match with a real team', () => {
+    const rows = buildRows(5)
+    const phantoms = phantomMatchIds(rows)
+    const elim = rows.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'losers_bracket')
+    expect(phantoms.size).toBeGreaterThan(0)        // padding exists
+    expect(phantoms.size).toBeLessThan(elim.length) // but the bracket isn't wiped out
+    for (const m of rows) {
+      if (m.team_1_registration_id || m.team_2_registration_id) expect(phantoms.has(m.id)).toBe(false)
+    }
+  })
 })
 
 describe('double elimination — bracket reset (LB champion wins the first final)', () => {

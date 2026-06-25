@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNode } from 'react'
 import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
+import { phantomMatchIds } from '@/lib/tournament/resolveCompletion'
+import type { MatchRow } from '@/lib/tournament/bracketBuilder'
 
 // useLayoutEffect warns during SSR; fall back to useEffect on the server.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -45,51 +47,6 @@ type Props = {
   listLayout?: boolean
   pointsToWin?: number
   showSeeds?: boolean
-}
-
-// Returns false if a null-null scheduled WB/LB match traces back to at least one
-// real team through its same-stage predecessors. Returns true (phantom) when it's
-// a padded bracket slot that will never have players — e.g. the null-null R1 pair
-// created when 5 teams are padded to an 8-slot bracket.
-function hasRealPredecessor(match: Match, allMatches: Match[], depth = 0): boolean {
-  if (depth > 6) return false
-  // A completed match already had its winner advanced — it can't feed a null-null slot downstream
-  if (match.status === 'completed') return false
-  if (match.team_1_registration_id || match.team_2_registration_id) return true
-  if (match.match_stage === 'championship') return true
-  const round = match.round_number ?? 1
-  // LB R1 is fed by WB R1 losers (cross-stage) — not phantom when WB R1 has real teams
-  if (match.match_stage === 'losers_bracket' && round <= 1) {
-    return allMatches.some(m =>
-      m.match_stage === 'winners_bracket' && m.round_number === 1 &&
-      (m.team_1_registration_id != null || m.team_2_registration_id != null)
-    )
-  }
-  if (round <= 1) return false  // WB/SE R1 null-null = phantom by definition
-  const sameRound = allMatches
-    .filter(m => m.match_stage === match.match_stage && m.round_number === round)
-    .sort((a, b) => a.match_number - b.match_number)
-  const idx = sameRound.findIndex(m => m.id === match.id)
-  if (idx === -1) return false
-  const prevRound = allMatches
-    .filter(m => m.match_stage === match.match_stage && m.round_number === round - 1)
-    .sort((a, b) => a.match_number - b.match_number)
-  const f1 = prevRound[idx * 2]
-  const f2 = prevRound[idx * 2 + 1]
-  return (
-    (f1 != null && hasRealPredecessor(f1, allMatches, depth + 1)) ||
-    (f2 != null && hasRealPredecessor(f2, allMatches, depth + 1))
-  )
-}
-
-function isPhantomMatch(match: Match, allMatches: Match[]): boolean {
-  const stage = match.match_stage
-  if (stage !== 'winners_bracket' && stage !== 'losers_bracket' && stage !== 'single_elimination') return false
-  if (match.team_1_registration_id || match.team_2_registration_id) return false
-  // A "completed" match with no team IDs is a phantom BYE slot written by the
-  // generation cascade — hide it so it doesn't render as "TBD vs TBD".
-  if (match.status === 'completed') return true
-  return !hasRealPredecessor(match, allMatches, 0)
 }
 
 function formatMatchTime(scheduled_time: string | null): string {
@@ -532,9 +489,11 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
     )
   }
 
-  // Strip phantom padded slots (null-null scheduled matches with no real upstream feeder)
-  // before rendering so the bracket doesn't show disconnected TBD vs TBD ghost cards.
-  const visibleMatches = matches.filter(m => !isPhantomMatch(m, matches))
+  // Strip phantom padded slots (bracket positions a bye field can never fill)
+  // before rendering so the bracket doesn't show disconnected TBD vs TBD ghost
+  // cards. Resolver-driven so non-halving losers-bracket rounds aren't mis-judged.
+  const phantoms = phantomMatchIds(matches as MatchRow[])
+  const visibleMatches = matches.filter(m => !phantoms.has(m.id))
 
   // Separate by stage for double elimination
   const winners = visibleMatches.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'single_elimination')
