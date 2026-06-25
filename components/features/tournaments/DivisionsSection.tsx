@@ -554,7 +554,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setDeleteDivLoading(false)
   }
 
-  // ── Organizer: close division ─────────────────────────────────────
+  // ── Organizer: close / re-open registration ───────────────────────
   async function handleClose(divisionId: string) {
     const supabase = createClient()
     const { error } = await supabase
@@ -563,6 +563,16 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .eq('id', divisionId)
     if (error) { alert(error.message); return }
     setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'closed' } : d))
+  }
+
+  async function handleReopen(divisionId: string) {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('tournament_divisions')
+      .update({ status: 'active' })
+      .eq('id', divisionId)
+    if (error) { alert(error.message); return }
+    setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'active' } : d))
   }
 
   // ── Merge division into another ────────────────────────────────────
@@ -1498,9 +1508,13 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                           Merge
                         </button>
                       )}
-                      {!isClosed && (
+                      {!isClosed ? (
                         <button onClick={() => handleClose(div.id)} className="text-red-500 hover:underline">
-                          Close
+                          Close Registration
+                        </button>
+                      ) : (
+                        <button onClick={() => handleReopen(div.id)} className="text-brand-active hover:underline font-medium">
+                          Re-open Registration
                         </button>
                       )}
                       <button
