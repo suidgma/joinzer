@@ -51,6 +51,8 @@ type Props = {
   matches?: MatchItem[]
   tournamentDate?: string
   addPlayerSlot?: React.ReactNode
+  /** Rendered between the roster card and the schedule/generate card (e.g. the bracket/standings view). */
+  bracketSlot?: React.ReactNode
   showSeeds?: boolean
   onToggleShowSeeds?: (val: boolean) => void
 }
@@ -189,7 +191,7 @@ function initScheduleEdits(
 export default function SeedingPanel({
   registrations, isDoubles, tournamentId, divisionId,
   onMarkComped, onRemove, hasMatches, onGenerateMatches, onReplacePlayer,
-  matches, tournamentDate, addPlayerSlot, showSeeds, onToggleShowSeeds,
+  matches, tournamentDate, addPlayerSlot, bracketSlot, showSeeds, onToggleShowSeeds,
 }: Props) {
   // For doubles: keep the lexicographically-smaller registration ID of each pair
   // as the canonical row — matches dedupeRegistrationsToTeams in the bracket generator
@@ -410,152 +412,85 @@ export default function SeedingPanel({
   const hasRatings = order.some(r => teamRating(r, isDoubles) != null)
 
   return (
-    <div className="border border-brand-border rounded-xl overflow-hidden">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-brand-border bg-brand-surface">
-        <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Seeding &amp; Registrants</p>
-        <div className="flex items-center gap-2">
-          {!locked && hasRatings && (
-            autoSeedDone ? (
-              <span className="text-xs text-green-600 font-medium">Sorted by rating — save to lock in</span>
-            ) : (
-              <button onClick={autoSeed} className="text-xs text-brand-active hover:underline">
-                Auto-seed by rating
-              </button>
-            )
-          )}
-          {order.length > 0 && (
-            locked ? (
-              <button
-                onClick={() => setLocked(false)}
-                className="px-3 py-1 rounded-lg border border-brand-border text-brand-muted text-xs font-semibold hover:bg-brand-soft transition-colors"
-              >
-                🔒 Edit Seeds
-              </button>
-            ) : (
-              <button
-                onClick={save}
-                disabled={saving}
-                className="px-3 py-1 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand/80 disabled:opacity-50 transition-colors"
-              >
-                {saving ? 'Saving…' : 'Save Seeds'}
-              </button>
-            )
-          )}
-        </div>
-      </div>
-
-      {error && <p className="px-3 py-1 text-xs text-red-600 bg-red-50">{error}</p>}
-
-      {/* ── Player list (always visible) ── */}
-      {registrations.length === 0 ? (
-        <p className="px-3 py-3 text-xs text-brand-muted">No registrants yet.</p>
-      ) : (
-        <ul className="divide-y divide-brand-border/60">
-          {order.map((reg, i) => {
-            const rating = teamRating(reg, isDoubles)
-            const canComp = reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped'
-            const isReplacing = replacingRegId === reg.id
-            return (
-              <li key={reg.id} className="text-xs">
-                {/* Player row */}
-                <div
-                  draggable={!locked && !isReplacing}
-                  onDragStart={() => handleDragStart(i)}
-                  onDragOver={e => handleDragOver(e, i)}
-                  onDrop={() => handleDrop(i)}
-                  onDragEnd={handleDragEnd}
-                  className={`flex items-center gap-2 px-3 py-2 transition-colors ${
-                    !locked && dragOver === i ? 'bg-brand-soft' : 'bg-white'
-                  } ${!locked && !isReplacing ? 'hover:bg-brand-soft/30' : ''}`}
+    <>
+      {/* ── Card 1: roster, seeds, add player ── */}
+      <div className="border border-brand-border rounded-xl overflow-hidden">
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-brand-border bg-brand-surface">
+          <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Seeding &amp; Registrants</p>
+          <div className="flex items-center gap-2">
+            {!locked && hasRatings && (
+              autoSeedDone ? (
+                <span className="text-xs text-green-600 font-medium">Sorted by rating — save to lock in</span>
+              ) : (
+                <button onClick={autoSeed} className="text-xs text-brand-active hover:underline">
+                  Auto-seed by rating
+                </button>
+              )
+            )}
+            {order.length > 0 && (
+              locked ? (
+                <button
+                  onClick={() => setLocked(false)}
+                  className="px-3 py-1 rounded-lg border border-brand-border text-brand-muted text-xs font-semibold hover:bg-brand-soft transition-colors"
                 >
-                  <GripVertical className={`w-3.5 h-3.5 shrink-0 ${locked ? 'text-brand-border' : 'text-brand-muted cursor-grab active:cursor-grabbing'}`} />
-                  <span className="w-5 text-[10px] font-bold text-brand-muted text-right shrink-0">{i + 1}</span>
-                  <span className="flex-1 font-medium text-brand-dark truncate">{teamName(reg, isDoubles)}</span>
-                  {reg.user_profile?.is_stub && (
-                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">Invited</span>
-                  )}
-                  {paymentBadge(reg)}
-                  {rating != null && <span className="text-[10px] text-brand-muted shrink-0 w-8 text-right">{rating.toFixed(2)}</span>}
-                  <div className="flex shrink-0 items-center gap-2 ml-1">
-                    <button
-                      onClick={() => {
-                        setReplacingRegId(isReplacing ? null : reg.id)
-                        setReplaceSearch(''); setReplaceResults([]); setReplaceError(null)
-                      }}
-                      className={`hover:underline whitespace-nowrap ${isReplacing ? 'text-brand-muted' : 'text-amber-600'}`}
-                    >
-                      {isReplacing ? 'Cancel' : 'Replace'}
-                    </button>
-                    {canComp && (
-                      <button onClick={() => onMarkComped(reg.id)} className="text-brand-active hover:underline whitespace-nowrap">
-                        Comp
-                      </button>
-                    )}
-                    <button onClick={() => onRemove(reg.id)} className="text-red-500 hover:underline">
-                      Remove
-                    </button>
-                  </div>
-                </div>
+                  🔒 Edit Seeds
+                </button>
+              ) : (
+                <button
+                  onClick={save}
+                  disabled={saving}
+                  className="px-3 py-1 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand/80 disabled:opacity-50 transition-colors"
+                >
+                  {saving ? 'Saving…' : 'Save Seeds'}
+                </button>
+              )
+            )}
+          </div>
+        </div>
 
-                {/* Inline Replace Player UI */}
-                {isReplacing && (
-                  <div className="px-3 pb-2 pt-1 bg-amber-50 border-t border-amber-100 space-y-1.5">
-                    <p className="text-[10px] font-semibold text-amber-800 uppercase tracking-wide">Replace player in this bracket slot</p>
-                    <input
-                      type="text"
-                      value={replaceSearch}
-                      onChange={e => searchForReplacement(e.target.value)}
-                      placeholder="Search by name…"
-                      className="w-full input text-xs"
-                      autoFocus
-                    />
-                    {replaceResults.length > 0 && (
-                      <ul className="border border-brand-border rounded-xl overflow-y-auto max-h-40 bg-white">
-                        {replaceResults.map(p => (
-                          <li key={p.id}>
-                            <button
-                              onClick={() => handleReplace(reg.id, p)}
-                              disabled={replaceLoading}
-                              className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors"
-                            >
-                              {p.name}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {replaceError && <p className="text-xs text-red-600">{replaceError}</p>}
-                    <p className="text-[10px] text-amber-700">Replacement inherits this seed position and payment status.</p>
-                  </div>
-                )}
-              </li>
-            )
-          })}
+        {error && <p className="px-3 py-1 text-xs text-red-600 bg-red-50">{error}</p>}
 
-          {awaiting.length > 0 && (
-            <>
-              <li className="px-3 py-1 bg-brand-surface">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 border-t border-brand-border/60" />
-                  <span className="text-[10px] font-semibold text-brand-muted whitespace-nowrap">
-                    Awaiting payment · {awaiting.length}
-                  </span>
-                  <div className="flex-1 border-t border-brand-border/60" />
-                </div>
-              </li>
-              {awaiting.map(reg => {
-                const canComp = reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped'
-                return (
-                  <li key={reg.id} className="flex items-center gap-2 px-3 py-2 text-xs bg-white opacity-60">
-                    <div className="w-3.5 shrink-0" />
-                    <div className="w-5 shrink-0" />
+        {/* ── Player list (always visible) ── */}
+        {registrations.length === 0 ? (
+          <p className="px-3 py-3 text-xs text-brand-muted">No registrants yet.</p>
+        ) : (
+          <ul className="divide-y divide-brand-border/60">
+            {order.map((reg, i) => {
+              const rating = teamRating(reg, isDoubles)
+              const canComp = reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped'
+              const isReplacing = replacingRegId === reg.id
+              return (
+                <li key={reg.id} className="text-xs">
+                  {/* Player row */}
+                  <div
+                    draggable={!locked && !isReplacing}
+                    onDragStart={() => handleDragStart(i)}
+                    onDragOver={e => handleDragOver(e, i)}
+                    onDrop={() => handleDrop(i)}
+                    onDragEnd={handleDragEnd}
+                    className={`flex items-center gap-2 px-3 py-2 transition-colors ${
+                      !locked && dragOver === i ? 'bg-brand-soft' : 'bg-white'
+                    } ${!locked && !isReplacing ? 'hover:bg-brand-soft/30' : ''}`}
+                  >
+                    <GripVertical className={`w-3.5 h-3.5 shrink-0 ${locked ? 'text-brand-border' : 'text-brand-muted cursor-grab active:cursor-grabbing'}`} />
+                    <span className="w-5 text-[10px] font-bold text-brand-muted text-right shrink-0">{i + 1}</span>
                     <span className="flex-1 font-medium text-brand-dark truncate">{teamName(reg, isDoubles)}</span>
                     {reg.user_profile?.is_stub && (
                       <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">Invited</span>
                     )}
                     {paymentBadge(reg)}
+                    {rating != null && <span className="text-[10px] text-brand-muted shrink-0 w-8 text-right">{rating.toFixed(2)}</span>}
                     <div className="flex shrink-0 items-center gap-2 ml-1">
+                      <button
+                        onClick={() => {
+                          setReplacingRegId(isReplacing ? null : reg.id)
+                          setReplaceSearch(''); setReplaceResults([]); setReplaceError(null)
+                        }}
+                        className={`hover:underline whitespace-nowrap ${isReplacing ? 'text-brand-muted' : 'text-amber-600'}`}
+                      >
+                        {isReplacing ? 'Cancel' : 'Replace'}
+                      </button>
                       {canComp && (
                         <button onClick={() => onMarkComped(reg.id)} className="text-brand-active hover:underline whitespace-nowrap">
                           Comp
@@ -565,146 +500,222 @@ export default function SeedingPanel({
                         Remove
                       </button>
                     </div>
-                  </li>
-                )
-              })}
-            </>
-          )}
-        </ul>
-      )}
+                  </div>
 
-      {/* ── Drag affordance hint — only while seeds are unlocked (rows draggable) ── */}
-      {!locked && order.length > 1 && (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-brand-border/60 text-[10px] font-medium text-brand-muted">
-          <ArrowUp className="w-3 h-3 shrink-0" />
-          <span>Drag to re-order</span>
-        </div>
-      )}
-
-      {/* ── Add Player slot ── */}
-      {addPlayerSlot && (
-        <div className="border-t border-brand-border px-3 py-2.5">
-          {addPlayerSlot}
-        </div>
-      )}
-
-      {/* ── Match Schedule (inline, when matches exist) ── */}
-      {hasMatches && rounds.length > 0 && (
-        <div className="border-t border-brand-border">
-          <div className="flex items-center justify-between px-3 py-2 bg-brand-surface border-b border-brand-border/60">
-            <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Match Schedule</p>
-            <div className="flex items-center gap-2">
-              {scheduleSaved && <span className="text-[10px] text-green-600 font-semibold">✓ Saved</span>}
-              <button
-                onClick={saveSchedule}
-                disabled={scheduleSaving}
-                className="px-3 py-1 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand/80 disabled:opacity-50 transition-colors"
-              >
-                {scheduleSaving ? 'Saving…' : 'Save Schedule'}
-              </button>
-            </div>
-          </div>
-          {scheduleError && <p className="px-3 py-1 text-xs text-red-600 bg-red-50">{scheduleError}</p>}
-          <div className="divide-y divide-brand-border/40">
-            {rounds.map(({ roundNum, matches: roundMatches }) => (
-              <div key={roundNum} className="px-3 py-2 space-y-3">
-                <p className="text-[10px] font-bold text-brand-muted uppercase tracking-wider">
-                  {roundLabel(roundNum, totalRounds)}
-                </p>
-                {roundMatches.map(m => {
-                  const rawName1 = m.team_1_registration_id
-                    ? (regNameMap.get(m.team_1_registration_id) ?? 'TBD')
-                    : (roundNum === 1 ? 'BYE' : 'TBD')
-                  const rawName2 = m.team_2_registration_id
-                    ? (regNameMap.get(m.team_2_registration_id) ?? 'TBD')
-                    : (roundNum === 1 ? 'BYE' : 'TBD')
-                  // Display lower seed first regardless of team_1/team_2 slot assignment
-                  const s1 = m.team_1_registration_id != null ? (seedIndexMap.get(m.team_1_registration_id) ?? Infinity) : Infinity
-                  const s2 = m.team_2_registration_id != null ? (seedIndexMap.get(m.team_2_registration_id) ?? Infinity) : Infinity
-                  const [name1, name2] = s1 <= s2 ? [rawName1, rawName2] : [rawName2, rawName1]
-                  const edit = scheduleEdits[m.id] ?? { court: '', time: '', date: tournamentDate ?? '' }
-                  return (
-                    <div key={m.id} className="space-y-1.5">
-                      <span className="text-xs font-medium text-brand-dark">{name1} vs {name2}</span>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-brand-muted">Ct.</span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={edit.court}
-                            onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, court: e.target.value } }))}
-                            placeholder="—"
-                            className="w-11 input text-xs py-0.5 px-1.5 text-center"
-                          />
-                        </div>
-                        <input
-                          type="date"
-                          value={edit.date}
-                          onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, date: e.target.value } }))}
-                          className="input text-xs py-0.5 px-1.5 flex-1 min-w-[130px]"
-                        />
-                        <TimeSlotPicker
-                          value={edit.time}
-                          onChange={time => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time } }))}
-                        />
-                      </div>
+                  {/* Inline Replace Player UI */}
+                  {isReplacing && (
+                    <div className="px-3 pb-2 pt-1 bg-amber-50 border-t border-amber-100 space-y-1.5">
+                      <p className="text-[10px] font-semibold text-amber-800 uppercase tracking-wide">Replace player in this bracket slot</p>
+                      <input
+                        type="text"
+                        value={replaceSearch}
+                        onChange={e => searchForReplacement(e.target.value)}
+                        placeholder="Search by name…"
+                        className="w-full input text-xs"
+                        autoFocus
+                      />
+                      {replaceResults.length > 0 && (
+                        <ul className="border border-brand-border rounded-xl overflow-y-auto max-h-40 bg-white">
+                          {replaceResults.map(p => (
+                            <li key={p.id}>
+                              <button
+                                onClick={() => handleReplace(reg.id, p)}
+                                disabled={replaceLoading}
+                                className="w-full text-left px-3 py-2 text-xs text-brand-dark hover:bg-brand-soft transition-colors"
+                              >
+                                {p.name}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {replaceError && <p className="text-xs text-red-600">{replaceError}</p>}
+                      <p className="text-[10px] text-amber-700">Replacement inherits this seed position and payment status.</p>
                     </div>
+                  )}
+                </li>
+              )
+            })}
+
+            {awaiting.length > 0 && (
+              <>
+                <li className="px-3 py-1 bg-brand-surface">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 border-t border-brand-border/60" />
+                    <span className="text-[10px] font-semibold text-brand-muted whitespace-nowrap">
+                      Awaiting payment · {awaiting.length}
+                    </span>
+                    <div className="flex-1 border-t border-brand-border/60" />
+                  </div>
+                </li>
+                {awaiting.map(reg => {
+                  const canComp = reg.payment_status !== 'paid' && reg.payment_status !== 'refunded' && reg.payment_status !== 'comped'
+                  return (
+                    <li key={reg.id} className="flex items-center gap-2 px-3 py-2 text-xs bg-white opacity-60">
+                      <div className="w-3.5 shrink-0" />
+                      <div className="w-5 shrink-0" />
+                      <span className="flex-1 font-medium text-brand-dark truncate">{teamName(reg, isDoubles)}</span>
+                      {reg.user_profile?.is_stub && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">Invited</span>
+                      )}
+                      {paymentBadge(reg)}
+                      <div className="flex shrink-0 items-center gap-2 ml-1">
+                        {canComp && (
+                          <button onClick={() => onMarkComped(reg.id)} className="text-brand-active hover:underline whitespace-nowrap">
+                            Comp
+                          </button>
+                        )}
+                        <button onClick={() => onRemove(reg.id)} className="text-red-500 hover:underline">
+                          Remove
+                        </button>
+                      </div>
+                    </li>
                   )
                 })}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+              </>
+            )}
+          </ul>
+        )}
 
-      {/* ── Generate / Re-generate Matches ── */}
-      <div className="px-3 py-2.5 border-t border-brand-border/60 bg-brand-surface space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-brand-muted shrink-0">Time per round</span>
-          <select
-            value={roundDuration}
-            onChange={e => setRoundDuration(Number(e.target.value))}
-            className="input text-xs py-0.5 px-2 flex-1"
-          >
-            <option value={60}>1 hour</option>
-            <option value={90}>1.5 hours</option>
-            <option value={120}>2 hours</option>
-          </select>
-        </div>
-        {onToggleShowSeeds && (
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={!!showSeeds}
-              onChange={e => onToggleShowSeeds(e.target.checked)}
-              className="rounded border-brand-border text-brand accent-brand"
-            />
-            <span className="text-xs text-brand-muted">Show seed numbers next to names</span>
-          </label>
+        {/* ── Drag affordance hint — only while seeds are unlocked (rows draggable) ── */}
+        {!locked && order.length > 1 && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-brand-border/60 text-[10px] font-medium text-brand-muted">
+            <ArrowUp className="w-3 h-3 shrink-0" />
+            <span>Drag to re-order</span>
+          </div>
         )}
-        <button
-          onClick={async () => {
-            setGenerating(true); setGenError(null)
-            try { await onGenerateMatches(roundDuration) }
-            catch (e: unknown) { setGenError(e instanceof Error ? e.message : 'Failed') }
-            finally { setGenerating(false) }
-          }}
-          disabled={generating || confirmed.length < 2}
-          className="w-full py-2 rounded-lg bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
-        >
-          {generating ? 'Generating…' : hasMatches ? 'Re-generate Matches' : 'Generate Matches'}
-        </button>
-        {genError && <p className="text-xs text-red-600">{genError}</p>}
-        {confirmed.length < 2 && (
-          <p className="text-[10px] text-brand-muted">Need at least 2 confirmed registrants to generate.</p>
+
+        {/* ── Add Player slot ── */}
+        {addPlayerSlot && (
+          <div className="border-t border-brand-border px-3 py-2.5">
+            {addPlayerSlot}
+          </div>
         )}
-        <p className="text-[10px] text-brand-muted">
-          {locked
-            ? '🔒 Seeds locked · Click "Edit Seeds" to reorder · Re-generate to apply new order'
-            : 'Drag to reorder · Seed 1 gets the best bracket position · Save Seeds to lock'}
-        </p>
       </div>
-    </div>
+
+      {/* ── Bracket / Standings — sits between the roster and the schedule tools ── */}
+      {bracketSlot}
+
+      {/* ── Card 2: match schedule + generate ── */}
+      <div className="border border-brand-border rounded-xl overflow-hidden divide-y divide-brand-border/60">
+        {/* ── Match Schedule (inline, when matches exist) ── */}
+        {hasMatches && rounds.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-3 py-2 bg-brand-surface border-b border-brand-border/60">
+              <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Match Schedule</p>
+              <div className="flex items-center gap-2">
+                {scheduleSaved && <span className="text-[10px] text-green-600 font-semibold">✓ Saved</span>}
+                <button
+                  onClick={saveSchedule}
+                  disabled={scheduleSaving}
+                  className="px-3 py-1 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand/80 disabled:opacity-50 transition-colors"
+                >
+                  {scheduleSaving ? 'Saving…' : 'Save Schedule'}
+                </button>
+              </div>
+            </div>
+            {scheduleError && <p className="px-3 py-1 text-xs text-red-600 bg-red-50">{scheduleError}</p>}
+            <div className="divide-y divide-brand-border/40">
+              {rounds.map(({ roundNum, matches: roundMatches }) => (
+                <div key={roundNum} className="px-3 py-2 space-y-3">
+                  <p className="text-[10px] font-bold text-brand-muted uppercase tracking-wider">
+                    {roundLabel(roundNum, totalRounds)}
+                  </p>
+                  {roundMatches.map(m => {
+                    const rawName1 = m.team_1_registration_id
+                      ? (regNameMap.get(m.team_1_registration_id) ?? 'TBD')
+                      : (roundNum === 1 ? 'BYE' : 'TBD')
+                    const rawName2 = m.team_2_registration_id
+                      ? (regNameMap.get(m.team_2_registration_id) ?? 'TBD')
+                      : (roundNum === 1 ? 'BYE' : 'TBD')
+                    // Display lower seed first regardless of team_1/team_2 slot assignment
+                    const s1 = m.team_1_registration_id != null ? (seedIndexMap.get(m.team_1_registration_id) ?? Infinity) : Infinity
+                    const s2 = m.team_2_registration_id != null ? (seedIndexMap.get(m.team_2_registration_id) ?? Infinity) : Infinity
+                    const [name1, name2] = s1 <= s2 ? [rawName1, rawName2] : [rawName2, rawName1]
+                    const edit = scheduleEdits[m.id] ?? { court: '', time: '', date: tournamentDate ?? '' }
+                    return (
+                      <div key={m.id} className="space-y-1.5">
+                        <span className="text-xs font-medium text-brand-dark">{name1} vs {name2}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-brand-muted">Ct.</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={edit.court}
+                              onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, court: e.target.value } }))}
+                              placeholder="—"
+                              className="w-11 input text-xs py-0.5 px-1.5 text-center"
+                            />
+                          </div>
+                          <input
+                            type="date"
+                            value={edit.date}
+                            onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, date: e.target.value } }))}
+                            className="input text-xs py-0.5 px-1.5 flex-1 min-w-[130px]"
+                          />
+                          <TimeSlotPicker
+                            value={edit.time}
+                            onChange={time => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time } }))}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Generate / Re-generate Matches ── */}
+        <div className="px-3 py-2.5 bg-brand-surface space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-brand-muted shrink-0">Time per round</span>
+            <select
+              value={roundDuration}
+              onChange={e => setRoundDuration(Number(e.target.value))}
+              className="input text-xs py-0.5 px-2 flex-1"
+            >
+              <option value={60}>1 hour</option>
+              <option value={90}>1.5 hours</option>
+              <option value={120}>2 hours</option>
+            </select>
+          </div>
+          {onToggleShowSeeds && (
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!showSeeds}
+                onChange={e => onToggleShowSeeds(e.target.checked)}
+                className="rounded border-brand-border text-brand accent-brand"
+              />
+              <span className="text-xs text-brand-muted">Show seed numbers next to names</span>
+            </label>
+          )}
+          <button
+            onClick={async () => {
+              setGenerating(true); setGenError(null)
+              try { await onGenerateMatches(roundDuration) }
+              catch (e: unknown) { setGenError(e instanceof Error ? e.message : 'Failed') }
+              finally { setGenerating(false) }
+            }}
+            disabled={generating || confirmed.length < 2}
+            className="w-full py-2 rounded-lg bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
+          >
+            {generating ? 'Generating…' : hasMatches ? 'Re-generate Matches' : 'Generate Matches'}
+          </button>
+          {genError && <p className="text-xs text-red-600">{genError}</p>}
+          {confirmed.length < 2 && (
+            <p className="text-[10px] text-brand-muted">Need at least 2 confirmed registrants to generate.</p>
+          )}
+          <p className="text-[10px] text-brand-muted">
+            {locked
+              ? '🔒 Seeds locked · Click "Edit Seeds" to reorder · Re-generate to apply new order'
+              : 'Drag to reorder · Seed 1 gets the best bracket position · Save Seeds to lock'}
+          </p>
+        </div>
+      </div>
+    </>
   )
 }

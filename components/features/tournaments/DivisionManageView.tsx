@@ -434,6 +434,77 @@ export default function DivisionManageView({
     </div>
   ) : null
 
+  // Bracket/standings view. For organizers it is injected into the Seeding panel
+  // (between the roster and the schedule tools); non-organizers get it standalone below.
+  const matchViewContent = hasMatches ? (
+    <div id="scores" className="scroll-mt-20 bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        {/* Bracket ⇄ Standings toggle */}
+        <div className="flex items-center gap-1 bg-white rounded-full border border-brand-border p-0.5">
+          {([['bracket', isBracket ? 'Bracket' : 'Matches'], ['standings', 'Standings']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setMatchView(v)}
+              className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-colors ${
+                matchView === v ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:text-brand-dark'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {isOrganizer && matchView === 'bracket' && (
+          <p className="text-[11px] text-brand-muted">Tap “Score” on any match to enter the result</p>
+        )}
+      </div>
+
+      {matchView === 'standings' ? (
+        <div className="overflow-hidden rounded-xl border border-brand-border">
+          <div className="grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-[10px] font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border">
+            <span>#</span><span>Team</span>
+            <span className="text-center">W</span><span className="text-center">L</span>
+            <span className="text-center">PF</span><span className="text-center">+/−</span>
+          </div>
+          {standings.map((row, i) => {
+            const diff = row.pf - row.pa
+            return (
+              <div key={row.regId} className={`grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-xs border-b border-brand-border last:border-0 ${i === 0 ? 'bg-brand-soft' : ''}`}>
+                <span className="text-brand-muted font-medium">{i + 1}</span>
+                <span className="font-semibold text-brand-dark truncate">{teamName(row.regId)}</span>
+                <span className="text-center font-bold text-brand-dark">{row.wins}</span>
+                <span className="text-center text-brand-dark">{row.losses}</span>
+                <span className="text-center text-brand-muted">{row.pf}</span>
+                <span className={`text-center font-bold tabular-nums ${diff >= 0 ? 'text-brand-active' : 'text-red-600'}`}>{diff >= 0 ? '+' : ''}{diff}</span>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <BracketView
+          matches={matches}
+          regs={active.map(r => ({
+            id: r.id,
+            user_id: r.user_id,
+            team_name: r.team_name,
+            status: r.status,
+            seed: r.seed ?? null,
+            user_profile: r.user_profile ? { name: r.user_profile.name ?? '' } : null,
+            partner_user_id: r.partner_user_id,
+            partner_profile: r.partner_profile ? { name: r.partner_profile.name ?? '' } : null,
+          }))}
+          isOrganizer={isOrganizer}
+          isDoubles={isDoubles}
+          tournamentId={tournamentId}
+          divisionId={division.id}
+          onScoreUpdate={handleScoreUpdate}
+          listLayout={!isBracket}
+          pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
+          showSeeds={showSeeds}
+        />
+      )}
+    </div>
+  ) : null
+
   return (
     <div className="min-h-screen bg-brand-bg">
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
@@ -539,81 +610,14 @@ export default function DivisionManageView({
             matches={matchItems}
             tournamentDate={tournamentStartDate ?? undefined}
             addPlayerSlot={addPlayerContent}
+            bracketSlot={matchViewContent}
             showSeeds={showSeeds}
             onToggleShowSeeds={handleToggleShowSeeds}
           />
         )}
 
-        {/* ── Match view: bracket tree for elimination, flat list for round robin / other.
-              id="scores" is the deep-link target from the division card's "Enter Scores". ── */}
-        {hasMatches && (
-          <div id="scores" className="scroll-mt-20 bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              {/* Bracket ⇄ Standings toggle */}
-              <div className="flex items-center gap-1 bg-white rounded-full border border-brand-border p-0.5">
-                {([['bracket', isBracket ? 'Bracket' : 'Matches'], ['standings', 'Standings']] as const).map(([v, label]) => (
-                  <button
-                    key={v}
-                    onClick={() => setMatchView(v)}
-                    className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-colors ${
-                      matchView === v ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:text-brand-dark'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {isOrganizer && matchView === 'bracket' && (
-                <p className="text-[11px] text-brand-muted">Tap “Score” on any match to enter the result</p>
-              )}
-            </div>
-
-            {matchView === 'standings' ? (
-              <div className="overflow-hidden rounded-xl border border-brand-border">
-                <div className="grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-[10px] font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border">
-                  <span>#</span><span>Team</span>
-                  <span className="text-center">W</span><span className="text-center">L</span>
-                  <span className="text-center">PF</span><span className="text-center">+/−</span>
-                </div>
-                {standings.map((row, i) => {
-                  const diff = row.pf - row.pa
-                  return (
-                    <div key={row.regId} className={`grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-xs border-b border-brand-border last:border-0 ${i === 0 ? 'bg-brand-soft' : ''}`}>
-                      <span className="text-brand-muted font-medium">{i + 1}</span>
-                      <span className="font-semibold text-brand-dark truncate">{teamName(row.regId)}</span>
-                      <span className="text-center font-bold text-brand-dark">{row.wins}</span>
-                      <span className="text-center text-brand-dark">{row.losses}</span>
-                      <span className="text-center text-brand-muted">{row.pf}</span>
-                      <span className={`text-center font-bold tabular-nums ${diff >= 0 ? 'text-brand-active' : 'text-red-600'}`}>{diff >= 0 ? '+' : ''}{diff}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <BracketView
-                matches={matches}
-                regs={active.map(r => ({
-                  id: r.id,
-                  user_id: r.user_id,
-                  team_name: r.team_name,
-                  status: r.status,
-                  seed: r.seed ?? null,
-                  user_profile: r.user_profile ? { name: r.user_profile.name ?? '' } : null,
-                  partner_user_id: r.partner_user_id,
-                  partner_profile: r.partner_profile ? { name: r.partner_profile.name ?? '' } : null,
-                }))}
-                isOrganizer={isOrganizer}
-                isDoubles={isDoubles}
-                tournamentId={tournamentId}
-                divisionId={division.id}
-                onScoreUpdate={handleScoreUpdate}
-                listLayout={!isBracket}
-                pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
-                showSeeds={showSeeds}
-              />
-            )}
-          </div>
-        )}
+        {/* ── Bracket / Standings — standalone for non-organizers; organizers see it inside the Seeding panel ── */}
+        {!isOrganizer && matchViewContent}
 
         {/* ── Non-organizer registrant list ── */}
         {!isOrganizer && (
