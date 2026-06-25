@@ -279,10 +279,19 @@ export default function DivisionManageView({
   }
 
   function handleScoreUpdate(updatedMatches: Match[]) {
-    setMatches(prev => prev.map(m => {
-      const u = updatedMatches.find(x => x.id === m.id)
-      return u ? { ...m, ...u } : m
-    }))
+    setMatches(prev => {
+      const next = prev.map(m => {
+        const u = updatedMatches.find(x => x.id === m.id)
+        return u ? { ...m, ...u } : m
+      })
+      // Append matches the score created server-side that we don't have yet —
+      // notably the double-elim bracket-reset decider, inserted when the losers-
+      // bracket champion wins the first championship. Without this the reset is
+      // dropped and the bracket looks finished a round early.
+      const known = new Set(prev.map(m => m.id))
+      for (const u of updatedMatches) if (!known.has(u.id)) next.push(u as Match)
+      return next
+    })
   }
 
   async function handleMarkComped(regId: string) {
