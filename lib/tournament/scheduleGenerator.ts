@@ -55,6 +55,30 @@ function toIso(date: string, minutes: number): string {
   return `${isoDate}T${hh}:${mm}:00-07:00`
 }
 
+// The double-elim bracket-reset decider is created reactively when the first
+// championship is scored, so the block packer never sees it. It plays right after
+// that championship, on the same court, for the same length. Given the final's
+// stored window (ISO with offset), returns the decider's window — or nulls when the
+// final itself was never scheduled.
+export function resetDeciderSlot(
+  finalStart: string | null | undefined,
+  finalEnd: string | null | undefined,
+): { scheduled_time: string | null; scheduled_end_time: string | null } {
+  if (!finalEnd) return { scheduled_time: finalStart ?? null, scheduled_end_time: null }
+  // Pull/replace just the HH:MM, preserving the date + seconds + offset around it.
+  const hm = (iso: string) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16))
+  const at = (iso: string, minutes: number) => {
+    const t = ((minutes % 1440) + 1440) % 1440
+    const hh = String(Math.floor(t / 60)).padStart(2, '0')
+    const mm = String(t % 60).padStart(2, '0')
+    return `${iso.slice(0, 11)}${hh}:${mm}${iso.slice(16)}`
+  }
+  const scheduled_time = finalEnd            // decider starts when the final ends
+  if (!finalStart) return { scheduled_time, scheduled_end_time: null }
+  const duration = hm(finalEnd) - hm(finalStart)
+  return { scheduled_time, scheduled_end_time: at(finalEnd, hm(finalEnd) + duration) }
+}
+
 export function scheduleBlockMatches(
   block: BlockWindow,
   matches: SchedulableMatch[],
