@@ -127,6 +127,47 @@ export default function CreateTournamentForm({ locations }: Props) {
         </FormRow>
       </FormSection>
 
+      <FormSection title="Division Defaults" description="These pre-populate each division you create and can be overridden per division." defaultOpen>
+        <FormRow label="Format">
+          <div className="flex flex-col gap-2">
+            {([
+              { value: 'round_robin',        label: 'Round Robin',          desc: 'Every team plays every other team.' },
+              { value: 'single_elimination', label: 'Single Elimination',   desc: 'One loss and you\'re out.' },
+              { value: 'double_elimination', label: 'Double Elimination',   desc: 'Teams eliminated after two losses.' },
+              { value: 'pool_play_playoffs', label: 'Pool Play + Playoffs', desc: 'Groups phase, then bracket playoffs.' },
+            ] as const).map(opt => (
+              <label key={opt.value} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${defaultBracketType === opt.value ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white hover:bg-brand-soft/50'}`}>
+                <input type="radio" name="default_bracket_type" value={opt.value} checked={defaultBracketType === opt.value} onChange={() => setDefaultBracketType(opt.value)} className="mt-0.5 accent-brand" />
+                <div>
+                  <p className="text-sm font-semibold text-brand-dark">{opt.label}</p>
+                  <p className="text-xs text-brand-muted">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Points to win" width="xs">
+          <input
+            type="number"
+            min="1"
+            value={defaultGamesTo}
+            onChange={e => setDefaultGamesTo(Number(e.target.value) || 11)}
+            onBlur={e => setDefaultGamesTo(Math.max(1, Number(e.target.value) || 11))}
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow label="Win By" width="sm">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {([{ value: 1, label: 'Win by 1' }, { value: 2, label: 'Win by 2' }] as const).map(opt => (
+              <button key={opt.value} type="button" onClick={() => setDefaultWinBy(opt.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultWinBy === opt.value ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+      </FormSection>
+
       <FormSection title="Schedule" description="Where and when the tournament takes place." defaultOpen>
         <FormRow label="Location" htmlFor="location">
           <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
@@ -241,47 +282,6 @@ export default function CreateTournamentForm({ locations }: Props) {
                 }`}
               >
                 {r === 'open' ? 'Open' : 'Closed'}
-              </button>
-            ))}
-          </div>
-        </FormRow>
-      </FormSection>
-
-      <FormSection title="Division Defaults" description="These pre-populate each division you create and can be overridden per division." defaultOpen>
-        <FormRow label="Format">
-          <div className="flex flex-col gap-2">
-            {([
-              { value: 'round_robin',        label: 'Round Robin',          desc: 'Every team plays every other team.' },
-              { value: 'single_elimination', label: 'Single Elimination',   desc: 'One loss and you\'re out.' },
-              { value: 'double_elimination', label: 'Double Elimination',   desc: 'Teams eliminated after two losses.' },
-              { value: 'pool_play_playoffs', label: 'Pool Play + Playoffs', desc: 'Groups phase, then bracket playoffs.' },
-            ] as const).map(opt => (
-              <label key={opt.value} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${defaultBracketType === opt.value ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white hover:bg-brand-soft/50'}`}>
-                <input type="radio" name="default_bracket_type" value={opt.value} checked={defaultBracketType === opt.value} onChange={() => setDefaultBracketType(opt.value)} className="mt-0.5 accent-brand" />
-                <div>
-                  <p className="text-sm font-semibold text-brand-dark">{opt.label}</p>
-                  <p className="text-xs text-brand-muted">{opt.desc}</p>
-                </div>
-              </label>
-            ))}
-          </div>
-        </FormRow>
-        <FormRow label="Points to win" width="xs">
-          <input
-            type="number"
-            min="1"
-            value={defaultGamesTo}
-            onChange={e => setDefaultGamesTo(Number(e.target.value) || 11)}
-            onBlur={e => setDefaultGamesTo(Math.max(1, Number(e.target.value) || 11))}
-            className="w-full input"
-          />
-        </FormRow>
-        <FormRow label="Win By" width="sm">
-          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
-            {([{ value: 1, label: 'Win by 1' }, { value: 2, label: 'Win by 2' }] as const).map(opt => (
-              <button key={opt.value} type="button" onClick={() => setDefaultWinBy(opt.value)}
-                className={`flex-1 py-2 text-xs font-semibold transition-colors ${defaultWinBy === opt.value ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:bg-brand-soft'}`}>
-                {opt.label}
               </button>
             ))}
           </div>
