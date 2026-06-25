@@ -12,8 +12,8 @@ import QrCheckinModal from './QrCheckinModal'
 import PrepTournamentModal from './PrepTournamentModal'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import ConfirmModal from '@/components/ui/ConfirmModal'
-import { prepareDivisionWrite } from '@/lib/taxonomy/write-helpers'
-import { isDoublesFormat, formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
+import { prepareDivisionWrite, divisionSkillRangeToLevel } from '@/lib/taxonomy/write-helpers'
+import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 import SeedingPanel, { type MatchItem } from './SeedingPanel'
 
@@ -158,11 +158,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [cancelPending, setCancelPending] = useState<{ divId: string; regId: string; divName: string; paymentStatus: string | null } | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
-
-  // Fixed partner assignment (organizer-only, doubles fixed-mode divisions)
-  const [assigningRegId, setAssigningRegId] = useState<string | null>(null)
-  const [partnerSelections, setPartnerSelections] = useState<Record<string, string>>({})
-  const [savingPartnerRegId, setSavingPartnerRegId] = useState<string | null>(null)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -360,7 +355,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditCategory(div.category ?? 'mixed')
     setEditTeamType(div.team_type ?? 'doubles')
     setEditPartnerMode((div.partner_mode === 'rotating' ? 'rotating' : 'fixed'))
-    setEditSkill(skillRangeToLevel(div.skill_min, div.skill_max) ?? '')
+    setEditSkill(divisionSkillRangeToLevel(div.skill_min, div.skill_max) ?? '')
     setEditMax(div.max_entries)
     setEditWaitlist(!!div.waitlist_enabled)
     setEditBracketType(div.bracket_type)
@@ -495,47 +490,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setCancelLoading(false)
     updateReg(divisionId, regId, 'cancelled')
     router.refresh()
-  }
-
-  // ── Organizer: assign fixed partner ──────────────────────────────
-  async function handleAssignPartner(divisionId: string, reg1Id: string) {
-    const reg2Id = partnerSelections[reg1Id] || null
-    setSavingPartnerRegId(reg1Id)
-    try {
-      const res = await fetch(
-        `/api/tournaments/${tournamentId}/divisions/${divisionId}/assign-partner`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reg1_id: reg1Id, reg2_id: reg2Id }),
-        }
-      )
-      if (!res.ok) {
-        const err = await res.json()
-        alert(err.error ?? 'Failed to assign partner')
-        return
-      }
-      // Update local state bidirectionally
-      setDivisions(prev => prev.map(d => {
-        if (d.id !== divisionId) return d
-        const reg2 = reg2Id ? d.tournament_registrations.find(r => r.id === reg2Id) : null
-        return {
-          ...d,
-          tournament_registrations: d.tournament_registrations.map(r => {
-            if (r.id === reg1Id) return { ...r, partner_registration_id: reg2Id, partner_user_id: reg2?.user_id ?? null }
-            if (reg2Id && r.id === reg2Id) return { ...r, partner_registration_id: reg1Id, partner_user_id: d.tournament_registrations.find(x => x.id === reg1Id)?.user_id ?? null }
-            // Clear displaced back-links
-            if (r.partner_registration_id === reg1Id) return { ...r, partner_registration_id: null, partner_user_id: null }
-            if (reg2Id && r.partner_registration_id === reg2Id) return { ...r, partner_registration_id: null, partner_user_id: null }
-            return r
-          }),
-        }
-      }))
-      setAssigningRegId(null)
-      setPartnerSelections(prev => { const n = { ...prev }; delete n[reg1Id]; return n })
-    } finally {
-      setSavingPartnerRegId(null)
-    }
   }
 
   // ── Organizer: delete division ────────────────────────────────────
@@ -1187,146 +1141,6 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         )}
                       </span>
                       {waitlist.length > 0 && <span>· {waitlist.length} waitlisted</span>}
-                    </div>
-                  )
-                })()}
-
-                {/* Fixed partner assignment — organizer only, fixed-mode doubles. Renders only
-                    when there are settled registrations (returns null otherwise), so singles
-                    and empty divisions stay clean. Hidden once the bracket is generated:
-                    partners are locked in by then, so it's just clutter on a live/finished
-                    division. */}
-                {isOrganizer && !hasMatches && div.partner_mode === 'fixed' && isDoublesFormat(div.format) && (() => {
-                  const settled = active.filter(r =>
-                    ['paid', 'waived', 'comped'].includes(r.payment_status ?? '')
-                  )
-                  if (settled.length === 0) return null
-
-                  // Dedupe paired registrations into teams
-                  const seenPairs = new Set<string>()
-                  const teams: Array<{ r1: Registration; r2: Registration; label: string }> = []
-                  for (const r of settled) {
-                    if (!r.partner_registration_id) continue
-                    const partner = settled.find(x => x.id === r.partner_registration_id)
-                    if (!partner) continue
-                    const canonical = r.id < r.partner_registration_id ? `${r.id}|${r.partner_registration_id}` : `${r.partner_registration_id}|${r.id}`
-                    if (seenPairs.has(canonical)) continue
-                    seenPairs.add(canonical)
-                    const n1 = (r.user_profile?.name ?? '?').split(' ')[0]
-                    const n2 = (partner.user_profile?.name ?? '?').split(' ')[0]
-                    const [first, second] = n1.localeCompare(n2) <= 0 ? [n1, n2] : [n2, n1]
-                    teams.push({ r1: r, r2: partner, label: `Team ${first}/${second}` })
-                  }
-                  teams.sort((a, b) => a.label.localeCompare(b.label))
-                  const unassigned = settled.filter(r => !r.partner_registration_id)
-
-                  return (
-                    <div className="border-t border-brand-border pt-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Fixed Partners</p>
-                        <span className="text-xs text-brand-muted">Required for schedule generation</span>
-                      </div>
-                      <div className="bg-brand-soft border border-brand-border rounded-xl p-3 space-y-2">
-
-                        {teams.map(({ r1, r2, label }) => (
-                          <div key={`${r1.id}-${r2.id}`} className="border-b border-brand-border last:border-0 pb-2 last:pb-0 space-y-1.5">
-                            <span className="text-sm font-semibold text-brand-dark">{label}</span>
-                            {[r1, r2].map(r => {
-                              const isAssigning = assigningRegId === r.id
-                              const eligible = settled.filter(o =>
-                                o.id !== r.id &&
-                                (!o.partner_registration_id || o.partner_registration_id === r.id)
-                              )
-                              return (
-                                <div key={r.id} className="flex items-center gap-2 pl-2">
-                                  <span className="text-xs text-brand-muted flex-1 truncate">{r.user_profile?.name ?? '—'}</span>
-                                  {isAssigning ? (
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                      <select
-                                        value={partnerSelections[r.id] ?? r.partner_registration_id ?? ''}
-                                        onChange={e => setPartnerSelections(prev => ({ ...prev, [r.id]: e.target.value }))}
-                                        className="input text-xs py-0.5"
-                                      >
-                                        <option value="">— No partner —</option>
-                                        {eligible.map(o => (
-                                          <option key={o.id} value={o.id}>{o.user_profile?.name ?? o.id}</option>
-                                        ))}
-                                      </select>
-                                      <button
-                                        onClick={() => handleAssignPartner(div.id, r.id)}
-                                        disabled={savingPartnerRegId === r.id}
-                                        className="text-xs px-2 py-0.5 rounded bg-brand text-brand-dark font-semibold disabled:opacity-40"
-                                      >
-                                        {savingPartnerRegId === r.id ? '…' : 'Save'}
-                                      </button>
-                                      <button onClick={() => setAssigningRegId(null)} className="text-xs text-brand-muted">✕</button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => { setAssigningRegId(r.id); setPartnerSelections(prev => ({ ...prev, [r.id]: r.partner_registration_id ?? '' })) }}
-                                      className="text-xs text-brand-active underline underline-offset-2 flex-shrink-0"
-                                    >
-                                      Change
-                                    </button>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ))}
-
-                        {unassigned.length > 0 && (
-                          <>
-                            {teams.length > 0 && <p className="text-[10px] font-semibold text-brand-muted uppercase tracking-wide pt-1">Unassigned</p>}
-                            {unassigned.map(r => {
-                              const isAssigning = assigningRegId === r.id
-                              const eligible = settled.filter(o =>
-                                o.id !== r.id &&
-                                (!o.partner_registration_id || o.partner_registration_id === r.id)
-                              )
-                              return (
-                                <div key={r.id} className="flex items-center gap-2 py-1 border-b border-brand-border last:border-0">
-                                  <span className="text-sm font-medium text-brand-dark flex-1 min-w-0 truncate">{r.user_profile?.name ?? '—'}</span>
-                                  <span className="text-xs text-red-500 font-medium flex-shrink-0">No partner</span>
-                                  {isAssigning ? (
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                      <select
-                                        value={partnerSelections[r.id] ?? ''}
-                                        onChange={e => setPartnerSelections(prev => ({ ...prev, [r.id]: e.target.value }))}
-                                        className="input text-xs py-0.5"
-                                      >
-                                        <option value="">— Select partner —</option>
-                                        {eligible.map(o => (
-                                          <option key={o.id} value={o.id}>{o.user_profile?.name ?? o.id}</option>
-                                        ))}
-                                      </select>
-                                      <button
-                                        onClick={() => handleAssignPartner(div.id, r.id)}
-                                        disabled={savingPartnerRegId === r.id}
-                                        className="text-xs px-2 py-0.5 rounded bg-brand text-brand-dark font-semibold disabled:opacity-40"
-                                      >
-                                        {savingPartnerRegId === r.id ? '…' : 'Save'}
-                                      </button>
-                                      <button onClick={() => setAssigningRegId(null)} className="text-xs text-brand-muted">✕</button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => { setAssigningRegId(r.id); setPartnerSelections(prev => ({ ...prev, [r.id]: '' })) }}
-                                      className="text-xs text-brand-active underline underline-offset-2 flex-shrink-0"
-                                    >
-                                      Assign
-                                    </button>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </>
-                        )}
-
-                        {teams.length === 0 && unassigned.length === 0 && (
-                          <p className="text-xs text-brand-muted">No settled registrations yet.</p>
-                        )}
-                      </div>
                     </div>
                   )
                 })()}

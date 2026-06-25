@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SeedingPanel, { type MatchItem } from './SeedingPanel'
 import BracketView from './BracketView'
+import FixedPartnerAssignment from './FixedPartnerAssignment'
 import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import { formatSummaryLines } from './FormatSettingsFields'
 import { computeStandings } from '@/lib/tournament/standings'
@@ -307,6 +308,22 @@ export default function DivisionManageView({
     setRegistrations(prev => prev.map(r => r.id === regId ? { ...r, status: 'cancelled' } : r))
   }
 
+  // Fixed-partner save: relink both rows and clear any displaced back-links so
+  // the local roster matches what the assign-partner route wrote server-side.
+  function handlePartnerAssigned(reg1Id: string, reg2Id: string | null) {
+    setRegistrations(prev => {
+      const reg1 = prev.find(r => r.id === reg1Id)
+      const reg2 = reg2Id ? prev.find(r => r.id === reg2Id) : null
+      return prev.map(r => {
+        if (r.id === reg1Id) return { ...r, partner_registration_id: reg2Id, partner_user_id: reg2?.user_id ?? null }
+        if (reg2Id && r.id === reg2Id) return { ...r, partner_registration_id: reg1Id, partner_user_id: reg1?.user_id ?? null }
+        if (r.partner_registration_id === reg1Id) return { ...r, partner_registration_id: null, partner_user_id: null }
+        if (reg2Id && r.partner_registration_id === reg2Id) return { ...r, partner_registration_id: null, partner_user_id: null }
+        return r
+      })
+    })
+  }
+
   function handleReplacePlayer(regId: string, newUserId: string, newUserName: string) {
     setRegistrations(prev => prev.map(r =>
       r.id === regId
@@ -494,6 +511,17 @@ export default function DivisionManageView({
             </ul>
             <p className="mt-1">Re-generate the matches to rebuild for the current field.</p>
           </div>
+        )}
+
+        {/* ── Fixed-partner assignment — organizer, fixed-mode doubles, pre-bracket.
+              Hidden once matches exist: partners are locked in by then. ── */}
+        {isOrganizer && isDoubles && division.partner_mode === 'fixed' && !hasMatches && (
+          <FixedPartnerAssignment
+            tournamentId={tournamentId}
+            divisionId={division.id}
+            registrations={active}
+            onAssigned={handlePartnerAssigned}
+          />
         )}
 
         {/* ── Seeding, schedule, match generation — all divisions ── */}
