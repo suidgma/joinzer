@@ -1193,8 +1193,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
                 {/* Fixed partner assignment — organizer only, fixed-mode doubles. Renders only
                     when there are settled registrations (returns null otherwise), so singles
-                    and empty divisions stay clean. */}
-                {isOrganizer && div.partner_mode === 'fixed' && isDoublesFormat(div.format) && (() => {
+                    and empty divisions stay clean. Hidden once the bracket is generated:
+                    partners are locked in by then, so it's just clutter on a live/finished
+                    division. */}
+                {isOrganizer && !hasMatches && div.partner_mode === 'fixed' && isDoublesFormat(div.format) && (() => {
                   const settled = active.filter(r =>
                     ['paid', 'waived', 'comped'].includes(r.payment_status ?? '')
                   )
