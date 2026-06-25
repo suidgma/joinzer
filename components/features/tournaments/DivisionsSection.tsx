@@ -225,7 +225,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fSkill, setFSkill] = useState('')
   const [fTeamType, setFTeamType] = useState('doubles')
   const [fPartnerMode, setFPartnerMode] = useState<'fixed' | 'rotating'>('fixed')
-  const [fMax, setFMax] = useState(16)
+  const [fMax, setFMax] = useState<number | ''>(16)
   const [fWaitlist, setFWaitlist] = useState(false)
   const [fBracketType, setFBracketType] = useState<BracketType>(defaultBracketType)
   const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
@@ -253,7 +253,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [editSkill, setEditSkill] = useState('')
   const [editTeamType, setEditTeamType] = useState('doubles')
   const [editPartnerMode, setEditPartnerMode] = useState<'fixed' | 'rotating'>('fixed')
-  const [editMax, setEditMax] = useState(16)
+  const [editMax, setEditMax] = useState<number | ''>(16)
   const [editWaitlist, setEditWaitlist] = useState(false)
   const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
   const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
@@ -317,7 +317,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         name: autoName,
         ...prepareDivisionWrite({ category: fCategory, team_type: fTeamType, skill_level: fSkill || null }),
         partner_mode: effectivePartnerMode,
-        max_entries: fMax,
+        max_entries: fMax === '' ? 2 : fMax,
         waitlist_enabled: fWaitlist,
         status: 'active',
         bracket_type: fBracketType,
@@ -385,7 +385,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       name: autoName,
       ...prepareDivisionWrite({ category: editCategory, team_type: editTeamType, skill_level: editSkill || null }),
       partner_mode: (editTeamType === 'doubles' && editBracketType === 'round_robin') ? editPartnerMode : 'fixed',
-      max_entries: editMax,
+      max_entries: editMax === '' ? 2 : editMax,
       waitlist_enabled: editWaitlist,
       bracket_type: editBracketType,
       format_settings_json: editFormatSettings,
@@ -718,7 +718,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
               <input
                 type="number"
                 value={fMax}
-                onChange={e => setFMax(Number(e.target.value))}
+                onChange={e => setFMax(e.target.value === '' ? '' : Number(e.target.value))}
                 onBlur={e => setFMax(Math.max(2, Math.min(256, Number(e.target.value) || 2)))}
                 min={2}
                 max={256}
@@ -1001,7 +1001,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         <input
                           type="number"
                           value={editMax}
-                          onChange={e => setEditMax(Number(e.target.value))}
+                          onChange={e => setEditMax(e.target.value === '' ? '' : Number(e.target.value))}
                           onBlur={e => setEditMax(Math.max(2, Math.min(256, Number(e.target.value) || 2)))}
                           min={2}
                           max={256}
