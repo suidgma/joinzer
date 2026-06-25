@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { GripVertical } from 'lucide-react'
+import { GripVertical, ArrowUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 type SeededReg = {
@@ -571,6 +571,14 @@ export default function SeedingPanel({
             </>
           )}
         </ul>
+      )}
+
+      {/* ── Drag affordance hint — only while seeds are unlocked (rows draggable) ── */}
+      {!locked && order.length > 1 && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 border-t border-brand-border/60 text-[10px] font-medium text-brand-muted">
+          <ArrowUp className="w-3 h-3 shrink-0" />
+          <span>Drag to re-order</span>
+        </div>
       )}
 
       {/* ── Add Player slot ── */}
