@@ -8,7 +8,7 @@ type Row = { regId: string; name: string; wins: number; losses: number; pf: numb
 // Shared computeStandings handles canonical folding + elimination ordering;
 // here we just attach each team's display label.
 function computeStandings(matches: OrgMatch[], regs: OrgRegistration[]): Row[] {
-  return computeRows(matches, regs).map(r => ({ ...r, name: teamLabel(r.regId, regs) }))
+  return computeRows(matches, regs, (regId) => teamLabel(regId, regs)).map(r => ({ ...r, name: teamLabel(r.regId, regs) }))
 }
 
 type Props = {

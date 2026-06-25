@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -169,8 +169,7 @@ export default function DivisionManageView({
 
   // Bracket ⇄ Standings toggle for this division's match section.
   const [matchView, setMatchView] = useState<'bracket' | 'standings'>('bracket')
-  const standings = useMemo(() => computeStandings(matches, active), [matches, active])
-  const teamName = (regId: string) => {
+  const teamName = useCallback((regId: string) => {
     const r = active.find(x => x.id === regId)
     if (!r) return '—'
     const a = firstName(r.user_profile?.name)
@@ -180,7 +179,9 @@ export default function DivisionManageView({
       if (a && b) return [a, b].sort((m, n) => m.localeCompare(n)).join('/')
     }
     return a || r.team_name || regId.slice(0, 8)
-  }
+  }, [active])
+  // teamName feeds the alphabetical tiebreaker so pre-play standings (all 0–0) sort by name.
+  const standings = useMemo(() => computeStandings(matches, active, teamName), [matches, active, teamName])
   const maxPlayers = isDoubles ? division.max_entries * 2 : division.max_entries
   const isFull = active.length >= maxPlayers
 
