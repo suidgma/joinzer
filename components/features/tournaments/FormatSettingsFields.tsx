@@ -48,7 +48,10 @@ export function validateFormatSettings(type: BracketType, s: FormatSettings): st
   return null
 }
 
-export function formatSummaryLines(type: BracketType, s: FormatSettings): string[] {
+// `isDoubles` picks the unit word (teams vs players) so a singles division never
+// reads "teams". Defaults to true to preserve callers that don't pass it.
+export function formatSummaryLines(type: BracketType, s: FormatSettings, isDoubles = true): string[] {
+  const unit = isDoubles ? 'teams' : 'players'
   const label = FORMAT_META[type]?.label ?? type
   const game = `Games to ${s.games_to ?? 11}, win by ${s.win_by ?? 2}`
   if (type === 'round_robin') {
@@ -57,7 +60,11 @@ export function formatSummaryLines(type: BracketType, s: FormatSettings): string
     return [label, `${game}${cap}${rank}`]
   }
   if (type === 'pool_play_playoffs') {
-    const pools = `${s.number_of_pools} pools × ${s.teams_per_pool} teams, top ${s.teams_advance_per_pool} advance`
+    const nPools = s.number_of_pools ?? 2
+    const perPool = s.teams_per_pool ?? 4
+    // Spell out the total so the capacity (pools × per-pool) is obvious and lines up
+    // with the division's "X / Y" count instead of looking like an unrelated number.
+    const pools = `${nPools} pools of ${perPool} ${unit} (${nPools * perPool} total) · top ${s.teams_advance_per_pool ?? 2} advance`
     const playoffs = `Playoffs: ${(s.playoff_format ?? 'single_elimination').replace(/_/g, ' ')}`
     return [label, pools, `${game} · ${playoffs}`]
   }
@@ -69,10 +76,13 @@ type Props = {
   formatSettings: FormatSettings
   onTypeChange: (t: BracketType) => void
   onSettingsChange: (s: FormatSettings) => void
+  /** Singles divisions read "players" instead of "teams" in pool-play labels. */
+  isDoubles?: boolean
 }
 
-export default function FormatSettingsFields({ bracketType, formatSettings, onTypeChange, onSettingsChange }: Props) {
+export default function FormatSettingsFields({ bracketType, formatSettings, onTypeChange, onSettingsChange, isDoubles = true }: Props) {
   const s = formatSettings
+  const unit = isDoubles ? 'Teams' : 'Players'
   const set = (patch: Partial<FormatSettings>) => onSettingsChange({ ...s, ...patch })
 
   return (
@@ -166,7 +176,7 @@ export default function FormatSettingsFields({ bracketType, formatSettings, onTy
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Teams/Pool</label>
+              <label className="block text-xs font-medium text-brand-muted mb-1">{unit}/Pool</label>
               <input
                 type="number"
                 value={s.teams_per_pool ?? 4}

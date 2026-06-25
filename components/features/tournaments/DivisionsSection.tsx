@@ -811,6 +811,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             <FormatSettingsFields
               bracketType={fBracketType}
               formatSettings={fFormatSettings}
+              isDoubles={fTeamType === 'doubles'}
               onTypeChange={t => { setFBracketType(t); setFFormatSettings(s => ({ ...FORMAT_DEFAULTS[t], win_by: s.win_by, games_to: s.games_to })) }}
               onSettingsChange={setFFormatSettings}
             />
@@ -898,7 +899,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
             const fType = div.bracket_type ?? 'round_robin'
             const fSettings = div.format_settings_json ?? FORMAT_DEFAULTS[fType]
-            const summaryLines = formatSummaryLines(fType, fSettings)
+            const summaryLines = formatSummaryLines(fType, fSettings, isDoubles)
 
             return (
               <div key={div.id} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
@@ -1094,6 +1095,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       <FormatSettingsFields
                         bracketType={editBracketType}
                         formatSettings={editFormatSettings}
+                        isDoubles={editTeamType === 'doubles'}
                         onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(s => ({ ...FORMAT_DEFAULTS[t], win_by: s.win_by, games_to: s.games_to })) }}
                         onSettingsChange={setEditFormatSettings}
                       />
