@@ -10,6 +10,7 @@ import FixedPartnerAssignment from './FixedPartnerAssignment'
 import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import { formatSummaryLines } from './FormatSettingsFields'
 import { computeStandings } from '@/lib/tournament/standings'
+import { buildAutoSchedule } from '@/lib/tournament/autoSchedule'
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
@@ -77,47 +78,6 @@ type Props = {
   currentUserId: string | null
   locationCourtCount?: number | null
 }
-
-function buildAutoSchedule(
-  matches: Match[],
-  startDate: string,
-  startTime: string,           // "HH:MM"
-  courtCount: number,
-  durationMinutes: number,
-): Array<{ id: string; court_number: number; scheduled_time: string }> {
-  const byRound = new Map<number, Match[]>()
-  for (const m of matches) {
-    const r = m.round_number ?? 1
-    if (!byRound.has(r)) byRound.set(r, [])
-    byRound.get(r)!.push(m)
-  }
-  const rounds = Array.from(byRound.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([, ms]) => ms.sort((a, b) => a.match_number - b.match_number))
-
-  const [h, min] = startTime.split(':').map(Number)
-  let offsetMin = h * 60 + (min || 0)
-  const result: Array<{ id: string; court_number: number; scheduled_time: string }> = []
-
-  for (const roundMatches of rounds) {
-    for (let i = 0; i < roundMatches.length; i++) {
-      const slotOffset = Math.floor(i / courtCount)
-      const courtOffset = i % courtCount
-      const totalMin = offsetMin + slotOffset * durationMinutes
-      const hh = String(Math.floor(totalMin / 60)).padStart(2, '0')
-      const mm = String(totalMin % 60).padStart(2, '0')
-      result.push({
-        id: roundMatches[i].id,
-        court_number: courtOffset + 1,
-        scheduled_time: `${startDate}T${hh}:${mm}:00-07:00`,
-      })
-    }
-    const slotsNeeded = Math.ceil(roundMatches.length / courtCount)
-    offsetMin += slotsNeeded * durationMinutes
-  }
-  return result
-}
-
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles: "Men's Doubles",
   womens_doubles: "Women's Doubles",
@@ -261,7 +221,21 @@ export default function DivisionManageView({
       const startTime = tournamentStartTime?.slice(0, 5) ?? '09:00'
       const courts = Math.max(1, locationCourtCount ?? 1)
 
-      const updates = buildAutoSchedule(newMatches, tournamentStartDate, startTime, courts, durationMinutes)
+      // Gather (court, time) cells already booked by OTHER divisions so we don't
+      // double-book a court — the scheduler skips any cell in here.
+      const { data: bookedRaw } = await createClient()
+        .from('tournament_matches')
+        .select('court_number, scheduled_time')
+        .eq('tournament_id', tournamentId)
+        .neq('division_id', division.id)
+        .eq('is_draft', false)
+        .not('court_number', 'is', null)
+        .not('scheduled_time', 'is', null)
+      const occupied = (bookedRaw ?? [])
+        .map(b => ({ court_number: b.court_number as number, start_ms: Date.parse(b.scheduled_time as string) }))
+        .filter(b => !Number.isNaN(b.start_ms))
+
+      const updates = buildAutoSchedule(newMatches, tournamentStartDate, startTime, courts, durationMinutes, occupied)
       await fetch(`/api/tournaments/${tournamentId}/schedule`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
