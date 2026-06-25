@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNode } from 'react'
 import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
+
+// useLayoutEffect warns during SSR; fall back to useEffect on the server.
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 type Match = {
   id: string
@@ -363,6 +366,45 @@ function BracketColumn({
   )
 }
 
+// Scales its children DOWN (never up) so the whole bracket fits the available
+// width — a "zoom to fit" so a complete winners/losers bracket is visible at a
+// glance instead of scrolling sideways. A transform doesn't affect layout, so we
+// also pin the wrapper height to the scaled height to avoid leftover blank space.
+function FitToWidth({ children }: { children: ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [dims, setDims] = useState({ scale: 1, height: 0 })
+
+  useIsoLayoutEffect(() => {
+    const compute = () => {
+      const cont = containerRef.current, content = contentRef.current
+      if (!cont || !content) return
+      const avail = cont.clientWidth
+      const naturalW = content.scrollWidth
+      const scale = naturalW > avail && avail > 0 ? avail / naturalW : 1
+      const height = Math.ceil(content.scrollHeight * scale)
+      // Guard against re-render loops (setting height re-triggers the observer).
+      setDims(prev => (prev.scale === scale && prev.height === height) ? prev : { scale, height })
+    }
+    compute()
+    const ro = new ResizeObserver(compute)
+    if (containerRef.current) ro.observe(containerRef.current)
+    if (contentRef.current) ro.observe(contentRef.current)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="w-full overflow-hidden" style={{ height: dims.height || undefined }}>
+      <div
+        ref={contentRef}
+        style={{ transformOrigin: 'top left', transform: `scale(${dims.scale})`, width: 'max-content' }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function SingleBracket({
   matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, title, pointsToWin, showSeeds,
 }: {
@@ -391,8 +433,8 @@ function SingleBracket({
   return (
     <div className="space-y-2">
       {title && <p className="text-[10px] font-bold uppercase tracking-wide text-brand-muted">{title}</p>}
-      <div className="overflow-x-auto -mx-4 px-4 pb-2">
-        <div className="flex gap-3 min-w-max">
+      <FitToWidth>
+        <div className="flex gap-3 pb-2">
           {roundNums.map((rNum, rIdx) => (
             <BracketColumn
               key={rNum}
@@ -411,7 +453,7 @@ function SingleBracket({
             />
           ))}
         </div>
-      </div>
+      </FitToWidth>
     </div>
   )
 }
