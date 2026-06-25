@@ -12,6 +12,14 @@ export function teamLabel(regId: string | null, regs: OrgRegistration[]): string
   if (!regId) return 'BYE'
   const r = regs.find(x => x.id === regId)
   if (!r) return '—'
+  // Doubles: show both partners' first names (sorted) to match the bracket — not
+  // the stored team_name, which an import may set to anything (e.g. last names).
+  if (r.partner_registration_id) {
+    const partner = regs.find(x => x.id === r.partner_registration_id)
+    const a = firstName(r.player_name), b = firstName(partner?.player_name)
+    if (a && b) return [a, b].sort((m, n) => m.localeCompare(n)).join('/')
+    return a || b || r.team_name || regId.slice(0, 8)
+  }
   return r.team_name || firstName(r.player_name) || regId.slice(0, 8)
 }
 
