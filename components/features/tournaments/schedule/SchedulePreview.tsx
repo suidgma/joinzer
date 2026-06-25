@@ -25,12 +25,19 @@ function fmtClock(d: Date): string {
   })
 }
 
-/** "1:00 – 1:25 PM" — uses the stored end time, falling back to start + duration. */
+/** "1:00 – 1:25 PM" — uses the stored end time, falling back to start + duration.
+ *  Kept for the court-conflict warning, where the booked window is the point. */
 function fmtRange(iso: string | null, endIso: string | null, durationMin: number): string {
   if (!iso) return '—'
   const start = new Date(iso)
   const end = endIso ? new Date(endIso) : new Date(start.getTime() + durationMin * 60000)
   return `${fmtClock(start)} – ${fmtClock(end)}`
+}
+
+/** Start time only, e.g. "1:00 PM" — the schedule list omits end times. */
+function fmtStart(iso: string | null): string {
+  if (!iso) return '—'
+  return fmtClock(new Date(iso))
 }
 
 function fmtDate(iso: string | null): string {
@@ -230,7 +237,7 @@ export default function SchedulePreview({
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
         {show.includes('date') && <span className="w-20 shrink-0 whitespace-nowrap text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
-        {show.includes('time') && <span className="w-36 shrink-0 whitespace-nowrap text-brand-muted tabular-nums">{fmtRange(m.scheduled_time, m.scheduled_end_time, matchDurationMinutes)}</span>}
+        {show.includes('time') && <span className="w-20 shrink-0 whitespace-nowrap text-brand-muted tabular-nums">{fmtStart(m.scheduled_time)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {label(m.team_1_registration_id, m)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id, m)}
