@@ -81,7 +81,7 @@ describe('scheduleBlockMatches dependency floor', () => {
     }
   })
 
-  it('schedules the losers bracket after the winners bracket (cross-stage dependency)', () => {
+  it('schedules losers-bracket round 1 after winners-bracket round 1 finishes', () => {
     const wb = [1, 2, 3, 4].map(n => elim('D', 'winners_bracket', 1, n, true))
     const lb = [5, 6].map(n => elim('D', 'losers_bracket', 1, n, false))
 
@@ -91,6 +91,34 @@ describe('scheduleBlockMatches dependency floor', () => {
     for (const m of lb) {
       expect(startMin(m.scheduled_time)).toBeGreaterThanOrEqual(wbEnd)
     }
+  })
+
+  it('interleaves the losers bracket with the winners bracket (max court use)', () => {
+    // Full 8-team double elim. LB R1 (fed by WB R1 losers) must run in the same wave
+    // as WB R2 — NOT wait for the whole winners bracket — so the day doesn't stretch.
+    const wb1 = [1, 2, 3, 4].map(n => elim('D', 'winners_bracket', 1, n, true))
+    const wb2 = [5, 6].map(n => elim('D', 'winners_bracket', 2, n, false))
+    const wb3 = [elim('D', 'winners_bracket', 3, 7, false)]
+    const lb1 = [8, 9].map(n => elim('D', 'losers_bracket', 1, n, false))
+    const lb2 = [10, 11].map(n => elim('D', 'losers_bracket', 2, n, false))
+    const lb3 = [elim('D', 'losers_bracket', 3, 12, false)]
+    const lb4 = [elim('D', 'losers_bracket', 4, 13, false)]
+    const champ = [elim('D', 'championship', 1, 14, false)]
+    const all = [...wb1, ...wb2, ...wb3, ...lb1, ...lb2, ...lb3, ...lb4, ...champ]
+
+    scheduleBlockMatches(block, all, DEFAULT_SCHEDULE_SETTINGS)
+
+    const wb1End = Math.max(...wb1.map(endMin))
+    const lb1Start = Math.min(...lb1.map(m => startMin(m.scheduled_time)))
+    const wb3Start = startMin(wb3[0].scheduled_time)
+    const champStart = startMin(champ[0].scheduled_time)
+
+    // LB R1 waits for WB R1 (its real feeder) …
+    expect(lb1Start).toBeGreaterThanOrEqual(wb1End)
+    // … but runs BEFORE the winners-bracket final, i.e. alongside WB R2.
+    expect(lb1Start).toBeLessThan(wb3Start)
+    // Championship is still last (after the LB final).
+    expect(champStart).toBeGreaterThan(startMin(lb4[0].scheduled_time))
   })
 
   it('never double-books a court at the same start time', () => {

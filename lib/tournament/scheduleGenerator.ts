@@ -22,30 +22,12 @@ export type SchedulableMatch = {
   scheduled_end_time?: string | null
 }
 
-// Bracket dependency phases. A match can't start until every earlier-phase match
-// in its OWN division has finished: round N feeds round N+1, and in double elim
-// the losers bracket is fed by the winners bracket and the championship by both.
-// round_robin / pool play are a single phase (no inter-round dependency).
-const STAGE_PRIORITY: Record<string, number> = {
-  pool_play: 0, round_robin: 0,
-  single_elimination: 1, winners_bracket: 1,
-  losers_bracket: 2, playoffs: 3, consolation: 3, championship: 4,
-}
 // Single-phase stages have NO inter-round dependency: round N+1 doesn't consume
 // round N's results, so a player is only held back by the per-team rest gate, not
 // by the whole previous round finishing. Folding round_number into their phase —
 // the way elimination needs — would wrongly serialize the rounds, idling courts
 // while a nearly-finished round blocks the next. So these collapse to one phase.
 const SINGLE_PHASE_STAGES = new Set(['round_robin', 'pool_play'])
-// Monotonic key so, within a division, a lower (stage, round) always sorts and
-// schedules before a higher one — later-round "winner-of TBD" matches included.
-// Elimination folds in round_number so the per-division floor serializes its
-// rounds; single-phase stages share one phase (no floor between their rounds).
-function phaseOf(m: SchedulableMatch): number {
-  const stage = m.match_stage ?? ''
-  const base = (STAGE_PRIORITY[stage] ?? 1) * 1000
-  return SINGLE_PHASE_STAGES.has(stage) ? base : base + (m.round_number ?? 1)
-}
 
 export type BlockWindow = {
   block_date: string      // 'YYYY-MM-DD'
@@ -98,6 +80,36 @@ export function scheduleBlockMatches(
   // Per-division match counts drive "largest division first" ordering.
   const divCount = new Map<string, number>()
   for (const m of matches) divCount.set(m.division_id, (divCount.get(m.division_id) ?? 0) + 1)
+
+  // Deepest losers-bracket round per division — fixes where the championship sits
+  // in the dependency order (right after the LB final).
+  const maxLbRoundByDiv = new Map<string, number>()
+  for (const m of matches) {
+    if (m.match_stage !== 'losers_bracket') continue
+    const r = m.round_number ?? 1
+    if ((maxLbRoundByDiv.get(m.division_id) ?? 0) < r) maxLbRoundByDiv.set(m.division_id, r)
+  }
+
+  // Schedule by TRUE bracket-dependency depth (longest path from round 1), so the
+  // losers bracket interleaves with the winners bracket instead of waiting for all
+  // of it — LB R1 runs alongside WB R2, LB R2 alongside WB R3, and so on, which is
+  // what keeps the courts full and the day from stretching out. Within a division a
+  // lower depth always sorts and schedules before a higher one (later "winner-of
+  // TBD" matches included); single-phase stages collapse to one phase (no floor
+  // between their rounds).
+  //   WB / single-elim / playoffs round r → depth r-1   (round 1 is the first wave)
+  //   losers_bracket round r              → depth r       (LB R1 ‖ WB R2, …)
+  //   championship round r                → after the LB final
+  const phaseOf = (m: SchedulableMatch): number => {
+    const stage = m.match_stage ?? ''
+    if (SINGLE_PHASE_STAGES.has(stage)) return 0
+    const r = m.round_number ?? 1
+    let depth: number
+    if (stage === 'losers_bracket') depth = r
+    else if (stage === 'championship') depth = (maxLbRoundByDiv.get(m.division_id) ?? 0) + r
+    else depth = r - 1
+    return 1000 + depth
+  }
 
   // When courts can't be shared, give each division its own court subset
   // (round-robin split, largest divisions first). If there are more divisions
