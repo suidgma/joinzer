@@ -1,77 +1,14 @@
 'use client'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
 import { teamLabel } from './ScoreEntryModal'
+import { computeStandings as computeRows } from '@/lib/tournament/standings'
 
-type Row = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number; exitPhase: number; exitWon: boolean }
+type Row = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
 
-// Elimination placement: a team's finish is decided by how deep it got, not raw
-// wins (a double-elim champion can have fewer wins than a team that ran the
-// losers bracket). Rank stages so championship > losers bracket > winners
-// bracket; within a stage, a deeper round means a later exit.
-const STAGE_RANK: Record<string, number> = {
-  round_robin: 0, pool_play: 0,
-  single_elimination: 1, winners_bracket: 1,
-  losers_bracket: 2, playoffs: 3, consolation: 3, championship: 4,
-}
-const ELIM_STAGES = new Set(['single_elimination', 'winners_bracket', 'losers_bracket', 'championship'])
-const phaseOf = (m: OrgMatch) => (STAGE_RANK[m.match_stage] ?? 1) * 100 + (m.round_number ?? 1)
-
+// Shared computeStandings handles canonical folding + elimination ordering;
+// here we just attach each team's display label.
 function computeStandings(matches: OrgMatch[], regs: OrgRegistration[]): Row[] {
-  const active = regs.filter(r => r.status === 'registered')
-
-  // Doubles teams have two cross-linked registrations (one per player), but the
-  // bracket only references one of them per team. Fold each pair into a single
-  // canonical row so a team never appears twice (with partner names reversed and
-  // a 0-stat phantom twin), and credit both partners' reg IDs to the same row.
-  const canonicalId = new Map<string, string>()
-  const rowRegs: OrgRegistration[] = []
-  const seen = new Set<string>()
-  for (const r of active) {
-    if (seen.has(r.id)) continue
-    rowRegs.push(r)
-    seen.add(r.id)
-    canonicalId.set(r.id, r.id)
-    if (r.partner_registration_id) {
-      seen.add(r.partner_registration_id)
-      canonicalId.set(r.partner_registration_id, r.id)
-    }
-  }
-  const canon = (id: string) => canonicalId.get(id) ?? id
-
-  const map = new Map<string, Row>()
-  for (const r of rowRegs) {
-    map.set(r.id, { regId: r.id, name: teamLabel(r.id, regs), wins: 0, losses: 0, pf: 0, pa: 0, exitPhase: -1, exitWon: false })
-  }
-  for (const m of matches) {
-    if (m.status !== 'completed' || !m.team_1_registration_id || !m.team_2_registration_id) continue
-    const t1 = canon(m.team_1_registration_id), t2 = canon(m.team_2_registration_id)
-    const s1 = m.team_1_score ?? 0, s2 = m.team_2_score ?? 0
-    if (!map.has(t1)) map.set(t1, { regId: t1, name: teamLabel(t1, regs), wins: 0, losses: 0, pf: 0, pa: 0, exitPhase: -1, exitWon: false })
-    if (!map.has(t2)) map.set(t2, { regId: t2, name: teamLabel(t2, regs), wins: 0, losses: 0, pf: 0, pa: 0, exitPhase: -1, exitWon: false })
-    const r1 = map.get(t1)!, r2 = map.get(t2)!
-    const winner = m.winner_registration_id ? canon(m.winner_registration_id) : null
-    if (winner === t1) { r1.wins++; r2.losses++ }
-    else if (winner === t2) { r2.wins++; r1.losses++ }
-    r1.pf += s1; r1.pa += s2
-    r2.pf += s2; r2.pa += s1
-    // Track the deepest match each team reached and whether they won it — the
-    // winner of the deepest match (the final/championship) is the champion.
-    const ph = phaseOf(m)
-    if (ph > r1.exitPhase) { r1.exitPhase = ph; r1.exitWon = winner === t1 }
-    if (ph > r2.exitPhase) { r2.exitPhase = ph; r2.exitWon = winner === t2 }
-  }
-  const isElim = matches.some(m => ELIM_STAGES.has(m.match_stage))
-  return Array.from(map.values()).sort((a, b) => {
-    // Elimination: order by bracket finish (champion first), then fall back to
-    // record. Round robin / pool: pure win-loss, then point differential.
-    if (isElim) {
-      if (b.exitPhase !== a.exitPhase) return b.exitPhase - a.exitPhase
-      if (a.exitWon !== b.exitWon) return a.exitWon ? -1 : 1
-    }
-    const wd = b.wins - a.wins
-    if (wd !== 0) return wd
-    return (b.pf - b.pa) - (a.pf - a.pa)
-  })
+  return computeRows(matches, regs).map(r => ({ ...r, name: teamLabel(r.regId, regs) }))
 }
 
 type Props = {
