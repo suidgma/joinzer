@@ -327,12 +327,12 @@ function BracketMatchCard({
 }
 
 function BracketColumn({
-  roundNum, matches, totalRounds, rIdx, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
+  roundNum, matches, totalRounds, span, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
 }: {
   roundNum: number
   matches: Match[]
   totalRounds: number
-  rIdx: number
+  span: number
   regs: Registration[]
   isOrganizer: boolean
   isDoubles: boolean
@@ -342,9 +342,13 @@ function BracketColumn({
   pointsToWin?: number
   showSeeds?: boolean
 }) {
-  // spacing between cards doubles each round: 0, CARD_H, 3*CARD_H, 7*CARD_H...
-  const gap = (Math.pow(2, rIdx) - 1) * CARD_H
-  // top offset to vertically center: half the gap
+  // `span` is how many first-round cards this round's card vertically spans
+  // (firstRoundCount / thisRoundCount). For a standard halving bracket that's
+  // 2^roundIndex; for the losers bracket — whose drop-in rounds keep the same card
+  // count instead of halving — it grows only on the rounds that actually halve, so
+  // the LB no longer stretches itself out vertically. gap between cards + the
+  // top offset that vertically centers each card between the two it descends from.
+  const gap = Math.max(0, span - 1) * CARD_H
   const topPad = gap / 2
 
   const stage = matches[0]?.match_stage ?? ''
@@ -429,19 +433,22 @@ function SingleBracket({
   }
   const roundNums = Array.from(roundMap.keys()).sort((a, b) => a - b)
   const totalRounds = roundNums.length
+  // Card count per round, used to size vertical spacing by the real bracket shape
+  // (so non-halving losers-bracket rounds don't get over-spaced).
+  const firstRoundCount = (roundMap.get(roundNums[0]) ?? []).length || 1
 
   return (
     <div className="space-y-2">
       {title && <p className="text-[10px] font-bold uppercase tracking-wide text-brand-muted">{title}</p>}
       <FitToWidth>
         <div className="flex gap-3 pb-2">
-          {roundNums.map((rNum, rIdx) => (
+          {roundNums.map(rNum => (
             <BracketColumn
               key={rNum}
               roundNum={rNum}
               matches={(roundMap.get(rNum) ?? []).sort((a, b) => a.match_number - b.match_number)}
               totalRounds={totalRounds}
-              rIdx={rIdx}
+              span={firstRoundCount / ((roundMap.get(rNum) ?? []).length || 1)}
               regs={regs}
               isOrganizer={isOrganizer}
               isDoubles={isDoubles}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { computeAdvancement, type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { type MatchRow } from '@/lib/tournament/bracketBuilder'
+import { resolveCompletion } from '@/lib/tournament/resolveCompletion'
 import { logAudit } from '@/lib/audit/log'
 import { createNotifications } from '@/lib/notifications/create'
 
@@ -130,7 +131,9 @@ export async function POST(
     )
   }
 
-  // Advance winner to next bracket slot if applicable
+  // Advance via the shared resolver — same engine as the bracket PATCH route, so
+  // single-elim, double-elim (LB drops, championship, bracket reset), and induced
+  // BYEs all resolve identically no matter which surface entered the score.
   const { data: divisionMatches } = await service
     .from('tournament_matches')
     .select('id, round_number, match_number, match_stage, team_1_registration_id, team_2_registration_id, winner_registration_id, status')
@@ -138,15 +141,35 @@ export async function POST(
 
   if (divisionMatches) {
     const completedMatch: MatchRow = { ...match, winner_registration_id, status: 'completed' }
-    const advancement = computeAdvancement(completedMatch, divisionMatches as MatchRow[])
-    if (advancement) {
-      // Only fill the slot if still empty — guards against a concurrent write
-      // or re-score double-filling the next-round slot.
-      await service
-        .from('tournament_matches')
-        .update({ [advancement.field]: advancement.value })
-        .eq('id', advancement.matchId)
-        .is(advancement.field, null)
+    for (const mut of resolveCompletion(completedMatch, divisionMatches as MatchRow[])) {
+      if (mut.kind === 'set') {
+        // Only fill an empty slot — guards a concurrent write / re-score.
+        await service
+          .from('tournament_matches')
+          .update({ [mut.field]: mut.value })
+          .eq('id', mut.matchId)
+          .is(mut.field, null)
+      } else if (mut.kind === 'complete') {
+        await service
+          .from('tournament_matches')
+          .update({ winner_registration_id: mut.winner, status: 'completed' })
+          .eq('id', mut.matchId)
+          .neq('status', 'completed')
+      } else {
+        const m = mut.match
+        await service
+          .from('tournament_matches')
+          .insert({
+            tournament_id: match.tournament_id,
+            division_id: match.division_id,
+            match_stage: m.match_stage,
+            round_number: m.round_number,
+            match_number: m.match_number,
+            team_1_registration_id: m.team_1_registration_id,
+            team_2_registration_id: m.team_2_registration_id,
+            status: 'scheduled',
+          })
+      }
     }
   }
 
