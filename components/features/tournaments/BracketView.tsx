@@ -425,41 +425,62 @@ function SingleBracket({
 function RoundRobinList({
   matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
 }: Omit<Props, 'listLayout'>) {
-  const roundMap = new Map<number, Match[]>()
-  for (const m of matches) {
-    const r = m.round_number ?? 1
-    if (!roundMap.has(r)) roundMap.set(r, [])
-    roundMap.get(r)!.push(m)
-  }
-  const roundNums = Array.from(roundMap.keys()).sort((a, b) => a - b)
-
-  return (
-    <div className="space-y-4">
-      {roundNums.map(rNum => (
-        <div key={rNum}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-brand-muted mb-2">Round {rNum}</p>
-          <div className="flex flex-wrap gap-2">
-            {(roundMap.get(rNum) ?? [])
-              .sort((a, b) => a.match_number - b.match_number)
-              .map(m => (
-                <BracketMatchCard
-                  key={m.id}
-                  match={m}
-                  regs={regs}
-                  isOrganizer={isOrganizer}
-                  isDoubles={isDoubles}
-                  tournamentId={tournamentId}
-                  divisionId={divisionId}
-                  onScoreUpdate={onScoreUpdate}
-                  pointsToWin={pointsToWin}
-                  showSeeds={showSeeds}
-                />
-              ))}
-          </div>
-        </div>
-      ))}
-    </div>
+  const card = (m: Match) => (
+    <BracketMatchCard
+      key={m.id} match={m} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+      tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+      pointsToWin={pointsToWin} showSeeds={showSeeds}
+    />
   )
+
+  // Group a set of matches by round, sorted.
+  const byRound = (ms: Match[]) => {
+    const roundMap = new Map<number, Match[]>()
+    for (const m of ms) {
+      const r = m.round_number ?? 1
+      if (!roundMap.has(r)) roundMap.set(r, [])
+      roundMap.get(r)!.push(m)
+    }
+    return Array.from(roundMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([rNum, rMs]) => ({ rNum, matches: rMs.sort((a, b) => a.match_number - b.match_number) }))
+  }
+
+  const roundGroups = (ms: Match[], roundClass = 'text-brand-muted') =>
+    byRound(ms).map(({ rNum, matches: rMs }) => (
+      <div key={rNum}>
+        <p className={`text-[10px] font-bold uppercase tracking-widest ${roundClass} mb-2`}>Round {rNum}</p>
+        <div className="flex flex-wrap gap-2">{rMs.map(card)}</div>
+      </div>
+    ))
+
+  // Pool play: split out pool matches (which carry pool_number) and group them by
+  // pool so it's clear who's in Pool 1 vs Pool 2. Any non-pool matches (the playoff
+  // bracket) render under their own heading. Plain round robin has no pools and
+  // falls through to the simple round grouping.
+  const poolMatches = matches.filter(m => m.pool_number != null)
+  if (poolMatches.length > 0) {
+    const pools = Array.from(new Set(poolMatches.map(m => m.pool_number as number))).sort((a, b) => a - b)
+    const playoffMatches = matches.filter(m => m.pool_number == null)
+    return (
+      <div className="space-y-5">
+        {pools.map(pNum => (
+          <div key={`pool-${pNum}`} className="space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-brand-dark border-b border-brand-border/60 pb-1">Pool {pNum}</p>
+            {roundGroups(poolMatches.filter(m => m.pool_number === pNum))}
+          </div>
+        ))}
+        {playoffMatches.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-brand-dark border-b border-brand-border/60 pb-1">Playoffs</p>
+            {roundGroups(playoffMatches)}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return <div className="space-y-4">{roundGroups(matches)}</div>
 }
 
 export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin, showSeeds }: Props) {
