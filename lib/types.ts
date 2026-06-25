@@ -71,9 +71,9 @@ export type ScheduleSettings = {
 }
 
 export const DEFAULT_SCHEDULE_SETTINGS: ScheduleSettings = {
-  match_duration_minutes: 25,
-  buffer_minutes: 5,
-  min_rest_minutes: 10,
+  match_duration_minutes: 20,
+  buffer_minutes: 0,
+  min_rest_minutes: 0,
   conflict_policy: 'warning',
   keep_divisions_grouped: true,
   allow_division_overlap: true,
