@@ -16,12 +16,10 @@ function fmtClock(d: Date): string {
   })
 }
 
-/** "1:00 – 2:00 AM" when an end time exists, else just the start "1:00 AM". */
-function fmtTimeRange(iso: string | null, endIso?: string | null): string {
+/** Start time only, e.g. "1:00 AM" — the schedule list omits end times. */
+function fmtStartTime(iso: string | null): string {
   if (!iso) return '—'
-  const start = new Date(iso)
-  if (!endIso) return fmtClock(start)
-  return `${fmtClock(start)} – ${fmtClock(new Date(endIso))}`
+  return fmtClock(new Date(iso))
 }
 
 function fmtDate(iso: string | null): string {
@@ -90,7 +88,7 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
         {show.includes('date') && <span className="w-20 shrink-0 text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
-        {show.includes('time') && <span className="w-28 shrink-0 text-brand-muted tabular-nums">{fmtTimeRange(m.scheduled_time, m.scheduled_end_time)}</span>}
+        {show.includes('time') && <span className="w-20 shrink-0 text-brand-muted tabular-nums">{fmtStartTime(m.scheduled_time)}</span>}
         {showCourt && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {t1} <span className="text-brand-muted">vs</span> {t2}
