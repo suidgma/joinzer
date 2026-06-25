@@ -91,7 +91,10 @@ function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
   return Array.from(map.values()).sort((a, b) => {
     const wd = b.wins - a.wins
     if (wd !== 0) return wd
-    return (b.pf - b.pa) - (a.pf - a.pa)
+    const dd = (b.pf - b.pa) - (a.pf - a.pa)
+    if (dd !== 0) return dd
+    // Tied (e.g. everyone 0–0 pre-play): alphabetical by name, not insertion order.
+    return a.name.localeCompare(b.name)
   })
 }
 

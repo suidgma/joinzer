@@ -40,6 +40,9 @@ const phaseOf = (m: StandingsMatchInput) => (STAGE_RANK[m.match_stage] ?? 1) * 1
 export function computeStandings(
   matches: StandingsMatchInput[],
   regs: StandingsRegInput[],
+  // Optional display-name resolver, used only as the final tiebreaker so equal
+  // rows sort alphabetically (and the pre-play 0–0 state isn't seed/insertion order).
+  nameOf?: (regId: string) => string,
 ): StandingsRow[] {
   const active = regs.filter(r => r.status === 'registered')
 
@@ -96,7 +99,11 @@ export function computeStandings(
       }
       const wd = b.wins - a.wins
       if (wd !== 0) return wd
-      return (b.pf - b.pa) - (a.pf - a.pa)
+      const dd = (b.pf - b.pa) - (a.pf - a.pa)
+      if (dd !== 0) return dd
+      // Still tied (notably everyone at 0–0 before any match): order alphabetically
+      // by display name rather than leaving it at seed/insertion order.
+      return nameOf ? nameOf(a.regId).localeCompare(nameOf(b.regId)) : 0
     })
     .map(({ regId, wins, losses, pf, pa }) => ({ regId, wins, losses, pf, pa }))
 }
