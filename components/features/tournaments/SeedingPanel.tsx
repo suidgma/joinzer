@@ -273,7 +273,7 @@ export default function SeedingPanel({
   const [scheduleSaving, setScheduleSaving] = useState(false)
   const [scheduleError, setScheduleError] = useState<string | null>(null)
   const [scheduleSaved, setScheduleSaved] = useState(false)
-  const [roundDuration, setRoundDuration] = useState(60)
+  const [roundDuration, setRoundDuration] = useState(20)
 
   // Reset schedule edits when matches change (e.g. after generation)
   const matchIdsKey = (matches ?? []).map(m => m.id).sort().join(',')
@@ -690,6 +690,10 @@ export default function SeedingPanel({
               onChange={e => setRoundDuration(Number(e.target.value))}
               className="input text-xs py-0.5 px-2 flex-1"
             >
+              <option value={15}>15 min</option>
+              <option value={20}>20 min</option>
+              <option value={30}>30 min</option>
+              <option value={45}>45 min</option>
               <option value={60}>1 hour</option>
               <option value={90}>1.5 hours</option>
               <option value={120}>2 hours</option>
