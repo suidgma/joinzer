@@ -1048,7 +1048,7 @@ export default function LiveSessionManager({
                 const isLast = idx === arr.length - 1
                 return (
                   <div key={p.id}>
-                    <div className={`grid grid-cols-[1fr_repeat(6,36px)] items-center px-2 py-2 gap-x-1 border-b border-brand-border ${ROW_BG[p.actual_status]}`}>
+                    <div className={`grid grid-cols-[1fr_repeat(6,36px)] items-center px-2 py-1 gap-x-1 border-b border-brand-border ${ROW_BG[p.actual_status]}`}>
                       <div className="min-w-0 pr-1 space-y-0.5">
                         <p className="text-xs font-medium text-brand-dark truncate">{p.display_name}</p>
                         {selfStatus && SELF_STATUS_BADGE[selfStatus] && (
@@ -1058,17 +1058,19 @@ export default function LiveSessionManager({
                           <p className="text-[9px] text-green-700 font-medium leading-none truncate">✓ {assignedSub.display_name}</p>
                         )}
                       </div>
+                      {/* The whole 44px-tall cell is the tap target (not just the dot) so
+                          marking attendance for a full roster on a phone isn't fiddly. */}
                       {ROSTER_STATUSES.map(s => (
-                        <div key={s.key} className="flex justify-center">
+                        <label key={s.key} className="flex items-center justify-center min-h-[44px] cursor-pointer">
                           <input
                             type="radio"
                             name={`status-${p.id}`}
                             checked={p.actual_status === s.key}
                             onChange={() => handleStatusChange(p.id, s.key)}
                             disabled={loading || generating}
-                            className="w-3.5 h-3.5 accent-brand-dark cursor-pointer disabled:opacity-50"
+                            className="w-5 h-5 accent-brand-dark cursor-pointer disabled:opacity-50"
                           />
-                        </div>
+                        </label>
                       ))}
                     </div>
                     {p.actual_status === 'has_sub' && (
@@ -1123,7 +1125,7 @@ export default function LiveSessionManager({
                 const subForName = absentNameById.get(p.id)
                 const isLast = idx === subPlayers.length - 1
                 return (
-                  <div key={p.id} className={`grid grid-cols-[1fr_repeat(5,36px)] items-center px-2 py-2 gap-x-1 ${!isLast ? 'border-b border-brand-border' : ''} ${ROW_BG[p.actual_status]}`}>
+                  <div key={p.id} className={`grid grid-cols-[1fr_repeat(5,36px)] items-center px-2 py-1 gap-x-1 ${!isLast ? 'border-b border-brand-border' : ''} ${ROW_BG[p.actual_status]}`}>
                     <div className="min-w-0 pr-1 space-y-0.5">
                       <div className="flex items-center gap-1 min-w-0">
                         <p className="text-xs font-medium text-brand-dark truncate">{p.display_name}</p>
@@ -1136,17 +1138,18 @@ export default function LiveSessionManager({
                         <p className="text-[9px] text-brand-muted leading-none">{SELF_STATUS_BADGE[selfStatus]}</p>
                       )}
                     </div>
+                    {/* Full-cell 44px tap target — see roster grid above. */}
                     {SUB_STATUSES.map(s => (
-                      <div key={s.key} className="flex justify-center">
+                      <label key={s.key} className="flex items-center justify-center min-h-[44px] cursor-pointer">
                         <input
                           type="radio"
                           name={`status-${p.id}`}
                           checked={p.actual_status === s.key}
                           onChange={() => handleStatusChange(p.id, s.key)}
                           disabled={loading || generating}
-                          className="w-3.5 h-3.5 accent-brand-dark cursor-pointer disabled:opacity-50"
+                          className="w-5 h-5 accent-brand-dark cursor-pointer disabled:opacity-50"
                         />
-                      </div>
+                      </label>
                     ))}
                   </div>
                 )

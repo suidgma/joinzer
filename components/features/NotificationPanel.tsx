@@ -125,8 +125,10 @@ export default function NotificationPanel({ onClose, onMarkAllRead }: Props) {
       {/* Backdrop — closes panel on outside click */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
-      {/* Panel */}
-      <div className="fixed top-14 right-0 left-0 md:left-auto md:right-4 md:w-80 bg-brand-surface border border-brand-border shadow-xl z-50 md:rounded-xl overflow-hidden flex flex-col max-h-[calc(100vh-3.5rem)]">
+      {/* Panel — on mobile it spans from under the header to just above the bottom
+          nav (so a long list never hides behind the nav); on md+ it's a top-right
+          dropdown. */}
+      <div className="fixed top-14 right-0 left-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] md:left-auto md:right-4 md:w-80 md:bottom-auto md:max-h-[calc(100vh-5rem)] bg-brand-surface border border-brand-border shadow-xl z-50 md:rounded-xl overflow-hidden flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-brand-border shrink-0">
@@ -170,11 +172,12 @@ export default function NotificationPanel({ onClose, onMarkAllRead }: Props) {
             ))
           )}
         </div>
-      </div>
 
-      {/* Push toggle footer */}
-      <div className="px-4 py-2.5 border-t border-brand-border flex justify-center shrink-0">
-        <PushSubscribeButton compact />
+        {/* Push toggle footer — kept inside the panel's flex column so it pins to the
+            panel bottom instead of detaching into page flow on mobile. */}
+        <div className="px-4 py-2.5 border-t border-brand-border flex justify-center shrink-0">
+          <PushSubscribeButton compact />
+        </div>
       </div>
     </>
   )

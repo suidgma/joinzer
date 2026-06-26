@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, Manrope } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
@@ -28,6 +28,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Joinzer',
   },
+}
+
+// viewport-fit=cover lets the fixed bottom nav pad itself past the iOS home
+// indicator via env(safe-area-inset-bottom); themeColor matches the brand header.
+export const viewport: Viewport = {
+  themeColor: '#012D0B',
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

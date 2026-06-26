@@ -97,7 +97,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
             <button
               key={g}
               onClick={() => toggleGender(g)}
-              className={`px-4 py-1 rounded-full text-xs font-medium border transition-colors ${
+              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 genderFilter === g
                   ? 'bg-brand text-brand-dark border-brand'
                   : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
@@ -120,7 +120,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
             <button
               key={tier.label}
               onClick={() => toggleTier(tier.label)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 active
                   ? 'bg-brand text-brand-dark border-brand'
                   : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
@@ -133,7 +133,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
         {(activeLabels.size > 0 || genderFilter) && (
           <button
             onClick={() => { setActiveLabels(new Set()); setGenderFilter(null) }}
-            className="px-3 py-1 rounded-full text-xs font-medium border border-brand-border text-brand-muted hover:border-brand-active transition-colors"
+            className="px-3 py-1.5 rounded-full text-xs font-medium border border-brand-border text-brand-muted hover:border-brand-active transition-colors"
           >
             Clear all
           </button>
@@ -147,7 +147,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
             : 'No players match these filters.'}
         </p>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {filtered.map((player) => {
             const displayName = player.display_name ?? player.name
             const firstName = displayName.split(' ')[0]
@@ -182,7 +182,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-medium text-brand-dark text-center leading-tight">{displayName}</p>
+                <p className="w-full px-1 text-sm font-medium text-brand-dark text-center leading-tight line-clamp-1">{displayName}</p>
                 <RatingBadge
                   ratingSource={player.rating_source}
                   duprRating={player.dupr_rating}

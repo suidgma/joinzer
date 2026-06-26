@@ -99,10 +99,12 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
           <span className="shrink-0 text-xs font-bold text-brand-dark tabular-nums">{m.team_1_score}–{m.team_2_score}</span>
         )}
         <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${badgeClass}`}>{statusLabel}</span>
+        {/* Edit / reschedule are tapped during live play — give each a real hit box
+            (not a bare text link / 13px icon) so organizers don't mis-tap on a phone. */}
         {!playerView && m.status === 'completed' && (
           <button
             onClick={() => setScoringMatch(m)}
-            className="shrink-0 text-[10px] font-medium text-brand-active hover:underline"
+            className="shrink-0 text-[10px] font-medium text-brand-active hover:underline px-2 py-1.5 -mr-1"
             title="Edit score"
           >
             Edit
@@ -111,10 +113,10 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
         {canReschedule && (
           <button
             onClick={() => setReschedulingMatch(m)}
-            className="shrink-0 p-1 text-brand-muted hover:text-brand-dark transition-colors"
+            className="shrink-0 p-2 text-brand-muted hover:text-brand-dark transition-colors"
             title="Reschedule"
           >
-            <Clock size={13} />
+            <Clock size={16} />
           </button>
         )}
       </div>

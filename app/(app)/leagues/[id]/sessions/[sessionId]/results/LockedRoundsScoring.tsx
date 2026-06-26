@@ -239,7 +239,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
                       <button
                         type="button"
                         onClick={() => setWinner(m.roundMatchId, '1')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${t1Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+                        className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors ${t1Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
                       >
                         T1 Won
                       </button>
@@ -258,7 +258,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
                       <button
                         type="button"
                         onClick={() => setWinner(m.roundMatchId, '2')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${t2Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+                        className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors ${t2Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
                       >
                         T2 Won
                       </button>

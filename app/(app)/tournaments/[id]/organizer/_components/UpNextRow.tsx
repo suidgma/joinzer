@@ -44,7 +44,7 @@ export default function UpNextRow({ match, registrations, tournamentId, onMarked
       </div>
       <button
         onClick={handleMarkReady}
-        className="shrink-0 text-[11px] font-semibold px-3 py-2 rounded-lg bg-brand-soft text-brand-active hover:bg-brand border border-brand-border transition-colors"
+        className="shrink-0 min-h-[40px] text-[11px] font-semibold px-3.5 py-2.5 rounded-lg bg-brand-soft text-brand-active hover:bg-brand border border-brand-border transition-colors"
       >
         Mark Ready
       </button>
