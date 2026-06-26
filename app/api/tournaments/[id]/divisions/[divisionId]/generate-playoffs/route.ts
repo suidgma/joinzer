@@ -82,14 +82,19 @@ export async function POST(
     return NextResponse.json({ error: `Finish all ${isRoundRobin ? 'round-robin' : 'pool'} matches before generating playoffs` }, { status: 409 })
   }
 
-  // Settled registrations — the only teams eligible for the playoff.
+  // Settled registrations — the only teams eligible for the playoff. `seed` is the
+  // organizer's original seed, used as the final cross-pool seeding tiebreak.
   const { data: regsRaw } = await service
     .from('tournament_registrations')
-    .select('id, user_id, status, partner_registration_id')
+    .select('id, user_id, status, partner_registration_id, seed')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
     .in('payment_status', ['paid', 'waived', 'comped'])
   const regsList = (regsRaw ?? []) as any[]
+  const seedByReg = new Map<string, number>(
+    regsList.filter(r => r.seed != null).map(r => [r.id, r.seed as number]),
+  )
+  const seedOf = (regId: string) => seedByReg.get(regId) ?? Infinity
 
   // Names for the standings tiebreak (so equal records resolve deterministically).
   const userIds = Array.from(new Set(regsList.map(r => r.user_id).filter(Boolean)))
@@ -117,7 +122,7 @@ export async function POST(
     // pool_play_playoffs — top `teams_advance_per_pool` from each pool, cross-seeded.
     const advancePerPool = [1, 2, 3, 4].includes(fs.teams_advance_per_pool as number) ? (fs.teams_advance_per_pool as number) : 2
     const format = fs.playoff_format === 'double_elimination' ? 'double_elimination' : 'single_elimination'
-    const seeds = poolPlayoffSeeds(baseMatches as PoolMatchInput[], regsList as StandingsRegInput[], advancePerPool, nameOf)
+    const seeds = poolPlayoffSeeds(baseMatches as PoolMatchInput[], regsList as StandingsRegInput[], advancePerPool, nameOf, seedOf)
     if (seeds.length < 2) return NextResponse.json({ error: 'Need at least 2 qualifiers to run a playoff' }, { status: 400 })
     rows = format === 'double_elimination'
       ? doubleEliminationBracket(seeds, base, maxMatchNum + 1, true) as Record<string, unknown>[]

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { poolPlayoffSeeds, type PoolMatchInput } from '../poolPlayoffSeeding'
+import { poolPlayoffSeeds, poolStandings, type PoolMatchInput } from '../poolPlayoffSeeding'
 import { singleEliminationBracket, type MatchRow } from '../bracketBuilder'
 import type { StandingsRegInput } from '../standings'
 
@@ -47,5 +47,35 @@ describe('poolPlayoffSeeds', () => {
       const p2 = POOL[m.team_2_registration_id as keyof typeof POOL]
       expect(p1).not.toBe(p2)
     }
+  })
+})
+
+describe('poolPlayoffSeeds — cross-pool tiebreaks', () => {
+  const regs2: StandingsRegInput[] = ['G', 'H', 'I', 'J'].map(id => ({ id, status: 'registered', partner_registration_id: null }))
+
+  it('seeds the stronger pool\'s winner first (better point differential)', () => {
+    const matches = [pm(1, 'G', 'H', 11, 9), pm(2, 'I', 'J', 11, 2)] // G +2, I +9
+    expect(poolPlayoffSeeds(matches, regs2, 1)).toEqual(['I', 'G'])
+  })
+
+  it('breaks an exact tie between pool winners by original seed', () => {
+    const matches = [pm(1, 'G', 'H', 11, 5), pm(2, 'I', 'J', 11, 5)] // both winners 1-0 +6
+    const seedOf = (id: string) => ({ I: 1, G: 3 } as Record<string, number>)[id] ?? Infinity
+    // I has the better (lower) original seed → seeds first.
+    expect(poolPlayoffSeeds(matches, regs2, 1, undefined, seedOf)).toEqual(['I', 'G'])
+    // With no seed resolver and an exact tie, the original pool order (Pool 1) holds.
+    expect(poolPlayoffSeeds(matches, regs2, 1)).toEqual(['G', 'I'])
+  })
+})
+
+describe('poolStandings', () => {
+  it('returns one ranked table per pool, in pool-number order', () => {
+    const pools = poolStandings(poolMatches, regs)
+    expect(pools.map(p => p.pool)).toEqual([1, 2])
+    expect(pools[0].rows.map(r => r.regId)).toEqual(['A', 'B', 'C']) // Pool 1 ranked
+    expect(pools[1].rows.map(r => r.regId)).toEqual(['D', 'E', 'F']) // Pool 2 ranked
+    // No phantom cross-pool rows.
+    expect(pools[0].rows.every(r => POOL[r.regId as keyof typeof POOL] === 1)).toBe(true)
+    expect(pools[1].rows.every(r => POOL[r.regId as keyof typeof POOL] === 2)).toBe(true)
   })
 })
