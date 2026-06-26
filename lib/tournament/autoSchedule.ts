@@ -25,36 +25,44 @@ export type CourtAssignment = {
 // A booked match occupies [start_ms, start_ms + duration) on its court.
 export type OccupiedSlot = { court_number: number; start_ms: number }
 
-// In a double-elimination bracket (and the round-robin "double-elim final" playoff)
-// round_number resets per stage, so grouping by round alone puts the Championship
-// (round 1) at the same slot as the first-round matches — even though it can't start
-// until the WB Final and LB Final finish. This maps each match to a dependency LEVEL:
-// the length of the longest chain of feeder matches that must complete before it can
-// be played. Later stages float to later slots. Single-stage brackets (round robin,
-// pool play, single elimination) have no cross-stage dependency, so they fall back to
-// round_number and schedule exactly as before.
+// Base play (round robin, pools) whose results seed a playoff — these run first.
+const BASE_STAGES = new Set(['round_robin', 'pool_play'])
+
+// Maps each match to a dependency LEVEL — the length of the longest chain of feeder
+// matches that must finish before it can be played — so the scheduler groups by real
+// dependency rather than raw round_number (which resets per stage). Two reasons this
+// matters: (1) in a double-elim bracket the Championship (round 1) can't share a slot
+// with the first round; (2) when a "+ playoffs" division's base play AND its playoff
+// bracket are scheduled together, the whole playoff bracket must float AFTER all base
+// play, not interleave with it. Base stages take levels 1..baseMax by round; playoff
+// stages take baseMax + their internal bracket level. Single-stage brackets with no
+// base fall back to round_number and schedule exactly as before.
 function computeBracketLevels(matches: AutoScheduleMatch[]): Map<string, number> {
-  const stages = new Set(matches.map(m => m.match_stage).filter(Boolean) as string[])
-  const hasLB = stages.has('losers_bracket')
-  const hasChamp = stages.has('championship')
   const levels = new Map<string, number>()
 
-  // No cross-stage dependencies → round_number ordering is already correct.
-  if (!hasLB && !hasChamp) {
-    for (const m of matches) levels.set(m.id, m.round_number ?? 1)
-    return levels
+  // Base play occupies levels 1..baseMax by round number.
+  let baseMax = 0
+  for (const m of matches) {
+    if (m.match_stage && BASE_STAGES.has(m.match_stage)) {
+      const r = m.round_number ?? 1
+      levels.set(m.id, r)
+      if (r > baseMax) baseMax = r
+    }
   }
 
-  const primaryStage = stages.has('winners_bracket') ? 'winners_bracket'
-    : stages.has('single_elimination') ? 'single_elimination'
-    : stages.has('playoffs') ? 'playoffs'
+  // Playoff / elimination stages: bracket-dependency level, floored after base play.
+  const playoff = matches.filter(m => m.match_stage && !BASE_STAGES.has(m.match_stage))
+  const pStages = new Set(playoff.map(m => m.match_stage as string))
+  const hasLB = pStages.has('losers_bracket')
+  const primaryStage = pStages.has('winners_bracket') ? 'winners_bracket'
+    : pStages.has('single_elimination') ? 'single_elimination'
+    : pStages.has('playoffs') ? 'playoffs'
     : null
   const maxRoundOf = (stage: string) =>
-    matches.reduce((mx, m) => (m.match_stage === stage ? Math.max(mx, m.round_number ?? 1) : mx), 0)
+    playoff.reduce((mx, m) => (m.match_stage === stage ? Math.max(mx, m.round_number ?? 1) : mx), 0)
   const W = primaryStage ? maxRoundOf(primaryStage) : 0
   const L = maxRoundOf('losers_bracket')
 
-  // Winners/primary round r is played at level r.
   // Losers-bracket round r: minor rounds (r === 1 and even r) take the loser dropping
   // from WB round r/2+1 and so wait for both that WB round and the prior LB round;
   // major rounds (odd ≥ 3) wait only for the prior LB round.
@@ -70,16 +78,20 @@ function computeBracketLevels(matches: AutoScheduleMatch[]): Map<string, number>
     lbMemo.set(r, lvl)
     return lvl
   }
-
-  // The Championship follows the last WB round and (if any) the last LB round.
+  // The Championship follows the last WB/primary round and (if any) the last LB round.
   const champBase = Math.max(W, hasLB ? lbLevel(L) : 0) + 1
 
-  for (const m of matches) {
+  for (const m of playoff) {
     const r = m.round_number ?? 1
-    if (m.match_stage === 'championship') levels.set(m.id, champBase + (r - 1))
-    else if (m.match_stage === 'losers_bracket') levels.set(m.id, lbLevel(r))
-    else levels.set(m.id, r)
+    let dep: number
+    if (m.match_stage === 'championship') dep = champBase + (r - 1)
+    else if (m.match_stage === 'losers_bracket') dep = lbLevel(r)
+    else dep = r // primary: winners_bracket / single_elimination / playoffs
+    levels.set(m.id, baseMax + dep)
   }
+
+  // Anything without a recognized stage falls back to round_number.
+  for (const m of matches) if (!levels.has(m.id)) levels.set(m.id, m.round_number ?? 1)
   return levels
 }
 

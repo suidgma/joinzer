@@ -267,6 +267,7 @@ export function phantomMatchIds(matches: MatchRow[]): Set<string> {
   for (const m of matches) {
     if (!PHANTOM_STAGES.has(m.match_stage)) continue
     if (m.team_1_registration_id || m.team_2_registration_id) continue // has a team — real
+    if (m.team_1_source != null || m.team_2_source != null) continue   // placeholder slot — real
     if (m.status === 'completed') { out.add(m.id); continue }          // empty completed = bye slot
     const round = m.round_number ?? 1
     const idx = groups.get(`${m.match_stage}#${round}`)?.indexOf(m) ?? -1

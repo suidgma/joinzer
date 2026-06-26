@@ -12,7 +12,7 @@ import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import { formatSummaryLines } from './FormatSettingsFields'
 import { computeStandings, type StandingsRow } from '@/lib/tournament/standings'
 import { poolStandings, type PoolMatchInput } from '@/lib/tournament/poolPlayoffSeeding'
-import { buildAutoSchedule, nextStageStart } from '@/lib/tournament/autoSchedule'
+import { buildAutoSchedule } from '@/lib/tournament/autoSchedule'
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
@@ -76,6 +76,8 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  team_1_source?: { label?: string } | null
+  team_2_source?: { label?: string } | null
 }
 
 type Division = {
@@ -160,11 +162,10 @@ export default function DivisionManageView({
   const hasMatches = matches.length > 0
   const active = registrations.filter(r => r.status !== 'cancelled')
 
-  // Optional playoff stage for round-robin AND pool-play divisions: generated once
-  // the base play (round robin, or the pools) is fully scored, and only once.
-  const hasPlayoffMatches = matches.some(m =>
-    ['playoffs', 'single_elimination', 'winners_bracket', 'losers_bracket', 'championship'].includes(m.match_stage))
-  // The "base play" stage whose results seed the playoff bracket.
+  // The playoff bracket is created up front as labeled placeholders; once base play
+  // (round robin / pools) is fully scored, its first-round slots get SEEDED with the
+  // real teams from the standings. canResolvePlayoffs = there are still placeholder
+  // slots to fill and the base play is done.
   const playoffBaseStage = division.bracket_type === 'round_robin' ? 'round_robin'
     : division.bracket_type === 'pool_play_playoffs' ? 'pool_play' : null
   const basePlayDone = (() => {
@@ -172,25 +173,21 @@ export default function DivisionManageView({
     const base = matches.filter(m => m.match_stage === playoffBaseStage)
     return base.length > 0 && base.every(m => m.status === 'completed')
   })()
-  // Round robin gates on the explicit playoffs_enabled toggle (matching the route);
-  // a "Pool Play + Playoffs" division always implies a playoff stage.
-  const playoffsConfigured = division.bracket_type === 'round_robin'
-    ? !!(division.format_settings_json as any)?.playoffs_enabled
-    : division.bracket_type === 'pool_play_playoffs'
-  const canGeneratePlayoffs = isOrganizer && playoffsConfigured && basePlayDone && !hasPlayoffMatches
+  const hasUnseededPlayoffSlots = matches.some(m => m.team_1_source != null || m.team_2_source != null)
+  const canResolvePlayoffs = isOrganizer && basePlayDone && hasUnseededPlayoffSlots
 
-  // Pop the "generate playoffs?" prompt the moment the final base match is scored
-  // this session (false→true transition). `basePlayDone` already true on mount means
-  // the page was opened after the fact — no auto-prompt then (the card still shows).
+  // Pop the "set the matchups?" prompt the moment the final base match is scored
+  // this session (false→true transition). Already-done on mount = page opened after
+  // the fact — no auto-prompt then (the card still shows).
   const basePlayWasDone = useRef(basePlayDone)
   useEffect(() => {
-    if (canGeneratePlayoffs && !basePlayWasDone.current) setShowPlayoffPrompt(true)
+    if (canResolvePlayoffs && !basePlayWasDone.current) setShowPlayoffPrompt(true)
     basePlayWasDone.current = basePlayDone
-  }, [canGeneratePlayoffs, basePlayDone])
-  // Dismiss the prompt once playoffs exist (generated from the prompt or the card).
+  }, [canResolvePlayoffs, basePlayDone])
+  // Dismiss the prompt once the slots are seeded.
   useEffect(() => {
-    if (hasPlayoffMatches) setShowPlayoffPrompt(false)
-  }, [hasPlayoffMatches])
+    if (!hasUnseededPlayoffSlots) setShowPlayoffPrompt(false)
+  }, [hasUnseededPlayoffSlots])
 
   // Bracket ⇄ Standings toggle for this division's match section.
   const [matchView, setMatchView] = useState<'bracket' | 'standings'>('bracket')
@@ -334,48 +331,23 @@ export default function DivisionManageView({
     router.refresh()
   }
 
-  async function handleGeneratePlayoffs() {
+  // Seed the already-scheduled placeholder bracket with the real teams from the final
+  // standings. The bracket already exists and is scheduled — this just fills names in.
+  async function handleResolvePlayoffs() {
     setPlayoffLoading(true); setPlayoffError(null)
     try {
-      const res = await fetch(`/api/tournaments/${tournamentId}/divisions/${division.id}/generate-playoffs`, { method: 'POST' })
+      const res = await fetch(`/api/tournaments/${tournamentId}/divisions/${division.id}/resolve-playoffs`, { method: 'POST' })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) { setPlayoffError(json.error ?? 'Failed to generate playoffs'); return }
-      const newMatches: Match[] = json.matches ?? []
-
-      let scheduled = newMatches
-      if (newMatches.length && tournamentStartDate) {
-        const courts = Math.max(1, locationCourtCount ?? 1)
-        // Playoffs must follow this division's regular play, not overlap it: start at
-        // the next slot after the latest scheduled base match (else they'd drop onto
-        // whatever court is free at the tournament start time — e.g. the final at 8am).
-        const startTime = nextStageStart(matches.map(m => m.scheduled_time), tournamentStartTime?.slice(0, 5) ?? '09:00')
-        // Occupancy = every booked match in the tournament (incl. this division's
-        // round robin) so playoff matches slot onto free courts after it.
-        const { data: bookedRaw } = await createClient()
-          .from('tournament_matches')
-          .select('court_number, scheduled_time')
-          .eq('tournament_id', tournamentId)
-          .eq('is_draft', false)
-          .not('court_number', 'is', null)
-          .not('scheduled_time', 'is', null)
-        const occupied = (bookedRaw ?? [])
-          .map(b => ({ court_number: b.court_number as number, start_ms: Date.parse(b.scheduled_time as string) }))
-          .filter(b => !Number.isNaN(b.start_ms))
-        const updates = buildAutoSchedule(newMatches, tournamentStartDate, startTime, courts, 60, occupied)
-        await fetch(`/api/tournaments/${tournamentId}/schedule`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ updates }),
-        })
-        const updateMap = new Map(updates.map(u => [u.id, u]))
-        scheduled = newMatches.map(m => {
-          const u = updateMap.get(m.id)
-          return u ? { ...m, court_number: u.court_number, scheduled_time: u.scheduled_time } : m
-        })
-      }
-      setMatches(prev => [...prev, ...scheduled])
+      if (!res.ok) { setPlayoffError(json.error ?? 'Failed to set playoff matchups'); return }
+      const updated: Match[] = json.matches ?? []
+      // The route returns the full division match set — replace the playoff rows
+      // (and keep base play as-is) by id.
+      const byId = new Map(updated.map(m => [m.id, m]))
+      setMatches(prev => prev.map(m => byId.get(m.id) ?? m))
+      setShowPlayoffPrompt(false)
       router.refresh()
     } catch (e) {
-      setPlayoffError(e instanceof Error ? e.message : 'Failed to generate playoffs')
+      setPlayoffError(e instanceof Error ? e.message : 'Failed to set playoff matchups')
     } finally {
       setPlayoffLoading(false)
     }
@@ -610,22 +582,20 @@ export default function DivisionManageView({
 
   // "Generate Playoffs" CTA — rendered directly below the match/bracket view (inside
   // the seeding panel's bracketSlot) so it's right there the moment scoring finishes.
-  const generatePlayoffsCard = canGeneratePlayoffs ? (
+  const generatePlayoffsCard = canResolvePlayoffs ? (
     <div className="bg-brand-soft border-2 border-brand rounded-2xl p-4 space-y-2">
       <p className="text-sm font-semibold text-brand-dark">
         {division.bracket_type === 'pool_play_playoffs' ? '🏆 Pools complete' : '🏆 Round robin complete'}
       </p>
       <p className="text-xs text-brand-muted leading-relaxed">
-        {division.bracket_type === 'pool_play_playoffs'
-          ? `Seed the top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' double' : ' single'}-elimination bracket.`
-          : `Seed the top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.`}
+        The playoff bracket is ready — fill in the matchups with the {division.bracket_type === 'pool_play_playoffs' ? 'pool finishers' : 'final standings'}.
       </p>
       <button
-        onClick={handleGeneratePlayoffs}
+        onClick={handleResolvePlayoffs}
         disabled={playoffLoading}
         className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
       >
-        {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
+        {playoffLoading ? 'Setting matchups…' : 'Set Playoff Matchups →'}
       </button>
       {playoffError && <p className="text-xs text-red-600">{playoffError}</p>}
     </div>
@@ -789,7 +759,7 @@ export default function DivisionManageView({
         )}
 
         {/* ── Playoffs-ready prompt — pops when the final base match is scored ── */}
-        {showPlayoffPrompt && canGeneratePlayoffs && (
+        {showPlayoffPrompt && canResolvePlayoffs && (
           <div
             role="dialog"
             aria-modal="true"
@@ -801,9 +771,7 @@ export default function DivisionManageView({
                 🏆 {division.bracket_type === 'pool_play_playoffs' ? 'All pools complete!' : 'Round robin complete!'}
               </h2>
               <p className="text-sm text-brand-muted">
-                {division.bracket_type === 'pool_play_playoffs'
-                  ? `Every pool match is scored. Generate the playoff bracket now? The top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool will be seeded automatically.`
-                  : `Every match is scored. Generate the playoff bracket now? The top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers will be seeded automatically.`}
+                The playoff bracket is already scheduled — set the matchups now? The {division.bracket_type === 'pool_play_playoffs' ? 'pool finishers' : 'final standings'} will fill the bracket automatically.
               </p>
               {playoffError && <p className="text-sm text-red-600">{playoffError}</p>}
               <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
@@ -815,11 +783,11 @@ export default function DivisionManageView({
                   Later
                 </button>
                 <button
-                  onClick={handleGeneratePlayoffs}
+                  onClick={handleResolvePlayoffs}
                   disabled={playoffLoading}
                   className="flex-1 py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 transition-colors disabled:opacity-50"
                 >
-                  {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
+                  {playoffLoading ? 'Setting matchups…' : 'Set Matchups →'}
                 </button>
               </div>
             </div>

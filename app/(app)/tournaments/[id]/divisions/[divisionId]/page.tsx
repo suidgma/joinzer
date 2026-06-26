@@ -38,7 +38,7 @@ export default async function DivisionManagePage(
       .eq('division_id', params.divisionId)
       .eq('tournament_id', params.id),
     db.from('tournament_matches')
-      .select('id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status')
+      .select('id, division_id, round_number, match_number, match_stage, pool_number, court_number, scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, status, team_1_source, team_2_source')
       .eq('division_id', params.divisionId)
       .eq('is_draft', false)
       .order('match_number', { ascending: true }),

@@ -6,6 +6,7 @@ import {
   rotatingDoublesMatches,
 } from './bracketBuilder'
 import { dedupeRegistrationsToTeams } from './teams'
+import { divisionPlayoffPlaceholders } from './playoffPlaceholders'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 // Builds bracket/match rows for one division from its settled registrations.
@@ -83,7 +84,10 @@ export function buildDivisionMatchRows(
   }
   if (ft === 'pool_play_playoffs') {
     const numPools = (fs.number_of_pools as number) ?? 2
-    return { rows: poolPlayMatches(teams, numPools, base).rows }
+    const poolRows = poolPlayMatches(teams, numPools, base).rows
+    // Playoff bracket placeholders, scheduled from the start (filled when pools finish).
+    return { rows: [...poolRows, ...divisionPlayoffPlaceholders(ft, fs, teams.length, base, poolRows.length + 1)] }
   }
-  return { rows: roundRobinMatches(teams, base).rows }
+  const rrRows = roundRobinMatches(teams, base).rows
+  return { rows: [...rrRows, ...divisionPlayoffPlaceholders(ft, fs, teams.length, base, rrRows.length + 1)] }
 }
