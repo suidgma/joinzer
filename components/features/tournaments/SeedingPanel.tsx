@@ -49,6 +49,9 @@ type Props = {
   onGenerateMatches: (durationMinutes: number) => Promise<void>
   onReplacePlayer?: (regId: string, newUserId: string, newUserName: string) => void
   matches?: MatchItem[]
+  /** Elimination divisions label schedule rounds Final/Semi/Quarter; round robin
+   *  and pool play just use "Round N" to match the matches view. */
+  isElimination?: boolean
   tournamentDate?: string
   addPlayerSlot?: React.ReactNode
   /** Rendered between the roster card and the schedule/generate card (e.g. the bracket/standings view). */
@@ -157,7 +160,9 @@ function TimeSlotPicker({ value, onChange }: { value: string; onChange: (v: stri
   )
 }
 
-function roundLabel(roundNum: number, totalRounds: number): string {
+function roundLabel(roundNum: number, totalRounds: number, isElimination: boolean): string {
+  // Round robin / pool play have plain numbered rounds — no Final/Semi/Quarter.
+  if (!isElimination) return `Round ${roundNum}`
   const fromFinal = totalRounds - roundNum
   if (fromFinal === 0) return 'Final'
   if (fromFinal === 1) return 'Semi-Final'
@@ -191,7 +196,7 @@ function initScheduleEdits(
 export default function SeedingPanel({
   registrations, isDoubles, tournamentId, divisionId,
   onMarkComped, onRemove, hasMatches, onGenerateMatches, onReplacePlayer,
-  matches, tournamentDate, addPlayerSlot, bracketSlot, showSeeds, onToggleShowSeeds,
+  matches, isElimination = false, tournamentDate, addPlayerSlot, bracketSlot, showSeeds, onToggleShowSeeds,
 }: Props) {
   // For doubles: keep the lexicographically-smaller registration ID of each pair
   // as the canonical row — matches dedupeRegistrationsToTeams in the bracket generator
@@ -627,7 +632,7 @@ export default function SeedingPanel({
               {rounds.map(({ roundNum, matches: roundMatches }) => (
                 <div key={roundNum} className="px-3 py-2 space-y-3">
                   <p className="text-[10px] font-bold text-brand-muted uppercase tracking-wider">
-                    {roundLabel(roundNum, totalRounds)}
+                    {roundLabel(roundNum, totalRounds, isElimination)}
                   </p>
                   {roundMatches.map(m => {
                     const rawName1 = m.team_1_registration_id

@@ -604,6 +604,7 @@ export default function DivisionManageView({
             onGenerateMatches={handleGenerateMatches}
             onReplacePlayer={handleReplacePlayer}
             matches={matchItems}
+            isElimination={isBracket}
             tournamentDate={tournamentStartDate ?? undefined}
             addPlayerSlot={addPlayerContent}
             bracketSlot={matchViewContent}
