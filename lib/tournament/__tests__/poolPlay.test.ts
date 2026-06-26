@@ -157,3 +157,41 @@ describe('poolPlayMatches', () => {
     }
   })
 })
+
+describe('poolPlayMatches — manual pool assignment', () => {
+  const teamsInPools = (rows: Record<string, unknown>[]) => {
+    const pools = new Map<number, Set<string>>()
+    for (const raw of rows) {
+      const r = row(raw)
+      if (!pools.has(r.pool)) pools.set(r.pool, new Set())
+      pools.get(r.pool)!.add(r.team_1)
+      pools.get(r.pool)!.add(r.team_2)
+    }
+    return pools
+  }
+
+  it('places explicitly-assigned teams into their pool', () => {
+    // Assigned the opposite of the default alternation to prove it's honored.
+    const assignments = new Map([['A', 1], ['B', 1], ['C', 2], ['D', 2]])
+    const { rows } = poolPlayMatches(['A', 'B', 'C', 'D'], 2, {}, 1, assignments)
+    const pools = teamsInPools(rows)
+    expect([...pools.get(1)!].sort()).toEqual(['A', 'B'])
+    expect([...pools.get(2)!].sort()).toEqual(['C', 'D'])
+  })
+
+  it('auto-balances unassigned teams into the smallest pool', () => {
+    // A,B pinned to pool 1; C,D unassigned should both fall into the emptier pool 2.
+    const assignments = new Map([['A', 1], ['B', 1]])
+    const { rows } = poolPlayMatches(['A', 'B', 'C', 'D'], 2, {}, 1, assignments)
+    const pools = teamsInPools(rows)
+    expect([...pools.get(1)!].sort()).toEqual(['A', 'B'])
+    expect([...pools.get(2)!].sort()).toEqual(['C', 'D'])
+  })
+
+  it('falls back to alternating when assignments is empty', () => {
+    const { rows } = poolPlayMatches(['A', 'B', 'C', 'D'], 2, {}, 1, new Map())
+    const pools = teamsInPools(rows)
+    expect([...pools.get(1)!].sort()).toEqual(['A', 'C'])
+    expect([...pools.get(2)!].sort()).toEqual(['B', 'D'])
+  })
+})

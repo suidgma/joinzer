@@ -88,7 +88,7 @@ export async function POST(
   // (test data, race condition, manual DB edit) only their earliest row gets a bracket slot.
   const { data: registrations } = await service
     .from('tournament_registrations')
-    .select('id, user_id, partner_registration_id, seed')
+    .select('id, user_id, partner_registration_id, seed, pool_number')
     .eq('division_id', params.divisionId)
     .eq('status', 'registered')
     .in('payment_status', ['paid', 'waived', 'comped'])
@@ -167,7 +167,15 @@ export async function POST(
       matchRows = doubleEliminationBracket(teams, base, 1, hasSeeds)
     } else if (ft === 'pool_play_playoffs') {
       const numPools = (fs.number_of_pools as number) ?? 2
-      matchRows = poolPlayMatches(teams, numPools, base).rows
+      // Honor manual pool assignments (pool_number on the team's registration);
+      // unassigned teams auto-balance inside poolPlayMatches.
+      const regById = new Map(deduped.map(r => [r.id, r]))
+      const assignments = new Map<string, number>()
+      for (const teamId of teams) {
+        const pn = regById.get(teamId)?.pool_number
+        if (pn != null) assignments.set(teamId, pn)
+      }
+      matchRows = poolPlayMatches(teams, numPools, base, 1, assignments).rows
     } else {
       // round_robin: circle-method scheduling — see roundRobinMatches() for why.
       matchRows = roundRobinMatches(teams, base).rows

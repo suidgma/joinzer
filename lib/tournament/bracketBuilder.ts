@@ -409,20 +409,40 @@ export function rotatingDoublesMatches(
 /**
  * Generates pool play matches with proper round numbering inside each pool.
  *
- * Teams are snake-distributed across pools (registration order seeds pool
- * composition). Within each pool, the circle method produces rounds where
- * no team plays twice. Pools share the same `round_number` so the schedule
- * packer can place pool 1's round 1 alongside pool 2's round 1 in the same
- * wave (different pools never share players).
+ * Pool composition: a team with an explicit `assignments` entry goes into that
+ * pool; everyone else is dealt alternately across the pools in the given order
+ * (seed order, else registration order), and unassigned teams fill the smallest
+ * pool first so pools stay balanced. Within each pool the circle method produces
+ * rounds where no team plays twice. Pools share the same `round_number` so the
+ * schedule packer can run pool 1's round 1 alongside pool 2's round 1 (different
+ * pools never share players).
  */
 export function poolPlayMatches(
   teams: string[],
   numPools: number,
   base: BaseMatch,
-  startMatchNum = 1
+  startMatchNum = 1,
+  assignments?: Map<string, number>   // team registration id → 1-based pool number
 ): { rows: BaseMatch[]; nextMatchNum: number } {
-  const pools: string[][] = Array.from({ length: Math.max(1, numPools) }, () => [])
-  teams.forEach((t, i) => pools[i % pools.length].push(t))
+  const np = Math.max(1, numPools)
+  const pools: string[][] = Array.from({ length: np }, () => [])
+
+  if (assignments && teams.some(t => assignments.get(t) != null)) {
+    const unassigned: string[] = []
+    for (const t of teams) {
+      const p = assignments.get(t)
+      if (p != null && p >= 1 && p <= np) pools[p - 1].push(t)
+      else unassigned.push(t)
+    }
+    // Balance the leftovers: each goes into whichever pool is currently smallest.
+    for (const t of unassigned) {
+      let min = 0
+      for (let i = 1; i < np; i++) if (pools[i].length < pools[min].length) min = i
+      pools[min].push(t)
+    }
+  } else {
+    teams.forEach((t, i) => pools[i % np].push(t))
+  }
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum
