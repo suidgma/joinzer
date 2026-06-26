@@ -663,6 +663,30 @@ export default function DivisionManageView({
           />
         )}
 
+        {/* ── Generate Playoffs — base play done, configured, not yet generated.
+              Rendered ABOVE the seeding panel so it's a prominent next-step CTA the
+              moment the pools / round robin finish (not buried under the schedule). ── */}
+        {canGeneratePlayoffs && (
+          <div className="bg-brand-soft border-2 border-brand rounded-2xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-brand-dark">
+              {division.bracket_type === 'pool_play_playoffs' ? '🏆 Pools complete' : '🏆 Round robin complete'}
+            </p>
+            <p className="text-xs text-brand-muted leading-relaxed">
+              {division.bracket_type === 'pool_play_playoffs'
+                ? `Seed the top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' double' : ' single'}-elimination bracket.`
+                : `Seed the top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.`}
+            </p>
+            <button
+              onClick={handleGeneratePlayoffs}
+              disabled={playoffLoading}
+              className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
+            >
+              {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
+            </button>
+            {playoffError && <p className="text-xs text-red-600">{playoffError}</p>}
+          </div>
+        )}
+
         {/* ── Seeding, schedule, match generation — all divisions ── */}
         {isOrganizer && (
           <SeedingPanel
@@ -683,28 +707,6 @@ export default function DivisionManageView({
             showSeeds={showSeeds}
             onToggleShowSeeds={handleToggleShowSeeds}
           />
-        )}
-
-        {/* ── Generate Playoffs — base play done, configured, not yet generated ── */}
-        {canGeneratePlayoffs && (
-          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
-            <p className="text-sm font-semibold text-brand-dark">
-              {division.bracket_type === 'pool_play_playoffs' ? 'Pools complete' : 'Round robin complete'}
-            </p>
-            <p className="text-xs text-brand-muted leading-relaxed">
-              {division.bracket_type === 'pool_play_playoffs'
-                ? `Seed the top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' double' : ' single'}-elimination bracket.`
-                : `Seed the top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.`}
-            </p>
-            <button
-              onClick={handleGeneratePlayoffs}
-              disabled={playoffLoading}
-              className="w-full py-2 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
-            >
-              {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
-            </button>
-            {playoffError && <p className="text-xs text-red-600">{playoffError}</p>}
-          </div>
         )}
 
         {/* ── Bracket / Standings — standalone for non-organizers; organizers see it inside the Seeding panel ── */}
