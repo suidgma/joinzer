@@ -26,10 +26,17 @@ export type OrgRegistration = {
   partner_user_id: string | null
   partner_registration_id: string | null
   checked_in: boolean
+  payment_status: string | null
+  // Player profile fields (denormalized onto each registration for the Players tab)
+  gender: string | null
+  dupr_rating: number | null
+  estimated_rating: number | null
+  rating_source: string | null
 }
 
 export type OrgDivision = {
   id: string
   name: string
   bracket_type: string
+  format: string
 }
