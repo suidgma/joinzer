@@ -88,11 +88,17 @@ function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
     r1.pf += s1; r1.pa += s2
     r2.pf += s2; r2.pa += s1
   }
+  // Same rule as the shared computeStandings: win% → +/- → points-for → name.
+  const winPct = (r: StandingRow) => {
+    const games = r.wins + r.losses
+    return games === 0 ? 0 : r.wins / games
+  }
   return Array.from(map.values()).sort((a, b) => {
-    const wd = b.wins - a.wins
-    if (wd !== 0) return wd
+    const wp = winPct(b) - winPct(a)
+    if (wp !== 0) return wp
     const dd = (b.pf - b.pa) - (a.pf - a.pa)
     if (dd !== 0) return dd
+    if (b.pf !== a.pf) return b.pf - a.pf
     // Tied (e.g. everyone 0–0 pre-play): alphabetical by name, not insertion order.
     return a.name.localeCompare(b.name)
   })

@@ -1,11 +1,14 @@
 // Division standings, shared by the tournament-wide Standings tab and the
 // per-division view on the division page so the two never drift.
 //
-// Elimination divisions (single/double elim) are ordered by bracket finish — the
-// winner of the deepest match (championship > losers bracket > winners bracket,
-// then round) is the champion; raw win count is wrong there (a double-elim
-// champion can have fewer wins than a team that ran the losers bracket). Round
-// robin / pool play order by win-loss, then point differential.
+// One ranking rule for every format (round robin, pool play, single/double elim):
+//   1. Win percentage  (wins ÷ games played) — highest first
+//   2. Point differential (+/-)              — highest first
+//   3. Points scored (PF)                    — highest first
+//   4. Team name                             — alphabetical (final tiebreak)
+// Win% (rather than raw wins) keeps an undefeated team above one with the same
+// number of wins but more losses, so a double-elim winners-bracket team still
+// outranks a one-loss losers-bracket team without any bracket-position math.
 //
 // Returns one canonical row per team (doubles partners folded together); the
 // caller supplies the display name from regId.
@@ -29,14 +32,6 @@ export type StandingsRegInput = {
 
 export type StandingsRow = { regId: string; wins: number; losses: number; pf: number; pa: number }
 
-const STAGE_RANK: Record<string, number> = {
-  round_robin: 0, pool_play: 0,
-  single_elimination: 1, winners_bracket: 1,
-  losers_bracket: 2, playoffs: 3, consolation: 3, championship: 4,
-}
-const ELIM_STAGES = new Set(['single_elimination', 'winners_bracket', 'losers_bracket', 'championship'])
-const phaseOf = (m: StandingsMatchInput) => (STAGE_RANK[m.match_stage] ?? 1) * 100 + (m.round_number ?? 1)
-
 export function computeStandings(
   matches: StandingsMatchInput[],
   regs: StandingsRegInput[],
@@ -58,9 +53,8 @@ export function computeStandings(
   }
   const canon = (id: string) => canonicalId.get(id) ?? id
 
-  type Row = StandingsRow & { exitPhase: number; exitWon: boolean }
-  const make = (id: string): Row => ({ regId: id, wins: 0, losses: 0, pf: 0, pa: 0, exitPhase: -1, exitWon: false })
-  const map = new Map<string, Row>()
+  const make = (id: string): StandingsRow => ({ regId: id, wins: 0, losses: 0, pf: 0, pa: 0 })
+  const map = new Map<string, StandingsRow>()
   for (const r of rowRegs) map.set(r.id, make(r.id))
 
   for (const m of matches) {
@@ -75,35 +69,23 @@ export function computeStandings(
     else if (winner === t2) { r2.wins++; r1.losses++ }
     r1.pf += s1; r1.pa += s2
     r2.pf += s2; r2.pa += s1
-    const ph = phaseOf(m)
-    if (ph > r1.exitPhase) { r1.exitPhase = ph; r1.exitWon = winner === t1 }
-    if (ph > r2.exitPhase) { r2.exitPhase = ph; r2.exitWon = winner === t2 }
   }
 
-  const isElim = matches.some(m => ELIM_STAGES.has(m.match_stage))
+  // Win% over a team's own games; 0–0 (pre-play) is 0 so the name tiebreak orders it.
+  const winPct = (r: StandingsRow) => {
+    const games = r.wins + r.losses
+    return games === 0 ? 0 : r.wins / games
+  }
+
   return Array.from(map.values())
     .sort((a, b) => {
-      if (isElim) {
-        // Fewest losses ranks highest. This is the spine of elimination standings:
-        // an undefeated winners-bracket team must outrank a one-loss losers-bracket
-        // team, and at completion the champion (0 losses, or 1 via a bracket reset)
-        // outranks everyone eliminated at 2. Stage rank alone got this backwards —
-        // losers_bracket outranks winners_bracket, so deeper-in-the-LB looked
-        // "better" than still-undefeated.
-        if (a.losses !== b.losses) return a.losses - b.losses
-        // Within the same loss count, deeper finish is better — for eliminated teams
-        // that's where they took their final loss (later round = higher placement);
-        // for live teams it's how far they've advanced.
-        if (b.exitPhase !== a.exitPhase) return b.exitPhase - a.exitPhase
-        if (a.exitWon !== b.exitWon) return a.exitWon ? -1 : 1
-      }
-      const wd = b.wins - a.wins
-      if (wd !== 0) return wd
-      const dd = (b.pf - b.pa) - (a.pf - a.pa)
-      if (dd !== 0) return dd
+      const wp = winPct(b) - winPct(a)
+      if (wp !== 0) return wp
+      const diff = (b.pf - b.pa) - (a.pf - a.pa)
+      if (diff !== 0) return diff
+      if (b.pf !== a.pf) return b.pf - a.pf
       // Still tied (notably everyone at 0–0 before any match): order alphabetically
       // by display name rather than leaving it at seed/insertion order.
       return nameOf ? nameOf(a.regId).localeCompare(nameOf(b.regId)) : 0
     })
-    .map(({ regId, wins, losses, pf, pa }) => ({ regId, wins, losses, pf, pa }))
 }

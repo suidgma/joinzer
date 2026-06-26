@@ -3,11 +3,9 @@ import { computeStandings, type StandingsMatchInput, type StandingsRegInput } fr
 
 // Reconstructs the in-progress 8-player double-elimination from the test division
 // (Abraham/Byron undefeated in the winners bracket; Callum/Fletcher/Damian/Gregory
-// at one loss; Harvey/Emmett eliminated at two). Pins the spine of elimination
-// standings: fewest losses ranks highest, so an undefeated winners-bracket team
-// must sit above a one-loss losers-bracket team. The old stage-rank sort got this
-// backwards (losers_bracket outranks winners_bracket) and floated 1-1 LB players
-// to the top.
+// at one loss; Harvey/Emmett eliminated at two). Standings rank by win% then +/-,
+// so the undefeated (100%) teams sit on top and the eliminated (0%) teams at the
+// bottom, with point differential ordering the equal-record teams in between.
 
 const P = ['Abraham', 'Byron', 'Callum', 'Damian', 'Emmett', 'Fletcher', 'Gregory', 'Harvey']
 const regs: StandingsRegInput[] = P.map(p => ({ id: p, status: 'registered', partner_registration_id: null }))
@@ -56,5 +54,24 @@ describe('computeStandings — double elimination ordering', () => {
     expect(last2).toEqual(new Set(['Harvey', 'Emmett']))
     expect(rows[6].losses).toBe(2)
     expect(rows[7].losses).toBe(2)
+  })
+})
+
+describe('computeStandings — point-differential tiebreak', () => {
+  // 4-player double elim mirroring the reported case: Abel 2-0, Byron & Caleb both
+  // 1-1, Dante 0-2. Byron and Caleb share a record, so +/- decides — Caleb (+4)
+  // must rank above Byron (-4).
+  const four = ['Abel', 'Byron', 'Caleb', 'Dante']
+  const fourRegs: StandingsRegInput[] = four.map(p => ({ id: p, status: 'registered', partner_registration_id: null }))
+  const fourMatches: StandingsMatchInput[] = [
+    m('winners_bracket', 1, 'Abel', 'Dante', 11, 2),   // Abel +9, Dante -9
+    m('winners_bracket', 1, 'Byron', 'Caleb', 11, 9),  // Byron +2, Caleb -2
+    m('winners_bracket', 2, 'Abel', 'Byron', 11, 5),   // Abel +6, Byron -6 → Byron net -4
+    m('losers_bracket', 1, 'Caleb', 'Dante', 11, 5),   // Caleb +6 → Caleb net +4, Dante -15
+  ]
+
+  it('orders equal-record teams by +/- (Caleb +4 above Byron -4)', () => {
+    const rows = computeStandings(fourMatches, fourRegs)
+    expect(rows.map(r => r.regId)).toEqual(['Abel', 'Caleb', 'Byron', 'Dante'])
   })
 })
