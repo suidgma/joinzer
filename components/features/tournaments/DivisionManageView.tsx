@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -125,6 +125,7 @@ export default function DivisionManageView({
   const [addPlayerError, setAddPlayerError] = useState<string | null>(null)
   const [playoffLoading, setPlayoffLoading] = useState(false)
   const [playoffError, setPlayoffError] = useState<string | null>(null)
+  const [showPlayoffPrompt, setShowPlayoffPrompt] = useState(false)
 
   const isDoubles = isDoublesFormat(division.format)
   const isBracket = division.bracket_type === 'single_elimination' || division.bracket_type === 'double_elimination'
@@ -149,6 +150,19 @@ export default function DivisionManageView({
     ? !!(division.format_settings_json as any)?.playoffs_enabled
     : division.bracket_type === 'pool_play_playoffs'
   const canGeneratePlayoffs = isOrganizer && playoffsConfigured && basePlayDone && !hasPlayoffMatches
+
+  // Pop the "generate playoffs?" prompt the moment the final base match is scored
+  // this session (false→true transition). `basePlayDone` already true on mount means
+  // the page was opened after the fact — no auto-prompt then (the card still shows).
+  const basePlayWasDone = useRef(basePlayDone)
+  useEffect(() => {
+    if (canGeneratePlayoffs && !basePlayWasDone.current) setShowPlayoffPrompt(true)
+    basePlayWasDone.current = basePlayDone
+  }, [canGeneratePlayoffs, basePlayDone])
+  // Dismiss the prompt once playoffs exist (generated from the prompt or the card).
+  useEffect(() => {
+    if (hasPlayoffMatches) setShowPlayoffPrompt(false)
+  }, [hasPlayoffMatches])
 
   // Bracket ⇄ Standings toggle for this division's match section.
   const [matchView, setMatchView] = useState<'bracket' | 'standings'>('bracket')
@@ -561,6 +575,29 @@ export default function DivisionManageView({
     </div>
   ) : null
 
+  // "Generate Playoffs" CTA — rendered directly below the match/bracket view (inside
+  // the seeding panel's bracketSlot) so it's right there the moment scoring finishes.
+  const generatePlayoffsCard = canGeneratePlayoffs ? (
+    <div className="bg-brand-soft border-2 border-brand rounded-2xl p-4 space-y-2">
+      <p className="text-sm font-semibold text-brand-dark">
+        {division.bracket_type === 'pool_play_playoffs' ? '🏆 Pools complete' : '🏆 Round robin complete'}
+      </p>
+      <p className="text-xs text-brand-muted leading-relaxed">
+        {division.bracket_type === 'pool_play_playoffs'
+          ? `Seed the top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' double' : ' single'}-elimination bracket.`
+          : `Seed the top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.`}
+      </p>
+      <button
+        onClick={handleGeneratePlayoffs}
+        disabled={playoffLoading}
+        className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
+      >
+        {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
+      </button>
+      {playoffError && <p className="text-xs text-red-600">{playoffError}</p>}
+    </div>
+  ) : null
+
   return (
     <div className="min-h-screen bg-brand-bg">
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
@@ -663,31 +700,9 @@ export default function DivisionManageView({
           />
         )}
 
-        {/* ── Generate Playoffs — base play done, configured, not yet generated.
-              Rendered ABOVE the seeding panel so it's a prominent next-step CTA the
-              moment the pools / round robin finish (not buried under the schedule). ── */}
-        {canGeneratePlayoffs && (
-          <div className="bg-brand-soft border-2 border-brand rounded-2xl p-4 space-y-2">
-            <p className="text-sm font-semibold text-brand-dark">
-              {division.bracket_type === 'pool_play_playoffs' ? '🏆 Pools complete' : '🏆 Round robin complete'}
-            </p>
-            <p className="text-xs text-brand-muted leading-relaxed">
-              {division.bracket_type === 'pool_play_playoffs'
-                ? `Seed the top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' double' : ' single'}-elimination bracket.`
-                : `Seed the top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.`}
-            </p>
-            <button
-              onClick={handleGeneratePlayoffs}
-              disabled={playoffLoading}
-              className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
-            >
-              {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
-            </button>
-            {playoffError && <p className="text-xs text-red-600">{playoffError}</p>}
-          </div>
-        )}
-
-        {/* ── Seeding, schedule, match generation — all divisions ── */}
+        {/* ── Seeding, schedule, match generation — all divisions. The Generate
+              Playoffs CTA rides in the bracketSlot, directly below the match view,
+              so it lands right where scoring ends. ── */}
         {isOrganizer && (
           <SeedingPanel
             registrations={active}
@@ -703,7 +718,7 @@ export default function DivisionManageView({
             isElimination={isBracket}
             tournamentDate={tournamentStartDate ?? undefined}
             addPlayerSlot={addPlayerContent}
-            bracketSlot={matchViewContent}
+            bracketSlot={<>{matchViewContent}{generatePlayoffsCard}</>}
             showSeeds={showSeeds}
             onToggleShowSeeds={handleToggleShowSeeds}
           />
@@ -737,6 +752,44 @@ export default function DivisionManageView({
                 ))}
               </ul>
             )}
+          </div>
+        )}
+
+        {/* ── Playoffs-ready prompt — pops when the final base match is scored ── */}
+        {showPlayoffPrompt && canGeneratePlayoffs && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowPlayoffPrompt(false) }}
+          >
+            <div className="w-full sm:max-w-sm bg-white rounded-2xl p-6 space-y-4">
+              <h2 className="font-heading text-base font-bold text-brand-dark">
+                🏆 {division.bracket_type === 'pool_play_playoffs' ? 'All pools complete!' : 'Round robin complete!'}
+              </h2>
+              <p className="text-sm text-brand-muted">
+                {division.bracket_type === 'pool_play_playoffs'
+                  ? `Every pool match is scored. Generate the playoff bracket now? The top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool will be seeded automatically.`
+                  : `Every match is scored. Generate the playoff bracket now? The top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers will be seeded automatically.`}
+              </p>
+              {playoffError && <p className="text-sm text-red-600">{playoffError}</p>}
+              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
+                <button
+                  onClick={() => setShowPlayoffPrompt(false)}
+                  disabled={playoffLoading}
+                  className="flex-1 py-2.5 rounded-xl border border-brand-border text-brand-dark text-sm font-semibold hover:border-brand-active transition-colors disabled:opacity-50"
+                >
+                  Later
+                </button>
+                <button
+                  onClick={handleGeneratePlayoffs}
+                  disabled={playoffLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 transition-colors disabled:opacity-50"
+                >
+                  {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
