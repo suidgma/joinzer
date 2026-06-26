@@ -26,12 +26,14 @@ export async function POST(req: NextRequest, props: Params) {
   const userId: string = body.userId
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
-  const { error } = await db
+  const { data: newReg, error } = await db
     .from('league_registrations')
     .upsert(
       { league_id: params.id, user_id: userId, status: 'registered', registered_at: new Date().toISOString() },
       { onConflict: 'league_id,user_id' }
     )
+    .select('id')
+    .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest, props: Params) {
     await db.from('league_session_players').upsert(rows, { onConflict: 'session_id,user_id', ignoreDuplicates: true })
   }
 
-  return NextResponse.json({ ok: true }, { status: 201 })
+  return NextResponse.json({ ok: true, registration_id: newReg?.id ?? null }, { status: 201 })
 }
 
 async function notifyPlayerAdded(leagueId: string, userId: string) {

@@ -1,12 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
+import { GripVertical, ArrowUp } from 'lucide-react'
 import RatingBadge from '@/components/features/RatingBadge'
 
 type PlayerReg = {
+  id: string
   status: string
   registered_at: string
+  sort_order: number | null
   is_co_admin: boolean
   user_id: string
   partner_user_id: string | null
@@ -60,6 +63,35 @@ export default function LeagueRosterManager({
   const [assigningPartnerId, setAssigningPartnerId] = useState<string | null>(null)
   const [partnerSelections, setPartnerSelections] = useState<Record<string, string>>({})
   const [savingPartnerId, setSavingPartnerId] = useState<string | null>(null)
+
+  // Drag-to-reorder the roster (organizer-only). Order is display-only — it
+  // doesn't seed anything — so we persist best-effort on drop.
+  const dragIndex = useRef<number | null>(null)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+
+  function handleDragStart(i: number) { dragIndex.current = i }
+  function handleDragOver(e: React.DragEvent, i: number) { e.preventDefault(); setDragOver(i) }
+  function handleDrop(i: number) {
+    const from = dragIndex.current
+    if (from === null || from === i) { setDragOver(null); return }
+    const next = [...registered]
+    const [moved] = next.splice(from, 1)
+    next.splice(i, 0, moved)
+    setRegistered(next)
+    setDragOver(null)
+    saveOrder(next)
+  }
+  function handleDragEnd() { dragIndex.current = null; setDragOver(null) }
+
+  async function saveOrder(list: PlayerReg[]) {
+    try {
+      await fetch(`/api/leagues/${leagueId}/roster-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: list.map(r => r.id) }),
+      })
+    } catch { /* cosmetic order — ignore failures */ }
+  }
 
   const isFixedPartner = partnerMode === 'fixed'
   const isFull = maxPlayers != null && registered.length >= maxPlayers
@@ -146,14 +178,16 @@ export default function LeagueRosterManager({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: player.id }),
       })
+      const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const err = await res.json()
-        alert(err.error ?? 'Failed to add player')
+        alert(json.error ?? 'Failed to add player')
         return
       }
       const newReg: PlayerReg = {
+        id: json.registration_id ?? `pending-${player.id}`,
         status: 'registered',
         registered_at: new Date().toISOString(),
+        sort_order: null,
         is_co_admin: false,
         user_id: player.id,
         partner_user_id: null,
@@ -348,7 +382,20 @@ export default function LeagueRosterManager({
             {registered.map((r, i) => {
               const p = r.profile
               return (
-                <div key={p.id} className="flex items-center gap-3 bg-brand-surface border border-brand-border rounded-xl px-3 py-2">
+                <div
+                  key={r.id}
+                  draggable={isPrimaryOrganizer}
+                  onDragStart={() => handleDragStart(i)}
+                  onDragOver={e => handleDragOver(e, i)}
+                  onDrop={() => handleDrop(i)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center gap-3 bg-brand-surface border rounded-xl px-3 py-2 transition-colors ${
+                    dragOver === i ? 'border-brand bg-brand-soft' : 'border-brand-border'
+                  }`}
+                >
+                  {isPrimaryOrganizer && (
+                    <GripVertical className="w-3.5 h-3.5 shrink-0 text-brand-muted cursor-grab active:cursor-grabbing" />
+                  )}
                   <span className="text-xs text-brand-muted w-5 text-right">{i + 1}</span>
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
                     {p.profile_photo_url
@@ -390,6 +437,14 @@ export default function LeagueRosterManager({
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* Drag-to-reorder affordance hint — organizer only, when reordering is possible */}
+        {isPrimaryOrganizer && registered.length > 1 && (
+          <div className="flex items-center gap-1.5 px-1 text-[10px] font-medium text-brand-muted">
+            <ArrowUp className="w-3 h-3 shrink-0" />
+            <span>Drag to re-order</span>
           </div>
         )}
 
