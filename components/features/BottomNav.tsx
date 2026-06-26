@@ -67,7 +67,7 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-brand-surface border-t border-brand-border">
+    <nav className="fixed bottom-0 left-0 right-0 bg-brand-surface border-t border-brand-border pb-[env(safe-area-inset-bottom)]">
       <div className="max-w-lg mx-auto flex">
         {tabs.map((tab) => {
           const active = pathname.startsWith(tab.href)
@@ -75,12 +75,14 @@ export default function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors ${
+              className={`flex-1 min-w-0 flex flex-col items-center justify-center py-2 px-0.5 gap-0.5 font-medium transition-colors ${
                 active ? 'text-brand-dark' : 'text-brand-muted'
               }`}
             >
               {tab.icon(active)}
-              {tab.label}
+              {/* Six tabs share ~62px each on a 375px phone — keep the label small and
+                  non-wrapping so "Tournaments" never breaks onto a second line. */}
+              <span className="text-[10px] leading-none tracking-tight whitespace-nowrap">{tab.label}</span>
             </Link>
           )
         })}

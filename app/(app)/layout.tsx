@@ -35,8 +35,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
 
+  // The bottom padding reserves the 64px bottom-nav height plus the iOS home-indicator
+  // inset, so the last bit of page content never hides behind the safe-area-padded nav.
   return (
-    <div className="min-h-screen bg-brand-page pb-16 lg:pb-0">
+    <div className="min-h-screen bg-brand-page pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
       <header className="sticky top-0 z-20 bg-brand-surface border-b border-brand-border">
         <div className="max-w-7xl mx-auto px-4 h-14 relative flex items-center">
           {/* Logo — left-anchored */}
