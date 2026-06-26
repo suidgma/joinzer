@@ -10,11 +10,39 @@ import FixedPartnerAssignment from './FixedPartnerAssignment'
 import PoolAssignment from './PoolAssignment'
 import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import { formatSummaryLines } from './FormatSettingsFields'
-import { computeStandings } from '@/lib/tournament/standings'
+import { computeStandings, type StandingsRow } from '@/lib/tournament/standings'
+import { poolStandings, type PoolMatchInput } from '@/lib/tournament/poolPlayoffSeeding'
 import { buildAutoSchedule } from '@/lib/tournament/autoSchedule'
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
+}
+
+// One standings table (#, Team, W, L, PF, +/−). Reused for the combined view and for
+// each pool's table in a pool-play division.
+function StandingsTableBlock({ rows, teamName }: { rows: StandingsRow[]; teamName: (id: string) => string }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-brand-border">
+      <div className="grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-[10px] font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border">
+        <span>#</span><span>Team</span>
+        <span className="text-center">W</span><span className="text-center">L</span>
+        <span className="text-center">PF</span><span className="text-center">+/−</span>
+      </div>
+      {rows.map((row, i) => {
+        const diff = row.pf - row.pa
+        return (
+          <div key={row.regId} className={`grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-xs border-b border-brand-border last:border-0 ${i === 0 ? 'bg-brand-soft' : ''}`}>
+            <span className="text-brand-muted font-medium">{i + 1}</span>
+            <span className="font-semibold text-brand-dark truncate">{teamName(row.regId)}</span>
+            <span className="text-center font-bold text-brand-dark">{row.wins}</span>
+            <span className="text-center text-brand-dark">{row.losses}</span>
+            <span className="text-center text-brand-muted">{row.pf}</span>
+            <span className={`text-center font-bold tabular-nums ${diff >= 0 ? 'text-brand-active' : 'text-red-600'}`}>{diff >= 0 ? '+' : ''}{diff}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 type Registration = {
@@ -186,6 +214,14 @@ export default function DivisionManageView({
   }, [matches, division.bracket_type])
   // teamName feeds the alphabetical tiebreaker so pre-play standings (all 0–0) sort by name.
   const standings = useMemo(() => computeStandings(standingsMatches, active, teamName), [standingsMatches, active, teamName])
+  // Pool-play divisions show one table PER POOL — a combined table makes two separate
+  // pool winners look like a head-to-head tie. null for every other format.
+  const poolStandingsRows = useMemo(
+    () => division.bracket_type === 'pool_play_playoffs'
+      ? poolStandings(matches.filter(m => m.match_stage === 'pool_play') as PoolMatchInput[], active, teamName)
+      : null,
+    [matches, division.bracket_type, active, teamName],
+  )
   const maxPlayers = isDoubles ? division.max_entries * 2 : division.max_entries
   const isFull = active.length >= maxPlayers
 
@@ -529,26 +565,20 @@ export default function DivisionManageView({
       </div>
 
       {matchView === 'standings' ? (
-        <div className="overflow-hidden rounded-xl border border-brand-border">
-          <div className="grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-[10px] font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border">
-            <span>#</span><span>Team</span>
-            <span className="text-center">W</span><span className="text-center">L</span>
-            <span className="text-center">PF</span><span className="text-center">+/−</span>
-          </div>
-          {standings.map((row, i) => {
-            const diff = row.pf - row.pa
-            return (
-              <div key={row.regId} className={`grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-xs border-b border-brand-border last:border-0 ${i === 0 ? 'bg-brand-soft' : ''}`}>
-                <span className="text-brand-muted font-medium">{i + 1}</span>
-                <span className="font-semibold text-brand-dark truncate">{teamName(row.regId)}</span>
-                <span className="text-center font-bold text-brand-dark">{row.wins}</span>
-                <span className="text-center text-brand-dark">{row.losses}</span>
-                <span className="text-center text-brand-muted">{row.pf}</span>
-                <span className={`text-center font-bold tabular-nums ${diff >= 0 ? 'text-brand-active' : 'text-red-600'}`}>{diff >= 0 ? '+' : ''}{diff}</span>
+        poolStandingsRows ? (
+          // One table per pool, so two separate pool winners never look like a tie.
+          <div className="space-y-3">
+            {poolStandingsRows.map(({ pool, rows }) => (
+              <div key={pool} className="space-y-1">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-brand-dark">Pool {pool}</p>
+                <StandingsTableBlock rows={rows} teamName={teamName} />
               </div>
-            )
-          })}
-        </div>
+            ))}
+            <p className="text-[10px] text-brand-muted">Each pool is ranked on its own — the top finishers from every pool advance to the playoffs.</p>
+          </div>
+        ) : (
+          <StandingsTableBlock rows={standings} teamName={teamName} />
+        )
       ) : (
         <BracketView
           matches={matches}
