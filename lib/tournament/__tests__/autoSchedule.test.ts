@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildAutoSchedule, type AutoScheduleMatch, type OccupiedSlot } from '../autoSchedule'
+import { buildAutoSchedule, nextStageStart, type AutoScheduleMatch, type OccupiedSlot } from '../autoSchedule'
 
 const m = (id: string, round: number, num: number): AutoScheduleMatch => ({
   id, round_number: round, match_number: num,
@@ -85,6 +85,29 @@ describe('buildAutoSchedule — double elimination dependency levels', () => {
     expect(t.champ).toBe('11:00')
     // The reported bug: champ must NOT share the semis' 08:00 slot.
     expect(t.champ).not.toBe(t.wb1)
+  })
+})
+
+describe('nextStageStart — when a follow-on stage (playoffs) may begin', () => {
+  // Round robin scheduled 8:00→9:20 across courts at 20-min rounds.
+  const rrTimes = [
+    '2026-06-30T08:00:00-07:00', '2026-06-30T08:00:00-07:00', '2026-06-30T08:00:00-07:00',
+    '2026-06-30T08:20:00-07:00', '2026-06-30T08:40:00-07:00',
+    '2026-06-30T09:00:00-07:00', '2026-06-30T09:20:00-07:00',
+  ]
+
+  it('starts one round after the latest scheduled match (no overlap with live play)', () => {
+    // Latest is 9:20, smallest round gap is 20 min → 9:40.
+    expect(nextStageStart(rrTimes, '08:00')).toBe('09:40')
+  })
+
+  it('falls back to the given start time when nothing is scheduled', () => {
+    expect(nextStageStart([], '09:00')).toBe('09:00')
+    expect(nextStageStart([null, undefined], '08:30')).toBe('08:30')
+  })
+
+  it('defaults the gap to 60 min when only one slot is scheduled', () => {
+    expect(nextStageStart(['2026-06-30T10:00:00-07:00'], '08:00')).toBe('11:00')
   })
 })
 
