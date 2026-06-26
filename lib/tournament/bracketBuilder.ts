@@ -470,19 +470,47 @@ export function poolPlayMatches(
 }
 
 /**
- * Builds playoff bracket from pool standings.
- * advancingTeams: ordered list of team IDs (already ranked by pool standings).
+ * Builds the playoff bracket for `seededTeams` (already ordered best→worst by
+ * standings — seed 1 first). The bracket is single-elimination; `finalFormat`
+ * controls only the FINAL:
+ *   - 'single_elimination' → the final is one match.
+ *   - 'double_elimination' → an "if-necessary" final: the better-seeded finalist
+ *     (championship team_1) needs one win; the challenger (team_2) must win twice.
+ *     The decider (championship round 2) is created on demand by computeBracketReset;
+ *     the championship's two teams are resolved from the semifinal winners by
+ *     resolveCompletion (it special-cases a championship with no losers bracket).
+ *
+ * Non-powers-of-two (6) get distributed byes via arrangeSeedsForBracket (top seeds
+ * bye). skipShuffle keeps the standings order.
  */
 export function playoffBracket(
-  advancingTeams: string[],
-  playoffFormat: 'single_elimination' | 'double_elimination',
+  seededTeams: string[],
+  finalFormat: 'single_elimination' | 'double_elimination',
   base: BaseMatch,
   startMatchNum = 1
-): BaseMatch[] {
-  if (playoffFormat === 'double_elimination') {
-    return doubleEliminationBracket(advancingTeams, base, startMatchNum)
+): { rows: BaseMatch[]; nextMatchNum: number } {
+  if (seededTeams.length < 2) return { rows: [], nextMatchNum: startMatchNum }
+
+  const { rows, nextMatchNum } = singleEliminationBracket(seededTeams, 'playoffs', base, startMatchNum, true)
+  if (finalFormat !== 'double_elimination') return { rows, nextMatchNum }
+
+  // Convert the final (the last single-elim round, one match) into a championship
+  // round-1 match. For 2 qualifiers there are no semifinals to feed it, so the two
+  // finalists are seeded directly; otherwise the semifinal winners fill it.
+  const playoffRoundNums = rows
+    .filter(r => r.match_stage === 'playoffs')
+    .map(r => r.round_number as number)
+  const maxRound = Math.max(...playoffRoundNums)
+  const finalMatch = rows.find(r => r.match_stage === 'playoffs' && r.round_number === maxRound)
+  if (finalMatch) {
+    finalMatch.match_stage = 'championship'
+    finalMatch.round_number = 1
+    if (maxRound === 1) {
+      finalMatch.team_1_registration_id = seededTeams[0] ?? null
+      finalMatch.team_2_registration_id = seededTeams[1] ?? null
+    }
   }
-  return singleEliminationBracket(advancingTeams, 'playoffs', base, startMatchNum).rows
+  return { rows, nextMatchNum }
 }
 
 // ── Advancement helpers ───────────────────────────────────────────────────────

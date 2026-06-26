@@ -128,9 +128,15 @@ function buildResolver(matches: MatchRow[]) {
 
     if (stage === 'championship') {
       if (round === 1) {
-        return side === 't1'
-          ? winnerOf(wbStage, wbMaxRound, 0)   // undefeated WB champion
-          : winnerOf('losers_bracket', lbMaxRound, 0) // LB champion (one loss)
+        if (side === 't1') return winnerOf(wbStage, wbMaxRound, 0)   // undefeated WB champion
+        // A round-robin playoff with a double-elim FINAL has a championship but no
+        // losers bracket: the final is contested by the two semifinal winners, so
+        // team_2 is the second semifinal's winner rather than an LB champion. (For a
+        // 2-team playoff there are no semifinals and both teams are seeded directly,
+        // so this resolves to a phantom that the diff loop leaves untouched.)
+        return lbMaxRound > 0
+          ? winnerOf('losers_bracket', lbMaxRound, 0)  // LB champion (one loss)
+          : winnerOf(wbStage, wbMaxRound, 1)           // second semifinal winner
       }
       // Round 2 (the reset/decider) carries its teams directly.
       if (!row) return PENDING
