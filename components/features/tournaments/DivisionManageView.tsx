@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import SeedingPanel, { type MatchItem } from './SeedingPanel'
 import BracketView from './BracketView'
 import FixedPartnerAssignment from './FixedPartnerAssignment'
+import PoolAssignment from './PoolAssignment'
 import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import { formatSummaryLines } from './FormatSettingsFields'
 import { computeStandings } from '@/lib/tournament/standings'
@@ -27,6 +28,7 @@ type Registration = {
   payment_status?: string | null
   stripe_payment_intent_id?: string | null
   seed?: number | null
+  pool_number?: number | null
   user_profile: { name: string | null; is_stub?: boolean; dupr_rating?: number | null; estimated_rating?: number | null } | null
   partner_profile?: { name: string | null; dupr_rating?: number | null; estimated_rating?: number | null } | null
 }
@@ -307,6 +309,13 @@ export default function DivisionManageView({
     ))
   }
 
+  // Pool assignment save: mirror pool_number onto the team's registration(s) so
+  // the panel reflects the change without a refetch (both partners for doubles).
+  function handlePoolAssigned(regId: string, partnerId: string | null, poolNumber: number | null) {
+    const ids = new Set([regId, ...(partnerId ? [partnerId] : [])])
+    setRegistrations(prev => prev.map(r => ids.has(r.id) ? { ...r, pool_number: poolNumber } : r))
+  }
+
   async function searchPlayers(
     query: string,
     excludeIds: string[] = [],
@@ -567,6 +576,18 @@ export default function DivisionManageView({
             divisionId={division.id}
             registrations={active}
             onAssigned={handlePartnerAssigned}
+          />
+        )}
+
+        {/* ── Pool assignment — organizer, pool-play division, pre-generation.
+              Optional: unassigned teams auto-balance by seed when matches generate. ── */}
+        {isOrganizer && division.bracket_type === 'pool_play_playoffs' && !hasMatches && (
+          <PoolAssignment
+            tournamentId={tournamentId}
+            divisionId={division.id}
+            numPools={(division.format_settings_json as any)?.number_of_pools ?? 2}
+            registrations={active}
+            onAssigned={handlePoolAssigned}
           />
         )}
 

@@ -34,7 +34,7 @@ export default async function DivisionManagePage(
       .eq('tournament_id', params.id)
       .single(),
     db.from('tournament_registrations')
-      .select('id, user_id, partner_user_id, partner_registration_id, team_name, status, payment_status, stripe_payment_intent_id, seed, registration_type')
+      .select('id, user_id, partner_user_id, partner_registration_id, team_name, status, payment_status, stripe_payment_intent_id, seed, registration_type, pool_number')
       .eq('division_id', params.divisionId)
       .eq('tournament_id', params.id),
     db.from('tournament_matches')
