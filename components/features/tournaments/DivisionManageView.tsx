@@ -156,7 +156,7 @@ export default function DivisionManageView({
     status: m.status,
   }))
 
-  const summaryLines = formatSummaryLines(division.bracket_type as any, division.format_settings_json as any, isDoubles)
+  const summaryLines = formatSummaryLines(division.bracket_type as any, division.format_settings_json as any, isDoubles, division.max_entries)
 
   // ── Schedule staleness ──────────────────────────────────────────────────────
   // Matches are a snapshot from generation time. A player who cancels afterward

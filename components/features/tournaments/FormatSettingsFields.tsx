@@ -22,7 +22,8 @@ export const FORMAT_DEFAULTS: Record<BracketType, FormatSettings> = {
   single_elimination: { games_to: 11, win_by: 2 },
   double_elimination: { games_to: 11, win_by: 2 },
   pool_play_playoffs: {
-    number_of_pools: 2, teams_per_pool: 4, teams_advance_per_pool: 2,
+    // Pool size is Max Teams ÷ pools; there's no separate teams-per-pool setting.
+    number_of_pools: 2, teams_advance_per_pool: 2,
     pool_ranking_method: 'wins', playoff_format: 'single_elimination', games_to: 11, win_by: 2,
   },
 }
@@ -40,17 +41,18 @@ export function validateFormatSettings(type: BracketType, s: FormatSettings): st
   const wb = s.win_by
   if (!wb || ![1, 2].includes(wb)) return 'Win by must be 1 or 2.'
   if (type === 'pool_play_playoffs') {
+    // Pool size derives from Max Teams ÷ pools — there's no separate teams-per-pool
+    // input — so we only validate the pool count and the advance count here.
     if (!s.number_of_pools || s.number_of_pools < 1) return 'Must have at least 1 pool.'
-    if (!s.teams_per_pool || s.teams_per_pool < 2) return 'Must have at least 2 teams per pool.'
     if (!s.teams_advance_per_pool || s.teams_advance_per_pool < 1) return 'Teams advance must be ≥ 1.'
-    if (s.teams_advance_per_pool > s.teams_per_pool) return 'Teams advancing cannot exceed teams per pool.'
   }
   return null
 }
 
 // `isDoubles` picks the unit word (teams vs players) so a singles division never
-// reads "teams". Defaults to true to preserve callers that don't pass it.
-export function formatSummaryLines(type: BracketType, s: FormatSettings, isDoubles = true): string[] {
+// reads "teams". `maxEntries` is the division capacity (Max Teams); pool size is
+// derived from it ÷ pools, since there's no separate teams-per-pool setting.
+export function formatSummaryLines(type: BracketType, s: FormatSettings, isDoubles = true, maxEntries?: number): string[] {
   const unit = isDoubles ? 'teams' : 'players'
   const label = FORMAT_META[type]?.label ?? type
   const game = `Games to ${s.games_to ?? 11}, win by ${s.win_by ?? 2}`
@@ -61,10 +63,9 @@ export function formatSummaryLines(type: BracketType, s: FormatSettings, isDoubl
   }
   if (type === 'pool_play_playoffs') {
     const nPools = s.number_of_pools ?? 2
-    const perPool = s.teams_per_pool ?? 4
-    // Spell out the total so the capacity (pools × per-pool) is obvious and lines up
-    // with the division's "X / Y" count instead of looking like an unrelated number.
-    const pools = `${nPools} pools of ${perPool} ${unit} (${nPools * perPool} total) · top ${s.teams_advance_per_pool ?? 2} advance`
+    const total = maxEntries ?? nPools * (s.teams_per_pool ?? 4)
+    const perPool = Math.ceil(total / nPools)
+    const pools = `${nPools} pools of ${perPool} ${unit} (${total} total) · top ${s.teams_advance_per_pool ?? 2} advance`
     const playoffs = `Playoffs: ${(s.playoff_format ?? 'single_elimination').replace(/_/g, ' ')}`
     return [label, pools, `${game} · ${playoffs}`]
   }
@@ -76,13 +77,10 @@ type Props = {
   formatSettings: FormatSettings
   onTypeChange: (t: BracketType) => void
   onSettingsChange: (s: FormatSettings) => void
-  /** Singles divisions read "players" instead of "teams" in pool-play labels. */
-  isDoubles?: boolean
 }
 
-export default function FormatSettingsFields({ bracketType, formatSettings, onTypeChange, onSettingsChange, isDoubles = true }: Props) {
+export default function FormatSettingsFields({ bracketType, formatSettings, onTypeChange, onSettingsChange }: Props) {
   const s = formatSettings
-  const unit = isDoubles ? 'Teams' : 'Players'
   const set = (patch: Partial<FormatSettings>) => onSettingsChange({ ...s, ...patch })
 
   return (
@@ -164,7 +162,7 @@ export default function FormatSettingsFields({ bracketType, formatSettings, onTy
       {/* Pool play extras */}
       {bracketType === 'pool_play_playoffs' && (
         <>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Pools</label>
               <input
@@ -176,17 +174,7 @@ export default function FormatSettingsFields({ bracketType, formatSettings, onTy
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">{unit}/Pool</label>
-              <input
-                type="number"
-                value={s.teams_per_pool ?? 4}
-                onChange={e => set({ teams_per_pool: Math.max(2, Number(e.target.value)) })}
-                min={2}
-                className="w-full input"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Advance</label>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Advance per Pool</label>
               <input
                 type="number"
                 value={s.teams_advance_per_pool ?? 2}
