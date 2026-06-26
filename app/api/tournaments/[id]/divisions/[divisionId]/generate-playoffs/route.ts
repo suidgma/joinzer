@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { playoffBracket } from '@/lib/tournament/bracketBuilder'
+import {
+  playoffBracket,
+  singleEliminationBracket,
+  doubleEliminationBracket,
+} from '@/lib/tournament/bracketBuilder'
 import { computeStandings, type StandingsMatchInput, type StandingsRegInput } from '@/lib/tournament/standings'
+import { poolPlayoffSeeds, type PoolMatchInput } from '@/lib/tournament/poolPlayoffSeeding'
 
 // Match stages that mean a playoff bracket already exists for the division.
 const PLAYOFF_STAGES = ['playoffs', 'single_elimination', 'winners_bracket', 'losers_bracket', 'championship']
@@ -12,9 +17,11 @@ const MATCH_SELECT =
   'scheduled_time, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, ' +
   'winner_registration_id, status'
 
-// POST — generate the playoff bracket for a round-robin division. The top-N
-// finishers (by round-robin standings) are seeded into a single-elimination
-// bracket; the final is single or double-elim per the division's playoff_format.
+// POST — generate the playoff bracket for a round-robin OR pool-play division.
+//   - round_robin: the top-N finishers (by standings) seed a single-elimination
+//     bracket; the final is single or double-elim per playoff_format.
+//   - pool_play_playoffs: the top `teams_advance_per_pool` from each pool seed a
+//     single- or double-elimination bracket (cross-pool seeding) per playoff_format.
 export async function POST(
   req: NextRequest,
   props: { params: Promise<{ id: string; divisionId: string }> }
@@ -40,16 +47,17 @@ export async function POST(
     .select('id, bracket_type, format_settings_json')
     .eq('id', params.divisionId).eq('tournament_id', params.id).single()
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
-  if (division.bracket_type !== 'round_robin') {
-    return NextResponse.json({ error: 'Playoffs are only available for round-robin divisions' }, { status: 400 })
+
+  const isRoundRobin = division.bracket_type === 'round_robin'
+  const isPoolPlay = division.bracket_type === 'pool_play_playoffs'
+  if (!isRoundRobin && !isPoolPlay) {
+    return NextResponse.json({ error: 'Playoffs are only available for round-robin and pool-play divisions' }, { status: 400 })
   }
 
   const fs = (division.format_settings_json ?? {}) as Record<string, unknown>
-  if (!fs.playoffs_enabled) {
+  if (isRoundRobin && !fs.playoffs_enabled) {
     return NextResponse.json({ error: 'Playoffs are not enabled for this division' }, { status: 400 })
   }
-  const finalFormat = fs.playoff_format === 'double_elimination' ? 'double_elimination' : 'single_elimination'
-  const qualifiers = [2, 4, 6, 8].includes(fs.playoff_qualifiers as number) ? (fs.playoff_qualifiers as number) : 2
 
   // All division matches — used to check completion, find the next match_number,
   // and confirm playoffs aren't already generated.
@@ -63,12 +71,15 @@ export async function POST(
   if (all.some(m => PLAYOFF_STAGES.includes(m.match_stage))) {
     return NextResponse.json({ error: 'Playoffs have already been generated for this division' }, { status: 409 })
   }
-  const roundRobin = all.filter(m => m.match_stage === 'round_robin')
-  if (roundRobin.length === 0) {
-    return NextResponse.json({ error: 'Generate and play the round-robin matches first' }, { status: 400 })
+
+  // The "base play" whose results seed the bracket: round-robin matches, or pools.
+  const baseStage = isRoundRobin ? 'round_robin' : 'pool_play'
+  const baseMatches = all.filter(m => m.match_stage === baseStage)
+  if (baseMatches.length === 0) {
+    return NextResponse.json({ error: `Generate and play the ${isRoundRobin ? 'round-robin' : 'pool'} matches first` }, { status: 400 })
   }
-  if (!roundRobin.every(m => m.status === 'completed')) {
-    return NextResponse.json({ error: 'Finish all round-robin matches before generating playoffs' }, { status: 409 })
+  if (!baseMatches.every(m => m.status === 'completed')) {
+    return NextResponse.json({ error: `Finish all ${isRoundRobin ? 'round-robin' : 'pool'} matches before generating playoffs` }, { status: 409 })
   }
 
   // Settled registrations — the only teams eligible for the playoff.
@@ -87,22 +98,31 @@ export async function POST(
     : { data: [] }
   const nameByUser = new Map((profiles ?? []).map((p: any) => [p.id, p.name]))
   const nameByReg = new Map<string, string>(regsList.map(r => [r.id, nameByUser.get(r.user_id) ?? r.id]))
-
-  // Standings from round-robin matches only — playoff results never seed the bracket.
-  const standings = computeStandings(
-    roundRobin as StandingsMatchInput[],
-    regsList as StandingsRegInput[],
-    (regId: string) => nameByReg.get(regId) ?? regId,
-  )
-  const n = Math.min(qualifiers, standings.length)
-  if (n < 2) {
-    return NextResponse.json({ error: 'Need at least 2 teams to run a playoff' }, { status: 400 })
-  }
-  const seeded = standings.slice(0, n).map(s => s.regId)   // canonical team reg ids, best first
+  const nameOf = (regId: string) => nameByReg.get(regId) ?? regId
 
   const maxMatchNum = all.reduce((mx, m) => Math.max(mx, m.match_number ?? 0), 0)
   const base = { tournament_id: params.id, division_id: params.divisionId, status: 'scheduled' }
-  const { rows } = playoffBracket(seeded, finalFormat, base, maxMatchNum + 1)
+
+  let rows: Record<string, unknown>[]
+
+  if (isRoundRobin) {
+    const finalFormat = fs.playoff_format === 'double_elimination' ? 'double_elimination' : 'single_elimination'
+    const qualifiers = [2, 4, 6, 8].includes(fs.playoff_qualifiers as number) ? (fs.playoff_qualifiers as number) : 2
+    const standings = computeStandings(baseMatches as StandingsMatchInput[], regsList as StandingsRegInput[], nameOf)
+    const n = Math.min(qualifiers, standings.length)
+    if (n < 2) return NextResponse.json({ error: 'Need at least 2 teams to run a playoff' }, { status: 400 })
+    const seeded = standings.slice(0, n).map(s => s.regId)
+    rows = playoffBracket(seeded, finalFormat, base, maxMatchNum + 1).rows
+  } else {
+    // pool_play_playoffs — top `teams_advance_per_pool` from each pool, cross-seeded.
+    const advancePerPool = [1, 2, 3, 4].includes(fs.teams_advance_per_pool as number) ? (fs.teams_advance_per_pool as number) : 2
+    const format = fs.playoff_format === 'double_elimination' ? 'double_elimination' : 'single_elimination'
+    const seeds = poolPlayoffSeeds(baseMatches as PoolMatchInput[], regsList as StandingsRegInput[], advancePerPool, nameOf)
+    if (seeds.length < 2) return NextResponse.json({ error: 'Need at least 2 qualifiers to run a playoff' }, { status: 400 })
+    rows = format === 'double_elimination'
+      ? doubleEliminationBracket(seeds, base, maxMatchNum + 1, true) as Record<string, unknown>[]
+      : singleEliminationBracket(seeds, 'single_elimination', base, maxMatchNum + 1, true).rows
+  }
 
   const { data: inserted, error } = await service
     .from('tournament_matches')
