@@ -131,20 +131,24 @@ export default function DivisionManageView({
   const hasMatches = matches.length > 0
   const active = registrations.filter(r => r.status !== 'cancelled')
 
-  // Optional playoff stage for round-robin divisions: enabled in settings, generated
-  // once every round-robin match is scored, and only once.
+  // Optional playoff stage for round-robin AND pool-play divisions: generated once
+  // the base play (round robin, or the pools) is fully scored, and only once.
   const hasPlayoffMatches = matches.some(m =>
     ['playoffs', 'single_elimination', 'winners_bracket', 'losers_bracket', 'championship'].includes(m.match_stage))
-  const roundRobinDone = (() => {
-    const rr = matches.filter(m => m.match_stage === 'round_robin')
-    return rr.length > 0 && rr.every(m => m.status === 'completed')
+  // The "base play" stage whose results seed the playoff bracket.
+  const playoffBaseStage = division.bracket_type === 'round_robin' ? 'round_robin'
+    : division.bracket_type === 'pool_play_playoffs' ? 'pool_play' : null
+  const basePlayDone = (() => {
+    if (!playoffBaseStage) return false
+    const base = matches.filter(m => m.match_stage === playoffBaseStage)
+    return base.length > 0 && base.every(m => m.status === 'completed')
   })()
-  // Require playoffs_enabled to be truthy — matches the generate-playoffs route's
-  // guard, so a legacy division with no setting never shows a card whose action fails.
-  const canGeneratePlayoffs =
-    isOrganizer && division.bracket_type === 'round_robin' &&
-    !!(division.format_settings_json as any)?.playoffs_enabled &&
-    roundRobinDone && !hasPlayoffMatches
+  // Round robin gates on the explicit playoffs_enabled toggle (matching the route);
+  // a "Pool Play + Playoffs" division always implies a playoff stage.
+  const playoffsConfigured = division.bracket_type === 'round_robin'
+    ? !!(division.format_settings_json as any)?.playoffs_enabled
+    : division.bracket_type === 'pool_play_playoffs'
+  const canGeneratePlayoffs = isOrganizer && playoffsConfigured && basePlayDone && !hasPlayoffMatches
 
   // Bracket ⇄ Standings toggle for this division's match section.
   const [matchView, setMatchView] = useState<'bracket' | 'standings'>('bracket')
@@ -159,12 +163,13 @@ export default function DivisionManageView({
     }
     return a || r.team_name || regId.slice(0, 8)
   }, [active])
-  // For a round-robin division, standings reflect the round robin only (the seeding
-  // source for playoffs) — playoff bracket results never re-rank the standings.
-  const standingsMatches = useMemo(
-    () => division.bracket_type === 'round_robin' ? matches.filter(m => m.match_stage === 'round_robin') : matches,
-    [matches, division.bracket_type],
-  )
+  // For round-robin and pool-play divisions, standings reflect the base play only
+  // (the seeding source for playoffs) — playoff bracket results never re-rank them.
+  const standingsMatches = useMemo(() => {
+    if (division.bracket_type === 'round_robin') return matches.filter(m => m.match_stage === 'round_robin')
+    if (division.bracket_type === 'pool_play_playoffs') return matches.filter(m => m.match_stage === 'pool_play')
+    return matches
+  }, [matches, division.bracket_type])
   // teamName feeds the alphabetical tiebreaker so pre-play standings (all 0–0) sort by name.
   const standings = useMemo(() => computeStandings(standingsMatches, active, teamName), [standingsMatches, active, teamName])
   const maxPlayers = isDoubles ? division.max_entries * 2 : division.max_entries
@@ -680,13 +685,16 @@ export default function DivisionManageView({
           />
         )}
 
-        {/* ── Generate Playoffs — round-robin done, playoffs enabled, not yet generated ── */}
+        {/* ── Generate Playoffs — base play done, configured, not yet generated ── */}
         {canGeneratePlayoffs && (
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
-            <p className="text-sm font-semibold text-brand-dark">Round robin complete</p>
+            <p className="text-sm font-semibold text-brand-dark">
+              {division.bracket_type === 'pool_play_playoffs' ? 'Pools complete' : 'Round robin complete'}
+            </p>
             <p className="text-xs text-brand-muted leading-relaxed">
-              Seed the top {(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a
-              {(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.
+              {division.bracket_type === 'pool_play_playoffs'
+                ? `Seed the top ${(division.format_settings_json as any)?.teams_advance_per_pool ?? 2} from each pool into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' double' : ' single'}-elimination bracket.`
+                : `Seed the top ${(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a${(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.`}
             </p>
             <button
               onClick={handleGeneratePlayoffs}
