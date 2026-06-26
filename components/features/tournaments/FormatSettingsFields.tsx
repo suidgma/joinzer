@@ -9,16 +9,21 @@ export type FormatSettings = {
   // round_robin
   cap_score?: number | null
   ranking_method?: string
+  // round_robin playoffs (optional knockout stage seeded by standings)
+  playoffs_enabled?: boolean
+  playoff_qualifiers?: number      // 2 | 4 | 6 | 8 — how many advance
   // pool_play_playoffs
   number_of_pools?: number
   teams_per_pool?: number
   teams_advance_per_pool?: number
   pool_ranking_method?: string
+  // The FINAL's format: 'single_elimination' (default) | 'double_elimination'
+  // (an if-necessary final). Shared by round-robin playoffs and pool play.
   playoff_format?: string
 }
 
 export const FORMAT_DEFAULTS: Record<BracketType, FormatSettings> = {
-  round_robin:        { games_to: 11, win_by: 2, cap_score: null, ranking_method: 'wins' },
+  round_robin:        { games_to: 11, win_by: 2, cap_score: null, ranking_method: 'wins', playoffs_enabled: true, playoff_qualifiers: 2, playoff_format: 'single_elimination' },
   single_elimination: { games_to: 11, win_by: 2 },
   double_elimination: { games_to: 11, win_by: 2 },
   pool_play_playoffs: {
@@ -40,6 +45,9 @@ export function validateFormatSettings(type: BracketType, s: FormatSettings): st
   if (!gt || gt < 1) return 'Games to must be at least 1.'
   const wb = s.win_by
   if (!wb || ![1, 2].includes(wb)) return 'Win by must be 1 or 2.'
+  if (type === 'round_robin' && s.playoffs_enabled && ![2, 4, 6, 8].includes(s.playoff_qualifiers ?? 2)) {
+    return 'Playoff qualifiers must be 2, 4, 6, or 8.'
+  }
   if (type === 'pool_play_playoffs') {
     // Pool size derives from Max Teams ÷ pools — there's no separate teams-per-pool
     // input — so we only validate the pool count and the advance count here.
@@ -59,7 +67,12 @@ export function formatSummaryLines(type: BracketType, s: FormatSettings, isDoubl
   if (type === 'round_robin') {
     const cap = s.cap_score ? `, cap ${s.cap_score}` : ''
     const rank = s.ranking_method ? ` · Ranked by ${s.ranking_method.replace(/_/g, ' ')}` : ''
-    return [label, `${game}${cap}${rank}`]
+    const lines = [label, `${game}${cap}${rank}`]
+    if (s.playoffs_enabled) {
+      const finalNote = s.playoff_format === 'double_elimination' ? 'double-elim final' : 'single elim'
+      lines.push(`Playoffs: top ${s.playoff_qualifiers ?? 2} · ${finalNote}`)
+    }
+    return lines
   }
   if (type === 'pool_play_playoffs') {
     const nPools = s.number_of_pools ?? 2
@@ -156,6 +169,53 @@ export default function FormatSettingsFields({ bracketType, formatSettings, onTy
               <option value="head_to_head">Head to Head</option>
             </select>
           </div>
+
+          {/* Optional playoff stage seeded by round-robin standings */}
+          <div className="border-t border-brand-border/60 pt-3">
+            <label className="block text-xs font-medium text-brand-muted mb-1">Playoffs?</label>
+            <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+              {([['yes', 'Yes'], ['no', 'No']] as const).map(([val, lbl]) => {
+                const on = !!s.playoffs_enabled === (val === 'yes')
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => set({ playoffs_enabled: val === 'yes' })}
+                    className={`flex-1 py-2 text-xs font-semibold transition-colors ${on ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'}`}
+                  >
+                    {lbl}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-brand-muted mt-1">After the round robin, the top finishers play a knockout bracket.</p>
+          </div>
+
+          {s.playoffs_enabled && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-brand-muted mb-1">Qualify</label>
+                <select
+                  value={s.playoff_qualifiers ?? 2}
+                  onChange={e => set({ playoff_qualifiers: Number(e.target.value) })}
+                  className="w-full input"
+                >
+                  {[2, 4, 6, 8].map(n => <option key={n} value={n}>Top {n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-brand-muted mb-1">Final</label>
+                <select
+                  value={s.playoff_format ?? 'single_elimination'}
+                  onChange={e => set({ playoff_format: e.target.value })}
+                  className="w-full input"
+                >
+                  <option value="single_elimination">Single elim</option>
+                  <option value="double_elimination">Double-elim final</option>
+                </select>
+              </div>
+            </div>
+          )}
         </>
       )}
 

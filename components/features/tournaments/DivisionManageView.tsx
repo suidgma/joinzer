@@ -123,11 +123,28 @@ export default function DivisionManageView({
   const [addTeamName, setAddTeamName] = useState('')
   const [addPlayerLoading, setAddPlayerLoading] = useState(false)
   const [addPlayerError, setAddPlayerError] = useState<string | null>(null)
+  const [playoffLoading, setPlayoffLoading] = useState(false)
+  const [playoffError, setPlayoffError] = useState<string | null>(null)
 
   const isDoubles = isDoublesFormat(division.format)
   const isBracket = division.bracket_type === 'single_elimination' || division.bracket_type === 'double_elimination'
   const hasMatches = matches.length > 0
   const active = registrations.filter(r => r.status !== 'cancelled')
+
+  // Optional playoff stage for round-robin divisions: enabled in settings, generated
+  // once every round-robin match is scored, and only once.
+  const hasPlayoffMatches = matches.some(m =>
+    ['playoffs', 'single_elimination', 'winners_bracket', 'losers_bracket', 'championship'].includes(m.match_stage))
+  const roundRobinDone = (() => {
+    const rr = matches.filter(m => m.match_stage === 'round_robin')
+    return rr.length > 0 && rr.every(m => m.status === 'completed')
+  })()
+  // Require playoffs_enabled to be truthy — matches the generate-playoffs route's
+  // guard, so a legacy division with no setting never shows a card whose action fails.
+  const canGeneratePlayoffs =
+    isOrganizer && division.bracket_type === 'round_robin' &&
+    !!(division.format_settings_json as any)?.playoffs_enabled &&
+    roundRobinDone && !hasPlayoffMatches
 
   // Bracket ⇄ Standings toggle for this division's match section.
   const [matchView, setMatchView] = useState<'bracket' | 'standings'>('bracket')
@@ -142,8 +159,14 @@ export default function DivisionManageView({
     }
     return a || r.team_name || regId.slice(0, 8)
   }, [active])
+  // For a round-robin division, standings reflect the round robin only (the seeding
+  // source for playoffs) — playoff bracket results never re-rank the standings.
+  const standingsMatches = useMemo(
+    () => division.bracket_type === 'round_robin' ? matches.filter(m => m.match_stage === 'round_robin') : matches,
+    [matches, division.bracket_type],
+  )
   // teamName feeds the alphabetical tiebreaker so pre-play standings (all 0–0) sort by name.
-  const standings = useMemo(() => computeStandings(matches, active, teamName), [matches, active, teamName])
+  const standings = useMemo(() => computeStandings(standingsMatches, active, teamName), [standingsMatches, active, teamName])
   const maxPlayers = isDoubles ? division.max_entries * 2 : division.max_entries
   const isFull = active.length >= maxPlayers
 
@@ -254,6 +277,50 @@ export default function DivisionManageView({
 
     setMatches(scheduledMatches)
     router.refresh()
+  }
+
+  async function handleGeneratePlayoffs() {
+    setPlayoffLoading(true); setPlayoffError(null)
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/divisions/${division.id}/generate-playoffs`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setPlayoffError(json.error ?? 'Failed to generate playoffs'); return }
+      const newMatches: Match[] = json.matches ?? []
+
+      let scheduled = newMatches
+      if (newMatches.length && tournamentStartDate) {
+        const startTime = tournamentStartTime?.slice(0, 5) ?? '09:00'
+        const courts = Math.max(1, locationCourtCount ?? 1)
+        // Occupancy = every booked match in the tournament (incl. this division's
+        // round robin) so playoff matches slot onto free courts after it.
+        const { data: bookedRaw } = await createClient()
+          .from('tournament_matches')
+          .select('court_number, scheduled_time')
+          .eq('tournament_id', tournamentId)
+          .eq('is_draft', false)
+          .not('court_number', 'is', null)
+          .not('scheduled_time', 'is', null)
+        const occupied = (bookedRaw ?? [])
+          .map(b => ({ court_number: b.court_number as number, start_ms: Date.parse(b.scheduled_time as string) }))
+          .filter(b => !Number.isNaN(b.start_ms))
+        const updates = buildAutoSchedule(newMatches, tournamentStartDate, startTime, courts, 60, occupied)
+        await fetch(`/api/tournaments/${tournamentId}/schedule`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates }),
+        })
+        const updateMap = new Map(updates.map(u => [u.id, u]))
+        scheduled = newMatches.map(m => {
+          const u = updateMap.get(m.id)
+          return u ? { ...m, court_number: u.court_number, scheduled_time: u.scheduled_time } : m
+        })
+      }
+      setMatches(prev => [...prev, ...scheduled])
+      router.refresh()
+    } catch (e) {
+      setPlayoffError(e instanceof Error ? e.message : 'Failed to generate playoffs')
+    } finally {
+      setPlayoffLoading(false)
+    }
   }
 
   function handleScoreUpdate(updatedMatches: Match[]) {
@@ -611,6 +678,25 @@ export default function DivisionManageView({
             showSeeds={showSeeds}
             onToggleShowSeeds={handleToggleShowSeeds}
           />
+        )}
+
+        {/* ── Generate Playoffs — round-robin done, playoffs enabled, not yet generated ── */}
+        {canGeneratePlayoffs && (
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-brand-dark">Round robin complete</p>
+            <p className="text-xs text-brand-muted leading-relaxed">
+              Seed the top {(division.format_settings_json as any)?.playoff_qualifiers ?? 2} finishers into a
+              {(division.format_settings_json as any)?.playoff_format === 'double_elimination' ? ' single-elim bracket with a double-elim final' : ' single-elimination bracket'} from the current standings.
+            </p>
+            <button
+              onClick={handleGeneratePlayoffs}
+              disabled={playoffLoading}
+              className="w-full py-2 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
+            >
+              {playoffLoading ? 'Generating…' : 'Generate Playoffs →'}
+            </button>
+            {playoffError && <p className="text-xs text-red-600">{playoffError}</p>}
+          </div>
         )}
 
         {/* ── Bracket / Standings — standalone for non-organizers; organizers see it inside the Seeding panel ── */}

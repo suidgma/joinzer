@@ -489,6 +489,59 @@ function RoundRobinList({
   return <div className="space-y-4">{roundGroups(matches)}</div>
 }
 
+// Stages that render as a knockout bracket (not a flat round list). A round-robin
+// or pool division gains these once playoffs are generated.
+const BRACKET_STAGES = new Set([
+  'winners_bracket', 'losers_bracket', 'championship',
+  'playoffs', 'single_elimination', 'consolation',
+])
+
+// Renders the knockout portion of a division: single elim, the playoffs bracket,
+// or the winners/losers/championship split of double elim. Phantom bye slots are
+// stripped first so disconnected TBD-vs-TBD ghosts never show.
+function BracketStages({
+  matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
+}: Omit<Props, 'listLayout'>) {
+  const phantoms = phantomMatchIds(matches as MatchRow[])
+  const visibleMatches = matches.filter(m => !phantoms.has(m.id))
+
+  // Separate by stage for double elimination
+  const winners = visibleMatches.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'single_elimination')
+  const losers = visibleMatches.filter(m => m.match_stage === 'losers_bracket')
+  const championship = visibleMatches.filter(m => m.match_stage === 'championship')
+  const playoffs = visibleMatches.filter(m => m.match_stage === 'playoffs' || m.match_stage === 'consolation')
+
+  // Double elim shape: separate winners + losers brackets, then the championship.
+  // (A round-robin "double-elim final" has a championship but no losers bracket —
+  // it falls through to the single-bracket path below alongside its playoff rounds.)
+  if (losers.length > 0) {
+    return (
+      <div className="space-y-5">
+        <SingleBracket matches={winners} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+          tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+          title="Winners Bracket" pointsToWin={pointsToWin} showSeeds={showSeeds} />
+        <SingleBracket matches={losers} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+          tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+          title="Losers Bracket" pointsToWin={pointsToWin} showSeeds={showSeeds} />
+        {championship.length > 0 && (
+          <SingleBracket matches={championship} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+            tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+            title="Championship" pointsToWin={pointsToWin} showSeeds={showSeeds} />
+        )}
+      </div>
+    )
+  }
+
+  // Single elim, single-elim playoffs, or a round-robin playoff bracket whose final
+  // is a double-elim "if-necessary" final (playoffs rounds + a championship final).
+  const bracketMatches = [...playoffs, ...winners, ...championship]
+  return (
+    <SingleBracket matches={bracketMatches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+      tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+      pointsToWin={pointsToWin} showSeeds={showSeeds} />
+  )
+}
+
 export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin, showSeeds }: Props) {
   const handleOnline = useCallback(async () => {
     const qKey = bracketQueueKey(tournamentId)
@@ -507,54 +560,36 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
   }, [handleOnline])
 
   if (listLayout) {
+    // A round-robin / pool division. Once playoffs are generated it also holds
+    // bracket-stage matches — render those as a knockout bracket below the list.
+    const listMatches = matches.filter(m => !BRACKET_STAGES.has(m.match_stage))
+    const bracketMatches = matches.filter(m => BRACKET_STAGES.has(m.match_stage))
     return (
-      <RoundRobinList
-        matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-        tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-        pointsToWin={pointsToWin} showSeeds={showSeeds}
-      />
-    )
-  }
-
-  // Strip phantom padded slots (bracket positions a bye field can never fill)
-  // before rendering so the bracket doesn't show disconnected TBD vs TBD ghost
-  // cards. Resolver-driven so non-halving losers-bracket rounds aren't mis-judged.
-  const phantoms = phantomMatchIds(matches as MatchRow[])
-  const visibleMatches = matches.filter(m => !phantoms.has(m.id))
-
-  // Separate by stage for double elimination
-  const winners = visibleMatches.filter(m => m.match_stage === 'winners_bracket' || m.match_stage === 'single_elimination')
-  const losers = visibleMatches.filter(m => m.match_stage === 'losers_bracket')
-  const championship = visibleMatches.filter(m => m.match_stage === 'championship')
-  const playoffs = visibleMatches.filter(m => m.match_stage === 'playoffs' || m.match_stage === 'consolation')
-
-  const hasDoubleElim = losers.length > 0
-
-  if (hasDoubleElim) {
-    return (
-      <div className="space-y-5">
-        <SingleBracket matches={winners} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+      <div className="space-y-6">
+        <RoundRobinList
+          matches={listMatches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
           tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-          title="Winners Bracket" pointsToWin={pointsToWin} showSeeds={showSeeds} />
-        {losers.length > 0 && (
-          <SingleBracket matches={losers} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-            tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-            title="Losers Bracket" pointsToWin={pointsToWin} showSeeds={showSeeds} />
-        )}
-        {championship.length > 0 && (
-          <SingleBracket matches={championship} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-            tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-            title="Championship" pointsToWin={pointsToWin} showSeeds={showSeeds} />
+          pointsToWin={pointsToWin} showSeeds={showSeeds}
+        />
+        {bracketMatches.length > 0 && (
+          <div className="space-y-3 border-t border-brand-border/60 pt-4">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-brand-dark">Playoffs</p>
+            <BracketStages
+              matches={bracketMatches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+              tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+              pointsToWin={pointsToWin} showSeeds={showSeeds}
+            />
+          </div>
         )}
       </div>
     )
   }
 
-  // Pool play playoffs or single elim — render all non-pool matches
-  const bracketMatches = playoffs.length > 0 ? playoffs : [...winners, ...championship]
   return (
-    <SingleBracket matches={bracketMatches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+    <BracketStages
+      matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
       tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-      pointsToWin={pointsToWin} showSeeds={showSeeds} />
+      pointsToWin={pointsToWin} showSeeds={showSeeds}
+    />
   )
 }
