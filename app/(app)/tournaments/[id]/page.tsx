@@ -137,15 +137,17 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     ...(regsRaw ?? []).map((r: any) => r.partner_user_id),
   ].filter(Boolean)))
   const { data: profilesRaw } = allUserIds.length > 0
-    ? await db.from('profiles').select('id, name, is_stub, dupr_rating, estimated_rating').in('id', allUserIds)
+    ? await db.from('profiles').select('id, name, is_stub, gender, dupr_rating, estimated_rating, rating_source').in('id', allUserIds)
     : { data: [] }
   const profileNames: Record<string, string> = {}
   const profileStubs: Record<string, boolean> = {}
   const profileRatings: Record<string, { dupr_rating: number | null; estimated_rating: number | null }> = {}
+  const profileById: Record<string, any> = {}
   for (const p of profilesRaw ?? []) {
     profileNames[p.id] = p.name
     if (p.is_stub) profileStubs[p.id] = true
     profileRatings[p.id] = { dupr_rating: p.dupr_rating ?? null, estimated_rating: p.estimated_rating ?? null }
+    profileById[p.id] = p
   }
 
   // Shared page header — used by both organizer and player views
@@ -282,22 +284,31 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       matchesByDivision[m.division_id].push(m)
     }
 
-    const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => ({
-      id: r.id,
-      user_id: r.user_id,
-      division_id: r.division_id,
-      team_name: r.team_name ?? null,
-      status: r.status,
-      player_name: profileNames[r.user_id] ?? null,
-      partner_user_id: r.partner_user_id ?? null,
-      partner_registration_id: r.partner_registration_id ?? null,
-      checked_in: r.checked_in ?? false,
-    }))
+    const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => {
+      const prof = profileById[r.user_id] ?? {}
+      return {
+        id: r.id,
+        user_id: r.user_id,
+        division_id: r.division_id,
+        team_name: r.team_name ?? null,
+        status: r.status,
+        player_name: profileNames[r.user_id] ?? null,
+        partner_user_id: r.partner_user_id ?? null,
+        partner_registration_id: r.partner_registration_id ?? null,
+        checked_in: r.checked_in ?? false,
+        payment_status: r.payment_status ?? null,
+        gender: prof.gender ?? null,
+        dupr_rating: prof.dupr_rating ?? null,
+        estimated_rating: prof.estimated_rating ?? null,
+        rating_source: prof.rating_source ?? null,
+      }
+    })
 
     const orgDivisions: OrgDivision[] = (divisionsRaw ?? []).map((d: any) => ({
       id: d.id,
       name: d.name,
       bracket_type: d.bracket_type,
+      format: d.format ?? '',
     }))
 
     const orgMatches: OrgMatch[] = (matchesData ?? []) as OrgMatch[]

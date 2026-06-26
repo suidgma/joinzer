@@ -28,8 +28,8 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
     { data: staffRow },
   ] = await Promise.all([
     db.from('tournaments').select('id, name, status, organizer_id').eq('id', tournamentId).single(),
-    db.from('tournament_divisions').select('id, name, bracket_type').eq('tournament_id', tournamentId).order('created_at', { ascending: true }),
-    db.from('tournament_registrations').select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, checked_in').eq('tournament_id', tournamentId),
+    db.from('tournament_divisions').select('id, name, bracket_type, format').eq('tournament_id', tournamentId).order('created_at', { ascending: true }),
+    db.from('tournament_registrations').select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, checked_in, payment_status').eq('tournament_id', tournamentId),
     db.from('tournament_matches').select(
       'id, division_id, round_number, match_number, match_stage, pool_number, ' +
       'court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, ' +
@@ -48,32 +48,41 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
   )) as string[]
 
   const { data: profilesRaw } = allUserIds.length > 0
-    ? await db.from('profiles').select('id, name').in('id', allUserIds)
+    ? await db.from('profiles').select('id, name, gender, dupr_rating, estimated_rating, rating_source').in('id', allUserIds)
     : { data: [] }
 
-  const profileNames: Record<string, string> = {}
-  for (const p of profilesRaw ?? []) profileNames[(p as any).id] = (p as any).name
+  const profileById: Record<string, any> = {}
+  for (const p of profilesRaw ?? []) profileById[(p as any).id] = p
 
   const isOrganizer = !!user && user.id === (tournament as any)?.organizer_id
   const isCoOrganizer = (staffRow as any)?.role === 'co_organizer'
   const canEdit = isOrganizer || isCoOrganizer
 
-  const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => ({
-    id: r.id,
-    user_id: r.user_id,
-    division_id: r.division_id,
-    team_name: r.team_name ?? null,
-    status: r.status,
-    player_name: profileNames[r.user_id] ?? null,
-    partner_user_id: r.partner_user_id ?? null,
-    partner_registration_id: r.partner_registration_id ?? null,
-    checked_in: r.checked_in ?? false,
-  }))
+  const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => {
+    const prof = profileById[r.user_id] ?? {}
+    return {
+      id: r.id,
+      user_id: r.user_id,
+      division_id: r.division_id,
+      team_name: r.team_name ?? null,
+      status: r.status,
+      player_name: prof.name ?? null,
+      partner_user_id: r.partner_user_id ?? null,
+      partner_registration_id: r.partner_registration_id ?? null,
+      checked_in: r.checked_in ?? false,
+      payment_status: r.payment_status ?? null,
+      gender: prof.gender ?? null,
+      dupr_rating: prof.dupr_rating ?? null,
+      estimated_rating: prof.estimated_rating ?? null,
+      rating_source: prof.rating_source ?? null,
+    }
+  })
 
   const orgDivisions: OrgDivision[] = (divisionsRaw ?? []).map((d: any) => ({
     id: d.id,
     name: d.name,
     bracket_type: d.bracket_type,
+    format: d.format ?? '',
   }))
 
   const orgMatches: OrgMatch[] = (matchesData ?? []) as unknown as OrgMatch[]
