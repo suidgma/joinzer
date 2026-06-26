@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
-import { slotLabel } from './ScoreEntryModal'
+import ScoreEntryModal, { slotLabel } from './ScoreEntryModal'
 import RescheduleModal from './RescheduleModal'
 import { Toast, useToast } from './Toast'
 
@@ -57,6 +57,7 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
   const [view, setView] = useState<View>('time')
   const [playerView, setPlayerView] = useState(false)
   const [reschedulingMatch, setReschedulingMatch] = useState<OrgMatch | null>(null)
+  const [scoringMatch, setScoringMatch] = useState<OrgMatch | null>(null)
   // Group keys are namespaced per view (e.g. "time:Mon, Jun 22"), so each view
   // keeps its own collapse state and keys never collide across views.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -98,6 +99,15 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
           <span className="shrink-0 text-xs font-bold text-brand-dark tabular-nums">{m.team_1_score}–{m.team_2_score}</span>
         )}
         <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${badgeClass}`}>{statusLabel}</span>
+        {!playerView && m.status === 'completed' && (
+          <button
+            onClick={() => setScoringMatch(m)}
+            className="shrink-0 text-[10px] font-medium text-brand-active hover:underline"
+            title="Edit score"
+          >
+            Edit
+          </button>
+        )}
         {canReschedule && (
           <button
             onClick={() => setReschedulingMatch(m)}
@@ -253,6 +263,17 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
           match={reschedulingMatch}
           onClose={() => setReschedulingMatch(null)}
           onSaved={updated => { onMatchUpdate(updated); showToast('Match rescheduled') }}
+          onError={showToast}
+        />
+      )}
+
+      {scoringMatch && (
+        <ScoreEntryModal
+          tournamentId={tournamentId}
+          match={scoringMatch}
+          registrations={registrations}
+          onClose={() => setScoringMatch(null)}
+          onSaved={onMatchUpdate}
           onError={showToast}
         />
       )}

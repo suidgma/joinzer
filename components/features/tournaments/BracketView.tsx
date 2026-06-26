@@ -256,8 +256,9 @@ function BracketMatchCard({
       {/* Spacer: pushes Score section to the bottom, ensuring every card fills CARD_H */}
       <div className="flex-1" />
 
-      {/* Score entry controls */}
-      {isOrganizer && !isDone && !isBye && team1Resolved && team2Resolved && (
+      {/* Score entry / edit controls. Completed matches get an "Edit Score" action
+          that re-opens the same inputs pre-filled with the current result. */}
+      {isOrganizer && !isBye && team1Resolved && team2Resolved && (
         scoring ? (
           <div className="px-2 py-1 border-t border-brand-border/60 bg-gray-50 space-y-1">
             {err && <p className="text-[9px] text-red-600">{err}</p>}
@@ -272,8 +273,13 @@ function BracketMatchCard({
               </button>
             </div>
           </div>
+        ) : isDone ? (
+          <button onClick={() => { setScoring(true); setS1(String(match.team_1_score ?? '')); setS2(String(match.team_2_score ?? '')); setErr(null) }}
+            className="w-full border-t border-brand-border/60 py-1 text-[10px] text-brand-muted hover:bg-brand-soft transition-colors font-medium">
+            Edit Score
+          </button>
         ) : (
-          <button onClick={() => { setScoring(true); setS1(''); setS2('') }}
+          <button onClick={() => { setScoring(true); setS1(''); setS2(''); setErr(null) }}
             className="w-full border-t border-brand-border/60 py-1 text-[10px] text-brand-active hover:bg-brand-soft transition-colors font-medium">
             Score
           </button>
