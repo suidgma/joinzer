@@ -12,7 +12,7 @@ import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import { formatSummaryLines } from './FormatSettingsFields'
 import { computeStandings, type StandingsRow } from '@/lib/tournament/standings'
 import { poolStandings, type PoolMatchInput } from '@/lib/tournament/poolPlayoffSeeding'
-import { buildAutoSchedule } from '@/lib/tournament/autoSchedule'
+import { buildAutoSchedule, nextStageStart } from '@/lib/tournament/autoSchedule'
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
@@ -344,8 +344,11 @@ export default function DivisionManageView({
 
       let scheduled = newMatches
       if (newMatches.length && tournamentStartDate) {
-        const startTime = tournamentStartTime?.slice(0, 5) ?? '09:00'
         const courts = Math.max(1, locationCourtCount ?? 1)
+        // Playoffs must follow this division's regular play, not overlap it: start at
+        // the next slot after the latest scheduled base match (else they'd drop onto
+        // whatever court is free at the tournament start time — e.g. the final at 8am).
+        const startTime = nextStageStart(matches.map(m => m.scheduled_time), tournamentStartTime?.slice(0, 5) ?? '09:00')
         // Occupancy = every booked match in the tournament (incl. this division's
         // round robin) so playoff matches slot onto free courts after it.
         const { data: bookedRaw } = await createClient()

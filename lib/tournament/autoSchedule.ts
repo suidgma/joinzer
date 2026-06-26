@@ -83,6 +83,26 @@ function computeBracketLevels(matches: AutoScheduleMatch[]): Map<string, number>
   return levels
 }
 
+/**
+ * The "HH:MM" at which a follow-on stage (e.g. playoffs) should start so it doesn't
+ * overlap already-scheduled play: the latest start among `scheduledTimes` plus one
+ * round (the smallest gap between scheduled rounds, else 60 min). Falls back to
+ * `fallbackHHMM` when nothing is scheduled yet. Reads the stored -07:00 wall-clock
+ * by lifting HH:MM straight from the ISO string, so it's timezone-stable.
+ */
+export function nextStageStart(scheduledTimes: (string | null | undefined)[], fallbackHHMM: string): string {
+  const mins = scheduledTimes
+    .map(t => t?.match(/T(\d{2}):(\d{2})/))
+    .filter((x): x is RegExpMatchArray => !!x)
+    .map(x => Number(x[1]) * 60 + Number(x[2]))
+  if (!mins.length) return fallbackHHMM
+  const sorted = Array.from(new Set(mins)).sort((a, b) => a - b)
+  const gaps = sorted.slice(1).map((m, i) => m - sorted[i]).filter(g => g > 0)
+  const roundGap = gaps.length ? Math.min(...gaps) : 60
+  const floorMin = sorted[sorted.length - 1] + roundGap
+  return `${String(Math.floor(floorMin / 60)).padStart(2, '0')}:${String(floorMin % 60).padStart(2, '0')}`
+}
+
 export function buildAutoSchedule(
   matches: AutoScheduleMatch[],
   startDate: string,           // "YYYY-MM-DD"
