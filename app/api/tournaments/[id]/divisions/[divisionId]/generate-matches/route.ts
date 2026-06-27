@@ -10,6 +10,7 @@ import {
   type MatchRow,
 } from '@/lib/tournament/bracketBuilder'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
+import { divisionPlayoffPlaceholders } from '@/lib/tournament/playoffPlaceholders'
 import { applyByeAdvancements } from '@/lib/tournament/advanceByes'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
@@ -176,9 +177,12 @@ export async function POST(
         if (pn != null) assignments.set(teamId, pn)
       }
       matchRows = poolPlayMatches(teams, numPools, base, 1, assignments).rows
+      matchRows = matchRows.concat(divisionPlayoffPlaceholders(ft, fs, teams.length, base, matchRows.length + 1))
     } else {
       // round_robin: circle-method scheduling — see roundRobinMatches() for why.
       matchRows = roundRobinMatches(teams, base).rows
+      // Create the playoff bracket up front as labeled placeholders (1st vs 2nd, …).
+      matchRows = matchRows.concat(divisionPlayoffPlaceholders(ft, fs, teams.length, base, matchRows.length + 1))
     }
   }
 

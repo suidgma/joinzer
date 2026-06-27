@@ -88,6 +88,28 @@ describe('buildAutoSchedule — double elimination dependency levels', () => {
   })
 })
 
+describe('buildAutoSchedule — playoffs floored after base play (created together)', () => {
+  // A round robin (3 rounds) PLUS its single-elim playoff bracket, scheduled in one
+  // pass — the playoffs must land AFTER every round-robin round, not interleaved.
+  const division = [
+    ms('rr1', 'round_robin', 1, 1), ms('rr2', 'round_robin', 1, 2),
+    ms('rr3', 'round_robin', 2, 3), ms('rr4', 'round_robin', 2, 4),
+    ms('rr5', 'round_robin', 3, 5), ms('rr6', 'round_robin', 3, 6),
+    ms('semi1', 'playoffs', 1, 7), ms('semi2', 'playoffs', 1, 8), // playoff round 1
+    ms('final', 'playoffs', 2, 9),                                 // playoff round 2
+  ]
+
+  it('schedules the playoff bracket strictly after the last round-robin round', () => {
+    const out = buildAutoSchedule(division, '2026-06-30', '08:00', 4, 60)
+    const t = Object.fromEntries(out.map(o => [o.id, hhmm(o.scheduled_time)]))
+    expect(t.rr1).toBe('08:00'); expect(t.rr2).toBe('08:00') // RR round 1
+    expect(t.rr3).toBe('09:00'); expect(t.rr5).toBe('10:00') // RR rounds 2, 3
+    // Playoffs come after all three RR rounds (11:00), final after the semis (12:00).
+    expect(t.semi1).toBe('11:00'); expect(t.semi2).toBe('11:00')
+    expect(t.final).toBe('12:00')
+  })
+})
+
 describe('nextStageStart — when a follow-on stage (playoffs) may begin', () => {
   // Round robin scheduled 8:00→9:20 across courts at 20-min rounds.
   const rrTimes = [

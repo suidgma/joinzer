@@ -524,6 +524,10 @@ export type MatchRow = {
   team_2_registration_id: string | null
   winner_registration_id?: string | null
   status?: string
+  // Position placeholders for not-yet-seeded playoff slots — present means the slot
+  // is real (it will hold a standings-position team), not a phantom padded bye.
+  team_1_source?: unknown
+  team_2_source?: unknown
 }
 
 /**
