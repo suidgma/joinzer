@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -154,6 +155,7 @@ type Props = {
 export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [], matchCountByDivision = {}, matchesByDivision = {} }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
+  const { confirm, alert } = useDialog()
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
   const [cancelPending, setCancelPending] = useState<{ divId: string; regId: string; divName: string; paymentStatus: string | null } | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
@@ -515,7 +517,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .from('tournament_divisions')
       .update({ status: 'closed' })
       .eq('id', divisionId)
-    if (error) { alert(error.message); return }
+    if (error) { await alert({ body: error.message }); return }
     setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'closed' } : d))
   }
 
@@ -525,14 +527,14 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .from('tournament_divisions')
       .update({ status: 'active' })
       .eq('id', divisionId)
-    if (error) { alert(error.message); return }
+    if (error) { await alert({ body: error.message }); return }
     setDivisions(prev => prev.map(d => d.id === divisionId ? { ...d, status: 'active' } : d))
   }
 
   // ── Merge division into another ────────────────────────────────────
   async function handleMerge(fromDivisionId: string) {
     if (!mergeTargetId || mergeTargetId === fromDivisionId) return
-    if (!confirm('Move all registrations from this division into the selected one and close this division?')) return
+    if (!(await confirm({ title: 'Merge & close division?', body: 'Move all registrations from this division into the selected one and close this division?', confirmLabel: 'Merge & close' }))) return
     setMergeLoading(true)
     setMergeError(null)
     const supabase = createClient()
@@ -586,14 +588,14 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       const json = await res.json()
       if (!res.ok) {
         if (json.code === 'PARTNER_ALREADY_PAID') { router.refresh(); return }
-        alert(`Payment error: ${json.error ?? 'Unknown error'}`)
+        await alert({ body: `Payment error: ${json.error ?? 'Unknown error'}` })
         return
       }
       if (json.free) { router.refresh(); return }
       if (json.url) { window.location.href = json.url; return }
-      alert('No checkout URL returned — check console')
+      await alert({ body: 'No checkout URL returned — check console' })
     } catch (err) {
-      alert(`Failed to start checkout: ${err}`)
+      await alert({ body: `Failed to start checkout: ${err}` })
     }
   }
 
