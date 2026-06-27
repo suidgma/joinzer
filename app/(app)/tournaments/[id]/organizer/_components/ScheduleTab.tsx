@@ -78,8 +78,8 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
     a.match_number - b.match_number
 
   function MatchRow({ m, show }: { m: OrgMatch; show: ShowCol[] }) {
-    const t1 = slotLabel(m.team_1_registration_id, m.team_2_registration_id, m.status, registrations)
-    const t2 = slotLabel(m.team_2_registration_id, m.team_1_registration_id, m.status, registrations)
+    const t1 = slotLabel(m.team_1_registration_id, m.team_2_registration_id, m.status, registrations, m.team_1_source)
+    const t2 = slotLabel(m.team_2_registration_id, m.team_1_registration_id, m.status, registrations, m.team_2_source)
     const badgeClass = STATUS_BADGE[m.status] ?? 'bg-gray-100 text-gray-500'
     const statusLabel = m.status === 'in_progress' ? 'Live' : m.status
     const canReschedule = !playerView && m.status !== 'completed'

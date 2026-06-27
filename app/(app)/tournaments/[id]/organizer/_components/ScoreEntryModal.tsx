@@ -32,8 +32,10 @@ export function slotLabel(
   opponentRegId: string | null,
   status: string,
   regs: OrgRegistration[],
+  source?: { label?: string } | null,
 ): string {
   if (regId) return teamLabel(regId, regs)
+  if (source?.label) return source.label  // unseeded placeholder: '1st', 'Pool 1 #2', …
   return status === 'completed' && opponentRegId ? 'BYE' : 'TBD'
 }
 

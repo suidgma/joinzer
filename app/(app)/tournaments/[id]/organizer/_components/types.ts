@@ -14,6 +14,9 @@ export type OrgMatch = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  // Position placeholders for not-yet-seeded playoff slots ({label:'1st'}, …).
+  team_1_source?: { label?: string } | null
+  team_2_source?: { label?: string } | null
 }
 
 export type OrgRegistration = {
