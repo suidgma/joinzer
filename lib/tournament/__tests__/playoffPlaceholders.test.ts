@@ -6,7 +6,7 @@ import {
   resolvePlayoffSource,
   type PlayoffSource,
 } from '../playoffPlaceholders'
-import { resolveBracket } from '../resolveCompletion'
+import { resolveBracket, resolveCompletion } from '../resolveCompletion'
 
 type Row = Record<string, any>
 const labelOf = (s: PlayoffSource | undefined) => s?.label
@@ -108,6 +108,92 @@ function seedAndCascade(rows: Row[], overall: { regId: string }[]): Row[] {
   return matches
 }
 
+// Full play-out of a DOUBLE-elim placeholder bracket: build it, seed round 1 from
+// the standings, settle the byes (resolveBracket), then play every match exactly as
+// the score route does (resolveCompletion). team_1 wins every match — deterministic.
+function playPlaceholderDouble(n: number, pick: (m: Row) => string = m => m.team_1_registration_id!): {
+  hung: boolean; incomplete: Row[]; overTwo: number; survivors: number; eliminated: number
+} {
+  const built = buildPlaceholderPlayoffs(roundRobinSources(n), { engine: 'double' }, { status: 'scheduled' }, 1) as Row[]
+  const rows: Row[] = built.map((r, i) => ({
+    id: `m${i}`,
+    round_number: r.round_number ?? null,
+    match_number: r.match_number,
+    match_stage: r.match_stage,
+    team_1_registration_id: r.team_1_registration_id ?? null,
+    team_2_registration_id: r.team_2_registration_id ?? null,
+    team_1_source: r.team_1_source ?? null,
+    team_2_source: r.team_2_source ?? null,
+    winner_registration_id: r.winner_registration_id ?? null,
+    status: r.status ?? 'scheduled',
+  }))
+  const overall = Array.from({ length: n }, (_, i) => ({ regId: `t${i}` }))
+  for (const m of rows) {
+    if (m.team_1_source) { m.team_1_registration_id = resolvePlayoffSource(m.team_1_source, overall, new Map()); m.team_1_source = null }
+    if (m.team_2_source) { m.team_2_registration_id = resolvePlayoffSource(m.team_2_source, overall, new Map()); m.team_2_source = null }
+  }
+  const byId = new Map(rows.map(m => [m.id, m]))
+  const losses: Record<string, number> = {}
+  const apply = (mu: any) => {
+    if (mu.kind === 'set') { const m = byId.get(mu.matchId); if (m && m[mu.field] == null) m[mu.field] = mu.value }
+    else if (mu.kind === 'complete') { const m = byId.get(mu.matchId); if (m && m.status !== 'completed') { m.winner_registration_id = mu.winner; m.status = 'completed' } }
+    else { rows.push(mu.match); byId.set(mu.match.id, mu.match) }
+  }
+  for (const mu of resolveBracket(rows as any)) apply(mu) // settle byes
+  let guard = 0
+  while (guard++ < 5000) {
+    const ready = rows.find(m => m.status !== 'completed' && m.team_1_registration_id && m.team_2_registration_id)
+    if (!ready) break
+    const winner = pick(ready)
+    const loser = winner === ready.team_1_registration_id ? ready.team_2_registration_id! : ready.team_1_registration_id!
+    ready.winner_registration_id = winner
+    ready.status = 'completed'
+    losses[loser] = (losses[loser] ?? 0) + 1
+    for (const mu of resolveCompletion(ready as any, rows as any)) apply(mu)
+  }
+  const teams = Array.from({ length: n }, (_, i) => `t${i}`)
+  return {
+    hung: guard >= 5000,
+    incomplete: rows.filter(m => m.status !== 'completed' && m.team_1_registration_id && m.team_2_registration_id),
+    overTwo: teams.filter(t => (losses[t] ?? 0) > 2).length,
+    survivors: teams.filter(t => (losses[t] ?? 0) < 2).length,
+    eliminated: teams.filter(t => (losses[t] ?? 0) >= 2).length,
+  }
+}
+
+describe('placeholder DOUBLE elim — non-power-of-2 sizes resolve cleanly', () => {
+  for (const n of [5, 6, 7, 9, 10, 11, 12]) {
+    it(`N=${n}: single champion, everyone else out at two losses, nothing hung`, () => {
+      const r = playPlaceholderDouble(n)
+      expect(r.hung).toBe(false)
+      expect(r.incomplete.map(m => `${m.match_stage} r${m.round_number} #${m.match_number}`)).toEqual([])
+      expect(r.overTwo).toBe(0)
+      expect(r.survivors).toBe(1)
+      expect(r.eliminated).toBe(n - 1)
+    })
+  }
+
+  // If-necessary final: force the losers-bracket champ to win the first championship,
+  // so the reset (round 2) must be created and played — even with byes in the field.
+  for (const n of [6, 9, 12]) {
+    it(`N=${n}: bracket reset fires and still yields a single champion`, () => {
+      let firstChampSeen = false
+      const r = playPlaceholderDouble(n, m => {
+        if (m.match_stage === 'championship' && (m.round_number ?? 1) === 1 && !firstChampSeen) {
+          firstChampSeen = true
+          return m.team_2_registration_id! // LB champ wins → reset
+        }
+        return m.team_1_registration_id!
+      })
+      expect(r.hung).toBe(false)
+      expect(r.incomplete).toEqual([])
+      expect(r.overTwo).toBe(0)
+      expect(r.survivors).toBe(1)
+      expect(r.eliminated).toBe(n - 1)
+    })
+  }
+})
+
 describe('placeholder resolution — seed from standings then cascade', () => {
   it('top 4: round 1 fills 1st-vs-4th and 2nd-vs-3rd, final stays open', () => {
     const rows = buildPlaceholderPlayoffs(roundRobinSources(4), { engine: 'rr_playoff', finalFormat: 'single_elimination' }, { status: 'scheduled' }, 1) as Row[]
@@ -121,6 +207,18 @@ describe('placeholder resolution — seed from standings then cascade', () => {
     expect(r1.every(m => m.status !== 'completed')).toBe(true)
     const final = matches.find(m => m.round_number === 2)
     expect(final?.team_1_registration_id ?? null).toBeNull()
+  })
+
+  it('top 6 (DOUBLE elim): byes auto-advance and the bracket plays to one champion', () => {
+    // The risky combo from the up-front feature: a pool-play DOUBLE-elim placeholder
+    // bracket whose byes are settled at RESOLUTION (not generation). Build, seed from
+    // standings, settle byes, then play it to completion (team_1 wins every match).
+    const r = playPlaceholderDouble(6)
+    expect(r.hung).toBe(false)
+    expect(r.incomplete).toEqual([])
+    expect(r.overTwo).toBe(0)        // nobody plays on past two losses
+    expect(r.survivors).toBe(1)      // exactly one champion
+    expect(r.eliminated).toBe(5)
   })
 
   it('top 6: the two byes auto-advance the 1st and 2nd seeds into round 2', () => {
