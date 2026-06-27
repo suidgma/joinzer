@@ -30,8 +30,8 @@ export default function CourtCard({ courtNumber, match, registrations, onUpdateS
     )
   }
 
-  const t1 = slotLabel(match.team_1_registration_id, match.team_2_registration_id, match.status, registrations)
-  const t2 = slotLabel(match.team_2_registration_id, match.team_1_registration_id, match.status, registrations)
+  const t1 = slotLabel(match.team_1_registration_id, match.team_2_registration_id, match.status, registrations, match.team_1_source)
+  const t2 = slotLabel(match.team_2_registration_id, match.team_1_registration_id, match.status, registrations, match.team_2_source)
   const elapsedStr = elapsed(match.scheduled_time)
 
   return (
