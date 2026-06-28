@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import BottomNav from '@/components/features/BottomNav'
 import DesktopNav from '@/components/features/DesktopNav'
 import NotificationBell from '@/components/features/NotificationBell'
+import DialogProvider from '@/components/ui/DialogProvider'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -38,6 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // The bottom padding reserves the 64px bottom-nav height plus the iOS home-indicator
   // inset, so the last bit of page content never hides behind the safe-area-padded nav.
   return (
+    <DialogProvider>
     <div className="min-h-screen bg-brand-page pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
       <header className="sticky top-0 z-20 bg-brand-surface border-b border-brand-border">
         <div className="max-w-7xl mx-auto px-4 h-14 relative flex items-center">
@@ -64,5 +66,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <BottomNav />
       </div>
     </div>
+    </DialogProvider>
   )
 }

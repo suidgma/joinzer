@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 
 // Only settled teams (paid/waived/comped) get bracket/pool slots.
 const SETTLED = ['paid', 'waived', 'comped']
@@ -35,6 +36,7 @@ function firstName(name: string | null | undefined): string {
  */
 export default function PoolAssignment({ tournamentId, divisionId, numPools, registrations, onAssigned }: Props) {
   const [savingId, setSavingId] = useState<string | null>(null)
+  const { alert } = useDialog()
 
   const settled = registrations.filter(r => SETTLED.includes(r.payment_status ?? ''))
 
@@ -72,7 +74,7 @@ export default function PoolAssignment({ tournamentId, divisionId, numPools, reg
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        alert(err.error ?? 'Failed to set pool')
+        await alert({ body: err.error ?? 'Failed to set pool' })
         return
       }
       onAssigned(team.id, team.partnerId, pool)

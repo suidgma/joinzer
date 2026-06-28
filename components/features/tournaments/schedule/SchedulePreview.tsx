@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Pencil, RefreshCw, Check, X } from 'lucide-react'
 import type { ScheduleBlock } from '@/lib/types'
 import type { BuilderDivision, DraftMatch } from './types'
+import { useDialog } from '@/components/ui/DialogProvider'
 
 type View = 'time' | 'court' | 'division'
 type ShowCol = 'date' | 'time' | 'court' | 'division'
@@ -77,6 +78,7 @@ export default function SchedulePreview({
   draftMatches, blocks, divisions, teamLabels, matchDurationMinutes,
   tournamentId, onMatchUpdated, onDraftRefresh, onFlash,
 }: Props) {
+  const { confirm } = useDialog()
   const [view, setView] = useState<View>('time')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editCourt, setEditCourt] = useState('')
@@ -177,7 +179,12 @@ export default function SchedulePreview({
       const json = await res.json()
       if (res.status === 409 && json.error === 'published_exists') {
         const n = json.publishedCount
-        if (window.confirm(`⚠️ ${n} published (live) match${n === 1 ? '' : 'es'} exist for this block. Regenerating deletes them until you publish again. Continue?`)) {
+        if (await confirm({
+          title: 'Replace the live schedule?',
+          body: `${n} published (live) match${n === 1 ? '' : 'es'} exist for this block. Regenerating deletes them until you publish again.`,
+          confirmLabel: 'Replace',
+          danger: true,
+        })) {
           await regenerate(divId, { replacePublished: true })
         }
         return

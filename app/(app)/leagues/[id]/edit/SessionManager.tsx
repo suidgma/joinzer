@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import Link from 'next/link'
 import { formatSessionDate, formatTimeValue } from '@/lib/utils/date'
 
@@ -19,6 +20,7 @@ type Props = {
 
 export default function SessionManager({ leagueId, sessions: initialSessions }: Props) {
   const [sessions, setSessions] = useState<SessionRow[]>(initialSessions)
+  const { alert } = useDialog()
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingDate, setEditingDate] = useState('')
   const [editingTime, setEditingTime] = useState('')
@@ -44,7 +46,7 @@ export default function SessionManager({ leagueId, sessions: initialSessions }: 
       })
       if (!res.ok) {
         const err = await res.json()
-        alert(err.error ?? 'Failed to save session')
+        await alert({ body: err.error ?? 'Failed to save session' })
         return
       }
       setSessions((prev) =>

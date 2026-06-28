@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 
 // Settled = the organizer has a confirmed entrant (paid, waived, or comped).
 // Pending/unpaid regs aren't shown — they may never become real entrants.
@@ -35,6 +36,7 @@ type Props = {
  */
 export default function FixedPartnerAssignment({ tournamentId, divisionId, registrations, onAssigned }: Props) {
   const [assigningRegId, setAssigningRegId] = useState<string | null>(null)
+  const { alert } = useDialog()
   const [partnerSelections, setPartnerSelections] = useState<Record<string, string>>({})
   const [savingRegId, setSavingRegId] = useState<string | null>(null)
 
@@ -73,7 +75,7 @@ export default function FixedPartnerAssignment({ tournamentId, divisionId, regis
       )
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        alert(err.error ?? 'Failed to assign partner')
+        await alert({ body: err.error ?? 'Failed to assign partner' })
         return
       }
       onAssigned(reg1Id, reg2Id)

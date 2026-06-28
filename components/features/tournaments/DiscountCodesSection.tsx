@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Tag } from 'lucide-react'
 
@@ -22,6 +23,7 @@ type Props = {
 
 export default function DiscountCodesSection({ tournamentId, initialCodes }: Props) {
   const [codes, setCodes] = useState<DiscountCode[]>(initialCodes)
+  const { confirm } = useDialog()
   const [showForm, setShowForm] = useState(false)
   const [fCode, setFCode] = useState('')
   const [fDesc, setFDesc] = useState('')
@@ -73,7 +75,7 @@ export default function DiscountCodesSection({ tournamentId, initialCodes }: Pro
   }
 
   async function deleteCode(id: string) {
-    if (!confirm('Delete this discount code?')) return
+    if (!(await confirm({ title: 'Delete discount code?', body: 'Delete this discount code?', confirmLabel: 'Delete', danger: true }))) return
     const supabase = createClient()
     const { error: err } = await supabase
       .from('tournament_discount_codes')

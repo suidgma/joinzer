@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -545,6 +546,7 @@ export default function LiveSessionManager({
   const router = useRouter()
   const currentRoundRef = useRef<HTMLElement>(null)
   const [players, setPlayers]   = useState<Player[]>(initialPlayers)
+  const { confirm } = useDialog()
   const [rounds, setRounds]     = useState<Round[]>(initialRounds)
   const [loading, setLoading]   = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -733,7 +735,7 @@ export default function LiveSessionManager({
 
     if (res.status === 409) {
       // Draft already exists — ask to replace
-      if (confirm(`Round ${data.existing_round_id ? 'already has' : 'already has'} a draft. Replace it?`)) {
+      if (await confirm({ title: 'Replace draft round?', body: 'This round already has a draft. Replace it?', confirmLabel: 'Replace' })) {
         setGenerating(false)
         return handleGenerate(true)
       }
@@ -791,7 +793,7 @@ export default function LiveSessionManager({
 
   // --- End the day ---
   async function handleEndDay() {
-    if (!confirm('Mark this session as completed and end the day?')) return
+    if (!(await confirm({ title: 'End the day?', body: 'Mark this session as completed and end the day?', confirmLabel: 'End day' }))) return
     setEndingDay(true)
     const res = await fetch(`/api/league-sessions/${sessionId}`, {
       method: 'PATCH',
@@ -809,7 +811,7 @@ export default function LiveSessionManager({
 
   // --- Send reminder ---
   async function handleSendReminder() {
-    if (!confirm('Send a check-in reminder email to all registered players?')) return
+    if (!(await confirm({ title: 'Send reminder?', body: 'Send a check-in reminder email to all registered players?', confirmLabel: 'Send' }))) return
     setSendingReminder(true)
     const res = await fetch(`/api/league-sessions/${sessionId}/send-reminder`, { method: 'POST' })
     setSendingReminder(false)

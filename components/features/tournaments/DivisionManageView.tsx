@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -129,6 +130,7 @@ export default function DivisionManageView({
   isOrganizer, currentUserId, locationCourtCount,
 }: Props) {
   const router = useRouter()
+  const { confirm, alert } = useDialog()
   const [registrations, setRegistrations] = useState<Registration[]>(initialRegistrations)
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   // Default false so the server and first client render agree (no hydration
@@ -282,7 +284,7 @@ export default function DivisionManageView({
       // Re-generating over a bracket that already has scored matches needs explicit
       // confirmation — the server blocks it until confirmDiscardScores is set.
       if (d.error === 'has_completed_matches' && !confirmDiscard) {
-        if (typeof window !== 'undefined' && window.confirm(`${d.message}\n\nDelete them and re-generate?`)) {
+        if (await confirm({ title: 'Delete scores & re-generate?', body: d.message, confirmLabel: 'Delete & re-generate', danger: true })) {
           return handleGenerateMatches(durationMinutes, true)
         }
         return
@@ -372,13 +374,13 @@ export default function DivisionManageView({
   async function handleMarkComped(regId: string) {
     const supabase = createClient()
     const { error } = await supabase.from('tournament_registrations').update({ payment_status: 'comped' }).eq('id', regId)
-    if (error) { alert(error.message); return }
+    if (error) { await alert({ body: error.message }); return }
     setRegistrations(prev => prev.map(r => r.id === regId ? { ...r, payment_status: 'comped' } : r))
   }
 
   async function handleRemove(regId: string) {
     const res = await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}/cancel`, { method: 'POST' })
-    if (!res.ok) { alert('Could not remove — please try again'); return }
+    if (!res.ok) { await alert({ body: 'Could not remove — please try again' }); return }
     setRegistrations(prev => prev.map(r => r.id === regId ? { ...r, status: 'cancelled' } : r))
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import Link from 'next/link'
 import { GripVertical, ArrowUp } from 'lucide-react'
 import RatingBadge from '@/components/features/RatingBadge'
@@ -54,6 +55,7 @@ export default function LeagueRosterManager({
   isPrimaryOrganizer,
 }: Props) {
   const [registered, setRegistered] = useState<PlayerReg[]>(initialRegistered)
+  const { alert } = useDialog()
   const [availablePlayers, setAvailablePlayers] = useState<AvailablePlayer[]>(initialAvailable)
   const [selectedPlayerId, setSelectedPlayerId] = useState('')
   const [removingId, setRemovingId] = useState<string | null>(null)
@@ -128,7 +130,7 @@ export default function LeagueRosterManager({
       const res = await fetch(`/api/leagues/${leagueId}/members/${userId}`, { method: 'DELETE' })
       if (!res.ok) {
         const err = await res.json()
-        alert(err.error ?? 'Failed to remove player')
+        await alert({ body: err.error ?? 'Failed to remove player' })
         return
       }
       const removed = registered.find((r) => r.profile.id === userId)
@@ -155,7 +157,7 @@ export default function LeagueRosterManager({
       })
       if (!res.ok) {
         const err = await res.json()
-        alert(err.error ?? 'Failed to update admin status')
+        await alert({ body: err.error ?? 'Failed to update admin status' })
         return
       }
       setRegistered((prev) =>
@@ -180,7 +182,7 @@ export default function LeagueRosterManager({
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert(json.error ?? 'Failed to add player')
+        await alert({ body: json.error ?? 'Failed to add player' })
         return
       }
       const newReg: PlayerReg = {
@@ -219,7 +221,7 @@ export default function LeagueRosterManager({
       })
       if (!res.ok) {
         const err = await res.json()
-        alert(err.error ?? 'Failed to assign partner')
+        await alert({ body: err.error ?? 'Failed to assign partner' })
         return
       }
       // Update local state to reflect the new partner links

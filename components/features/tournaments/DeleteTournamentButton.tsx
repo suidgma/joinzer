@@ -1,19 +1,21 @@
 'use client'
 
 import { useState } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import { useRouter } from 'next/navigation'
 
 export default function DeleteTournamentButton({ tournamentId }: { tournamentId: string }) {
+  const { confirm, alert } = useDialog()
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
 
   async function handleDelete() {
-    if (!confirm('Delete this tournament? This cannot be undone.')) return
+    if (!(await confirm({ title: 'Delete tournament?', body: 'Delete this tournament? This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return
     setDeleting(true)
     const res = await fetch(`/api/tournaments/${tournamentId}`, { method: 'DELETE' })
     if (!res.ok) {
       const d = await res.json()
-      alert(d.error ?? 'Failed to delete tournament')
+      await alert({ body: d.error ?? 'Failed to delete tournament' })
       setDeleting(false)
       return
     }

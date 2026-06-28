@@ -12,6 +12,7 @@ import BlockCard from './BlockCard'
 import BlockFormModal from './BlockFormModal'
 import DivisionCard from './DivisionCard'
 import SchedulePreview from './SchedulePreview'
+import { useDialog } from '@/components/ui/DialogProvider'
 
 type Props = {
   tournamentId: string
@@ -35,6 +36,7 @@ export default function ScheduleBuilderView({
   tournamentId, registrationOpen, primaryLocationId, days, locations, divisions, divisionStats, playerNames, teamLabels,
   initialBlocks, initialAssignments, initialSettings, initialDraftMatches,
 }: Props) {
+  const { confirm } = useDialog()
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(initialBlocks)
   const [settings, setSettings] = useState<ScheduleSettings>(initialSettings)
   const [assignments, setAssignments] = useState<DivisionBlockLink[]>(initialAssignments)
@@ -365,7 +367,7 @@ export default function ScheduleBuilderView({
   }
 
   async function removeBlock(block: ScheduleBlock) {
-    if (!window.confirm(`Delete "${block.name}"? Divisions assigned to it will be unassigned.`)) return
+    if (!(await confirm({ title: 'Delete block?', body: `Delete "${block.name}"? Divisions assigned to it will be unassigned.`, confirmLabel: 'Delete', danger: true }))) return
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/schedule-blocks/${block.id}`, { method: 'DELETE' })
       const json = await res.json()
@@ -494,10 +496,12 @@ export default function ScheduleBuilderView({
       // Replacing a LIVE published schedule needs its own explicit confirmation.
       if (res.status === 409 && json.error === 'published_exists') {
         const n = json.publishedCount
-        if (window.confirm(
-          `⚠️ ${n} published (live) match${n === 1 ? '' : 'es'} already exist for these divisions.\n\n` +
-          `Regenerating will DELETE the live schedule and replace it with a new draft. Players lose access to it until you publish again.\n\nReplace the live schedule?`
-        )) {
+        if (await confirm({
+          title: 'Replace the live schedule?',
+          body: `${n} published (live) match${n === 1 ? '' : 'es'} already exist for these divisions.\n\nRegenerating will DELETE the live schedule and replace it with a new draft. Players lose access to it until you publish again.`,
+          confirmLabel: 'Replace',
+          danger: true,
+        })) {
           await generate({ force: true, replacePublished: true })
         }
         return
@@ -505,7 +509,7 @@ export default function ScheduleBuilderView({
       // Replacing only an existing draft — lighter confirmation.
       if (res.status === 409 && json.error === 'existing_matches') {
         const n = json.draftCount
-        if (window.confirm(`Replace the existing draft (${n} match${n === 1 ? '' : 'es'}) for these divisions?`)) {
+        if (await confirm({ title: 'Replace draft?', body: `Replace the existing draft (${n} match${n === 1 ? '' : 'es'}) for these divisions?`, confirmLabel: 'Replace' })) {
           await generate({ ...opts, force: true })
         }
         return
@@ -513,10 +517,11 @@ export default function ScheduleBuilderView({
       // Many matches won't fit their blocks — warn before committing.
       if (res.status === 409 && json.error === 'large_overflow') {
         const pct = json.total ? Math.round((json.overflow / json.total) * 100) : 0
-        if (window.confirm(
-          `Heads up: ~${json.overflow} of ${json.total} matches (${pct}%) won't fit in their blocks and will be scheduled past the end time — some spilling onto later dates.\n\n` +
-          `This usually means a division is too large for its window (e.g. a big round-robin). You can add courts/time or shrink the division first.\n\nGenerate the draft anyway?`
-        )) {
+        if (await confirm({
+          title: 'Some matches won’t fit',
+          body: `~${json.overflow} of ${json.total} matches (${pct}%) won't fit in their blocks and will be scheduled past the end time — some spilling onto later dates.\n\nThis usually means a division is too large for its window (e.g. a big round-robin). You can add courts/time or shrink the division first.`,
+          confirmLabel: 'Generate anyway',
+        })) {
           await generate({ ...opts, confirmOverflow: true })
         }
         return
@@ -539,7 +544,7 @@ export default function ScheduleBuilderView({
   }
 
   async function publish() {
-    if (!window.confirm('Publish this schedule? Matches become visible to players on the live board, standings, and schedule.')) return
+    if (!(await confirm({ title: 'Publish this schedule?', body: 'Matches become visible to players on the live board, standings, and schedule.', confirmLabel: 'Publish' }))) return
     setBusy('publish')
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/schedule-publish`, { method: 'POST' })
@@ -556,7 +561,7 @@ export default function ScheduleBuilderView({
   }
 
   async function discard() {
-    if (!window.confirm('Discard the draft schedule? This deletes the generated draft matches.')) return
+    if (!(await confirm({ title: 'Discard draft?', body: 'Discard the draft schedule? This deletes the generated draft matches.', confirmLabel: 'Discard', danger: true }))) return
     setBusy('discard')
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/generate-schedule`, { method: 'DELETE' })

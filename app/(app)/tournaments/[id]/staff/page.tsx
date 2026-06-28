@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import { useParams } from 'next/navigation'
 import { Trash2, UserPlus } from 'lucide-react'
 import Link from 'next/link'
@@ -19,6 +20,7 @@ type Player = {
 }
 
 export default function StaffPage() {
+  const { confirm } = useDialog()
   const params = useParams<{ id: string }>()
   const tournamentId = params.id
 
@@ -95,7 +97,7 @@ export default function StaffPage() {
   }
 
   async function handleRemove(staffId: string) {
-    if (!confirm('Remove this staff member?')) return
+    if (!(await confirm({ title: 'Remove staff member?', body: 'Remove this staff member?', confirmLabel: 'Remove', danger: true }))) return
     const res = await fetch(`/api/tournaments/${tournamentId}/staff?id=${staffId}`, { method: 'DELETE' })
     if (res.ok) setStaff(prev => prev.filter(s => s.id !== staffId))
   }

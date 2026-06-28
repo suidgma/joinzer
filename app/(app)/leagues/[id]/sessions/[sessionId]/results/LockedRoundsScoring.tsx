@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -32,6 +33,7 @@ function initFromExisting(score: { team1Score: number; team2Score: number }): Sc
 }
 
 export default function LockedRoundsScoring({ sessionId, leagueId, matches, roundsPlanned, pointsToWin }: Props) {
+  const { confirm } = useDialog()
   const router = useRouter()
   const supabase = createClient()
 
@@ -144,7 +146,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
     const data = await res.json()
     if (res.status === 409) {
       setGenerating(false)
-      if (confirm('A draft round already exists. Replace it with a new one?')) {
+      if (await confirm({ title: 'Replace draft round?', body: 'A draft round already exists. Replace it with a new one?', confirmLabel: 'Replace' })) {
         generateNext(true)
       }
       return
@@ -158,7 +160,7 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
   }
 
   async function endDay() {
-    if (!confirm('Mark this session as completed and end the day?')) return
+    if (!(await confirm({ title: 'End the day?', body: 'Mark this session as completed and end the day?', confirmLabel: 'End day' }))) return
     setGenerating(true)
     setGenerateError(null)
     const res = await fetch(`/api/league-sessions/${sessionId}`, {

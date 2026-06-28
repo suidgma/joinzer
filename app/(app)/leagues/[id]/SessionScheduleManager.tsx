@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useDialog } from '@/components/ui/DialogProvider'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatSessionDate } from '@/lib/utils/date'
@@ -19,6 +20,7 @@ type Props = {
 }
 
 export default function SessionScheduleManager({ leagueId, sessions: initial }: Props) {
+  const { confirm } = useDialog()
   const router = useRouter()
   const [sessions, setSessions] = useState<Session[]>(initial)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -39,7 +41,7 @@ export default function SessionScheduleManager({ leagueId, sessions: initial }: 
   }
 
   async function deleteSession(sessionId: string) {
-    if (!confirm('Delete this session? This cannot be undone.')) return
+    if (!(await confirm({ title: 'Delete session?', body: 'Delete this session? This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return
     setDeletingId(sessionId)
     const res = await fetch(`/api/league-sessions/${sessionId}`, { method: 'DELETE' })
     if (!res.ok) {
