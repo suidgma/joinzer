@@ -249,7 +249,7 @@ function BracketMatchCard({
   }
 
   return (
-    <div className={`w-36 rounded-xl border bg-white text-[11px] overflow-hidden flex flex-col ${pendingSync ? 'border-amber-400' : 'border-brand-border'}`}
+    <div className={`w-36 break-inside-avoid rounded-xl border bg-white text-[11px] overflow-hidden flex flex-col ${pendingSync ? 'border-amber-400' : 'border-brand-border'}`}
       style={{ minHeight: `${CARD_H}px` }}>
       {/* Team 1 */}
       <div className={`flex items-center gap-1.5 px-2 py-1.5 border-b border-brand-border/60 ${isDone && w === match.team_1_registration_id ? 'bg-brand-soft' : ''}`}>
@@ -444,7 +444,9 @@ function SingleBracket({
   const firstRoundCount = (roundMap.get(roundNums[0]) ?? []).length || 1
 
   return (
-    <div className="space-y-2">
+    // Keep a whole bracket (winners / losers / championship each render as their own
+    // SingleBracket) together on one printed page when it fits, instead of mid-bracket splits.
+    <div className="space-y-2 break-inside-avoid">
       {title && <p className="text-[10px] font-bold uppercase tracking-wide text-brand-muted">{title}</p>}
       <FitToWidth>
         <div className="flex gap-3 pb-2">
@@ -497,7 +499,9 @@ function RoundRobinList({
 
   const roundGroups = (ms: Match[], roundClass = 'text-brand-muted') =>
     byRound(ms).map(({ rNum, matches: rMs }) => (
-      <div key={rNum}>
+      // break-inside-avoid keeps a whole round (its header + cards) on one printed page
+      // when it fits, so the Export PDF doesn't split a round across pages.
+      <div key={rNum} className="break-inside-avoid">
         <p className={`text-[10px] font-bold uppercase tracking-widest ${roundClass} mb-2`}>Round {rNum}</p>
         <div className="flex flex-wrap gap-2">{rMs.map(card)}</div>
       </div>
