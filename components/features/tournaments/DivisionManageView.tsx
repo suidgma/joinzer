@@ -14,6 +14,10 @@ import { formatSummaryLines } from './FormatSettingsFields'
 import { computeStandings, type StandingsRow } from '@/lib/tournament/standings'
 import { poolStandings, type PoolMatchInput } from '@/lib/tournament/poolPlayoffSeeding'
 import { buildAutoSchedule } from '@/lib/tournament/autoSchedule'
+import { getSnapshot, setSnapshot } from '@/lib/offline/divisionStore'
+import type { LocalMatch } from '@/lib/offline/applyMutations'
+import { getQueue } from '@/lib/pendingQueue'
+import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
@@ -163,6 +167,47 @@ export default function DivisionManageView({
   const isBracket = division.bracket_type === 'single_elimination' || division.bracket_type === 'double_elimination'
   const hasMatches = matches.length > 0
   const active = registrations.filter(r => r.status !== 'cancelled')
+
+  // ── Offline durability (Phase 1) ──────────────────────────────────────────────
+  // Keep a localStorage snapshot of this division so scoring survives a reload with no
+  // signal: adopt the snapshot on an offline reload (the SW serves a stale cached shell),
+  // snapshot fresh server data while online, and persist after every change.
+  const isOnline = useOnlineStatus()
+  const snapshotNow = useCallback((m: Match[]) => {
+    setSnapshot({
+      divisionId: division.id,
+      tournamentId,
+      updatedAt: Date.now(),
+      hydratedAt: Date.now(),
+      matches: m as unknown as LocalMatch[],
+      regs: active.map(r => ({ id: r.id, status: r.status, partner_registration_id: r.partner_registration_id })),
+      meta: {
+        bracketType: division.bracket_type,
+        isDoubles,
+        pointsToWin: (division.format_settings_json as any)?.games_to ?? 11,
+        formatSettings: division.format_settings_json,
+      },
+    })
+  }, [division.id, division.bracket_type, division.format_settings_json, tournamentId, isDoubles, active])
+
+  const snapFirstRun = useRef(true)
+  useEffect(() => {
+    // Mount: online → snapshot fresh server data; offline → restore the local snapshot.
+    if (navigator.onLine) snapshotNow(matches)
+    else { const snap = getSnapshot(division.id); if (snap) setMatches(snap.matches as unknown as Match[]) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [division.id])
+  useEffect(() => {
+    // Persist after every subsequent change (the mount write is handled above).
+    if (snapFirstRun.current) { snapFirstRun.current = false; return }
+    snapshotNow(matches)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matches])
+
+  // matches/isOnline are recompute triggers, not inputs — re-read the queue length when a
+  // score is entered or connectivity flips.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pendingSync = useMemo(() => (typeof window !== 'undefined' ? getQueue(`bracket_${tournamentId}`).length : 0), [matches, isOnline, tournamentId])
 
   // The playoff bracket is created up front as labeled placeholders; once base play
   // (round robin / pools) is fully scored, its first-round slots get SEEDED with the
@@ -606,6 +651,15 @@ export default function DivisionManageView({
   return (
     <div className="min-h-screen bg-brand-bg">
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+
+        {/* ── Offline / sync status ── */}
+        {(!isOnline || pendingSync > 0) && (
+          <div className={`rounded-xl border px-3 py-2 text-xs font-medium ${!isOnline ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-blue-50 border-blue-300 text-blue-700'}`}>
+            {!isOnline
+              ? '📴 Offline — scores are saved on this device and will sync when you reconnect.'
+              : `Syncing ${pendingSync} change${pendingSync === 1 ? '' : 's'}…`}
+          </div>
+        )}
 
         {/* ── Back + header ── */}
         <div>
