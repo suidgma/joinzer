@@ -20,6 +20,13 @@ type Props = {
 
 const toHHMM = (t: string | undefined | null) => (t ? t.slice(0, 5) : '')
 
+// Compact M/D label for a YYYY-MM-DD date, e.g. "2026-07-04" → "7/4". Parses the parts
+// directly (no Date object) so it never shifts across the UTC boundary.
+const shortDate = (iso: string): string => {
+  const [y, mo, day] = iso.split('-').map(Number)
+  return y && mo && day ? `${mo}/${day}` : iso
+}
+
 export default function BlockFormModal({
   tournamentId, mode, block, days, locations, primaryLocationId, settings, onClose, onSaved, onError,
 }: Props) {
@@ -134,8 +141,8 @@ export default function BlockFormModal({
               scheduled outside the event. An existing out-of-range date (e.g. a
               legacy block) is shown as a flagged option so the organizer can fix it. */}
           <select value={date} onChange={e => onDateChange(e.target.value)} className="w-full input">
-            {dateOutOfRange && <option value={date}>{date} — outside tournament dates</option>}
-            {days.map(d => <option key={d.date} value={d.date}>{d.date}</option>)}
+            {dateOutOfRange && <option value={date}>{shortDate(date)} — outside tournament dates</option>}
+            {days.map(d => <option key={d.date} value={d.date}>{shortDate(d.date)}</option>)}
           </select>
           {dateOutOfRange && (
             <p className="mt-1 text-[11px] text-amber-600">This date is outside your tournament’s dates — pick a listed date.</p>
