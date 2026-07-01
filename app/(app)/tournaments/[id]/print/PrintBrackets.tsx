@@ -19,6 +19,8 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  team_1_source?: { label?: string } | null
+  team_2_source?: { label?: string } | null
 }
 
 type Reg = {
