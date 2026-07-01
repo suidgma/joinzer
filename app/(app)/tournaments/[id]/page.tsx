@@ -117,6 +117,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       { label: 'Schedule Builder', href: `/tournaments/${params.id}/schedule/builder` },
       { label: 'Standings', href: `/tournaments/${params.id}/standings` },
       { label: 'Players', href: `/tournaments/${params.id}/players` },
+      { label: 'Run offline', href: `/tournaments/${params.id}/run` },
       { label: 'Edit', href: `/tournaments/${params.id}/edit` },
     ] : []),
   ]
