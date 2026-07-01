@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
 import { phantomMatchIds } from '@/lib/tournament/resolveCompletion'
 import type { MatchRow } from '@/lib/tournament/bracketBuilder'
+import { scoreLocally } from '@/lib/offline/localAdvance'
+import type { LocalMatch } from '@/lib/offline/applyMutations'
 
 // useLayoutEffect warns during SSR; fall back to useEffect on the server.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -114,6 +116,35 @@ const CARD_H = 96
 // Queue key scoped to this tournament's bracket score ops
 const bracketQueueKey = (tournamentId: string) => `bracket_${tournamentId}`
 
+// The full division match set, provided by BracketView so a card can advance the bracket
+// LOCALLY (offline / on network error) via the shared engine — without threading the whole
+// array through every layer. See docs/phases/offline-scoring-phase-1.md.
+const AllMatchesContext = createContext<Match[]>([])
+
+// Matches that changed from a local score+advance, cast back to the display shape. A
+// freshly-inserted row (the double-elim reset) is stamped with the division id + null
+// schedule so it renders until the authoritative row arrives on sync.
+function changedAfterLocalScore(before: Match[], after: LocalMatch[], divisionId: string): Match[] {
+  const byId = new Map(before.map(m => [m.id, m]))
+  const out: Match[] = []
+  for (const a of after) {
+    const b = byId.get(a.id)
+    if (!b) {
+      out.push({ ...(a as unknown as Match), division_id: divisionId, pool_number: null, court_number: null, scheduled_time: null, team_1_score: null, team_2_score: null })
+    } else if (
+      b.team_1_registration_id !== a.team_1_registration_id ||
+      b.team_2_registration_id !== a.team_2_registration_id ||
+      b.winner_registration_id !== a.winner_registration_id ||
+      b.status !== a.status ||
+      b.team_1_score !== a.team_1_score ||
+      b.team_2_score !== a.team_2_score
+    ) {
+      out.push(a as unknown as Match)
+    }
+  }
+  return out
+}
+
 function BracketMatchCard({
   match, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, pointsToWin, showSeeds,
 }: {
@@ -128,6 +159,7 @@ function BracketMatchCard({
   showSeeds?: boolean
 }) {
   const ptw = pointsToWin ?? 11
+  const allMatches = useContext(AllMatchesContext)
   const [scoring, setScoring] = useState(false)
   const [s1, setS1] = useState('')
   const [s2, setS2] = useState('')
@@ -166,13 +198,19 @@ function BracketMatchCard({
     const url = `/api/tournaments/${tournamentId}/matches/${match.id}`
     const body = JSON.stringify({ team_1_score: n1, team_2_score: n2 })
 
-    if (!navigator.onLine) {
+    // Offline or on a network error: advance the bracket LOCALLY with the shared engine
+    // (so the round progresses with no server), and queue the PATCH to replay on reconnect.
+    // The server runs the same deterministic engine on sync, so state converges.
+    const advanceLocally = () => {
       enqueue(bracketQueueKey(tournamentId), { url, method: 'PATCH', body, dedupeKey: match.id })
+      const after = scoreLocally(allMatches as unknown as LocalMatch[], match.id, n1, n2)
+      onScoreUpdate(changedAfterLocalScore(allMatches, after, divisionId))
       setLoading(false)
       setScoring(false); setS1(''); setS2('')
       setPendingSync(true)
-      return
     }
+
+    if (!navigator.onLine) { advanceLocally(); return }
 
     try {
       const res = await fetch(url, {
@@ -187,11 +225,7 @@ function BracketMatchCard({
       const changed: Match[] = [json.match, ...(json.advancedMatches ?? [])]
       onScoreUpdate(changed)
     } catch {
-      // Network error — queue for retry
-      enqueue(bracketQueueKey(tournamentId), { url, method: 'PATCH', body, dedupeKey: match.id })
-      setLoading(false)
-      setScoring(false); setS1(''); setS2('')
-      setPendingSync(true)
+      advanceLocally() // network error — advance locally + queue for retry
     }
   }
 
@@ -571,6 +605,7 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
     const listMatches = matches.filter(m => !BRACKET_STAGES.has(m.match_stage))
     const bracketMatches = matches.filter(m => BRACKET_STAGES.has(m.match_stage))
     return (
+      <AllMatchesContext.Provider value={matches}>
       <div className="space-y-6">
         <RoundRobinList
           matches={listMatches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
@@ -588,14 +623,17 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
           </div>
         )}
       </div>
+      </AllMatchesContext.Provider>
     )
   }
 
   return (
-    <BracketStages
-      matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
-      tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
-      pointsToWin={pointsToWin} showSeeds={showSeeds}
-    />
+    <AllMatchesContext.Provider value={matches}>
+      <BracketStages
+        matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
+        tournamentId={tournamentId} divisionId={divisionId} onScoreUpdate={onScoreUpdate}
+        pointsToWin={pointsToWin} showSeeds={showSeeds}
+      />
+    </AllMatchesContext.Provider>
   )
 }
