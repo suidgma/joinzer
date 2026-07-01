@@ -69,17 +69,25 @@ export default function BlockFormModal({
   const initialLocation = locations.find(l => l.id === initialLocationId)
   const initialCourtCount = initialLocation?.court_count ?? 1
 
-  const [name, setName] = useState(block?.name ?? '')
-  // The name auto-derives from date/time/courts until the organizer types their own. An
-  // existing block (edit mode) keeps its saved name unless cleared.
-  const [nameTouched, setNameTouched] = useState(mode === 'edit')
-  const [date, setDate] = useState(block?.block_date ?? firstDay?.date ?? '')
-  const [startTime, setStartTime] = useState(toHHMM(block?.start_time ?? firstDay?.start_time))
-  const [endTime, setEndTime] = useState(toHHMM(block?.end_time ?? firstDay?.end_time))
-  const [locationId, setLocationId] = useState<string | null>(initialLocationId)
-  const [courts, setCourts] = useState<number[]>(
-    block?.court_numbers ?? Array.from({ length: initialCourtCount }, (_, i) => i + 1)
+  const initialDate = block?.block_date ?? firstDay?.date ?? ''
+  const initialStart = toHHMM(block?.start_time ?? firstDay?.start_time)
+  const initialEnd = toHHMM(block?.end_time ?? firstDay?.end_time)
+  const initialCourts = block?.court_numbers ?? Array.from({ length: initialCourtCount }, (_, i) => i + 1)
+  const initialName = block?.name ?? ''
+
+  const [name, setName] = useState(initialName)
+  // The name auto-derives from date/time/courts (in create AND edit) and keeps syncing until the
+  // organizer types their own. "Their own" = a non-empty name that differs from what auto-naming
+  // would produce, so an empty or already-auto name still updates as the fields change; a genuine
+  // custom name is preserved.
+  const [nameTouched, setNameTouched] = useState(
+    initialName.trim() !== '' && initialName !== autoBlockName(initialDate, initialStart, initialEnd, initialCourts)
   )
+  const [date, setDate] = useState(initialDate)
+  const [startTime, setStartTime] = useState(initialStart)
+  const [endTime, setEndTime] = useState(initialEnd)
+  const [locationId, setLocationId] = useState<string | null>(initialLocationId)
+  const [courts, setCourts] = useState<number[]>(initialCourts)
   const [notes, setNotes] = useState(block?.notes ?? '')
   const [priority, setPriority] = useState<number>(block?.priority ?? 0)
   const [maxDivisions, setMaxDivisions] = useState<string>(
