@@ -601,6 +601,10 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
     // In run mode the parent reconciles (drains all queues + bulk-refetch + re-render), so we
     // must not also drain-and-reload here — that would race the reconcile and hard-reload the page.
     if (externalSync) return
+    // Drain on mount too, not only on the `online` event. If signal returned while this view was
+    // unmounted/backgrounded — or the PWA was reopened already online — the event never fires, so a
+    // queued score would otherwise sit "Syncing…" forever. (No-op when the queue is empty.)
+    if (typeof navigator !== 'undefined' && navigator.onLine) handleOnline()
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
   }, [handleOnline, externalSync])
