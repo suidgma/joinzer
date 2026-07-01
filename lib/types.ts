@@ -71,7 +71,7 @@ export type ScheduleSettings = {
 }
 
 export const DEFAULT_SCHEDULE_SETTINGS: ScheduleSettings = {
-  match_duration_minutes: 20,
+  match_duration_minutes: 15,
   buffer_minutes: 0,
   min_rest_minutes: 0,
   conflict_policy: 'warning',
