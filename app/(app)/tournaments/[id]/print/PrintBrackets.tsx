@@ -61,6 +61,10 @@ const PRINT_CSS = `
   .no-print { display: none !important; }
   html, body { background: #fff !important; }
   .overflow-x-auto { overflow: visible !important; }
+  /* Reinforce Tailwind's break-inside-avoid with the legacy alias. Chrome's print engine
+     honors page-break-inside more reliably (esp. around wrapped/flex content), so a round,
+     a match card, or a whole bracket stays on one page when it fits. */
+  .break-inside-avoid { break-inside: avoid !important; page-break-inside: avoid !important; }
 }
 `
 
