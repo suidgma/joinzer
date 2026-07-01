@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { ScheduleBlock, ScheduleSettings } from '@/lib/types'
 import type { BuilderDay, BuilderLocation } from './types'
@@ -27,6 +27,40 @@ const shortDate = (iso: string): string => {
   return y && mo && day ? `${mo}/${day}` : iso
 }
 
+// Compact am/pm time label, e.g. "08:00" → "8am", "13:30" → "1:30pm".
+const fmtTime = (hhmm: string): string => {
+  const [h, m] = hhmm.split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const ampm = h < 12 ? 'am' : 'pm'
+  const hr = h % 12 === 0 ? 12 : h % 12
+  return m ? `${hr}:${String(m).padStart(2, '0')}${ampm}` : `${hr}${ampm}`
+}
+
+// Court label, collapsing contiguous runs into ranges: [1,2,3,4] → "Courts 1-4",
+// [1] → "Court 1", [1,3,5] → "Courts 1, 3, 5".
+const fmtCourts = (courts: number[]): string => {
+  if (courts.length === 0) return ''
+  const sorted = [...courts].sort((a, b) => a - b)
+  const parts: string[] = []
+  let start = sorted[0]
+  let prev = sorted[0]
+  for (let i = 1; i <= sorted.length; i++) {
+    const n = sorted[i]
+    if (n === prev + 1) { prev = n; continue }
+    parts.push(start === prev ? `${start}` : `${start}-${prev}`)
+    start = n
+    prev = n
+  }
+  return `${courts.length === 1 ? 'Court' : 'Courts'} ${parts.join(', ')}`
+}
+
+// Auto block name from the block's own fields, e.g. "7/4, 8am-11am, Courts 1-4".
+const autoBlockName = (date: string, start: string, end: string, courts: number[]): string => {
+  const d = date ? shortDate(date) : ''
+  const t = start && end ? `${fmtTime(start)}-${fmtTime(end)}` : start ? fmtTime(start) : ''
+  return [d, t, fmtCourts(courts)].filter(Boolean).join(', ')
+}
+
 export default function BlockFormModal({
   tournamentId, mode, block, days, locations, primaryLocationId, settings, onClose, onSaved, onError,
 }: Props) {
@@ -36,6 +70,9 @@ export default function BlockFormModal({
   const initialCourtCount = initialLocation?.court_count ?? 1
 
   const [name, setName] = useState(block?.name ?? '')
+  // The name auto-derives from date/time/courts until the organizer types their own. An
+  // existing block (edit mode) keeps its saved name unless cleared.
+  const [nameTouched, setNameTouched] = useState(mode === 'edit')
   const [date, setDate] = useState(block?.block_date ?? firstDay?.date ?? '')
   const [startTime, setStartTime] = useState(toHHMM(block?.start_time ?? firstDay?.start_time))
   const [endTime, setEndTime] = useState(toHHMM(block?.end_time ?? firstDay?.end_time))
@@ -52,6 +89,11 @@ export default function BlockFormModal({
 
   const selectedLocation = locations.find(l => l.id === locationId)
   const courtCount = selectedLocation?.court_count ?? 0
+
+  // Keep the auto name in sync with the fields until the organizer overrides it.
+  useEffect(() => {
+    if (!nameTouched) setName(autoBlockName(date, startTime, endTime, courts))
+  }, [nameTouched, date, startTime, endTime, courts])
 
   function onDateChange(newDate: string) {
     setDate(newDate)
@@ -232,7 +274,12 @@ export default function BlockFormModal({
 
         <div>
           <label className="block text-xs font-medium text-brand-muted mb-1">Block name</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Saturday Morning" className="w-full input" />
+          <input
+            value={name}
+            onChange={e => { setName(e.target.value); setNameTouched(e.target.value.trim().length > 0) }}
+            placeholder="Auto-named from date, time & courts"
+            className="w-full input"
+          />
         </div>
 
         {cap && (
