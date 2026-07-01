@@ -6,8 +6,11 @@ import type { LocalMatch } from './applyMutations'
 // tournament round-trips by index. See docs/phases/offline-run-mode-phase-2.md.
 
 const DB_NAME = 'joinzer-offline'
-const DB_VERSION = 1
+// v2 adds the `outbox` store (Phase-2 step 4). It lives in the same DB but OUTSIDE `STORES`,
+// so tournament read/write/clear transactions never touch it — pending writes survive a re-hydrate.
+const DB_VERSION = 2
 const STORES = ['tournaments', 'divisions', 'registrations', 'courts', 'matches'] as const
+export const OUTBOX_STORE = 'outbox'
 type StoreName = (typeof STORES)[number]
 
 type Row = { id: string; [k: string]: unknown }
@@ -23,7 +26,7 @@ export type TournamentBundle = {
 
 const idbAvailable = () => typeof indexedDB !== 'undefined'
 
-function openDB(): Promise<IDBDatabase> {
+export function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = () => {
@@ -35,6 +38,8 @@ function openDB(): Promise<IDBDatabase> {
         store.createIndex('tournament_id', 'tournament_id', { unique: false })
         if (s === 'registrations' || s === 'matches') store.createIndex('division_id', 'division_id', { unique: false })
       }
+      // Unified outbox for run-mode writes (check-in / resolve / reschedule). FIFO by auto `seq`.
+      if (!db.objectStoreNames.contains(OUTBOX_STORE)) db.createObjectStore(OUTBOX_STORE, { keyPath: 'seq', autoIncrement: true })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -42,7 +47,7 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 // Resolve when a transaction finishes — the point at which every request it holds is done.
-function txDone(t: IDBTransaction): Promise<void> {
+export function txDone(t: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     t.oncomplete = () => resolve()
     t.onerror = () => reject(t.error)
@@ -133,6 +138,19 @@ export async function putMatches(matches: StoredMatch[]): Promise<void> {
   try {
     const t = db.transaction(['matches'], 'readwrite')
     matches.forEach(m => t.objectStore('matches').put(m))
+    await txDone(t)
+  } finally {
+    db.close()
+  }
+}
+
+/** Upsert changed registration rows (e.g. after a local check-in). */
+export async function putRegistrations(regs: Row[]): Promise<void> {
+  if (!idbAvailable() || regs.length === 0) return
+  const db = await openDB()
+  try {
+    const t = db.transaction(['registrations'], 'readwrite')
+    regs.forEach(r => t.objectStore('registrations').put(r))
     await txDone(t)
   } finally {
     db.close()
