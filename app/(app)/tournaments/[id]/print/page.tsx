@@ -30,7 +30,8 @@ export default async function PrintBracketsPage(props: { params: Promise<{ id: s
         .select(`
           id, division_id, round_number, match_number, match_stage, pool_number,
           court_number, scheduled_time, team_1_registration_id, team_2_registration_id,
-          team_1_score, team_2_score, winner_registration_id, status
+          team_1_score, team_2_score, winner_registration_id, status,
+          team_1_source, team_2_source
         `)
         .eq('tournament_id', params.id)
         .eq('is_draft', false)
