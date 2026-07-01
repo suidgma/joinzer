@@ -31,13 +31,19 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
   const isOnline = useOnlineStatus()
   const [bundle, setBundle] = useState<TournamentBundle | null>(null)
   const bundleRef = useRef<TournamentBundle | null>(null)
+  // Option 1 (docs/phases/offline-multi-device-phase-3.md): offline writes belong to the LEAD
+  // organizer alone — one offline writer per tournament. Non-leads get a read-only run surface.
+  const canWriteRef = useRef(false)
   const [status, setStatus] = useState<LoadState>('loading')
   const [activeDiv, setActiveDiv] = useState<string | null>(null)
   const [view, setView] = useState<View>('matches')
   const [pending, setPending] = useState(0)
   const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => { bundleRef.current = bundle }, [bundle])
+  useEffect(() => {
+    bundleRef.current = bundle
+    canWriteRef.current = !!(bundle?.tournament as AnyRow | undefined)?.is_lead_organizer
+  }, [bundle])
 
   const refreshPending = useCallback(async () => {
     setPending(await pendingCount(tournamentId))
@@ -144,6 +150,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
 
   // ── Writes: apply to state + store, enqueue the intent ──────────────────────────
   const applyScored = useCallback((changed: AnyRow[]) => {
+    if (!canWriteRef.current) return
     const b = bundleRef.current
     if (!b || !changed?.length) return
     const byId = new Map(changed.map(m => [m.id, m]))
@@ -165,6 +172,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
   }, [tournamentId, activeDiv, refreshPending])
 
   const toggleCheckIn = useCallback(async (regId: string, checkedIn: boolean) => {
+    if (!canWriteRef.current) return
     const b = bundleRef.current
     if (!b) return
     const registrations = checkInLocally(b.registrations as AnyRow[], regId, checkedIn)
@@ -181,6 +189,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
   }, [tournamentId, refreshPending])
 
   const doReschedule = useCallback(async (matchId: string, courtNumber: number | null, scheduledTime: string | null) => {
+    if (!canWriteRef.current) return
     const b = bundleRef.current
     if (!b) return
     const matches = rescheduleLocally(b.matches, matchId, courtNumber, scheduledTime)
@@ -197,6 +206,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
   }, [tournamentId, refreshPending])
 
   const seedPlayoffs = useCallback(async () => {
+    if (!canWriteRef.current) return
     const b = bundleRef.current
     if (!b || !division) return
     const divId = division.id
@@ -239,6 +249,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
   const isBracket = division?.bracket_type === 'single_elimination' || division?.bracket_type === 'double_elimination'
   const isDoubles = isDoublesFormat(division?.format ?? '')
   const pointsToWin = (division?.format_settings_json as AnyRow)?.games_to ?? 11
+  const canWrite = !!(bundle.tournament as AnyRow).is_lead_organizer
 
   const TABS: [View, string][] = [
     ['matches', isBracket ? 'Bracket' : 'Matches'],
@@ -259,8 +270,19 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
 
         <div>
           <h1 className="font-heading text-lg font-bold text-brand-dark">{String(bundle.tournament.name)}</h1>
-          <p className="text-xs text-brand-muted">Run mode</p>
+          <p className="text-xs text-brand-muted">Run mode{canWrite ? '' : ' · read-only'}</p>
         </div>
+
+        {!canWrite && (
+          <div className="rounded-xl border border-brand-border bg-brand-soft/60 px-3 py-2.5">
+            <p className="text-xs font-semibold text-brand-dark">Read-only — you’re not the lead organizer</p>
+            <p className="text-xs text-brand-muted mt-0.5">
+              Running a tournament offline is the lead organizer’s device only.{' '}
+              {isOnline ? 'To score or check players in, use the ' : 'Reconnect, then use the '}
+              <Link href={`/tournaments/${tournamentId}/live`} className="font-semibold text-brand-active underline">live tournament view</Link>.
+            </p>
+          </div>
+        )}
 
         {pending > 0 && (
           <div className="flex items-center justify-between gap-2 rounded-xl border border-brand-border bg-brand-surface px-3 py-2">
@@ -305,13 +327,13 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
 
             {view === 'standings' && <RunStandings rows={standings} teamName={teamName} />}
 
-            {view === 'checkin' && <RunCheckIn regs={activeRegs} teamName={teamName} onToggle={toggleCheckIn} />}
+            {view === 'checkin' && <RunCheckIn regs={activeRegs} teamName={teamName} onToggle={toggleCheckIn} readOnly={!canWrite} />}
 
-            {view === 'schedule' && <RunSchedule matches={divMatches as AnyRow[]} teamName={teamName} onReschedule={doReschedule} />}
+            {view === 'schedule' && <RunSchedule matches={divMatches as AnyRow[]} teamName={teamName} onReschedule={doReschedule} readOnly={!canWrite} />}
 
             {view === 'matches' && (
               <div className="space-y-3">
-                {canSeedPlayoffs && (
+                {canWrite && canSeedPlayoffs && (
                   <button onClick={seedPlayoffs}
                     className="w-full rounded-xl bg-brand text-brand-dark text-sm font-bold py-2.5">
                     Seed playoffs from standings
@@ -326,7 +348,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
                     partner_user_id: r.partner_user_id ?? null,
                     partner_profile: r.partner_profile ?? null,
                   }))}
-                  isOrganizer
+                  isOrganizer={canWrite}
                   isDoubles={isDoubles}
                   tournamentId={tournamentId}
                   divisionId={division.id}

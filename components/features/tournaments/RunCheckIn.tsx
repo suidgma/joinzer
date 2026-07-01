@@ -11,10 +11,12 @@ export default function RunCheckIn({
   regs,
   teamName,
   onToggle,
+  readOnly = false,
 }: {
   regs: Reg[]
   teamName: (regId: string) => string
   onToggle: (regId: string, checkedIn: boolean) => Promise<void>
+  readOnly?: boolean
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const inCount = regs.filter(r => r.checked_in).length
@@ -41,13 +43,8 @@ export default function RunCheckIn({
       <div className="overflow-hidden rounded-xl border border-brand-border divide-y divide-brand-border">
         {regs.map(reg => {
           const on = !!reg.checked_in
-          return (
-            <button
-              key={reg.id}
-              onClick={() => toggle(reg)}
-              disabled={busy === reg.id}
-              className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-brand-soft/50 disabled:opacity-50 transition-colors"
-            >
+          const rowInner = (
+            <>
               <span className={`text-sm font-medium truncate ${on ? 'text-brand-dark' : 'text-brand-muted'}`}>
                 {teamName(reg.id)}
               </span>
@@ -56,6 +53,20 @@ export default function RunCheckIn({
               ) : (
                 <Circle className="w-5 h-5 text-brand-border shrink-0" />
               )}
+            </>
+          )
+          return readOnly ? (
+            <div key={reg.id} className="w-full flex items-center justify-between gap-3 px-3 py-2.5">
+              {rowInner}
+            </div>
+          ) : (
+            <button
+              key={reg.id}
+              onClick={() => toggle(reg)}
+              disabled={busy === reg.id}
+              className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-brand-soft/50 disabled:opacity-50 transition-colors"
+            >
+              {rowInner}
             </button>
           )
         })}

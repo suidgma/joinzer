@@ -8,6 +8,11 @@
 >
 > This is the hardest offline phase because it introduces **concurrent writers**. Read §4 before
 > committing to it — there's a real "do we need this yet?" question and a cheaper middle option.
+>
+> **Progress: Option 1 (§4) is shipped** — offline run mode is now the **lead organizer's** device
+> only; co-organizers/volunteers get a read-only run surface directing them to the online live view.
+> This removes the multi-offline-writer foot-gun with zero conflict code. **Option 2 (the full
+> op-log merge, §5–§14) remains deferred** until a real multi-court, no-signal event needs it.
 
 ---
 
@@ -278,8 +283,10 @@ op set on two "devices" and asserting equal stores. Manual: real two-phone airpl
 
 ## 14. Sequencing (each shippable)
 
-0. **Option 1 first (recommended, tiny):** volunteers must be online to write; the lead device is the
-   only offline one. UI guard + doc. No conflict code. Removes the silent-offline-volunteer foot-gun.
+0. ✅ **Option 1 (shipped):** offline run mode is gated to the **lead organizer** — the "Run offline"
+   nav entry shows for the owner only, the run surface is **read-only for non-leads** (a banner points
+   them to the live view), and `offline-bundle` returns `is_lead_organizer` so `<RunMode>` enforces it
+   (write handlers + scoring/check-in/reschedule/seed UI all gated). No conflict code.
 1. **HLC + device_id + op envelope** (`lib/offline/hlc.ts`, outbox fields) — pure, tested. No behavior
    change yet (ops still replay as today).
 2. **`tournament_ops` + `POST/GET /ops`** — server merge authority with the §8 rules for the *safe*
@@ -296,9 +303,11 @@ needing it.
 
 ## 15. Recommendation
 
-Ship **Option 1** as a short hardening pass on Phase 2 (online-required volunteers + a clear offline
-guard), and **defer Option 2** until a booked event has (a) multiple scorekeepers and (b) confirmed
-no venue signal. When that event exists, Option 2's build order above is ready. Until then, the
-marginal reliability of single-device offline (Phase 2) is almost certainly not worth the
-multi-writer merge machinery — and building it now would be speculative complexity against an
-unvalidated need. Revisit when the first multi-court, no-signal event is on the calendar.
+**Done:** Option 1 shipped — offline run mode is the lead organizer's device only, so there is
+exactly one offline writer per tournament and the Phase-2 single-writer reconcile stays sound.
+
+**Deferred:** Option 2 (the full op-log merge, §5–§14) until a booked event has (a) multiple
+scorekeepers and (b) confirmed no venue signal. When that event exists, the build order above is
+ready. Until then, the marginal reliability of multi-writer offline is not worth the merge machinery
+— building it now would be speculative complexity against an unvalidated need. Revisit when the first
+multi-court, no-signal event is on the calendar.
