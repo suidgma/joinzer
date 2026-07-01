@@ -17,7 +17,7 @@ import { buildAutoSchedule } from '@/lib/tournament/autoSchedule'
 import { getSnapshot, setSnapshot } from '@/lib/offline/divisionStore'
 import { precachePages } from '@/lib/offline/precache'
 import type { LocalMatch } from '@/lib/offline/applyMutations'
-import { getQueue } from '@/lib/pendingQueue'
+import { getQueue, drainQueue } from '@/lib/pendingQueue'
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 
 function firstName(name: string | null | undefined): string {
@@ -211,10 +211,55 @@ export default function DivisionManageView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matches])
 
-  // matches/isOnline are recompute triggers, not inputs — re-read the queue length when a
-  // score is entered or connectivity flips.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const pendingSync = useMemo(() => (typeof window !== 'undefined' ? getQueue(`bracket_${tournamentId}`).length : 0), [matches, isOnline, tournamentId])
+  // Offline scores queue as PATCHes in localStorage; this view OWNS draining them (BracketView's
+  // own drain is disabled via externalSync below, since it only mounts on the Bracket tab). The
+  // mobile `online` event is unreliable, so we drain from every reliable signal — mount, focus,
+  // visibility, and a manual button — and only ever say "Syncing…" while a drain is actually
+  // in flight. Fixes offline scores getting stuck on "Syncing N changes…".
+  const scoreQueueKey = `bracket_${tournamentId}`
+  const [pending, setPending] = useState(0)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState(false)
+
+  const refreshPending = useCallback(() => {
+    setPending(typeof window !== 'undefined' ? getQueue(scoreQueueKey).length : 0)
+  }, [scoreQueueKey])
+
+  const syncPending = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    if (getQueue(scoreQueueKey).length === 0) { setPending(0); return }
+    setSyncing(true); setSyncError(false)
+    try {
+      const { synced, failed } = await drainQueue(scoreQueueKey)
+      if (synced > 0) { window.location.reload(); return } // pull authoritative server state
+      if (failed > 0) setSyncError(true)
+    } catch {
+      setSyncError(true)
+    } finally {
+      setSyncing(false)
+      refreshPending()
+    }
+  }, [scoreQueueKey, refreshPending])
+
+  // Re-read the pending count when a score is entered or connectivity flips.
+  useEffect(() => { refreshPending() }, [matches, isOnline, refreshPending])
+
+  // Drive the drain from every reliable trigger (mobile `online` events are flaky, and the
+  // "already online with a queue on mount" case is exactly what was getting stuck).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const trigger = () => { if (navigator.onLine) syncPending() }
+    trigger()
+    const onVisible = () => { if (document.visibilityState === 'visible') trigger() }
+    window.addEventListener('online', trigger)
+    window.addEventListener('focus', trigger)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', trigger)
+      window.removeEventListener('focus', trigger)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [syncPending])
 
   // The playoff bracket is created up front as labeled placeholders; once base play
   // (round robin / pools) is fully scored, its first-round slots get SEEDED with the
@@ -629,6 +674,7 @@ export default function DivisionManageView({
           listLayout={!isBracket}
           pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
           showSeeds={showSeeds}
+          externalSync
         />
       )}
     </div>
@@ -660,11 +706,30 @@ export default function DivisionManageView({
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
 
         {/* ── Offline / sync status ── */}
-        {(!isOnline || pendingSync > 0) && (
-          <div className={`rounded-xl border px-3 py-2 text-xs font-medium ${!isOnline ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-blue-50 border-blue-300 text-blue-700'}`}>
-            {!isOnline
-              ? '📴 Offline — scores are saved on this device and will sync when you reconnect.'
-              : `Syncing ${pendingSync} change${pendingSync === 1 ? '' : 's'}…`}
+        {(!isOnline || pending > 0) && (
+          <div className={`rounded-xl border px-3 py-2 text-xs font-medium ${
+            !isOnline ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
+            : syncError ? 'bg-red-50 border-red-300 text-red-700'
+            : 'bg-blue-50 border-blue-300 text-blue-700'
+          }`}>
+            {!isOnline ? (
+              '📴 Offline — scores are saved on this device and will sync when you reconnect.'
+            ) : (
+              <span className="flex items-center justify-between gap-2">
+                <span>
+                  {syncing
+                    ? `Syncing ${pending} change${pending === 1 ? '' : 's'}…`
+                    : syncError
+                      ? `${pending} change${pending === 1 ? '' : 's'} didn’t sync.`
+                      : `${pending} change${pending === 1 ? '' : 's'} waiting to sync.`}
+                </span>
+                {!syncing && (
+                  <button onClick={syncPending} className="font-semibold underline shrink-0">
+                    {syncError ? 'Retry' : 'Sync now'}
+                  </button>
+                )}
+              </span>
+            )}
           </div>
         )}
 
