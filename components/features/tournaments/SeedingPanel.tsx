@@ -273,7 +273,7 @@ export default function SeedingPanel({
   const [scheduleSaving, setScheduleSaving] = useState(false)
   const [scheduleError, setScheduleError] = useState<string | null>(null)
   const [scheduleSaved, setScheduleSaved] = useState(false)
-  const [roundDuration, setRoundDuration] = useState(20)
+  const [roundDuration, setRoundDuration] = useState(15)
 
   // Reset schedule edits when matches change (e.g. after generation)
   const matchIdsKey = (matches ?? []).map(m => m.id).sort().join(',')
