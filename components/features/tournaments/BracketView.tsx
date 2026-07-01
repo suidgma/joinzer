@@ -263,7 +263,7 @@ function BracketMatchCard({
         ) : isDone && match.team_1_score != null ? (
           <span className={`w-7 shrink-0 font-bold text-right ${w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_1_score}</span>
         ) : null}
-        <span className={`font-semibold truncate ${isDone && w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}><TeamNameDisplay regId={match.team_1_registration_id} source={match.team_1_source} regs={regs} isDoubles={isDoubles} showSeeds={showSeeds} /></span>
+        <span className={`font-semibold truncate print:pr-1.5 ${isDone && w === match.team_1_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}><TeamNameDisplay regId={match.team_1_registration_id} source={match.team_1_source} regs={regs} isDoubles={isDoubles} showSeeds={showSeeds} /></span>
       </div>
       {/* Team 2 */}
       <div className={`flex items-center gap-1.5 px-2 py-1.5 ${isDone && w === match.team_2_registration_id ? 'bg-brand-soft' : ''}`}>
@@ -277,7 +277,7 @@ function BracketMatchCard({
         ) : isDone && match.team_2_score != null && !isBye ? (
           <span className={`w-7 shrink-0 font-bold text-right ${w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-muted'}`}>{match.team_2_score}</span>
         ) : isDone ? <span className="w-7 shrink-0" /> : null}
-        <span className={`font-semibold truncate ${isBye ? 'text-brand-muted italic' : isDone && w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>{isBye ? 'BYE' : <TeamNameDisplay regId={match.team_2_registration_id} source={match.team_2_source} regs={regs} isDoubles={isDoubles} showSeeds={showSeeds} />}</span>
+        <span className={`font-semibold truncate print:pr-1.5 ${isBye ? 'text-brand-muted italic' : isDone && w === match.team_2_registration_id ? 'text-brand-active' : 'text-brand-dark'}`}>{isBye ? 'BYE' : <TeamNameDisplay regId={match.team_2_registration_id} source={match.team_2_source} regs={regs} isDoubles={isDoubles} showSeeds={showSeeds} />}</span>
       </div>
 
       {/* Assignment info: court + time */}
