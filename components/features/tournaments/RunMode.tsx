@@ -1,30 +1,52 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { RefreshCw } from 'lucide-react'
 import BracketView from './BracketView'
-import { readTournament, type TournamentBundle } from '@/lib/offline/tournamentDB'
+import RunStandings from './RunStandings'
+import RunCheckIn from './RunCheckIn'
+import RunSchedule from './RunSchedule'
+import { readTournament, putMatches, putRegistrations, type TournamentBundle, type StoredMatch } from '@/lib/offline/tournamentDB'
 import { hydrateFromServer } from '@/lib/offline/hydrate'
 import { precachePages } from '@/lib/offline/precache'
+import { enqueueOp, outboxCount, drainOutbox } from '@/lib/offline/outbox'
+import { getQueue, drainQueue } from '@/lib/pendingQueue'
+import { checkInLocally, resolvePlayoffsLocally, rescheduleLocally } from '@/lib/offline/localOps'
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { computeStandings, type StandingsMatchInput, type StandingsRegInput } from '@/lib/tournament/standings'
 
-type AnyRow = Record<string, any>
+type AnyRow = { id: string; [k: string]: any }
 type LoadState = 'loading' | 'ready' | 'empty' | 'error'
+type View = 'matches' | 'standings' | 'checkin' | 'schedule'
+
+const scoreQueueKey = (tournamentId: string) => `bracket_${tournamentId}`
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
 }
 
-// Offline-first day-of view: hydrate the whole tournament while online, then read it (and,
-// after Step 4, write to it) entirely from IndexedDB — so it cold-loads with no signal.
+// Offline-first day-of view: hydrate the whole tournament while online, then read AND write it
+// entirely from IndexedDB — scores, check-ins, playoff seeding and reschedules all apply locally
+// and queue in the outbox to replay on reconnect. See docs/phases/offline-run-mode-phase-2.md.
 export default function RunMode({ tournamentId }: { tournamentId: string }) {
   const isOnline = useOnlineStatus()
   const [bundle, setBundle] = useState<TournamentBundle | null>(null)
+  const bundleRef = useRef<TournamentBundle | null>(null)
   const [status, setStatus] = useState<LoadState>('loading')
   const [activeDiv, setActiveDiv] = useState<string | null>(null)
-  const [view, setView] = useState<'matches' | 'standings'>('matches')
+  const [view, setView] = useState<View>('matches')
+  const [pending, setPending] = useState(0)
+  const [syncing, setSyncing] = useState(false)
+
+  useEffect(() => { bundleRef.current = bundle }, [bundle])
+
+  const refreshPending = useCallback(async () => {
+    let scoreQ = 0
+    try { scoreQ = getQueue(scoreQueueKey(tournamentId)).length } catch { /* SSR / no storage */ }
+    setPending((await outboxCount()) + scoreQ)
+  }, [tournamentId])
 
   useEffect(() => {
     let cancelled = false
@@ -40,15 +62,24 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
         if (navigator.onLine) {
           const fresh = await hydrateFromServer(tournamentId)
           precachePages([`/tournaments/${tournamentId}/run`])
-          if (fresh) return settle(fresh)
+          if (fresh) { settle(fresh); refreshPending(); return }
         }
         settle(await readTournament(tournamentId))
+        refreshPending()
       } catch {
         if (!cancelled) setStatus('error')
       }
     })()
     return () => { cancelled = true }
-  }, [tournamentId])
+  }, [tournamentId, refreshPending])
+
+  // On reconnect, drain the outbox (check-in / resolve / reschedule). Scoring's Phase-1 queue
+  // drains inside BracketView (which reloads the page). Step 5 adds the bulk-refetch reconcile.
+  useEffect(() => {
+    const onOnline = async () => { await drainOutbox(); refreshPending() }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [refreshPending])
 
   const division = useMemo(
     () => bundle?.divisions.find(d => d.id === activeDiv) as AnyRow | undefined,
@@ -62,8 +93,10 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
     () => (bundle?.registrations ?? []).filter((r: AnyRow) => r.division_id === activeDiv) as AnyRow[],
     [bundle, activeDiv],
   )
+  const activeRegs = useMemo(() => divRegs.filter(r => r.status === 'registered'), [divRegs])
 
-  const teamName = (regId: string) => {
+  const teamName = useCallback((regId: string | null | undefined) => {
+    if (!regId) return '—'
     const r = divRegs.find(x => x.id === regId)
     if (!r) return '—'
     const a = firstName(r.user_profile?.name)
@@ -73,7 +106,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
       if (a && b) return [a, b].sort((m, n) => m.localeCompare(n)).join('/')
     }
     return a || r.team_name || regId.slice(0, 8)
-  }
+  }, [divRegs])
 
   const standings = useMemo(() => {
     if (!division) return []
@@ -82,8 +115,107 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
       : bt === 'pool_play_playoffs' ? divMatches.filter(m => m.match_stage === 'pool_play')
       : divMatches
     return computeStandings(base as unknown as StandingsMatchInput[], divRegs as unknown as StandingsRegInput[], teamName)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [division, divMatches, divRegs])
+  }, [division, divMatches, divRegs, teamName])
+
+  // "Seed playoffs" is available once base play is complete but the placeholder bracket is still
+  // holding source tokens instead of teams.
+  const canSeedPlayoffs = useMemo(() => {
+    const bt = division?.bracket_type
+    if (bt !== 'round_robin' && bt !== 'pool_play_playoffs') return false
+    const baseStage = bt === 'round_robin' ? 'round_robin' : 'pool_play'
+    const base = divMatches.filter(m => m.match_stage === baseStage)
+    const allDone = base.length > 0 && base.every(m => m.status === 'completed')
+    const hasUnseeded = divMatches.some(m => m.team_1_source != null || m.team_2_source != null)
+    return allDone && hasUnseeded
+  }, [division, divMatches])
+
+  // ── Writes: apply to state + store, enqueue the intent ──────────────────────────
+  const applyScored = useCallback((changed: AnyRow[]) => {
+    const b = bundleRef.current
+    if (!b || !changed?.length) return
+    const byId = new Map(changed.map(m => [m.id, m]))
+    const seen = new Set<string>()
+    const matches = b.matches.map(m => {
+      if (!byId.has(m.id)) return m
+      seen.add(m.id)
+      return { ...m, ...byId.get(m.id) } as StoredMatch
+    })
+    // New rows (e.g. a double-elim reset decider) aren't in the store yet — append them so the
+    // local bracket stays complete until the next hydrate reconciles server ids.
+    for (const c of changed) {
+      if (seen.has(c.id)) continue
+      matches.push({ tournament_id: tournamentId, division_id: activeDiv, ...c } as StoredMatch)
+    }
+    setBundle({ ...b, matches })
+    putMatches(matches.filter(m => byId.has(m.id))).catch(() => {})
+    refreshPending()
+  }, [tournamentId, activeDiv, refreshPending])
+
+  const toggleCheckIn = useCallback(async (regId: string, checkedIn: boolean) => {
+    const b = bundleRef.current
+    if (!b) return
+    const registrations = checkInLocally(b.registrations as AnyRow[], regId, checkedIn)
+    setBundle({ ...b, registrations: registrations as TournamentBundle['registrations'] })
+    const reg = registrations.find(r => r.id === regId)
+    if (reg) await putRegistrations([reg])
+    await enqueueOp({
+      url: `/api/tournaments/${tournamentId}/registrations/${regId}/checkin`,
+      method: 'PATCH',
+      body: JSON.stringify({ checked_in: checkedIn }),
+      dedupeKey: `checkin:${regId}`,
+    })
+    refreshPending()
+  }, [tournamentId, refreshPending])
+
+  const doReschedule = useCallback(async (matchId: string, courtNumber: number | null, scheduledTime: string | null) => {
+    const b = bundleRef.current
+    if (!b) return
+    const matches = rescheduleLocally(b.matches, matchId, courtNumber, scheduledTime)
+    setBundle({ ...b, matches })
+    const m = matches.find(x => x.id === matchId)
+    if (m) await putMatches([m])
+    await enqueueOp({
+      url: `/api/tournaments/${tournamentId}/matches/${matchId}/reschedule`,
+      method: 'PATCH',
+      body: JSON.stringify({ court_number: courtNumber, scheduled_time: scheduledTime }),
+      dedupeKey: `reschedule:${matchId}`,
+    })
+    refreshPending()
+  }, [tournamentId, refreshPending])
+
+  const seedPlayoffs = useCallback(async () => {
+    const b = bundleRef.current
+    if (!b || !division) return
+    const divId = division.id
+    const seededDiv = resolvePlayoffsLocally(
+      b.matches.filter(m => m.division_id === divId) as any[],
+      b.registrations.filter((r: AnyRow) => r.division_id === divId) as unknown as StandingsRegInput[],
+      division.bracket_type,
+      teamName,
+    ) as StoredMatch[]
+    const byId = new Map(seededDiv.map(m => [m.id, m]))
+    const matches = b.matches.map(m => byId.get(m.id) ?? m)
+    setBundle({ ...b, matches })
+    await putMatches(seededDiv)
+    await enqueueOp({
+      url: `/api/tournaments/${tournamentId}/divisions/${divId}/resolve-playoffs`,
+      method: 'POST',
+      body: JSON.stringify({}),
+      dedupeKey: `resolve:${divId}`,
+    })
+    refreshPending()
+  }, [tournamentId, division, teamName, refreshPending])
+
+  const syncNow = useCallback(async () => {
+    setSyncing(true)
+    try {
+      await drainOutbox()
+      await drainQueue(scoreQueueKey(tournamentId))
+    } finally {
+      setSyncing(false)
+      refreshPending()
+    }
+  }, [tournamentId, refreshPending])
 
   if (status !== 'ready' || !bundle) {
     return (
@@ -106,6 +238,13 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
   const isDoubles = isDoublesFormat(division?.format ?? '')
   const pointsToWin = (division?.format_settings_json as AnyRow)?.games_to ?? 11
 
+  const TABS: [View, string][] = [
+    ['matches', isBracket ? 'Bracket' : 'Matches'],
+    ['standings', 'Standings'],
+    ['checkin', 'Check-in'],
+    ['schedule', 'Schedule'],
+  ]
+
   return (
     <div className="min-h-screen bg-brand-bg">
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
@@ -118,8 +257,23 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
 
         <div>
           <h1 className="font-heading text-lg font-bold text-brand-dark">{String(bundle.tournament.name)}</h1>
-          <p className="text-xs text-brand-muted">Run mode · read-only preview</p>
+          <p className="text-xs text-brand-muted">Run mode</p>
         </div>
+
+        {pending > 0 && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-brand-border bg-brand-surface px-3 py-2">
+            <span className="text-xs text-brand-muted">
+              {pending} {pending === 1 ? 'change' : 'changes'} waiting to sync
+            </span>
+            {isOnline && (
+              <button onClick={syncNow} disabled={syncing}
+                className="flex items-center gap-1 text-xs font-semibold text-brand-active disabled:opacity-50">
+                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing…' : 'Sync now'}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Division tabs */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
@@ -139,7 +293,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
         {division && (
           <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
             <div className="flex items-center gap-1 bg-white rounded-full border border-brand-border p-0.5 w-fit">
-              {([['matches', isBracket ? 'Bracket' : 'Matches'], ['standings', 'Standings']] as const).map(([v, label]) => (
+              {TABS.map(([v, label]) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-colors ${view === v ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:text-brand-dark'}`}>
                   {label}
@@ -147,43 +301,38 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
               ))}
             </div>
 
-            {view === 'standings' ? (
-              <div className="overflow-hidden rounded-xl border border-brand-border">
-                <div className="grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-[10px] font-semibold text-brand-muted uppercase tracking-wide border-b border-brand-border">
-                  <span>#</span><span>Team</span><span className="text-center">W</span><span className="text-center">L</span><span className="text-center">PF</span><span className="text-center">+/−</span>
-                </div>
-                {standings.map((row, i) => {
-                  const diff = row.pf - row.pa
-                  return (
-                    <div key={row.regId} className={`grid grid-cols-[1.5rem_1fr_2rem_2rem_2rem_2.5rem] gap-x-1 px-3 py-2 text-xs border-b border-brand-border last:border-0 ${i === 0 ? 'bg-brand-soft' : ''}`}>
-                      <span className="text-brand-muted font-medium">{i + 1}</span>
-                      <span className="font-semibold text-brand-dark truncate">{teamName(row.regId)}</span>
-                      <span className="text-center font-bold text-brand-dark">{row.wins}</span>
-                      <span className="text-center text-brand-dark">{row.losses}</span>
-                      <span className="text-center text-brand-muted">{row.pf}</span>
-                      <span className={`text-center font-bold tabular-nums ${diff >= 0 ? 'text-brand-active' : 'text-red-600'}`}>{diff >= 0 ? '+' : ''}{diff}</span>
-                    </div>
-                  )
-                })}
+            {view === 'standings' && <RunStandings rows={standings} teamName={teamName} />}
+
+            {view === 'checkin' && <RunCheckIn regs={activeRegs} teamName={teamName} onToggle={toggleCheckIn} />}
+
+            {view === 'schedule' && <RunSchedule matches={divMatches as AnyRow[]} teamName={teamName} onReschedule={doReschedule} />}
+
+            {view === 'matches' && (
+              <div className="space-y-3">
+                {canSeedPlayoffs && (
+                  <button onClick={seedPlayoffs}
+                    className="w-full rounded-xl bg-brand text-brand-dark text-sm font-bold py-2.5">
+                    Seed playoffs from standings
+                  </button>
+                )}
+                <BracketView
+                  matches={divMatches as AnyRow[] as any}
+                  regs={divRegs.map(r => ({
+                    id: r.id, user_id: r.user_id, team_name: r.team_name ?? null, status: r.status,
+                    seed: r.seed ?? null,
+                    user_profile: r.user_profile ?? null,
+                    partner_user_id: r.partner_user_id ?? null,
+                    partner_profile: r.partner_profile ?? null,
+                  }))}
+                  isOrganizer
+                  isDoubles={isDoubles}
+                  tournamentId={tournamentId}
+                  divisionId={division.id}
+                  onScoreUpdate={applyScored}
+                  listLayout={!isBracket}
+                  pointsToWin={pointsToWin}
+                />
               </div>
-            ) : (
-              <BracketView
-                matches={divMatches as AnyRow[] as any}
-                regs={divRegs.map(r => ({
-                  id: r.id, user_id: r.user_id, team_name: r.team_name ?? null, status: r.status,
-                  seed: r.seed ?? null,
-                  user_profile: r.user_profile ?? null,
-                  partner_user_id: r.partner_user_id ?? null,
-                  partner_profile: r.partner_profile ?? null,
-                }))}
-                isOrganizer={false}
-                isDoubles={isDoubles}
-                tournamentId={tournamentId}
-                divisionId={division.id}
-                onScoreUpdate={() => {}}
-                listLayout={!isBracket}
-                pointsToWin={pointsToWin}
-              />
             )}
           </div>
         )}
