@@ -58,6 +58,20 @@ self.addEventListener('activate', (e) => {
   )
 })
 
+// Precache page HTML on request from the app. Next.js client-side navigation never
+// fetches the document, so the fetch handler's nav cache would miss on an offline
+// reload of a page only reached via a <Link>. The app posts the URLs it wants
+// available offline (e.g. a division being scored) and we fetch + cache them here.
+self.addEventListener('message', (e) => {
+  if (e.data?.type === 'precache' && Array.isArray(e.data.urls)) {
+    e.waitUntil(
+      caches.open(CACHE).then(c =>
+        Promise.all(e.data.urls.map(u => c.add(u).catch(() => {})))
+      )
+    )
+  }
+})
+
 self.addEventListener('fetch', (e) => {
   const { request } = e
   const url = new URL(request.url)

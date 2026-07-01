@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { applyMutations, type LocalMatch } from '../applyMutations'
 import { scoreLocally, settleByesLocally } from '../localAdvance'
 import { singleEliminationBracket, doubleEliminationBracket } from '../../tournament/bracketBuilder'
-import type { Mutation } from '../../tournament/resolveCompletion'
+import { resolveBracket, type Mutation } from '../../tournament/resolveCompletion'
 
 // Build an elimination bracket and normalize to LocalMatch[] with stable ids.
 function build(rows: Record<string, unknown>[]): LocalMatch[] {
@@ -102,4 +102,37 @@ describe('scoreLocally — double elimination advances locally (incl. byes)', ()
       expect(teams.filter(t => (r.losses[t] ?? 0) >= 2)).toHaveLength(n - 1) // all but the champion
     })
   }
+})
+
+// Replay safety: the outbox may re-send a score on reconnect, and the server applies
+// each PATCH with the same engine + `.is(field,null)` / `.neq(status,'completed')` guards.
+// The engine itself must therefore be idempotent — re-applying the same result changes
+// nothing — so client and server converge no matter how many times a score replays.
+describe('scoreLocally — idempotent replay', () => {
+  const fingerprint = (rs: LocalMatch[]) =>
+    rs.map(r => `${r.id}:${r.team_1_registration_id}|${r.team_2_registration_id}|${r.winner_registration_id}|${r.status}`).sort()
+
+  it('re-scoring a match with the same result changes nothing', () => {
+    const rows = single(4)
+    const semi = rows.find(m => m.round_number === 1)!
+    const once = scoreLocally(rows, semi.id, 11, 6)
+    const twice = scoreLocally(once, semi.id, 11, 6)
+    expect(twice).toEqual(once) // no double advancement, no duplicate rows
+  })
+
+  for (const [label, start] of [['single-8', single(8)], ['double-6 (byes)', double(6)]] as const) {
+    it(`${label}: replaying every score is a no-op (no double-advance, no dup reset)`, () => {
+      const played = play(start).rows
+      let replayed = played
+      for (const m of played.filter(x => x.status === 'completed' && x.team_1_registration_id && x.team_2_registration_id)) {
+        const s1 = m.winner_registration_id === m.team_1_registration_id ? 11 : 0
+        replayed = scoreLocally(replayed, m.id, s1, s1 === 11 ? 0 : 11)
+      }
+      expect(fingerprint(replayed)).toEqual(fingerprint(played))
+    })
+  }
+
+  it('the engine is stable after a full play (resolveBracket → no mutations)', () => {
+    expect(resolveBracket(play(double(8)).rows)).toEqual([])
+  })
 })

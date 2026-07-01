@@ -15,6 +15,7 @@ import { computeStandings, type StandingsRow } from '@/lib/tournament/standings'
 import { poolStandings, type PoolMatchInput } from '@/lib/tournament/poolPlayoffSeeding'
 import { buildAutoSchedule } from '@/lib/tournament/autoSchedule'
 import { getSnapshot, setSnapshot } from '@/lib/offline/divisionStore'
+import { precachePages } from '@/lib/offline/precache'
 import type { LocalMatch } from '@/lib/offline/applyMutations'
 import { getQueue } from '@/lib/pendingQueue'
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
@@ -192,9 +193,15 @@ export default function DivisionManageView({
 
   const snapFirstRun = useRef(true)
   useEffect(() => {
-    // Mount: online → snapshot fresh server data; offline → restore the local snapshot.
-    if (navigator.onLine) snapshotNow(matches)
-    else { const snap = getSnapshot(division.id); if (snap) setMatches(snap.matches as unknown as Match[]) }
+    // Mount: online → snapshot fresh server data + cache this page's HTML so an offline
+    // reload can load it; offline → restore the local snapshot.
+    if (navigator.onLine) {
+      snapshotNow(matches)
+      precachePages([window.location.pathname])
+    } else {
+      const snap = getSnapshot(division.id)
+      if (snap) setMatches(snap.matches as unknown as Match[])
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [division.id])
   useEffect(() => {
