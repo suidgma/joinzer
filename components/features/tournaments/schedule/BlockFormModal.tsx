@@ -131,11 +131,6 @@ export default function BlockFormModal({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-brand-muted mb-1">Block name</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Saturday Morning" className="w-full input" />
-        </div>
-
-        <div>
           <label className="block text-xs font-medium text-brand-muted mb-1">Date</label>
           {/* Always a select over the tournament's own dates so a block can't be
               scheduled outside the event. An existing out-of-range date (e.g. a
@@ -233,6 +228,11 @@ export default function BlockFormModal({
             />
             <p className="text-[10px] text-brand-muted mt-1">Warn if exceeded.</p>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-brand-muted mb-1">Block name</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Saturday Morning" className="w-full input" />
         </div>
 
         {cap && (
