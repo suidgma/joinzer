@@ -8,10 +8,9 @@ import RunStandings from './RunStandings'
 import RunCheckIn from './RunCheckIn'
 import RunSchedule from './RunSchedule'
 import { readTournament, putMatches, putRegistrations, type TournamentBundle, type StoredMatch } from '@/lib/offline/tournamentDB'
-import { hydrateFromServer } from '@/lib/offline/hydrate'
 import { precachePages } from '@/lib/offline/precache'
-import { enqueueOp, outboxCount, drainOutbox } from '@/lib/offline/outbox'
-import { getQueue, drainQueue } from '@/lib/pendingQueue'
+import { enqueueOp } from '@/lib/offline/outbox'
+import { reconcile, pendingCount } from '@/lib/offline/reconcile'
 import { checkInLocally, resolvePlayoffsLocally, rescheduleLocally } from '@/lib/offline/localOps'
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
@@ -20,8 +19,6 @@ import { computeStandings, type StandingsMatchInput, type StandingsRegInput } fr
 type AnyRow = { id: string; [k: string]: any }
 type LoadState = 'loading' | 'ready' | 'empty' | 'error'
 type View = 'matches' | 'standings' | 'checkin' | 'schedule'
-
-const scoreQueueKey = (tournamentId: string) => `bracket_${tournamentId}`
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
@@ -43,9 +40,23 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
   useEffect(() => { bundleRef.current = bundle }, [bundle])
 
   const refreshPending = useCallback(async () => {
-    let scoreQ = 0
-    try { scoreQ = getQueue(scoreQueueKey(tournamentId)).length } catch { /* SSR / no storage */ }
-    setPending((await outboxCount()) + scoreQ)
+    setPending(await pendingCount(tournamentId))
+  }, [tournamentId])
+
+  // Drain every queued write (scores then outbox), then bulk-refetch + replace the store and
+  // re-render in place — no page reload. Used on mount-online, the `online` event, and Sync now.
+  const runReconcile = useCallback(async () => {
+    setSyncing(true)
+    try {
+      const r = await reconcile(tournamentId)
+      if (r.bundle) {
+        setBundle(r.bundle)
+        setActiveDiv(prev => (prev && r.bundle!.divisions.some(d => d.id === prev) ? prev : r.bundle!.divisions[0]?.id ?? null))
+      }
+      setPending(r.pending)
+    } finally {
+      setSyncing(false)
+    }
   }, [tournamentId])
 
   useEffect(() => {
@@ -60,9 +71,12 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
     ;(async () => {
       try {
         if (navigator.onLine) {
-          const fresh = await hydrateFromServer(tournamentId)
           precachePages([`/tournaments/${tournamentId}/run`])
-          if (fresh) { settle(fresh); refreshPending(); return }
+          // Reconcile on entry: drain any writes from a prior offline session BEFORE refetching, so
+          // a bulk-refetch can't clobber un-synced local changes; then settle the fresh store.
+          const r = await reconcile(tournamentId)
+          if (!cancelled) { settle(r.bundle ?? await readTournament(tournamentId)); setPending(r.pending) }
+          return
         }
         settle(await readTournament(tournamentId))
         refreshPending()
@@ -73,13 +87,12 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
     return () => { cancelled = true }
   }, [tournamentId, refreshPending])
 
-  // On reconnect, drain the outbox (check-in / resolve / reschedule). Scoring's Phase-1 queue
-  // drains inside BracketView (which reloads the page). Step 5 adds the bulk-refetch reconcile.
+  // On reconnect, reconcile everything (scores + outbox) and re-render from the fresh store.
   useEffect(() => {
-    const onOnline = async () => { await drainOutbox(); refreshPending() }
+    const onOnline = () => { runReconcile() }
     window.addEventListener('online', onOnline)
     return () => window.removeEventListener('online', onOnline)
-  }, [refreshPending])
+  }, [runReconcile])
 
   const division = useMemo(
     () => bundle?.divisions.find(d => d.id === activeDiv) as AnyRow | undefined,
@@ -206,17 +219,6 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
     refreshPending()
   }, [tournamentId, division, teamName, refreshPending])
 
-  const syncNow = useCallback(async () => {
-    setSyncing(true)
-    try {
-      await drainOutbox()
-      await drainQueue(scoreQueueKey(tournamentId))
-    } finally {
-      setSyncing(false)
-      refreshPending()
-    }
-  }, [tournamentId, refreshPending])
-
   if (status !== 'ready' || !bundle) {
     return (
       <div className="min-h-screen bg-brand-bg">
@@ -266,7 +268,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
               {pending} {pending === 1 ? 'change' : 'changes'} waiting to sync
             </span>
             {isOnline && (
-              <button onClick={syncNow} disabled={syncing}
+              <button onClick={runReconcile} disabled={syncing}
                 className="flex items-center gap-1 text-xs font-semibold text-brand-active disabled:opacity-50">
                 <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                 {syncing ? 'Syncing…' : 'Sync now'}
@@ -331,6 +333,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
                   onScoreUpdate={applyScored}
                   listLayout={!isBracket}
                   pointsToWin={pointsToWin}
+                  externalSync
                 />
               </div>
             )}

@@ -52,6 +52,9 @@ type Props = {
   listLayout?: boolean
   pointsToWin?: number
   showSeeds?: boolean
+  // When true, the caller owns sync-on-reconnect (run mode reconciles + re-renders in place), so
+  // BracketView skips its own drain-and-reload. Offline scoring/queueing is unchanged.
+  externalSync?: boolean
 }
 
 function formatMatchTime(scheduled_time: string | null): string {
@@ -582,7 +585,7 @@ function BracketStages({
   )
 }
 
-export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin, showSeeds }: Props) {
+export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin, showSeeds, externalSync }: Props) {
   const handleOnline = useCallback(async () => {
     const qKey = bracketQueueKey(tournamentId)
     const queue = getQueue(qKey)
@@ -595,9 +598,12 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
   }, [tournamentId])
 
   useEffect(() => {
+    // In run mode the parent reconciles (drains all queues + bulk-refetch + re-render), so we
+    // must not also drain-and-reload here — that would race the reconcile and hard-reload the page.
+    if (externalSync) return
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
-  }, [handleOnline])
+  }, [handleOnline, externalSync])
 
   if (listLayout) {
     // A round-robin / pool division. Once playoffs are generated it also holds

@@ -1,10 +1,14 @@
 # Phase 2 — Whole-tournament offline run mode (single device)
 
-> Status: **design / not built.** Builds on Phase 1 (`docs/phases/offline-scoring-phase-1.md`,
-> shipped). Goal: a single organizer on one device can run an **entire** tournament with
-> **zero connectivity** — open it cold offline, check players in, score every division,
-> seed playoffs, reschedule, and read standings/schedule — then sync when signal returns.
-> Multi-device / co-organizer offline is still **Phase 3** (needs conflict resolution).
+> Status: **code-complete (steps 1–5 shipped), pending real-device QA.** Builds on Phase 1
+> (`docs/phases/offline-scoring-phase-1.md`, shipped). Goal: a single organizer on one device can
+> run an **entire** tournament with **zero connectivity** — open it cold offline, check players in,
+> score every division, seed playoffs, reschedule, and read standings/schedule — then sync when
+> signal returns. Multi-device / co-organizer offline is still **Phase 3** (needs conflict resolution).
+>
+> Surface: `/tournaments/[id]/run` (`<RunMode>`), reached via **"Run offline"** in the organizer
+> manage nav. Store: `lib/offline/tournamentDB.ts` (IndexedDB) + `outbox.ts`; sync:
+> `lib/offline/reconcile.ts`.
 
 ---
 
@@ -200,12 +204,15 @@ test; route idempotency tests per new path. (Scoring/advancement already covered
 
 ## 13. Sequencing (each shippable)
 
-1. **IndexedDB store + hydrate/refetch** (`tournamentDB`, `outbox`) — pure/data layer, tested.
-2. **Local-apply helpers** (check-in, resolve, reschedule) + route idempotency — pure + small.
-3. **Run-mode route + `<RunMode>` read path** — cold-load offline, read-only first.
-4. **Wire writes** (check-in, score via Phase-1 path, resolve, reschedule) through the store +
-   outbox; tournament-wide sync status.
-5. **Sync/reconcile** (drain-all + bulk refetch) + QA against §12.
+1. ✅ **IndexedDB store + hydrate/refetch** (`tournamentDB`) — pure/data layer, tested. (PR #153)
+2. ✅ **Local-apply helpers** (check-in, resolve, reschedule) + route idempotency — pure + small. (PR #154)
+3. ✅ **Run-mode route + `<RunMode>` read path** — cold-load offline, read-only first. (PR #155)
+4. ✅ **Wire writes** (check-in, score via Phase-1 path, resolve, reschedule) through the store +
+   `outbox` (IndexedDB FIFO) + organizer check-in route; tournament-wide sync status. (PR #156)
+5. ✅ **Sync/reconcile** (`reconcile.ts`: drain-all scores→outbox, then bulk-refetch + replace store
+   only when fully drained — never clobbers un-synced writes; `BracketView` gains `externalSync` so
+   run mode owns reconnect). Automated coverage for the store, outbox, local-ops, and reconcile.
+   **Remaining: manual airplane-mode QA against §12 on a real phone.**
 
 Step 1 alone (bulk hydrate + store) is the foundation; steps 3–4 deliver the visible "run the
 whole thing offline." As in Phase 1, the pure/data layers land first and de-risk the UI work.
