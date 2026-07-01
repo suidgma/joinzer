@@ -57,7 +57,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   }))
 
   return NextResponse.json({
-    tournament: { id: tournament.id, name: tournament.name, status: tournament.status },
+    tournament: { id: tournament.id, name: tournament.name, status: tournament.status, is_lead_organizer: tournament.organizer_id === user.id },
     divisions: divisions ?? [],
     registrations,
     courts: [],

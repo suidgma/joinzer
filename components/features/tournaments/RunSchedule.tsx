@@ -42,10 +42,12 @@ export default function RunSchedule({
   matches,
   teamName,
   onReschedule,
+  readOnly = false,
 }: {
   matches: Match[]
   teamName: (regId: string | null | undefined) => string
   onReschedule: (matchId: string, courtNumber: number | null, scheduledTime: string | null) => Promise<void>
+  readOnly?: boolean
 }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [court, setCourt] = useState('')
@@ -86,7 +88,7 @@ export default function RunSchedule({
           <div key={m.id} className="rounded-xl border border-brand-border p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold text-brand-dark truncate">{label}</span>
-              {!isEditing && (
+              {!isEditing && !readOnly && (
                 <button onClick={() => startEdit(m)} className="text-xs font-semibold text-brand-active hover:underline shrink-0">
                   Edit
                 </button>
