@@ -31,6 +31,9 @@ export type OrgRegistration = {
   partner_registration_id: string | null
   checked_in: boolean
   payment_status: string | null
+  // Effective seed to display, already gated by the division's "show seed numbers"
+  // setting — null when seeds are hidden or unset, so labels can render it blindly.
+  display_seed: number | null
   // Player profile fields (denormalized onto each registration for the Players tab)
   gender: string | null
   dupr_rating: number | null

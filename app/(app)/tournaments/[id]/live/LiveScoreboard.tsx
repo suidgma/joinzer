@@ -29,6 +29,8 @@ type Reg = {
   partner_registration_id: string | null
   profiles: { name: string } | null
   partner_name: string | null
+  // Pre-gated seed to display (null when the division hides seeds or none is set).
+  display_seed?: number | null
 }
 
 type StandingRow = { regId: string; name: string; wins: number; losses: number; pf: number; pa: number }
@@ -41,12 +43,15 @@ function firstName(name: string | null | undefined): string {
 function teamLabel(regId: string, regs: Reg[]): string {
   const reg = regs.find(r => r.id === regId)
   if (!reg) return 'TBD'
+  // Seed shown only when the division's "show seed numbers" is on (display_seed is
+  // pre-gated server-side), prefixed once for both singles and doubles.
+  const seed = reg.display_seed != null ? `#${reg.display_seed} ` : ''
   // Doubles: both partners' first names (sorted), matching the bracket. Prefer
   // these over the stored team_name, which an import may set to anything.
   const p1 = firstName(reg.profiles?.name)
   const p2 = firstName(reg.partner_name)
-  if (p1 && p2) return [p1, p2].sort((a, b) => a.localeCompare(b)).join('/')
-  return reg.team_name || p1 || p2 || 'Player'
+  if (p1 && p2) return `${seed}${[p1, p2].sort((a, b) => a.localeCompare(b)).join('/')}`
+  return `${seed}${reg.team_name || p1 || p2 || 'Player'}`
 }
 
 function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {

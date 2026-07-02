@@ -17,11 +17,11 @@ export default async function PublicLiveScoreboardPage(
 
   const [{ data: tournament }, { data: divisions }, { data: matches }, { data: regsRaw }] =
     await Promise.all([
-      db.from('tournaments').select('id, name, start_date, status, scheduling_method').eq('id', params.id).single(),
-      db.from('tournament_divisions').select('id, name').eq('tournament_id', params.id).eq('status', 'active'),
+      db.from('tournaments').select('id, name, start_date, status, scheduling_method, show_seeds').eq('id', params.id).single(),
+      db.from('tournament_divisions').select('id, name, show_seeds').eq('tournament_id', params.id).eq('status', 'active'),
       db.from('tournament_matches').select('*').eq('tournament_id', params.id).eq('is_draft', false),
       db.from('tournament_registrations')
-        .select('id, user_id, division_id, team_name, status, partner_user_id, partner_registration_id')
+        .select('id, user_id, division_id, team_name, status, partner_user_id, partner_registration_id, seed')
         .eq('tournament_id', params.id)
         .neq('status', 'cancelled'),
     ])
@@ -35,10 +35,17 @@ export default async function PublicLiveScoreboardPage(
     : { data: [] as { id: string; name: string }[] }
   const profileMap = new Map((profilesRaw ?? []).map((p: any) => [p.id, p.name as string]))
 
+  // Effective "show seed numbers" per division (division override → tournament
+  // default), baked into display_seed so the scoreboard labels render it uniformly.
+  const showSeedsDefault = (tournament as any)?.show_seeds === true
+  const divShowSeeds = new Map<string, boolean>(
+    (divisions ?? []).map((d: any) => [d.id, (d.show_seeds ?? showSeedsDefault) === true])
+  )
   const registrations = (regsRaw ?? []).map((r: any) => ({
     ...r,
     profiles: profileMap.get(r.user_id) ? { name: profileMap.get(r.user_id) } : null,
     partner_name: r.partner_user_id ? (profileMap.get(r.partner_user_id) ?? null) : null,
+    display_seed: divShowSeeds.get(r.division_id) && r.seed != null ? r.seed : null,
   }))
 
   if (!tournament) {
