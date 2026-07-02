@@ -3,12 +3,16 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
 import { phantomMatchIds } from '@/lib/tournament/resolveCompletion'
+import { formatPlayoffLabel } from '@/lib/tournament/playoffPlaceholders'
 import type { MatchRow } from '@/lib/tournament/bracketBuilder'
 import { scoreLocally } from '@/lib/offline/localAdvance'
 import type { LocalMatch } from '@/lib/offline/applyMutations'
 
 // useLayoutEffect warns during SSR; fall back to useEffect on the server.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
+// The bits of a playoff-placeholder source we render from (label is derived via formatPlayoffLabel).
+type PlayoffSourceLike = { kind?: string | null; pool?: number | null; rank?: number | null; label?: string }
 
 type Match = {
   id: string
@@ -25,9 +29,10 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
-  // Position placeholders (e.g. {label:'Pool 1 #1'}) shown until a real team is seeded.
-  team_1_source?: { label?: string } | null
-  team_2_source?: { label?: string } | null
+  // Position placeholders (e.g. Pool 1 - 1st place) shown until a real team is seeded.
+  // Carries the structured fields so the label is derived, not just the stored text.
+  team_1_source?: PlayoffSourceLike | null
+  team_2_source?: PlayoffSourceLike | null
 }
 
 type Registration = {
@@ -72,16 +77,16 @@ function firstName(name: string | null | undefined): string {
 
 function TeamNameDisplay({ regId, source, regs, isDoubles, showSeeds }: {
   regId: string | null
-  source?: { label?: string } | null
+  source?: PlayoffSourceLike | null
   regs: Registration[]
   isDoubles: boolean
   showSeeds?: boolean
 }) {
-  // No team yet: show the position label ("1st", "Pool 1 #2") if this is a
+  // No team yet: show the position label ("1st place", "Pool 1 - 2nd place") if this is a
   // placeholder slot, else a plain TBD (a slot waiting on an upstream winner).
-  // Non-italic: slanted numerals ("#1", "#2") were hard to read at this size. The muted color
-  // still marks it as a placeholder vs. the darker confirmed team names.
-  if (!regId) return <span className="text-brand-muted">{source?.label ?? 'TBD'}</span>
+  // Non-italic: slanted numerals were hard to read at this size. The muted color still marks it
+  // as a placeholder vs. the darker confirmed team names. Label is derived (e.g. "Pool 1 - 1st place").
+  if (!regId) return <span className="text-brand-muted">{source ? formatPlayoffLabel(source) : 'TBD'}</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
   const seedPrefix = showSeeds && r.seed != null
