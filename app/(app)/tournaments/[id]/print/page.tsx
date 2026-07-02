@@ -18,7 +18,7 @@ export default async function PrintBracketsPage(props: { params: Promise<{ id: s
 
   const [{ data: tournament }, { data: divisionsRaw }, { data: matchesRaw }, { data: regsRaw }] =
     await Promise.all([
-      db.from('tournaments').select('id, name, start_date').eq('id', params.id).single(),
+      db.from('tournaments').select('id, name, start_date, scheduling_method').eq('id', params.id).single(),
       db
         .from('tournament_divisions')
         .select('id, name, format, bracket_type, format_settings_json, status')
@@ -30,7 +30,7 @@ export default async function PrintBracketsPage(props: { params: Promise<{ id: s
         .select(`
           id, division_id, round_number, match_number, match_stage, pool_number,
           court_number, scheduled_time, team_1_registration_id, team_2_registration_id,
-          team_1_score, team_2_score, winner_registration_id, status,
+          team_1_score, team_2_score, winner_registration_id, status, sequence_number,
           team_1_source, team_2_source
         `)
         .eq('tournament_id', params.id)
@@ -99,6 +99,7 @@ export default async function PrintBracketsPage(props: { params: Promise<{ id: s
       tournamentName={tournament.name}
       startDate={tournament.start_date}
       divisions={divisions}
+      isRolling={(tournament as any).scheduling_method === 'rolling'}
     />
   )
 }
