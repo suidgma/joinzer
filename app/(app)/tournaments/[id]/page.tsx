@@ -121,7 +121,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     // Offline run mode is the LEAD organizer's tool — one offline writer per tournament
     // (docs/phases/offline-multi-device-phase-3.md, Option 1). Co-organizers/volunteers score
     // via the live views (online), so they don't queue offline writes that can't converge.
-    ...(isOrganizer ? [{ label: 'Run offline', href: `/tournaments/${params.id}/run` }] : []),
+    ...(isOrganizer ? [{ label: 'Run offline (no wifi)', href: `/tournaments/${params.id}/run` }] : []),
     ...(canEdit ? [
       { label: 'Edit', href: `/tournaments/${params.id}/edit` },
     ] : []),
