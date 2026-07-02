@@ -292,6 +292,8 @@ export default function SchedulePreview({
         {show.includes('date') && <span className="w-20 shrink-0 whitespace-nowrap text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
         {show.includes('time') && <span className="w-20 shrink-0 whitespace-nowrap text-brand-muted tabular-nums">{fmtStart(m.scheduled_time)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
+        {/* Rolling: the first match on each court carries the block start time. */}
+        {!show.includes('time') && m.scheduled_time && <span className="w-16 shrink-0 whitespace-nowrap text-brand-active font-medium tabular-nums">{fmtStart(m.scheduled_time)}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {label(m.team_1_registration_id, m)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id, m)}
         </span>

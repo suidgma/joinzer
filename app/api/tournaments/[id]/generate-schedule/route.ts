@@ -163,6 +163,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const orderedBlock = buildRollingSchedule({
         court_numbers: block.court_numbers ?? [],
         matches: blockRows,
+        blockDate: block.block_date,
+        startTime: block.start_time,
         keepDivisionsGrouped: settings.keep_divisions_grouped,
         divisionPriority,
         byPriority: settings.schedule_by_priority,

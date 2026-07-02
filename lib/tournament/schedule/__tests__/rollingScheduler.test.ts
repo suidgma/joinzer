@@ -94,3 +94,42 @@ describe('assignSequenceTimed — orders by (time, court)', () => {
     expect(seqByMatch.get(3)).toBe(3) // 9:00 Ct2
   })
 })
+
+describe('buildRollingSchedule — court optimization', () => {
+  it('caps courts to the division peak round (6-player RR → 3 courts even if 6 offered)', () => {
+    const rr: SchedulableMatch[] = []
+    let n = 1
+    for (let round = 1; round <= 5; round++) for (let j = 0; j < 3; j++) rr.push(m({ match_number: n++, round_number: round }))
+    const ordered = buildRollingSchedule({ court_numbers: [1, 2, 3, 4, 5, 6], matches: rr })
+    expect(new Set(ordered.map(x => x.court_number))).toEqual(new Set([1, 2, 3]))
+  })
+
+  it('divisions run concurrently — their peak round sizes add', () => {
+    const rows: SchedulableMatch[] = []
+    for (let round = 1; round <= 3; round++) for (let j = 0; j < 3; j++) {
+      rows.push(m({ division_id: 'd1', match_number: round * 10 + j, round_number: round }))
+      rows.push(m({ division_id: 'd2', match_number: round * 10 + j + 500, round_number: round }))
+    }
+    // each division peaks at 3 per round → 6 courts usable
+    const ordered = buildRollingSchedule({ court_numbers: [1, 2, 3, 4, 5, 6, 7, 8], matches: rows })
+    expect(new Set(ordered.map(x => x.court_number))).toEqual(new Set([1, 2, 3, 4, 5, 6]))
+  })
+})
+
+describe('buildRollingSchedule — first-round start time', () => {
+  it('stamps the block start on the first match of each court; the rest have none', () => {
+    const rr = Array.from({ length: 9 }, (_, i) => m({ match_number: i + 1, round_number: (i % 3) + 1 }))
+    const ordered = buildRollingSchedule({ court_numbers: [1, 2, 3], matches: rr, blockDate: '2026-07-04', startTime: '08:00' })
+    const timed = ordered.filter(x => x.scheduled_time != null)
+    expect(timed).toHaveLength(3)
+    expect(timed.every(x => x.scheduled_time === '2026-07-04T08:00:00-07:00')).toBe(true)
+    expect(new Set(timed.map(x => x.court_number))).toEqual(new Set([1, 2, 3]))
+    expect(ordered.filter(x => x.scheduled_time == null)).toHaveLength(6)
+  })
+
+  it('no start time provided → all matches untimed', () => {
+    const rr = Array.from({ length: 6 }, (_, i) => m({ match_number: i + 1, round_number: (i % 3) + 1 }))
+    const ordered = buildRollingSchedule({ court_numbers: [1, 2, 3], matches: rr })
+    expect(ordered.every(x => x.scheduled_time === null)).toBe(true)
+  })
+})

@@ -134,14 +134,18 @@ export default function BlockFormModal({
     if (!name.trim()) { onError('Block name is required'); return }
     if (!date) { onError('Pick a date'); return }
     if (dateOutOfRange) { onError("Pick a date within your tournament's dates"); return }
-    if (!startTime || !endTime || endTime <= startTime) { onError('End time must be after start time'); return }
+    if (!startTime) { onError('Pick a start time'); return }
+    // Rolling ignores the end time, but the column is NOT NULL with end > start — keep a
+    // valid placeholder. Timed still requires a real end after the start.
+    const endForPayload = isRolling ? (endTime > startTime ? endTime : '23:59') : endTime
+    if (!isRolling && (!endTime || endTime <= startTime)) { onError('End time must be after start time'); return }
     setSaving(true)
     try {
       const payload = {
         name: name.trim(),
         block_date: date,
         start_time: startTime,
-        end_time: endTime,
+        end_time: endForPayload,
         location_id: locationId,
         court_numbers: courts,
         notes: notes.trim() || null,
@@ -195,10 +199,16 @@ export default function BlockFormModal({
           )}
         </div>
 
-        {/* Rolling mode ignores block start/end times, so the inputs are hidden.
-            The state still holds the tournament-day defaults, which are sent on
-            save (start_time/end_time are NOT NULL with a check constraint). */}
-        {!isRolling && (
+        {/* Rolling needs a first-round start time but no end time — the matches roll on
+            as courts free up. (end_time is NOT NULL with a check constraint, so a valid
+            placeholder is still sent on save.) Timed shows both. */}
+        {isRolling ? (
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">First matches start at</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full input" />
+            <p className="mt-1 text-[11px] text-brand-muted">After the first round, matches are called by Match&nbsp;# as courts free up — no end time needed.</p>
+          </div>
+        ) : (
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>

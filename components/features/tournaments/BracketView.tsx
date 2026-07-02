@@ -178,7 +178,6 @@ function BracketMatchCard({
 }) {
   const ptw = pointsToWin ?? 11
   const allMatches = useContext(AllMatchesContext)
-  const isRolling = useContext(IsRollingContext)
   const [scoring, setScoring] = useState(false)
   const [s1, setS1] = useState('')
   const [s2, setS2] = useState('')
@@ -296,14 +295,15 @@ function BracketMatchCard({
         ) : isDone ? <span className="w-7 shrink-0" /> : null}
       </div>
 
-      {/* Assignment info: Match # · court · time (time hidden in rolling mode) */}
-      {(match.sequence_number != null || match.court_number != null || (!isRolling && match.scheduled_time)) && (
+      {/* Assignment info: Match # · court · time. Time shows only when present — in rolling
+          mode that's the block start on each court's first match; the rest roll on untimed. */}
+      {(match.sequence_number != null || match.court_number != null || match.scheduled_time) && (
         <div className="px-2 py-1 border-t border-brand-border/40 text-[9px] text-brand-muted flex items-center gap-1 flex-wrap">
           {match.sequence_number != null && <span className="font-semibold text-brand-dark">Match {match.sequence_number}</span>}
           {match.sequence_number != null && match.court_number != null && <span>·</span>}
           {match.court_number != null && <span className="font-medium">Ct.{match.court_number}</span>}
-          {!isRolling && match.scheduled_time && (match.sequence_number != null || match.court_number != null) && <span>·</span>}
-          {!isRolling && match.scheduled_time && <span>{formatMatchTime(match.scheduled_time)}</span>}
+          {match.scheduled_time && (match.sequence_number != null || match.court_number != null) && <span>·</span>}
+          {match.scheduled_time && <span>{formatMatchTime(match.scheduled_time)}</span>}
         </div>
       )}
 
