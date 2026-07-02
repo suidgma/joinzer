@@ -166,6 +166,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
         no_play_dates: finalNoPlayDates,
+        // Current leagues are the session-based round-robin format. Set it
+        // explicitly so the format is visible in code; later formats (box/flex/
+        // ladder/team) select a different kind. DB default matches this.
+        format_kind: 'session_rr',
         created_by: user.id,
       })
       .select('id')
