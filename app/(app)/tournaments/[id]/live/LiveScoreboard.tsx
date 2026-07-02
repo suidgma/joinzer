@@ -108,12 +108,13 @@ function computeStandings(matches: Match[], regs: Reg[]): StandingRow[] {
 type Props = {
   tournamentId: string
   status?: string
+  schedulingMethod?: string
   initialDivisions: Division[]
   initialMatches: Match[]
   initialRegistrations: Reg[]
 }
 
-export default function LiveScoreboard({ tournamentId, status, initialDivisions, initialMatches, initialRegistrations }: Props) {
+export default function LiveScoreboard({ tournamentId, status, schedulingMethod, initialDivisions, initialMatches, initialRegistrations }: Props) {
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [updatedAt, setUpdatedAt] = useState(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
 
@@ -163,6 +164,25 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
   const isLive = status === 'in_progress' || inProgress.length > 0
   const isFinal = status === 'completed' || (total > 0 && completed.length === total)
 
+  // Rolling court board: per court, the match on now (or up next) + the one after,
+  // ordered by Match #. Auto-advances as scores land (a completed match drops off,
+  // the next becomes current). Only meaningful for rolling schedules.
+  const isRolling = schedulingMethod === 'rolling'
+  const courtBoard = (() => {
+    if (!isRolling) return []
+    const byCourt = new Map<number, Match[]>()
+    for (const m of playable) {
+      if (m.court_number == null) continue
+      ;(byCourt.get(m.court_number) ?? byCourt.set(m.court_number, []).get(m.court_number)!).push(m)
+    }
+    return [...byCourt.keys()].sort((a, b) => a - b).map(court => {
+      const remaining = byCourt.get(court)!
+        .filter(m => m.status !== 'completed')
+        .sort((a, b) => (a.sequence_number ?? Infinity) - (b.sequence_number ?? Infinity))
+      return { court, current: remaining[0] ?? null, next: remaining[1] ?? null }
+    })
+  })()
+
   return (
     <div className="space-y-5">
       {/* Progress bar */}
@@ -193,6 +213,42 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
           />
         </div>
       </div>
+
+      {/* Rolling court board: what's on now + up next, per court */}
+      {courtBoard.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">Courts</h2>
+          <div className="space-y-2">
+            {courtBoard.map(({ court, current, next }) => (
+              <div key={court} className="bg-white rounded-xl border border-brand-border px-4 py-3 space-y-1.5">
+                <p className="text-sm font-bold text-brand-dark">Court {court}</p>
+                {current ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                    <span className="font-semibold text-brand-dark shrink-0">
+                      {current.status === 'in_progress' ? 'In Progress' : 'Up now'}: Match {current.sequence_number}
+                    </span>
+                    <span className="text-brand-muted truncate">
+                      {teamLabel(current.team_1_registration_id ?? '', initialRegistrations)} vs {teamLabel(current.team_2_registration_id ?? '', initialRegistrations)}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-brand-muted">Court complete ✓</p>
+                )}
+                {next && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                    <span className="font-semibold text-brand-dark shrink-0">Next: Match {next.sequence_number}</span>
+                    <span className="text-brand-muted truncate">
+                      {teamLabel(next.team_1_registration_id ?? '', initialRegistrations)} vs {teamLabel(next.team_2_registration_id ?? '', initialRegistrations)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* In-progress matches */}
       {inProgress.length > 0 && (

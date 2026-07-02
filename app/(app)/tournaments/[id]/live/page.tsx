@@ -17,7 +17,7 @@ export default async function PublicLiveScoreboardPage(
 
   const [{ data: tournament }, { data: divisions }, { data: matches }, { data: regsRaw }] =
     await Promise.all([
-      db.from('tournaments').select('id, name, start_date, status').eq('id', params.id).single(),
+      db.from('tournaments').select('id, name, start_date, status, scheduling_method').eq('id', params.id).single(),
       db.from('tournament_divisions').select('id, name').eq('tournament_id', params.id).eq('status', 'active'),
       db.from('tournament_matches').select('*').eq('tournament_id', params.id).eq('is_draft', false),
       db.from('tournament_registrations')
@@ -72,6 +72,7 @@ export default async function PublicLiveScoreboardPage(
         <LiveScoreboard
           tournamentId={params.id}
           status={tournament.status}
+          schedulingMethod={(tournament as any).scheduling_method}
           initialDivisions={divisions ?? []}
           initialMatches={matches ?? []}
           initialRegistrations={(registrations ?? []) as any[]}
