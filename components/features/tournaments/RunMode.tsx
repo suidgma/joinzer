@@ -371,6 +371,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
                   pointsToWin={pointsToWin}
                   externalSync
                   isRolling={(bundle.tournament as AnyRow).scheduling_method === 'rolling'}
+                  showSeeds={(division as AnyRow).show_seeds ?? (bundle.tournament as AnyRow).show_seeds ?? false}
                 />
               </div>
             )}

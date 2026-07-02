@@ -117,6 +117,7 @@ type Props = {
   currentUserId: string | null
   locationCourtCount?: number | null
   isRolling?: boolean
+  initialShowSeeds?: boolean
 }
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles: "Men's Doubles",
@@ -134,7 +135,7 @@ const FORMAT_LABELS: Record<string, string> = {
 export default function DivisionManageView({
   tournamentId, tournamentName, tournamentStartDate, tournamentStartTime,
   division, initialRegistrations, initialMatches, draftMatchCount = 0,
-  isOrganizer, currentUserId, locationCourtCount, isRolling,
+  isOrganizer, currentUserId, locationCourtCount, isRolling, initialShowSeeds,
 }: Props) {
   const router = useRouter()
   const { confirm, alert } = useDialog()
@@ -142,14 +143,13 @@ export default function DivisionManageView({
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   // Default false so the server and first client render agree (no hydration
   // mismatch); the stored preference is applied after mount.
-  const [showSeeds, setShowSeeds] = useState<boolean>(false)
-  useEffect(() => {
-    try { setShowSeeds(localStorage.getItem(`seeds-${division.id}`) === 'true') } catch { /* */ }
-  }, [division.id])
+  // Server-side (tournament default with a per-division override), so every view —
+  // schedule, scores, export, run mode — agrees, not a per-browser preference.
+  const [showSeeds, setShowSeeds] = useState<boolean>(!!initialShowSeeds)
 
-  function handleToggleShowSeeds(val: boolean) {
+  async function handleToggleShowSeeds(val: boolean) {
     setShowSeeds(val)
-    try { localStorage.setItem(`seeds-${division.id}`, String(val)) } catch { /* */ }
+    try { await createClient().from('tournament_divisions').update({ show_seeds: val }).eq('id', division.id) } catch { /* */ }
   }
 
   // Add player state

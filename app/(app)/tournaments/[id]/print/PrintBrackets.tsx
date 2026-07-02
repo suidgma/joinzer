@@ -41,6 +41,7 @@ type Division = {
   isDoubles: boolean
   isBracket: boolean
   pointsToWin: number
+  showSeeds: boolean
   matches: Match[]
   regs: Reg[]
 }
@@ -137,7 +138,7 @@ export default function PrintBrackets({ tournamentId, tournamentName, startDate,
               isRolling={isRolling}
               listLayout={!d.isBracket}
               pointsToWin={d.pointsToWin}
-              showSeeds
+              showSeeds={d.showSeeds}
             />
           </section>
         ))

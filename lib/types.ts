@@ -122,6 +122,7 @@ export type TournamentDetail = {
   organizer_id: string
   cost_cents: number
   scheduling_method: 'timed' | 'rolling'
+  show_seeds: boolean
   location_id: string | null
   location: { id: string; name: string; subarea: string | null } | null
   organizer: { name: string } | null

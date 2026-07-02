@@ -39,6 +39,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [defaultGamesTo, setDefaultGamesTo] = useState<number>(11)
   const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination' | 'pool_play_playoffs'>('round_robin')
   const [schedulingMethod, setSchedulingMethod] = useState<'timed' | 'rolling'>('timed')
+  const [showSeeds, setShowSeeds] = useState(false)
   const [additionalDays, setAdditionalDays] = useState<{ date: string; start_time: string; end_time: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +90,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         default_games_to: defaultGamesTo,
         default_bracket_type: defaultBracketType,
         scheduling_method: schedulingMethod,
+        show_seeds: showSeeds,
       })
       .select('id')
       .single()
@@ -167,6 +169,15 @@ export default function CreateTournamentForm({ locations }: Props) {
               </button>
             ))}
           </div>
+        </FormRow>
+        <FormRow label="Seed numbers">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={showSeeds} onChange={e => setShowSeeds(e.target.checked)} className="w-4 h-4 accent-brand" />
+            <div>
+              <p className="text-sm font-medium text-brand-dark">Show seed numbers</p>
+              <p className="text-xs text-brand-muted">Display each team&apos;s seed (#1, #2…) on brackets, schedules, and the printed export. Each division can override this.</p>
+            </div>
+          </label>
         </FormRow>
       </FormSection>
 
