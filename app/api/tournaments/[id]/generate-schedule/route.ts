@@ -9,6 +9,7 @@ import { buildRollingSchedule } from '@/lib/tournament/schedule/rollingScheduler
 import { assignSequenceTimed, assignSequenceInOrder } from '@/lib/tournament/schedule/assignSequence'
 import { detectPlayerConflicts } from '@/lib/tournament/scheduleConflicts'
 import { applyByeAdvancements } from '@/lib/tournament/advanceByes'
+import { persistAutoSeeds } from '@/lib/tournament/autoSeed'
 import type { MatchRow } from '@/lib/tournament/bracketBuilder'
 
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const db = service()
 
   const [{ data: tournamentRow }, { data: blocks }, { data: assignmentsAll }] = await Promise.all([
-    db.from('tournaments').select('schedule_settings_json, scheduling_method').eq('id', id).single(),
+    db.from('tournaments').select('schedule_settings_json, scheduling_method, show_seeds').eq('id', id).single(),
     db.from('tournament_schedule_blocks').select('id, block_date, start_time, end_time, court_numbers').eq('tournament_id', id),
     db.from('tournament_division_blocks').select('division_id, block_id, priority').eq('tournament_id', id),
   ])
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const [{ data: existing }, { data: divisions }, { data: regs }] = await Promise.all([
     db.from('tournament_matches').select('id, is_draft').in('division_id', assignedDivisionIds),
     db.from('tournament_divisions')
-      .select('id, format, bracket_type, format_settings_json, partner_mode, scheduling_method')
+      .select('id, format, bracket_type, format_settings_json, partner_mode, scheduling_method, show_seeds')
       .in('id', assignedDivisionIds),
     db.from('tournament_registrations')
       .select('id, division_id, user_id, partner_registration_id, seed')
@@ -126,6 +127,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   // A division may override the tournament's method; null inherits it.
   const effectiveRolling = (divId: string): boolean =>
     ((divisionById.get(divId) as any)?.scheduling_method ?? tournamentRow?.scheduling_method) === 'rolling'
+  // Seeds are shown per the division override, falling back to the tournament default.
+  const effectiveShowSeeds = (divId: string): boolean =>
+    ((divisionById.get(divId) as any)?.show_seeds ?? (tournamentRow as any)?.show_seeds) === true
+  // Divisions to auto-seed after insert: unseeded fields whose seeds are shown.
+  // Keyed by division so a per-division regenerate only reseeds that division.
+  const autoSeedOrders = new Map<string, string[]>()
   const skipped: { divisionId: string; reason: string }[] = []
   let overflowTotal = 0
 
@@ -161,6 +168,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         continue
       }
       blockRows.push(...(built.rows as SchedulableMatch[]))
+      if (!built.hadSeeds && built.teamOrder.length > 0 && effectiveShowSeeds(divisionId)) {
+        autoSeedOrders.set(divisionId, built.teamOrder)
+      }
     }
 
     if (blockRows.length === 0) continue
@@ -238,6 +248,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   // response small even when thousands of matches are generated.
   const { error } = await db.from('tournament_matches').insert(allRows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-seed unseeded fields that show seed numbers, so the draft/published
+  // matches have a seed to display. Seed order = bracket-build order.
+  if (autoSeedOrders.size > 0) {
+    await Promise.all([...autoSeedOrders.values()].map(order => persistAutoSeeds(db, order)))
+  }
 
   // Advance round-1 BYE winners for elimination divisions. The per-division
   // generate route does this inline; the draft path must too, or a bye

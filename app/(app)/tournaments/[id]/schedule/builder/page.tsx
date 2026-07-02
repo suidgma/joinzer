@@ -34,11 +34,11 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     { data: draftRaw },
   ] = await Promise.all([
     db.from('tournaments')
-      .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json, registration_closes_at, scheduling_method')
+      .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json, registration_closes_at, scheduling_method, show_seeds')
       .eq('id', id)
       .single(),
     db.from('tournament_divisions')
-      .select('id, name, category, team_type, format, bracket_type, partner_mode, format_settings_json, skill_min, skill_max, min_age, max_age, location_id')
+      .select('id, name, category, team_type, format, bracket_type, partner_mode, format_settings_json, skill_min, skill_max, min_age, max_age, location_id, show_seeds')
       .eq('tournament_id', id)
       .order('created_at', { ascending: true }),
     db.from('tournament_schedule_blocks')
@@ -47,7 +47,7 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
       .order('block_date', { ascending: true })
       .order('start_time', { ascending: true }),
     db.from('tournament_registrations')
-      .select('id, division_id, user_id, partner_registration_id, status, payment_status')
+      .select('id, division_id, user_id, partner_registration_id, status, payment_status, seed')
       .eq('tournament_id', id)
       .eq('status', 'registered')
       .in('payment_status', ['paid', 'waived', 'comped']),
@@ -159,6 +159,13 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     return fn
   }
 
+  // Effective "show seed numbers" per division: the division override, else the
+  // tournament default — so the draft preview prefixes "#3 …" only when shown.
+  const divShowSeeds = new Map<string, boolean>()
+  for (const d of (divisionsRaw ?? []) as any[]) {
+    divShowSeeds.set(d.id, (d.show_seeds ?? t.show_seeds) === true)
+  }
+
   const teamLabels: Record<string, string> = {}
   for (const r of (regsRaw ?? []) as any[]) {
     const p1full = playerNames[r.user_id]
@@ -166,7 +173,9 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     const p2full = partner ? playerNames[(partner as any).user_id] : null
     const p1 = p1full ? display(r.division_id, p1full) : null
     const p2 = p2full ? display(r.division_id, p2full) : null
-    teamLabels[r.id] = p1 ? (p2 ? `${p1}/${p2}` : p1) : 'Player'
+    const name = p1 ? (p2 ? `${p1}/${p2}` : p1) : 'Player'
+    const seedPrefix = divShowSeeds.get(r.division_id) && r.seed != null ? `#${r.seed} ` : ''
+    teamLabels[r.id] = `${seedPrefix}${name}`
   }
 
   const assignments: DivisionBlockLink[] = (assignmentsRaw ?? []).map((a: any) => ({

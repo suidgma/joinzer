@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { buildDivisionMatchRows } from '@/lib/tournament/buildMatches'
+import { persistAutoSeeds } from '@/lib/tournament/autoSeed'
 
 // POST /api/tournaments/[id]/generate-all
 // Generates brackets for every division that doesn't have matches yet.
@@ -19,7 +20,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
   const { data: tournament } = await service
     .from('tournaments')
-    .select('organizer_id')
+    .select('organizer_id, show_seeds')
     .eq('id', params.id)
     .single()
   if (!tournament || tournament.organizer_id !== user.id) {
@@ -28,7 +29,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
   const { data: divisions } = await service
     .from('tournament_divisions')
-    .select('id, name, format, bracket_type, format_settings_json, partner_mode')
+    .select('id, name, format, bracket_type, format_settings_json, partner_mode, show_seeds')
     .eq('tournament_id', params.id)
     .order('created_at', { ascending: true })
 
@@ -75,6 +76,13 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     if (error || !inserted) {
       return NextResponse.json({ error: `Failed to generate matches for division "${division.name}": ${error?.message}` }, { status: 500 })
+    }
+
+    // Auto-seed an unseeded field when its seeds are shown, so brackets/schedules
+    // have a seed to display. Seed order = bracket-build order.
+    const showSeeds = ((division as any).show_seeds ?? tournament.show_seeds) === true
+    if (showSeeds && !built.hadSeeds && built.teamOrder.length > 0) {
+      await persistAutoSeeds(service, built.teamOrder)
     }
 
     allInserted.push(...inserted)
