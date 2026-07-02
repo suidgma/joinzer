@@ -13,6 +13,7 @@ type Props = {
   locations: BuilderLocation[]
   primaryLocationId: string | null
   settings: ScheduleSettings
+  isRolling?: boolean
   onClose: () => void
   onSaved: (block: ScheduleBlock) => void
   onError: (msg: string) => void
@@ -62,7 +63,7 @@ const autoBlockName = (date: string, start: string, end: string, courts: number[
 }
 
 export default function BlockFormModal({
-  tournamentId, mode, block, days, locations, primaryLocationId, settings, onClose, onSaved, onError,
+  tournamentId, mode, block, days, locations, primaryLocationId, settings, isRolling, onClose, onSaved, onError,
 }: Props) {
   const firstDay = days[0]
   const initialLocationId = block?.location_id ?? primaryLocationId ?? locations[0]?.id ?? null
@@ -194,16 +195,21 @@ export default function BlockFormModal({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full input" />
+        {/* Rolling mode ignores block start/end times, so the inputs are hidden.
+            The state still holds the tournament-day defaults, which are sent on
+            save (start_time/end_time are NOT NULL with a check constraint). */}
+        {!isRolling && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full input" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">End</label>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full input" />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-muted mb-1">End</label>
-            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full input" />
-          </div>
-        </div>
+        )}
 
         {locations.length > 0 && (
           <div>
@@ -290,7 +296,7 @@ export default function BlockFormModal({
           />
         </div>
 
-        {cap && (
+        {!isRolling && cap && (
           <div className="bg-brand-soft rounded-xl px-3 py-2 text-[11px] text-brand-active font-medium">
             Estimated capacity: ~{cap.matchCapacity} matches
             <span className="text-brand-muted font-normal"> · {courts.length} courts × {cap.usableMinutes} min</span>

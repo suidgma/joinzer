@@ -9,9 +9,10 @@ type Props = {
   initialMatches: OrgMatch[]
   registrations: OrgRegistration[]
   divisions: OrgDivision[]
+  isRolling?: boolean
 }
 
-export default function SchedulePageClient({ tournamentId, initialMatches, registrations, divisions }: Props) {
+export default function SchedulePageClient({ tournamentId, initialMatches, registrations, divisions, isRolling }: Props) {
   const [matches, setMatches] = useState<OrgMatch[]>(initialMatches)
 
   function handleMatchUpdate(updated: OrgMatch) {
@@ -25,6 +26,7 @@ export default function SchedulePageClient({ tournamentId, initialMatches, regis
       registrations={registrations}
       divisions={divisions}
       onMatchUpdate={handleMatchUpdate}
+      isRolling={isRolling}
     />
   )
 }

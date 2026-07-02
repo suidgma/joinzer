@@ -34,7 +34,7 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
     { data: draftRaw },
   ] = await Promise.all([
     db.from('tournaments')
-      .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json, registration_closes_at')
+      .select('id, name, start_date, start_time, estimated_end_time, additional_days, location_id, schedule_settings_json, registration_closes_at, scheduling_method')
       .eq('id', id)
       .single(),
     db.from('tournament_divisions')
@@ -212,6 +212,7 @@ export default async function ScheduleBuilderPage(props: { params: Promise<{ id:
           initialAssignments={assignments}
           initialSettings={settings}
           initialDraftMatches={draftMatches}
+          schedulingMethod={(t as any).scheduling_method ?? 'timed'}
         />
       </div>
     </DesktopShell>

@@ -16,6 +16,7 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  sequence_number?: number | null
   is_draft?: boolean
 }
 type Reg = {
@@ -213,8 +214,12 @@ export default function LiveScoreboard({ tournamentId, status, initialDivisions,
                     {teamLabel(m.team_2_registration_id ?? '', initialRegistrations)}
                   </div>
                 </div>
-                {m.court_number != null && (
-                  <p className="text-[10px] text-brand-muted text-center mt-1">Court {m.court_number}</p>
+                {(m.court_number != null || m.sequence_number != null) && (
+                  <p className="text-[10px] text-brand-muted text-center mt-1">
+                    {m.court_number != null && `Court ${m.court_number}`}
+                    {m.court_number != null && m.sequence_number != null && ' · '}
+                    {m.sequence_number != null && `Match ${m.sequence_number}`}
+                  </p>
                 )}
               </div>
             ))}

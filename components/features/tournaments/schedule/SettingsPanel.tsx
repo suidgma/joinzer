@@ -9,6 +9,7 @@ type Props = {
   onChange: (next: ScheduleSettings) => void
   onError: (msg: string) => void
   onSaved: (msg: string) => void
+  isRolling?: boolean
 }
 
 // Small labeled number input row.
@@ -55,7 +56,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   )
 }
 
-export default function SettingsPanel({ tournamentId, settings, onChange, onError, onSaved }: Props) {
+export default function SettingsPanel({ tournamentId, settings, onChange, onError, onSaved, isRolling }: Props) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<ScheduleSettings>(settings)
   const [saving, setSaving] = useState(false)
@@ -105,11 +106,13 @@ export default function SettingsPanel({ tournamentId, settings, onChange, onErro
             These drive every capacity estimate and the generated draft schedule.
           </p>
 
-          <div className="space-y-2.5">
-            <NumField label="Match duration" value={draft.match_duration_minutes} onChange={v => set('match_duration_minutes', v)} min={1} suffix="min" />
-            <NumField label="Buffer between matches" value={draft.buffer_minutes} onChange={v => set('buffer_minutes', v)} suffix="min" />
-            <NumField label="Min rest for same team" value={draft.min_rest_minutes} onChange={v => set('min_rest_minutes', v)} suffix="min" />
-          </div>
+          {!isRolling && (
+            <div className="space-y-2.5">
+              <NumField label="Match duration" value={draft.match_duration_minutes} onChange={v => set('match_duration_minutes', v)} min={1} suffix="min" />
+              <NumField label="Buffer between matches" value={draft.buffer_minutes} onChange={v => set('buffer_minutes', v)} suffix="min" />
+              <NumField label="Min rest for same team" value={draft.min_rest_minutes} onChange={v => set('min_rest_minutes', v)} suffix="min" />
+            </div>
+          )}
 
           <div className="border-t border-brand-border pt-3 space-y-2.5">
             <Toggle label="Keep divisions grouped on courts" checked={draft.keep_divisions_grouped} onChange={v => set('keep_divisions_grouped', v)} />
@@ -129,12 +132,14 @@ export default function SettingsPanel({ tournamentId, settings, onChange, onErro
             </label>
           </div>
 
-          <div className="border-t border-brand-border pt-3 space-y-2.5">
-            <Toggle label="Leave buffer at end of each block" checked={draft.leave_end_buffer} onChange={v => set('leave_end_buffer', v)} />
-            {draft.leave_end_buffer && (
-              <NumField label="End buffer" value={draft.end_buffer_minutes} onChange={v => set('end_buffer_minutes', v)} suffix="min" />
-            )}
-          </div>
+          {!isRolling && (
+            <div className="border-t border-brand-border pt-3 space-y-2.5">
+              <Toggle label="Leave buffer at end of each block" checked={draft.leave_end_buffer} onChange={v => set('leave_end_buffer', v)} />
+              {draft.leave_end_buffer && (
+                <NumField label="End buffer" value={draft.end_buffer_minutes} onChange={v => set('end_buffer_minutes', v)} suffix="min" />
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2 pt-1">
             <button

@@ -855,6 +855,7 @@ export default function DivisionManageView({
             bracketSlot={<>{matchViewContent}{generatePlayoffsCard}</>}
             showSeeds={showSeeds}
             onToggleShowSeeds={handleToggleShowSeeds}
+            isRolling={isRolling}
           />
         )}
 

@@ -36,6 +36,7 @@ export default async function TournamentSchedulePage(props: { params: Promise<{ 
           initialMatches={orgMatches}
           registrations={orgRegs}
           divisions={orgDivisions}
+          isRolling={tournament.scheduling_method === 'rolling'}
         />
       </div>
     </DesktopShell>
