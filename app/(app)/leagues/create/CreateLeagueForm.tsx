@@ -60,11 +60,21 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('total_points')
   const [noPlayDates, setNoPlayDates] = useState<string[]>([])
   const [noPlayInput, setNoPlayInput] = useState('')
+  // League format (Phase 1). Box is gated behind a flag until the full Box vertical
+  // (assignment → generation → standings → scoring → promotion/relegation) ships;
+  // until then only Round Robin is offered and create behavior is unchanged.
+  const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES === 'true'
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>('session_rr')
+  const [boxSize, setBoxSize] = useState('5')
+  const [cycleWeeks, setCycleWeeks] = useState('4')
+  const [promoteCount, setPromoteCount] = useState('1')
+  const [relegateCount, setRelegateCount] = useState('1')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedLocation = locations.find((l) => l.id === locationId)
   const pointsToWinNum = parseInt(pointsToWin) || 11
+  const isBox = formatKind === 'box'
 
   // Auto-set deadline to 7 days before league start date at 23:59 PT when startDate changes
   useEffect(() => {
@@ -134,9 +144,11 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    // Partner mode is only meaningful for doubles formats; force rotating
-    // for singles / round-robin to avoid storing a confusing value.
-    const effectivePartnerMode = teamType === 'doubles' ? partnerMode : 'rotating'
+    // Partner mode is only meaningful for doubles. Singles → rotating (unused).
+    // Box doubles → fixed: the pair is one stable entrant for the whole cycle.
+    const effectivePartnerMode = teamType !== 'doubles'
+      ? 'rotating'
+      : isBox ? 'fixed' : partnerMode
 
     const { data: league, error: leagueErr } = await supabase
       .from('leagues')
@@ -153,9 +165,9 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
-        end_date: submitDates[submitDates.length - 1] ?? lastDate ?? null,
-        play_days: playDays ? parseInt(playDays) : null,
-        games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
+        end_date: isBox ? null : (submitDates[submitDates.length - 1] ?? lastDate ?? null),
+        play_days: isBox ? null : (playDays ? parseInt(playDays) : null),
+        games_per_session: isBox ? null : (gamesPerSession ? parseInt(gamesPerSession) : null),
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
@@ -165,11 +177,19 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         sub_credit_cap: parseInt(subCreditCap) || 7,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
-        no_play_dates: finalNoPlayDates,
-        // Current leagues are the session-based round-robin format. Set it
-        // explicitly so the format is visible in code; later formats (box/flex/
-        // ladder/team) select a different kind. DB default matches this.
-        format_kind: 'session_rr',
+        no_play_dates: isBox ? [] : finalNoPlayDates,
+        // Selectable league format. session_rr (default) keeps today's weekly
+        // session behavior; box stores its knobs in format_settings_json and uses
+        // cycles/boxes instead of weekly sessions (created by later Box PRs).
+        format_kind: formatKind,
+        format_settings_json: isBox
+          ? {
+              box_size: parseInt(boxSize) || 5,
+              cycle_length_weeks: parseInt(cycleWeeks) || 4,
+              promote_count: parseInt(promoteCount) || 1,
+              relegate_count: parseInt(relegateCount) || 1,
+            }
+          : {},
         created_by: user.id,
       })
       .select('id')
@@ -181,7 +201,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       return
     }
 
-    if (submitDates.length > 0) {
+    // Box leagues use cycles/boxes (created by later Box PRs), not weekly sessions.
+    if (!isBox && submitDates.length > 0) {
       const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = submitDates.map((d, i) => ({
         league_id: league.id,
@@ -209,6 +230,25 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             className="w-full input"
           />
         </FormRow>
+        {BOX_ENABLED && (
+          <FormRow
+            label="League format"
+            helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles, with promotion & relegation."
+          >
+            <div className="grid grid-cols-2 gap-2">
+              {([['session_rr', 'Round Robin'], ['box', 'Box League']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setFormatKind(val)}
+                  className={`p-2.5 rounded-lg border text-left ${formatKind === val ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                >
+                  <div className="text-sm font-semibold text-brand-dark">{label}</div>
+                </button>
+              ))}
+            </div>
+          </FormRow>
+        )}
         <FormRow label="Team type" required>
           <div className="grid grid-cols-2 gap-2">
             {(['doubles', 'singles'] as const).map((t) => (
@@ -235,7 +275,14 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             ))}
           </select>
         </FormRow>
-        {teamType === 'doubles' && (
+        {teamType === 'doubles' && isBox && (
+          <FormRow label="Partner mode">
+            <p className="text-sm text-brand-muted">
+              Box doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant for the whole cycle.
+            </p>
+          </FormRow>
+        )}
+        {teamType === 'doubles' && !isBox && (
           <FormRow
             label="Partner mode"
             helpText="Rotating: scheduler picks a new partner each round. Fixed: captain picks partner at registration; same pair plays every match."
@@ -367,6 +414,30 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             </div>
           </div>
         </FormRow>
+        {isBox && (
+          <>
+            <FormRow label="Box size" width="xs" helpText="Players per box. Boxes are formed from the roster by rating.">
+              <input type="number" min="3" value={boxSize} onChange={(e) => setBoxSize(e.target.value)} className="w-full input" />
+            </FormRow>
+            <FormRow label="Cycle length" width="sm" helpText="Weeks per cycle before promotion & relegation.">
+              <input type="number" min="1" value={cycleWeeks} onChange={(e) => setCycleWeeks(e.target.value)} className="w-full input" />
+            </FormRow>
+            <FormRow label="Promote / relegate" width="md" helpText="How many teams move up from each box (and down) at cycle end.">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-brand-muted mb-1">Promote top</label>
+                  <input type="number" min="0" value={promoteCount} onChange={(e) => setPromoteCount(e.target.value)} className="w-full input" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-brand-muted mb-1">Relegate bottom</label>
+                  <input type="number" min="0" value={relegateCount} onChange={(e) => setRelegateCount(e.target.value)} className="w-full input" />
+                </div>
+              </div>
+            </FormRow>
+          </>
+        )}
+        {!isBox && (
+          <>
         <FormRow
           label="Season length"
           width="md"
@@ -449,6 +520,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             <p className="text-sm text-brand-muted">Set a start date and play days to preview the session schedule.</p>
           )}
         </FormRow>
+          </>
+        )}
       </FormSection>
 
       <FormSection title="Registration" defaultOpen>
