@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { buildRollingSchedule } from '../rollingScheduler'
 import { assignSequenceInOrder, assignSequenceTimed } from '../assignSequence'
-import type { SchedulableMatch } from '../../scheduleGenerator'
+import { scheduleBlockMatches, orderByDependency, type SchedulableMatch } from '../../scheduleGenerator'
+import { DEFAULT_SCHEDULE_SETTINGS } from '../../../types'
 
 const m = (over: Partial<SchedulableMatch>): SchedulableMatch => ({
   division_id: 'd1', round_number: 1, match_number: 1, match_stage: 'round_robin', ...over,
@@ -131,5 +132,29 @@ describe('buildRollingSchedule — first-round start time', () => {
     const rr = Array.from({ length: 6 }, (_, i) => m({ match_number: i + 1, round_number: (i % 3) + 1 }))
     const ordered = buildRollingSchedule({ court_numbers: [1, 2, 3], matches: rr })
     expect(ordered.every(x => x.scheduled_time === null)).toBe(true)
+  })
+})
+
+describe('mixed block — timed + rolling divisions (per-division override)', () => {
+  it('times only the timed division; both share one dense tournament-wide sequence', () => {
+    const timed = Array.from({ length: 4 }, (_, i) => m({ division_id: 'd-timed', match_number: i + 1 }))
+    const rolling = Array.from({ length: 4 }, (_, i) => m({ division_id: 'd-rolling', match_number: i + 1 }))
+
+    // Mirror the generate-schedule route: timed rows through the block packer,
+    // rolling rows through the rolling scheduler, then one tournament-wide sequence.
+    scheduleBlockMatches(
+      { block_date: '2026-07-04', start_time: '08:00', end_time: '17:00', court_numbers: [1, 2] },
+      timed, DEFAULT_SCHEDULE_SETTINGS, true, true,
+    )
+    buildRollingSchedule({ court_numbers: [1, 2], matches: rolling, blockDate: '2026-07-04', startTime: '08:00' })
+    assignSequenceInOrder(orderByDependency([...timed, ...rolling]))
+
+    // Timed division: every match has a real time.
+    expect(timed.every(x => x.scheduled_time != null)).toBe(true)
+    // Rolling division: only the first match on each court carries the start time.
+    expect(rolling.filter(x => x.scheduled_time != null)).toHaveLength(2)
+    // One dense 1..8 Match # across both divisions.
+    expect([...timed, ...rolling].map(x => x.sequence_number).sort((a, b) => a! - b!))
+      .toEqual([1, 2, 3, 4, 5, 6, 7, 8])
   })
 })

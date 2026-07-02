@@ -29,7 +29,7 @@ export default async function DivisionManagePage(
       .eq('id', params.id)
       .single(),
     db.from('tournament_divisions')
-      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, scheduling_method')
       .eq('id', params.divisionId)
       .eq('tournament_id', params.id)
       .single(),
@@ -87,7 +87,7 @@ export default async function DivisionManagePage(
       isOrganizer={canManage}
       currentUserId={user?.id ?? null}
       locationCourtCount={(tournament as any).location?.court_count ?? null}
-      isRolling={(tournament as any).scheduling_method === 'rolling'}
+      isRolling={((division as any).scheduling_method ?? (tournament as any).scheduling_method) === 'rolling'}
     />
   )
 }

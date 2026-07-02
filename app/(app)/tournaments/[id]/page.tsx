@@ -58,7 +58,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select(`
         id, name, description, start_date, start_time, estimated_end_time, additional_days,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type,
+        cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type, scheduling_method,
         location:locations!location_id (id, name, subarea, court_count),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -67,7 +67,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .single(),
     db
       .from('tournament_divisions')
-      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, scheduling_method, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
@@ -376,6 +376,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             defaultWinBy={(tournament as any).default_win_by ?? 1}
             defaultGamesTo={(tournament as any).default_games_to ?? 11}
             defaultBracketType={(tournament as any).default_bracket_type ?? 'round_robin'}
+            tournamentSchedulingMethod={(tournament as any).scheduling_method ?? 'timed'}
             defaultLocationId={(tournament as any).location_id ?? null}
             locations={(locationsData ?? []) as any[]}
             matchCountByDivision={matchCountByDivision}
@@ -459,6 +460,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             defaultWinBy={(tournament as any).default_win_by ?? 1}
             defaultGamesTo={(tournament as any).default_games_to ?? 11}
             defaultBracketType={(tournament as any).default_bracket_type ?? 'round_robin'}
+            tournamentSchedulingMethod={(tournament as any).scheduling_method ?? 'timed'}
             defaultLocationId={(tournament as any).location_id ?? null}
             locations={(locationsData ?? []) as any[]}
           />
