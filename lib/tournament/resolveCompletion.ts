@@ -102,7 +102,13 @@ function buildResolver(matches: MatchRow[]) {
       if (round === 1) {
         if (!row) return BYE
         const stored = side === 't1' ? row.team_1_registration_id : row.team_2_registration_id
-        return stored ?? BYE
+        if (stored) return stored
+        // An up-front placeholder slot (a labeled source like "Pool 1 #1", not yet seeded with
+        // a real team) is a PENDING team, not a bye. Returning BYE here would cascade up the
+        // bracket and make phantomMatchIds hide every downstream match — e.g. the pool-play
+        // FINAL vanishing while its semis are still unseeded.
+        const source = side === 't1' ? row.team_1_source : row.team_2_source
+        return source != null ? PENDING : BYE
       }
       // Winners/playoffs round r: each match is fed by two winners of round r-1.
       const feeder = side === 't1' ? 2 * idx : 2 * idx + 1

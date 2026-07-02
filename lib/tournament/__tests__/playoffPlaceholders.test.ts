@@ -6,10 +6,11 @@ import {
   resolvePlayoffSource,
   type PlayoffSource,
 } from '../playoffPlaceholders'
-import { resolveBracket, resolveCompletion } from '../resolveCompletion'
+import { resolveBracket, resolveCompletion, phantomMatchIds } from '../resolveCompletion'
 
 type Row = Record<string, any>
 const labelOf = (s: PlayoffSource | undefined) => s?.label
+const withIds = (rows: Row[]): Row[] => rows.map((r, i) => ({ id: `m${i}`, ...r }))
 
 describe('source labels', () => {
   it('round robin → ordinal labels in seed order', () => {
@@ -233,5 +234,32 @@ describe('placeholder resolution — seed from standings then cascade', () => {
     const r2Teams = matches.filter(m => m.round_number === 2).flatMap(m => [m.team_1_registration_id, m.team_2_registration_id])
     expect(r2Teams).toContain('A')
     expect(r2Teams).toContain('B')
+  })
+})
+
+describe('phantomMatchIds — up-front placeholder playoffs stay visible', () => {
+  it('does not hide the FINAL of a pool-play single-elim bracket while its semis are unseeded', () => {
+    const rows = withIds(
+      buildPlaceholderPlayoffs(poolSources(2, 2), { engine: 'single' }, { status: 'scheduled' }, 1) as Row[],
+    )
+    const semis = rows.filter(r => r.round_number === 1)
+    const final = rows.find(r => r.round_number === 2)!
+    expect(semis).toHaveLength(2)
+    expect(final).toBeTruthy()
+    // Regression: the sourced semis were resolving to BYE-vs-BYE, cascading a BYE into the
+    // final so it was stripped as a phantom (and the semis mislabeled "FINAL").
+    const phantoms = phantomMatchIds(rows as any)
+    expect(phantoms.has(final.id)).toBe(false)
+    expect(rows.every(r => !phantoms.has(r.id))).toBe(true)
+  })
+
+  it('does not hide a 4-team round-robin playoff FINAL while its semis are unseeded', () => {
+    const rows = withIds(
+      buildPlaceholderPlayoffs(
+        roundRobinSources(4), { engine: 'rr_playoff', finalFormat: 'single_elimination' }, { status: 'scheduled' }, 1,
+      ) as Row[],
+    )
+    const final = rows.find(r => r.round_number === 2)!
+    expect(phantomMatchIds(rows as any).has(final.id)).toBe(false)
   })
 })
