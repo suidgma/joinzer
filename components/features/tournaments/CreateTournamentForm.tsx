@@ -38,6 +38,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [defaultWinBy, setDefaultWinBy] = useState<1 | 2>(1)
   const [defaultGamesTo, setDefaultGamesTo] = useState<number>(11)
   const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination' | 'pool_play_playoffs'>('round_robin')
+  const [schedulingMethod, setSchedulingMethod] = useState<'timed' | 'rolling'>('timed')
   const [additionalDays, setAdditionalDays] = useState<{ date: string; start_time: string; end_time: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -87,6 +88,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         default_win_by: defaultWinBy,
         default_games_to: defaultGamesTo,
         default_bracket_type: defaultBracketType,
+        scheduling_method: schedulingMethod,
       })
       .select('id')
       .single()
@@ -169,6 +171,22 @@ export default function CreateTournamentForm({ locations }: Props) {
       </FormSection>
 
       <FormSection title="Schedule" description="Where and when the tournament takes place." defaultOpen>
+        <FormRow label="Scheduling method">
+          <div className="flex flex-col gap-2">
+            {([
+              { value: 'timed',   label: 'Timed Schedule',   desc: 'Every match gets a scheduled start time and court. Best for larger, formal events.' },
+              { value: 'rolling', label: 'Rolling Schedule',  desc: 'Matches are numbered and played in order; courts free up and the next match is called. Only the start time is fixed — no clock times.' },
+            ] as const).map(opt => (
+              <label key={opt.value} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${schedulingMethod === opt.value ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white hover:bg-brand-soft/50'}`}>
+                <input type="radio" name="scheduling_method" value={opt.value} checked={schedulingMethod === opt.value} onChange={() => setSchedulingMethod(opt.value)} className="mt-0.5 accent-brand" />
+                <div>
+                  <p className="text-sm font-semibold text-brand-dark">{opt.label}</p>
+                  <p className="text-xs text-brand-muted">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </FormRow>
         <FormRow label="Location" htmlFor="location">
           <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
         </FormRow>

@@ -5,6 +5,8 @@ import { canManage } from '@/lib/tournament/access'
 import { DEFAULT_SCHEDULE_SETTINGS, type ScheduleSettings } from '@/lib/types'
 import { buildDivisionMatchRows } from '@/lib/tournament/buildMatches'
 import { scheduleBlockMatches, type SchedulableMatch } from '@/lib/tournament/scheduleGenerator'
+import { buildRollingSchedule } from '@/lib/tournament/schedule/rollingScheduler'
+import { assignSequenceTimed, assignSequenceInOrder } from '@/lib/tournament/schedule/assignSequence'
 import { detectPlayerConflicts } from '@/lib/tournament/scheduleConflicts'
 import { applyByeAdvancements } from '@/lib/tournament/advanceByes'
 import type { MatchRow } from '@/lib/tournament/bracketBuilder'
@@ -37,7 +39,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const db = service()
 
   const [{ data: tournamentRow }, { data: blocks }, { data: assignmentsAll }] = await Promise.all([
-    db.from('tournaments').select('schedule_settings_json').eq('id', id).single(),
+    db.from('tournaments').select('schedule_settings_json, scheduling_method').eq('id', id).single(),
     db.from('tournament_schedule_blocks').select('id, block_date, start_time, end_time, court_numbers').eq('tournament_id', id),
     db.from('tournament_division_blocks').select('division_id, block_id, priority').eq('tournament_id', id),
   ])
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
 
   const settings: ScheduleSettings = { ...DEFAULT_SCHEDULE_SETTINGS, ...(tournamentRow?.schedule_settings_json ?? {}) }
+  const rolling = tournamentRow?.scheduling_method === 'rolling'
   const assignedDivisionIds = Array.from(new Set(assignments.map(a => a.division_id)))
   const divisionPriority = new Map<string, number>(assignments.map(a => [a.division_id, (a as any).priority ?? 0]))
 
@@ -115,6 +118,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
 
   const allRows: object[] = []
+  // Rolling: matches accumulated in dependency (play) order across blocks, for the sequence.
+  const rollingOrdered: SchedulableMatch[] = []
   const skipped: { divisionId: string; reason: string }[] = []
   let overflowTotal = 0
 
@@ -153,16 +158,28 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
 
     if (blockRows.length === 0) continue
-    const { overflowCount } = scheduleBlockMatches(
-      { block_date: block.block_date, start_time: block.start_time, end_time: block.end_time, court_numbers: block.court_numbers ?? [] },
-      blockRows,
-      settings,
-      settings.keep_divisions_grouped,
-      settings.allow_court_sharing,
-      divisionPriority,
-      courtReservations,
-    )
-    overflowTotal += overflowCount
+    if (rolling) {
+      // Rolling: court + play-order only, no times. A block contributes its courts.
+      const orderedBlock = buildRollingSchedule({
+        court_numbers: block.court_numbers ?? [],
+        matches: blockRows,
+        keepDivisionsGrouped: settings.keep_divisions_grouped,
+        divisionPriority,
+        byPriority: settings.schedule_by_priority,
+      })
+      rollingOrdered.push(...orderedBlock)
+    } else {
+      const { overflowCount } = scheduleBlockMatches(
+        { block_date: block.block_date, start_time: block.start_time, end_time: block.end_time, court_numbers: block.court_numbers ?? [] },
+        blockRows,
+        settings,
+        settings.keep_divisions_grouped,
+        settings.allow_court_sharing,
+        divisionPriority,
+        courtReservations,
+      )
+      overflowTotal += overflowCount
+    }
     allRows.push(...blockRows)
   }
 
@@ -172,6 +189,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       { status: 400 },
     )
   }
+
+  // Tournament-wide, stable "Match #" (sequence_number = 1..N), assigned once here.
+  if (rolling) assignSequenceInOrder(rollingOrdered)
+  else assignSequenceTimed(allRows as SchedulableMatch[])
 
   // ── Confirmation gates (all BEFORE any destructive delete) ───────────────────
   // Published matches are live to players. Replacing them unpublishes the
@@ -185,7 +206,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   // Significant overflow means many matches won't fit their block window (usually
   // a division too large for it). Surface it once before committing the schedule.
   const overflowThreshold = Math.max(10, Math.floor(allRows.length * 0.1))
-  if (overflowTotal > overflowThreshold && !confirmOverflow) {
+  if (!rolling && overflowTotal > overflowThreshold && !confirmOverflow) {
     return NextResponse.json({ error: 'large_overflow', overflow: overflowTotal, total: allRows.length }, { status: 409 })
   }
 
@@ -243,9 +264,10 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 
   const { data, error } = await service()
     .from('tournament_matches')
-    .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, status')
+    .select('id, division_id, schedule_block_id, round_number, match_number, match_stage, court_number, scheduled_time, scheduled_end_time, sequence_number, team_1_registration_id, team_2_registration_id, status')
     .eq('tournament_id', id)
     .eq('is_draft', true)
+    .order('sequence_number', { ascending: true, nullsFirst: false })
     .order('scheduled_time', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ matches: data ?? [] })

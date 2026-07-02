@@ -63,6 +63,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [defaultBracketType, setDefaultBracketType] = useState<'round_robin' | 'single_elimination' | 'double_elimination' | 'pool_play_playoffs'>(
     (tournament as any).default_bracket_type ?? 'round_robin'
   )
+  const [schedulingMethod, setSchedulingMethod] = useState<'timed' | 'rolling'>((tournament as any).scheduling_method ?? 'timed')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -93,6 +94,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         default_win_by: defaultWinBy,
         default_games_to: defaultGamesTo,
         default_bracket_type: defaultBracketType,
+        scheduling_method: schedulingMethod,
       })
       .eq('id', tournament.id)
 
@@ -133,6 +135,23 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
       </FormSection>
 
       <FormSection title="Schedule" description="Where and when the tournament takes place." defaultOpen>
+        <FormRow label="Scheduling method">
+          <div className="flex flex-col gap-2">
+            {([
+              { value: 'timed',   label: 'Timed Schedule',   desc: 'Every match gets a scheduled start time and court. Best for larger, formal events.' },
+              { value: 'rolling', label: 'Rolling Schedule',  desc: 'Matches are numbered and played in order; courts free up and the next match is called. Only the start time is fixed — no clock times.' },
+            ] as const).map(opt => (
+              <label key={opt.value} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${schedulingMethod === opt.value ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white hover:bg-brand-soft/50'}`}>
+                <input type="radio" name="scheduling_method" value={opt.value} checked={schedulingMethod === opt.value} onChange={() => setSchedulingMethod(opt.value)} className="mt-0.5 accent-brand" />
+                <div>
+                  <p className="text-sm font-semibold text-brand-dark">{opt.label}</p>
+                  <p className="text-xs text-brand-muted">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-amber-600">Changing this after a schedule is generated requires regenerating the schedule.</p>
+        </FormRow>
         <FormRow label="Location" htmlFor="location">
           <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
         </FormRow>
