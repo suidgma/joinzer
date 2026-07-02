@@ -525,13 +525,16 @@ function RoundRobinList({
     return (
       <div className="space-y-5">
         {pools.map(pNum => (
-          <div key={`pool-${pNum}`} className="space-y-3">
+          // break-inside-avoid keeps a whole pool (heading + its rounds) together when printing,
+          // so a pool that doesn't fit on the current page starts fresh on the next — no orphaned
+          // "Pool N" heading stranded at the bottom of a page.
+          <div key={`pool-${pNum}`} className="space-y-3 break-inside-avoid">
             <p className="text-[11px] font-bold uppercase tracking-widest text-brand-dark border-b border-brand-border/60 pb-1">Pool {pNum}</p>
             {roundGroups(poolMatches.filter(m => m.pool_number === pNum))}
           </div>
         ))}
         {playoffMatches.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-3 break-inside-avoid">
             <p className="text-[11px] font-bold uppercase tracking-widest text-brand-dark border-b border-brand-border/60 pb-1">Playoffs</p>
             {roundGroups(playoffMatches)}
           </div>
