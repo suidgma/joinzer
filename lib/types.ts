@@ -184,3 +184,40 @@ export type LeagueFixture = {
   created_at: string
   updated_at: string
 }
+
+// Box League grouping (Phase 1). league_periods is the generic competition-period
+// table (Box: 'cycle'; Flex: 'window'; Team: 'matchday'). A cycle holds tiered
+// boxes; each box holds member registrations. Unused until the Box format opts in.
+// See docs/phases/league-box-phase1.md.
+export type LeaguePeriod = {
+  id: string
+  league_id: string
+  period_kind: 'cycle' | 'window' | 'matchday'
+  period_number: number
+  name: string | null
+  starts_on: string | null
+  ends_on: string | null
+  status: 'upcoming' | 'active' | 'completed' | 'cancelled'
+  created_at: string
+  updated_at: string
+}
+
+export type LeagueBox = {
+  id: string
+  period_id: string
+  league_id: string
+  name: string | null
+  tier_rank: number
+  box_size: number | null
+  status: 'active' | 'completed'
+  created_at: string
+  updated_at: string
+}
+
+export type LeagueBoxMember = {
+  id: string
+  box_id: string
+  registration_id: string
+  seed_in_box: number | null
+  created_at: string
+}
