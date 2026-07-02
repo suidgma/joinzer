@@ -13,6 +13,7 @@ type Props = {
   locations: BuilderLocation[]
   primaryLocationId: string | null
   settings: ScheduleSettings
+  isRolling?: boolean
   onClose: () => void
   onSaved: (block: ScheduleBlock) => void
   onError: (msg: string) => void
@@ -62,7 +63,7 @@ const autoBlockName = (date: string, start: string, end: string, courts: number[
 }
 
 export default function BlockFormModal({
-  tournamentId, mode, block, days, locations, primaryLocationId, settings, onClose, onSaved, onError,
+  tournamentId, mode, block, days, locations, primaryLocationId, settings, isRolling, onClose, onSaved, onError,
 }: Props) {
   const firstDay = days[0]
   const initialLocationId = block?.location_id ?? primaryLocationId ?? locations[0]?.id ?? null
@@ -133,14 +134,18 @@ export default function BlockFormModal({
     if (!name.trim()) { onError('Block name is required'); return }
     if (!date) { onError('Pick a date'); return }
     if (dateOutOfRange) { onError("Pick a date within your tournament's dates"); return }
-    if (!startTime || !endTime || endTime <= startTime) { onError('End time must be after start time'); return }
+    if (!startTime) { onError('Pick a start time'); return }
+    // Rolling ignores the end time, but the column is NOT NULL with end > start — keep a
+    // valid placeholder. Timed still requires a real end after the start.
+    const endForPayload = isRolling ? (endTime > startTime ? endTime : '23:59') : endTime
+    if (!isRolling && (!endTime || endTime <= startTime)) { onError('End time must be after start time'); return }
     setSaving(true)
     try {
       const payload = {
         name: name.trim(),
         block_date: date,
         start_time: startTime,
-        end_time: endTime,
+        end_time: endForPayload,
         location_id: locationId,
         court_numbers: courts,
         notes: notes.trim() || null,
@@ -194,16 +199,27 @@ export default function BlockFormModal({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Rolling needs a first-round start time but no end time — the matches roll on
+            as courts free up. (end_time is NOT NULL with a check constraint, so a valid
+            placeholder is still sent on save.) Timed shows both. */}
+        {isRolling ? (
           <div>
-            <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+            <label className="block text-xs font-medium text-brand-muted mb-1">First matches start at</label>
             <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full input" />
+            <p className="mt-1 text-[11px] text-brand-muted">After the first round, matches are called by Match&nbsp;# as courts free up — no end time needed.</p>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-muted mb-1">End</label>
-            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full input" />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full input" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">End</label>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full input" />
+            </div>
           </div>
-        </div>
+        )}
 
         {locations.length > 0 && (
           <div>
@@ -290,7 +306,7 @@ export default function BlockFormModal({
           />
         </div>
 
-        {cap && (
+        {!isRolling && cap && (
           <div className="bg-brand-soft rounded-xl px-3 py-2 text-[11px] text-brand-active font-medium">
             Estimated capacity: ~{cap.matchCapacity} matches
             <span className="text-brand-muted font-normal"> · {courts.length} courts × {cap.usableMinutes} min</span>

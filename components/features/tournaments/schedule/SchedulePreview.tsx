@@ -6,7 +6,12 @@ import type { BuilderDivision, DraftMatch } from './types'
 import { useDialog } from '@/components/ui/DialogProvider'
 
 type View = 'time' | 'court' | 'division'
-type ShowCol = 'date' | 'time' | 'court' | 'division'
+type ShowCol = 'date' | 'time' | 'court' | 'division' | 'match'
+
+// The generate-schedule GET now returns a tournament-wide "Match #" per draft
+// match. It isn't on the shared DraftMatch type (the page's initial fetch omits
+// it), so extend locally — it's optional and only used in rolling mode.
+type PreviewMatch = DraftMatch & { sequence_number?: number | null }
 
 type Props = {
   draftMatches: DraftMatch[]
@@ -15,6 +20,7 @@ type Props = {
   teamLabels: Record<string, string>
   matchDurationMinutes: number
   tournamentId: string
+  isRolling?: boolean
   onMatchUpdated: (m: DraftMatch) => void
   onDraftRefresh: () => void | Promise<void>
   onFlash?: (msg: string) => void
@@ -75,10 +81,12 @@ function laParts(iso: string): { date: string; time: string } {
 }
 
 export default function SchedulePreview({
-  draftMatches, blocks, divisions, teamLabels, matchDurationMinutes,
-  tournamentId, onMatchUpdated, onDraftRefresh, onFlash,
+  draftMatches: draftMatchesProp, blocks, divisions, teamLabels, matchDurationMinutes,
+  tournamentId, isRolling, onMatchUpdated, onDraftRefresh, onFlash,
 }: Props) {
+  const draftMatches = draftMatchesProp as PreviewMatch[]
   const { confirm } = useDialog()
+  // 'time' is the first tab; in rolling mode it renders as "By Match #".
   const [view, setView] = useState<View>('time')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editCourt, setEditCourt] = useState('')
@@ -101,6 +109,13 @@ export default function SchedulePreview({
     (a.scheduled_time ?? '~').localeCompare(b.scheduled_time ?? '~') ||
     (a.court_number ?? Infinity) - (b.court_number ?? Infinity) ||
     a.match_number - b.match_number
+  // Rolling mode: order by the tournament-wide sequence ("Match #"), courts next.
+  const sortBySeq = (a: PreviewMatch, b: PreviewMatch) =>
+    (a.sequence_number ?? Infinity) - (b.sequence_number ?? Infinity) ||
+    (a.court_number ?? Infinity) - (b.court_number ?? Infinity) ||
+    a.match_number - b.match_number
+  const matchNumLabel = (m: PreviewMatch) =>
+    m.sequence_number != null ? `#${m.sequence_number}` : `Match ${m.match_number}`
 
   function startEdit(m: DraftMatch) {
     setEditingId(m.id)
@@ -109,11 +124,34 @@ export default function SchedulePreview({
     setEditDate(m.scheduled_time ? laParts(m.scheduled_time).date : (blockOf(m)?.block_date ?? ''))
   }
 
-  async function saveEdit(m: DraftMatch) {
+  async function saveEdit(m: PreviewMatch) {
     const court = editCourt.trim() === '' ? null : parseInt(editCourt, 10)
     if (court != null && (!Number.isInteger(court) || court < 1)) {
       onFlash?.('Enter a valid court number'); return
     }
+
+    // Rolling mode: matches carry no clock time — only the court is editable, and
+    // scheduled_time stays null (the PATCH route accepts nulls).
+    if (isRolling) {
+      setSavingId(m.id)
+      try {
+        const res = await fetch(`/api/tournaments/${tournamentId}/schedule`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates: [{ id: m.id, court_number: court, scheduled_time: null, scheduled_end_time: null }] }),
+        })
+        const json = await res.json()
+        if (!res.ok) { onFlash?.(json.error ?? 'Failed to update match'); return }
+        onMatchUpdated({ ...m, court_number: court, scheduled_time: null, scheduled_end_time: null })
+        setEditingId(null)
+      } catch {
+        onFlash?.('Network error')
+      } finally {
+        setSavingId(null)
+      }
+      return
+    }
+
     const date = editDate || (m.scheduled_time ? laParts(m.scheduled_time).date : blockOf(m)?.block_date ?? null)
     let scheduled_time = m.scheduled_time
     let scheduled_end_time = m.scheduled_end_time
@@ -204,18 +242,25 @@ export default function SchedulePreview({
     }
   }
 
-  function MatchRow({ m, show, editable }: { m: DraftMatch; show: ShowCol[]; editable?: boolean }) {
+  function MatchRow({ m, show, editable }: { m: PreviewMatch; show: ShowCol[]; editable?: boolean }) {
     if (editingId === m.id) {
       return (
         <div className="flex items-center gap-2 px-3 py-2 text-xs bg-brand-soft/40">
-          <input
-            type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-            className="w-32 shrink-0 border border-brand-border rounded px-1 py-0.5"
-          />
-          <input
-            type="time" value={editTime} onChange={e => setEditTime(e.target.value)}
-            className="w-24 shrink-0 border border-brand-border rounded px-1 py-0.5"
-          />
+          {!isRolling && (
+            <input
+              type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+              className="w-32 shrink-0 border border-brand-border rounded px-1 py-0.5"
+            />
+          )}
+          {!isRolling && (
+            <input
+              type="time" value={editTime} onChange={e => setEditTime(e.target.value)}
+              className="w-24 shrink-0 border border-brand-border rounded px-1 py-0.5"
+            />
+          )}
+          {isRolling && (
+            <span className="w-14 shrink-0 whitespace-nowrap text-brand-muted font-semibold tabular-nums">{matchNumLabel(m)}</span>
+          )}
           <span className="text-brand-muted">Ct</span>
           <input
             type="number" min={1} value={editCourt} onChange={e => setEditCourt(e.target.value)}
@@ -243,9 +288,12 @@ export default function SchedulePreview({
     }
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
+        {show.includes('match') && <span className="w-16 shrink-0 whitespace-nowrap text-brand-muted font-semibold tabular-nums">{matchNumLabel(m)}</span>}
         {show.includes('date') && <span className="w-20 shrink-0 whitespace-nowrap text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
         {show.includes('time') && <span className="w-20 shrink-0 whitespace-nowrap text-brand-muted tabular-nums">{fmtStart(m.scheduled_time)}</span>}
         {show.includes('court') && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
+        {/* Rolling: the first match on each court carries the block start time. */}
+        {!show.includes('time') && m.scheduled_time && <span className="w-16 shrink-0 whitespace-nowrap text-brand-active font-medium tabular-nums">{fmtStart(m.scheduled_time)}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {label(m.team_1_registration_id, m)} <span className="text-brand-muted">vs</span> {label(m.team_2_registration_id, m)}
         </span>
@@ -264,7 +312,7 @@ export default function SchedulePreview({
   }
 
   function Group({ title, sub, matches, show, editable, headerAction }: {
-    title: string; sub?: string; matches: DraftMatch[]; show: ShowCol[]
+    title: string; sub?: string; matches: PreviewMatch[]; show: ShowCol[]
     editable?: boolean; headerAction?: React.ReactNode
   }) {
     return (
@@ -285,7 +333,7 @@ export default function SchedulePreview({
 
   // ── By time: group by date ─────────────────────────────────────────────────
   function byTime() {
-    const map = new Map<string, DraftMatch[]>()
+    const map = new Map<string, PreviewMatch[]>()
     for (const m of draftMatches) {
       const key = fmtDate(m.scheduled_time)
       if (!map.has(key)) map.set(key, [])
@@ -296,51 +344,74 @@ export default function SchedulePreview({
     ))
   }
 
+  // ── By Match #: one ordered list, no clock times (rolling mode) ─────────────
+  function byMatchNumber() {
+    const ms = [...draftMatches].sort(sortBySeq)
+    return (
+      <Group title="All matches" sub={`${ms.length} matches`} matches={ms} show={['match', 'court', 'division']} editable />
+    )
+  }
+
   // ── By court ───────────────────────────────────────────────────────────────
   function byCourt() {
-    const map = new Map<string, DraftMatch[]>()
+    const map = new Map<string, PreviewMatch[]>()
     for (const m of draftMatches) {
       const key = m.court_number != null ? `Court ${m.court_number}` : 'Unassigned'
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(m)
     }
+    // Rolling mode: order rows by Match # and label them with it, no clock times.
+    const sort = isRolling ? sortBySeq : sortByTime
+    const show: ShowCol[] = isRolling ? ['match', 'division'] : ['date', 'time', 'division']
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
       .map(([court, ms]) => (
-        <Group key={court} title={court} sub={`${ms.length} matches`} matches={[...ms].sort(sortByTime)} show={['date', 'time', 'division']} editable />
+        <Group key={court} title={court} sub={`${ms.length} matches`} matches={[...ms].sort(sort)} show={show} editable />
       ))
   }
 
   // ── By division: editable rows + per-division regenerate ───────────────────
   function byDivision() {
-    const map = new Map<string, DraftMatch[]>()
+    const map = new Map<string, PreviewMatch[]>()
     for (const m of draftMatches) {
       if (!map.has(m.division_id)) map.set(m.division_id, [])
       map.get(m.division_id)!.push(m)
     }
+    const sort = isRolling ? sortBySeq : sortByTime
+    const show: ShowCol[] = isRolling ? ['match', 'court'] : ['date', 'time', 'court']
     return Array.from(map.entries()).map(([divId, ms]) => (
       <Group
         key={divId}
         title={divisionName(divId)}
         sub={`${ms.length} matches`}
-        matches={[...ms].sort(sortByTime)}
-        show={['date', 'time', 'court']}
+        matches={[...ms].sort(sort)}
+        show={show}
         editable
         headerAction={
-          <button
-            onClick={() => regenerate(divId)}
-            disabled={regenId != null}
-            className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-active hover:underline disabled:opacity-50"
-          >
-            <RefreshCw size={11} className={regenId === divId ? 'animate-spin' : ''} />
-            {regenId === divId ? 'Regenerating…' : 'Regenerate'}
-          </button>
+          // Per-division Regenerate re-packs a block by time — meaningless without
+          // clock times, so it's hidden in rolling mode.
+          isRolling ? undefined : (
+            <button
+              onClick={() => regenerate(divId)}
+              disabled={regenId != null}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-active hover:underline disabled:opacity-50"
+            >
+              <RefreshCw size={11} className={regenId === divId ? 'animate-spin' : ''} />
+              {regenId === divId ? 'Regenerating…' : 'Regenerate'}
+            </button>
+          )
         }
       />
     ))
   }
 
-  const unscheduled = draftMatches.filter(m => !m.scheduled_time || m.court_number == null).length
+  // Rolling matches carry no clock time, so "unplaced" means only "no court yet".
+  const unscheduled = isRolling
+    ? draftMatches.filter(m => m.court_number == null).length
+    : draftMatches.filter(m => !m.scheduled_time || m.court_number == null).length
+
+  // In rolling mode the first tab is "By Match #"; otherwise the usual "By time".
+  const tabLabel = (v: View) => (v === 'time' && isRolling ? 'By Match #' : `By ${v}`)
 
   return (
     <div className="space-y-3">
@@ -349,28 +420,29 @@ export default function SchedulePreview({
           <button
             key={v}
             onClick={() => setView(v)}
-            className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors capitalize ${
+            className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${v === 'time' && isRolling ? '' : 'capitalize'} ${
               view === v ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:text-brand-dark'
             }`}
           >
-            By {v}
+            {tabLabel(v)}
           </button>
         ))}
       </div>
 
       <p className="text-[11px] text-brand-muted">
-        Click ✎ on a match to change its date, time, or court
-        {view === 'division' ? ', or use Regenerate to rebuild a division’s draft.' : '.'}
+        {isRolling
+          ? 'Click ✎ on a match to change its court.'
+          : `Click ✎ on a match to change its date, time, or court${view === 'division' ? ', or use Regenerate to rebuild a division’s draft.' : '.'}`}
       </p>
 
       {unscheduled > 0 && (
         <p className="text-[11px] text-amber-700 font-medium">
-          {unscheduled} match{unscheduled === 1 ? '' : 'es'} couldn’t be placed in a court/time slot.
+          {unscheduled} match{unscheduled === 1 ? '' : 'es'} {isRolling ? 'have no court assigned yet.' : 'couldn’t be placed in a court/time slot.'}
         </p>
       )}
 
       <div className="space-y-2.5">
-        {view === 'time' && byTime()}
+        {view === 'time' && (isRolling ? byMatchNumber() : byTime())}
         {view === 'court' && byCourt()}
         {view === 'division' && byDivision()}
       </div>

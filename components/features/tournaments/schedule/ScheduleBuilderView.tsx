@@ -28,14 +28,16 @@ type Props = {
   initialAssignments: DivisionBlockLink[]
   initialSettings: ScheduleSettings
   initialDraftMatches: DraftMatch[]
+  schedulingMethod?: string
 }
 
 type ModalState = { mode: 'create' } | { mode: 'edit'; block: ScheduleBlock } | null
 
 export default function ScheduleBuilderView({
   tournamentId, registrationOpen, primaryLocationId, days, locations, divisions, divisionStats, playerNames, teamLabels,
-  initialBlocks, initialAssignments, initialSettings, initialDraftMatches,
+  initialBlocks, initialAssignments, initialSettings, initialDraftMatches, schedulingMethod,
 }: Props) {
+  const isRolling = schedulingMethod === 'rolling'
   const { confirm } = useDialog()
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(initialBlocks)
   const [settings, setSettings] = useState<ScheduleSettings>(initialSettings)
@@ -155,7 +157,7 @@ export default function ScheduleBuilderView({
       continue
     }
     const load = blockLoad(b)
-    if (load.over) {
+    if (!isRolling && load.over) {
       const divs = assignedByBlock.get(b.id) ?? []
       const effCourts = effectiveBlockCourts(b.court_numbers.length, divs.map(d => divisionStats[d.id]?.teamCount ?? 0))
       const finish = estimateBlockFinishMinutes(effCourts, b.start_time, load.matches, settings)
@@ -231,8 +233,9 @@ export default function ScheduleBuilderView({
   // compete for the same physical courts. The scheduler avoids double-booking,
   // but two blocks on the same courts at once is usually unintended (e.g. a
   // second day that wasn't given its own date). Only flag when both actually
-  // produce matches.
-  for (let i = 0; i < blocks.length; i++) {
+  // produce matches. Skipped in rolling mode — blocks contribute courts only, and
+  // their start/end times are ignored, so "overlapping times" is meaningless.
+  for (let i = 0; !isRolling && i < blocks.length; i++) {
     for (let j = i + 1; j < blocks.length; j++) {
       const ba = blocks[i], bb = blocks[j]
       if (!blocksOverlap(ba, bb)) continue
@@ -275,8 +278,9 @@ export default function ScheduleBuilderView({
     })
   }
   // Overlap turned off: flag any two divisions in overlapping blocks that aren't
-  // already surfaced above as a shared-player conflict.
-  if (!settings.allow_division_overlap) {
+  // already surfaced above as a shared-player conflict. Time-based, so skipped in
+  // rolling mode (blocks have no meaningful start/end there).
+  if (!isRolling && !settings.allow_division_overlap) {
     const conflictPairs = new Set(conflicts.map(c => [c.divisionAId, c.divisionBId].sort().join('|')))
     for (let i = 0; i < assignments.length; i++) {
       for (let j = i + 1; j < assignments.length; j++) {
@@ -606,6 +610,13 @@ export default function ScheduleBuilderView({
         </p>
       </div>
 
+      {isRolling && (
+        <div className="rounded-xl border border-brand-border bg-brand-soft/60 px-3 py-2 text-xs text-brand-muted">
+          Rolling schedule — matches are numbered and played in order. Blocks contribute their
+          courts; start/finish times and durations are ignored.
+        </div>
+      )}
+
       {registrationOpen && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 font-medium flex items-start gap-2">
           <AlertTriangle size={14} className="shrink-0 mt-0.5" />
@@ -619,6 +630,7 @@ export default function ScheduleBuilderView({
         onChange={setSettings}
         onError={flash}
         onSaved={flash}
+        isRolling={isRolling}
       />
 
       {/* Validation summary */}
@@ -833,7 +845,7 @@ export default function ScheduleBuilderView({
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-[11px] text-amber-800 font-medium">
               Draft only — these {draftMatches.length} matches are hidden from players until you publish.
             </div>
-            {lastOverflow > 0 && (
+            {!isRolling && lastOverflow > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-[11px] text-red-700 font-medium">
                 ⚠️ {lastOverflow} match{lastOverflow === 1 ? '' : 'es'} are scheduled past their block’s end time. Widen the block, add courts, or shorten match duration, then regenerate.
               </div>
@@ -845,6 +857,7 @@ export default function ScheduleBuilderView({
               teamLabels={teamLabels}
               matchDurationMinutes={settings.match_duration_minutes}
               tournamentId={tournamentId}
+              isRolling={isRolling}
               onFlash={flash}
               onMatchUpdated={updated =>
                 setDraftMatches(prev => prev.map(m => (m.id === updated.id ? updated : m)))
@@ -870,6 +883,7 @@ export default function ScheduleBuilderView({
           locations={locations}
           primaryLocationId={primaryLocationId}
           settings={settings}
+          isRolling={isRolling}
           onClose={() => setModal(null)}
           onSaved={(b) => { upsertBlock(b); flash(modal.mode === 'create' ? 'Block created' : 'Block updated') }}
           onError={flash}

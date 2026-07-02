@@ -51,9 +51,10 @@ type Props = {
   registrations: OrgRegistration[]
   divisions: OrgDivision[]
   onMatchUpdate: (updated: OrgMatch) => void
+  isRolling?: boolean
 }
 
-export default function ScheduleTab({ tournamentId, matches, registrations, divisions, onMatchUpdate }: Props) {
+export default function ScheduleTab({ tournamentId, matches, registrations, divisions, onMatchUpdate, isRolling = false }: Props) {
   const [view, setView] = useState<View>('time')
   const [playerView, setPlayerView] = useState(false)
   const [reschedulingMatch, setReschedulingMatch] = useState<OrgMatch | null>(null)
@@ -76,6 +77,11 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
     (a.scheduled_time ?? '~').localeCompare(b.scheduled_time ?? '~') ||
     (a.court_number ?? Infinity) - (b.court_number ?? Infinity) ||
     a.match_number - b.match_number
+  // Rolling mode has no clock times — order by the tournament-wide Match #.
+  const sortBySequence = (a: OrgMatch, b: OrgMatch) =>
+    (a.sequence_number ?? Infinity) - (b.sequence_number ?? Infinity) ||
+    (a.court_number ?? Infinity) - (b.court_number ?? Infinity) ||
+    a.match_number - b.match_number
 
   function MatchRow({ m, show }: { m: OrgMatch; show: ShowCol[] }) {
     const t1 = slotLabel(m.team_1_registration_id, m.team_2_registration_id, m.status, registrations, m.team_1_source)
@@ -88,8 +94,9 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
 
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        {show.includes('date') && <span className="w-20 shrink-0 text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
-        {show.includes('time') && <span className="w-20 shrink-0 text-brand-muted tabular-nums">{fmtStartTime(m.scheduled_time)}</span>}
+        {isRolling && <span className="w-14 shrink-0 text-brand-dark font-bold tabular-nums">{m.sequence_number != null ? `#${m.sequence_number}` : '—'}</span>}
+        {!isRolling && show.includes('date') && <span className="w-20 shrink-0 text-brand-muted font-semibold tabular-nums">{fmtDateShort(m.scheduled_time)}</span>}
+        {!isRolling && show.includes('time') && <span className="w-20 shrink-0 text-brand-muted tabular-nums">{fmtStartTime(m.scheduled_time)}</span>}
         {showCourt && <span className="w-12 shrink-0 text-brand-muted">{m.court_number != null ? `Ct ${m.court_number}` : '—'}</span>}
         <span className="flex-1 min-w-0 truncate text-brand-dark">
           {t1} <span className="text-brand-muted">vs</span> {t2}
@@ -146,8 +153,22 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
     )
   }
 
-  // ── By time: group by date ─────────────────────────────────────────────────
+  // ── By time: group by date. In rolling mode there are no clock times, so this
+  //    becomes a single "By Match #" list ordered by the tournament-wide Match #. ──
   function byTime() {
+    if (isRolling) {
+      const sorted = [...matches].sort(sortBySequence)
+      return (
+        <Group
+          key="sequence"
+          groupKey="sequence:all"
+          title="All matches"
+          sub={`${sorted.length} matches`}
+          matches={sorted}
+          show={['court', 'division']}
+        />
+      )
+    }
     const map = new Map<string, OrgMatch[]>()
     for (const m of matches) {
       const key = fmtDate(m.scheduled_time)
@@ -170,7 +191,14 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
       .map(([court, ms]) => (
-        <Group key={court} groupKey={`court:${court}`} title={court} sub={`${ms.length} matches`} matches={[...ms].sort(sortByTime)} show={['date', 'time', 'division']} />
+        <Group
+          key={court}
+          groupKey={`court:${court}`}
+          title={court}
+          sub={`${ms.length} matches`}
+          matches={[...ms].sort(isRolling ? sortBySequence : sortByTime)}
+          show={isRolling ? ['division'] : ['date', 'time', 'division']}
+        />
       ))
   }
 
@@ -187,8 +215,8 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
         groupKey={`division:${divId}`}
         title={divisionName(divId)}
         sub={`${ms.length} matches`}
-        matches={[...ms].sort(sortByTime)}
-        show={['date', 'time', 'court']}
+        matches={[...ms].sort(isRolling ? sortBySequence : sortByTime)}
+        show={isRolling ? ['court'] : ['date', 'time', 'court']}
       />
     ))
   }
@@ -226,7 +254,7 @@ export default function ScheduleTab({ tournamentId, matches, registrations, divi
                   view === v ? 'bg-brand text-brand-dark' : 'text-brand-muted hover:text-brand-dark'
                 }`}
               >
-                By {v}
+                {v === 'time' && isRolling ? 'By Match #' : `By ${v}`}
               </button>
             ))}
           </div>

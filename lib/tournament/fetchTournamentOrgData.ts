@@ -4,7 +4,7 @@ import type { OrgMatch, OrgRegistration, OrgDivision } from '@/app/(app)/tournam
 
 export type TournamentOrgData = {
   user: { id: string } | null
-  tournament: { id: string; name: string; status: string; organizer_id: string } | null
+  tournament: { id: string; name: string; status: string; organizer_id: string; scheduling_method?: 'timed' | 'rolling' } | null
   orgRegs: OrgRegistration[]
   orgDivisions: OrgDivision[]
   orgMatches: OrgMatch[]
@@ -27,11 +27,11 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
     { data: matchesData },
     { data: staffRow },
   ] = await Promise.all([
-    db.from('tournaments').select('id, name, status, organizer_id').eq('id', tournamentId).single(),
+    db.from('tournaments').select('id, name, status, organizer_id, scheduling_method').eq('id', tournamentId).single(),
     db.from('tournament_divisions').select('id, name, bracket_type, format').eq('tournament_id', tournamentId).order('created_at', { ascending: true }),
     db.from('tournament_registrations').select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, checked_in, payment_status').eq('tournament_id', tournamentId),
     db.from('tournament_matches').select(
-      'id, division_id, round_number, match_number, match_stage, pool_number, ' +
+      'id, division_id, round_number, match_number, match_stage, pool_number, sequence_number, ' +
       'court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, ' +
       'team_1_score, team_2_score, winner_registration_id, status, team_1_source, team_2_source'
     ).eq('tournament_id', tournamentId).eq('is_draft', false).order('match_number', { ascending: true }),

@@ -29,6 +29,8 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  // Tournament-wide "Match #" (present once a schedule is generated, both modes).
+  sequence_number?: number | null
   // Position placeholders (e.g. Pool 1 - 1st place) shown until a real team is seeded.
   // Carries the structured fields so the label is derived, not just the stored text.
   team_1_source?: PlayoffSourceLike | null
@@ -60,7 +62,13 @@ type Props = {
   // When true, the caller owns sync-on-reconnect (run mode reconciles + re-renders in place), so
   // BracketView skips its own drain-and-reload. Offline scoring/queueing is unchanged.
   externalSync?: boolean
+  // Rolling schedule: hide clock times (matches are called by Match # + court). Court + Match #
+  // still show. Provided via context so it doesn't have to thread through every bracket layer.
+  isRolling?: boolean
 }
+
+// Whether the tournament uses a rolling schedule — consumed deep in BracketMatchCard.
+const IsRollingContext = createContext(false)
 
 function formatMatchTime(scheduled_time: string | null): string {
   if (!scheduled_time) return ''
@@ -287,11 +295,14 @@ function BracketMatchCard({
         ) : isDone ? <span className="w-7 shrink-0" /> : null}
       </div>
 
-      {/* Assignment info: court + time */}
-      {(match.court_number != null || match.scheduled_time) && (
+      {/* Assignment info: Match # · court · time. Time shows only when present — in rolling
+          mode that's the block start on each court's first match; the rest roll on untimed. */}
+      {(match.sequence_number != null || match.court_number != null || match.scheduled_time) && (
         <div className="px-2 py-1 border-t border-brand-border/40 text-[9px] text-brand-muted flex items-center gap-1 flex-wrap">
+          {match.sequence_number != null && <span className="font-semibold text-brand-dark">Match {match.sequence_number}</span>}
+          {match.sequence_number != null && match.court_number != null && <span>·</span>}
           {match.court_number != null && <span className="font-medium">Ct.{match.court_number}</span>}
-          {match.court_number != null && match.scheduled_time && <span>·</span>}
+          {match.scheduled_time && (match.sequence_number != null || match.court_number != null) && <span>·</span>}
           {match.scheduled_time && <span>{formatMatchTime(match.scheduled_time)}</span>}
         </div>
       )}
@@ -599,7 +610,7 @@ function BracketStages({
   )
 }
 
-export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin, showSeeds, externalSync }: Props) {
+export default function BracketView({ matches, regs, isOrganizer, isDoubles, tournamentId, divisionId, onScoreUpdate, listLayout, pointsToWin, showSeeds, externalSync, isRolling }: Props) {
   const handleOnline = useCallback(async () => {
     const qKey = bracketQueueKey(tournamentId)
     const queue = getQueue(qKey)
@@ -629,6 +640,7 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
     const listMatches = matches.filter(m => !BRACKET_STAGES.has(m.match_stage))
     const bracketMatches = matches.filter(m => BRACKET_STAGES.has(m.match_stage))
     return (
+      <IsRollingContext.Provider value={!!isRolling}>
       <AllMatchesContext.Provider value={matches}>
       <div className="space-y-6">
         <RoundRobinList
@@ -648,10 +660,12 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
         )}
       </div>
       </AllMatchesContext.Provider>
+      </IsRollingContext.Provider>
     )
   }
 
   return (
+    <IsRollingContext.Provider value={!!isRolling}>
     <AllMatchesContext.Provider value={matches}>
       <BracketStages
         matches={matches} regs={regs} isOrganizer={isOrganizer} isDoubles={isDoubles}
@@ -659,5 +673,6 @@ export default function BracketView({ matches, regs, isOrganizer, isDoubles, tou
         pointsToWin={pointsToWin} showSeeds={showSeeds}
       />
     </AllMatchesContext.Provider>
+    </IsRollingContext.Provider>
   )
 }

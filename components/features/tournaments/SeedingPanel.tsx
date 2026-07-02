@@ -58,6 +58,8 @@ type Props = {
   bracketSlot?: React.ReactNode
   showSeeds?: boolean
   onToggleShowSeeds?: (val: boolean) => void
+  /** Rolling tournaments have no clock times — hide date/time inputs, keep court only. */
+  isRolling?: boolean
 }
 
 function firstName(name: string | null | undefined): string {
@@ -197,6 +199,7 @@ export default function SeedingPanel({
   registrations, isDoubles, tournamentId, divisionId,
   onMarkComped, onRemove, hasMatches, onGenerateMatches, onReplacePlayer,
   matches, isElimination = false, tournamentDate, addPlayerSlot, bracketSlot, showSeeds, onToggleShowSeeds,
+  isRolling = false,
 }: Props) {
   // For doubles: keep the lexicographically-smaller registration ID of each pair
   // as the canonical row — matches dedupeRegistrationsToTeams in the bracket generator
@@ -661,16 +664,20 @@ export default function SeedingPanel({
                               className="w-11 input text-xs py-0.5 px-1.5 text-center"
                             />
                           </div>
-                          <input
-                            type="date"
-                            value={edit.date}
-                            onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, date: e.target.value } }))}
-                            className="input text-xs py-0.5 px-1.5 flex-1 min-w-[130px]"
-                          />
-                          <TimeSlotPicker
-                            value={edit.time}
-                            onChange={time => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time } }))}
-                          />
+                          {!isRolling && (
+                            <>
+                              <input
+                                type="date"
+                                value={edit.date}
+                                onChange={e => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, date: e.target.value } }))}
+                                className="input text-xs py-0.5 px-1.5 flex-1 min-w-[130px]"
+                              />
+                              <TimeSlotPicker
+                                value={edit.time}
+                                onChange={time => setScheduleEdits(prev => ({ ...prev, [m.id]: { ...edit, time } }))}
+                              />
+                            </>
+                          )}
                         </div>
                       </div>
                     )
@@ -683,22 +690,24 @@ export default function SeedingPanel({
 
         {/* ── Generate / Re-generate Matches ── */}
         <div className="px-3 py-2.5 bg-brand-surface space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-brand-muted shrink-0">Time per round</span>
-            <select
-              value={roundDuration}
-              onChange={e => setRoundDuration(Number(e.target.value))}
-              className="input text-xs py-0.5 px-2 flex-1"
-            >
-              <option value={15}>15 min</option>
-              <option value={20}>20 min</option>
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-              <option value={60}>1 hour</option>
-              <option value={90}>1.5 hours</option>
-              <option value={120}>2 hours</option>
-            </select>
-          </div>
+          {!isRolling && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-brand-muted shrink-0">Time per round</span>
+              <select
+                value={roundDuration}
+                onChange={e => setRoundDuration(Number(e.target.value))}
+                className="input text-xs py-0.5 px-2 flex-1"
+              >
+                <option value={15}>15 min</option>
+                <option value={20}>20 min</option>
+                <option value={30}>30 min</option>
+                <option value={45}>45 min</option>
+                <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
+                <option value={120}>2 hours</option>
+              </select>
+            </div>
+          )}
           {onToggleShowSeeds && (
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input

@@ -19,6 +19,7 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  sequence_number?: number | null
   team_1_source?: { label?: string } | null
   team_2_source?: { label?: string } | null
 }
@@ -49,6 +50,7 @@ type Props = {
   tournamentName: string
   startDate: string
   divisions: Division[]
+  isRolling?: boolean
 }
 
 // Scoped to this page while it's mounted: hide the app chrome, force a white
@@ -68,7 +70,7 @@ const PRINT_CSS = `
 }
 `
 
-export default function PrintBrackets({ tournamentId, tournamentName, startDate, divisions }: Props) {
+export default function PrintBrackets({ tournamentId, tournamentName, startDate, divisions, isRolling }: Props) {
   // Open the print dialog automatically once the brackets have rendered.
   useEffect(() => {
     const t = setTimeout(() => window.print(), 600)
@@ -132,6 +134,7 @@ export default function PrintBrackets({ tournamentId, tournamentName, startDate,
               tournamentId={tournamentId}
               divisionId={d.id}
               onScoreUpdate={() => {}}
+              isRolling={isRolling}
               listLayout={!d.isBracket}
               pointsToWin={d.pointsToWin}
               showSeeds

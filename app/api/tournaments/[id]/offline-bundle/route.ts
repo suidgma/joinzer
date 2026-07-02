@@ -5,7 +5,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 const MATCH_SELECT =
   'id, tournament_id, division_id, round_number, match_number, match_stage, pool_number, ' +
   'court_number, scheduled_time, team_1_registration_id, team_2_registration_id, ' +
-  'team_1_score, team_2_score, winner_registration_id, status, team_1_source, team_2_source'
+  'team_1_score, team_2_score, winner_registration_id, status, sequence_number, team_1_source, team_2_source'
 
 // GET — the full offline snapshot of a tournament for run mode: tournament, divisions,
 // registrations (with player + partner names), and every published match. Organizer/staff
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const { data: tournament } = await db
-    .from('tournaments').select('id, name, status, organizer_id').eq('id', params.id).single()
+    .from('tournaments').select('id, name, status, organizer_id, scheduling_method').eq('id', params.id).single()
   if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   let allowed = tournament.organizer_id === user.id
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   }))
 
   return NextResponse.json({
-    tournament: { id: tournament.id, name: tournament.name, status: tournament.status, is_lead_organizer: tournament.organizer_id === user.id },
+    tournament: { id: tournament.id, name: tournament.name, status: tournament.status, scheduling_method: tournament.scheduling_method, is_lead_organizer: tournament.organizer_id === user.id },
     divisions: divisions ?? [],
     registrations,
     courts: [],

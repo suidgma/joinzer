@@ -82,6 +82,7 @@ type Match = {
   team_2_score: number | null
   winner_registration_id: string | null
   status: string
+  sequence_number?: number | null
   team_1_source?: { label?: string } | null
   team_2_source?: { label?: string } | null
 }
@@ -115,6 +116,7 @@ type Props = {
   isOrganizer: boolean
   currentUserId: string | null
   locationCourtCount?: number | null
+  isRolling?: boolean
 }
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles: "Men's Doubles",
@@ -132,7 +134,7 @@ const FORMAT_LABELS: Record<string, string> = {
 export default function DivisionManageView({
   tournamentId, tournamentName, tournamentStartDate, tournamentStartTime,
   division, initialRegistrations, initialMatches, draftMatchCount = 0,
-  isOrganizer, currentUserId, locationCourtCount,
+  isOrganizer, currentUserId, locationCourtCount, isRolling,
 }: Props) {
   const router = useRouter()
   const { confirm, alert } = useDialog()
@@ -675,6 +677,7 @@ export default function DivisionManageView({
           pointsToWin={(division.format_settings_json as any)?.games_to ?? 11}
           showSeeds={showSeeds}
           externalSync
+          isRolling={isRolling}
         />
       )}
     </div>
@@ -852,6 +855,7 @@ export default function DivisionManageView({
             bracketSlot={<>{matchViewContent}{generatePlayoffsCard}</>}
             showSeeds={showSeeds}
             onToggleShowSeeds={handleToggleShowSeeds}
+            isRolling={isRolling}
           />
         )}
 

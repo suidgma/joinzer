@@ -356,6 +356,7 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
                   listLayout={!isBracket}
                   pointsToWin={pointsToWin}
                   externalSync
+                  isRolling={(bundle.tournament as AnyRow).scheduling_method === 'rolling'}
                 />
               </div>
             )}

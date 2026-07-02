@@ -121,6 +121,7 @@ export type TournamentDetail = {
   registration_closes_at: string | null
   organizer_id: string
   cost_cents: number
+  scheduling_method: 'timed' | 'rolling'
   location_id: string | null
   location: { id: string; name: string; subarea: string | null } | null
   organizer: { name: string } | null
