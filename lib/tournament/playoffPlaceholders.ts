@@ -5,8 +5,9 @@ import {
 } from './bracketBuilder'
 
 // A playoff slot whose team isn't known yet: it points at a standings position.
-// `label` is the human text shown in the bracket ("1st", "Pool 1 #2", "Pool 1 Winner")
-// and is baked in at build time (so the display never has to re-derive it).
+// `label` is the human text shown in the bracket ("1st place", "Pool 1 - 2nd place").
+// It's baked in at build time AND re-derivable from the structured fields via
+// formatPlayoffLabel(), so the display can normalize older baked labels too.
 export type PlayoffSource =
   | { kind: 'rank'; rank: number; label: string }
   | { kind: 'pool_rank'; pool: number; rank: number; label: string }
@@ -17,9 +18,28 @@ function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`
 }
 
-// Round robin → top N finishers, in seed order (1st, 2nd, …).
+// The single source of truth for a placeholder slot's label — e.g. "1st place",
+// "Pool 1 - 2nd place". Used both to bake the label at generation and to render it
+// (deriving from kind/pool/rank), so all surfaces agree and older tournaments show
+// the current wording. Falls back to any stored label if the fields are missing.
+export function formatPlayoffLabel(source: {
+  kind?: string | null
+  pool?: number | null
+  rank?: number | null
+  label?: string | null
+}): string {
+  const { kind, pool, rank } = source
+  if (kind === 'pool_rank' && pool != null && rank != null) return `Pool ${pool} - ${ordinal(rank)} place`
+  if (kind === 'rank' && rank != null) return `${ordinal(rank)} place`
+  return source.label ?? 'TBD'
+}
+
+// Round robin → top N finishers, in seed order (1st place, 2nd place, …).
 export function roundRobinSources(qualifiers: number): PlayoffSource[] {
-  return Array.from({ length: qualifiers }, (_, i) => ({ kind: 'rank', rank: i + 1, label: ordinal(i + 1) }))
+  return Array.from({ length: qualifiers }, (_, i) => {
+    const rank = i + 1
+    return { kind: 'rank', rank, label: formatPlayoffLabel({ kind: 'rank', rank }) }
+  })
 }
 
 // Pool play → top `advancePerPool` from each pool, interleaved by rank across pools
@@ -27,11 +47,9 @@ export function roundRobinSources(qualifiers: number): PlayoffSource[] {
 // pool winner meets another pool's runner-up and same-pool teams stay apart.
 export function poolSources(numPools: number, advancePerPool: number): PlayoffSource[] {
   const out: PlayoffSource[] = []
-  const useWinnerLabel = advancePerPool === 1
   for (let rank = 1; rank <= advancePerPool; rank++) {
     for (let pool = 1; pool <= numPools; pool++) {
-      const label = useWinnerLabel ? `Pool ${pool} Winner` : `Pool ${pool} #${rank}`
-      out.push({ kind: 'pool_rank', pool, rank, label })
+      out.push({ kind: 'pool_rank', pool, rank, label: formatPlayoffLabel({ kind: 'pool_rank', pool, rank }) })
     }
   }
   return out

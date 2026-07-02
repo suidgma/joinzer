@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { OrgMatch, OrgRegistration } from './types'
+import { formatPlayoffLabel } from '@/lib/tournament/playoffPlaceholders'
 
 function firstName(name: string | null | undefined): string {
   if (!name) return ''
@@ -32,10 +33,11 @@ export function slotLabel(
   opponentRegId: string | null,
   status: string,
   regs: OrgRegistration[],
-  source?: { label?: string } | null,
+  source?: { kind?: string | null; pool?: number | null; rank?: number | null; label?: string } | null,
 ): string {
   if (regId) return teamLabel(regId, regs)
-  if (source?.label) return source.label  // unseeded placeholder: '1st', 'Pool 1 #2', …
+  // Unseeded placeholder → derive the label ("Pool 1 - 1st place", "1st place").
+  if (source?.kind || source?.label) return formatPlayoffLabel(source)
   return status === 'completed' && opponentRegId ? 'BYE' : 'TBD'
 }
 

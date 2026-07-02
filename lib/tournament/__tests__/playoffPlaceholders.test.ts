@@ -13,14 +13,14 @@ const labelOf = (s: PlayoffSource | undefined) => s?.label
 const withIds = (rows: Row[]): Row[] => rows.map((r, i) => ({ id: `m${i}`, ...r }))
 
 describe('source labels', () => {
-  it('round robin → ordinal labels in seed order', () => {
-    expect(roundRobinSources(4).map(s => s.label)).toEqual(['1st', '2nd', '3rd', '4th'])
+  it('round robin → "Nth place" in seed order', () => {
+    expect(roundRobinSources(4).map(s => s.label)).toEqual(['1st place', '2nd place', '3rd place', '4th place'])
   })
-  it('pool play, 1 advance → "Pool N Winner"', () => {
-    expect(poolSources(2, 1).map(s => s.label)).toEqual(['Pool 1 Winner', 'Pool 2 Winner'])
+  it('pool play, 1 advance → "Pool N - 1st place"', () => {
+    expect(poolSources(2, 1).map(s => s.label)).toEqual(['Pool 1 - 1st place', 'Pool 2 - 1st place'])
   })
-  it('pool play, 2 advance → interleaved "Pool N #R" in seed order', () => {
-    expect(poolSources(2, 2).map(s => s.label)).toEqual(['Pool 1 #1', 'Pool 2 #1', 'Pool 1 #2', 'Pool 2 #2'])
+  it('pool play, 2 advance → interleaved "Pool N - Rth place" in seed order', () => {
+    expect(poolSources(2, 2).map(s => s.label)).toEqual(['Pool 1 - 1st place', 'Pool 2 - 1st place', 'Pool 1 - 2nd place', 'Pool 2 - 2nd place'])
   })
 })
 
@@ -30,8 +30,8 @@ describe('buildPlaceholderPlayoffs — round robin', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].team_1_registration_id).toBeNull()
     expect(rows[0].team_2_registration_id).toBeNull()
-    expect(labelOf(rows[0].team_1_source)).toBe('1st')
-    expect(labelOf(rows[0].team_2_source)).toBe('2nd')
+    expect(labelOf(rows[0].team_1_source)).toBe('1st place')
+    expect(labelOf(rows[0].team_2_source)).toBe('2nd place')
     expect(rows[0].status).toBe('scheduled')
   })
 
@@ -40,8 +40,8 @@ describe('buildPlaceholderPlayoffs — round robin', () => {
     const r1 = rows.filter(r => r.round_number === 1)
     expect(r1).toHaveLength(2)
     const pairs = r1.map(m => [labelOf(m.team_1_source), labelOf(m.team_2_source)].sort())
-    expect(pairs).toContainEqual(['1st', '4th'])
-    expect(pairs).toContainEqual(['2nd', '3rd'])
+    expect(pairs).toContainEqual(['1st place', '4th place'])
+    expect(pairs).toContainEqual(['2nd place', '3rd place'])
     // The final has no source and no team yet.
     const final = rows.find(r => r.round_number === 2)
     expect(final?.team_1_source).toBeUndefined()
@@ -56,7 +56,7 @@ describe('buildPlaceholderPlayoffs — round robin', () => {
     // The two bye matches: exactly one source, the other side empty.
     const byes = rows.filter(r => r.round_number === 1 && (!!r.team_1_source !== !!r.team_2_source))
     expect(byes).toHaveLength(2)
-    expect(byes.map(b => labelOf(b.team_1_source ?? b.team_2_source)).sort()).toEqual(['1st', '2nd'])
+    expect(byes.map(b => labelOf(b.team_1_source ?? b.team_2_source)).sort()).toEqual(['1st place', '2nd place'])
   })
 })
 
@@ -67,8 +67,8 @@ describe('buildPlaceholderPlayoffs — pool play (double elim)', () => {
     expect(wb1).toHaveLength(2)
     const pairs = wb1.map(m => [labelOf(m.team_1_source), labelOf(m.team_2_source)].sort())
     // Pool winner meets the OTHER pool's runner-up.
-    expect(pairs).toContainEqual(['Pool 1 #1', 'Pool 2 #2'])
-    expect(pairs).toContainEqual(['Pool 1 #2', 'Pool 2 #1'])
+    expect(pairs).toContainEqual(['Pool 1 - 1st place', 'Pool 2 - 2nd place'])
+    expect(pairs).toContainEqual(['Pool 1 - 2nd place', 'Pool 2 - 1st place'])
     expect(rows.every(r => r.status !== 'completed')).toBe(true)
     // A losers bracket + championship exist as pure placeholders.
     expect(rows.some(r => r.match_stage === 'losers_bracket')).toBe(true)
