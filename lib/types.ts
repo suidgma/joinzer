@@ -155,3 +155,32 @@ export type EventDetail = {
   captain: { name: string } | null
   event_participants: EventParticipantItem[]
 }
+
+// League fixture (Phase 0) — a registration-based matchup for the box/flex/team
+// formats. Mirrors the tournament_matches shape so the tournament generators and
+// computeStandings reuse directly. Unused until Box; the current session-based
+// round-robin path does not touch it. See docs/phases/league-formats.md.
+export type LeagueFixture = {
+  id: string
+  league_id: string
+  period_id: string | null
+  box_id: string | null
+  round_number: number | null
+  match_number: number
+  match_stage: string
+  team_1_registration_id: string | null
+  team_2_registration_id: string | null
+  team_1_score: number | null
+  team_2_score: number | null
+  winner_registration_id: string | null
+  status: 'scheduled' | 'in_progress' | 'completed' | 'forfeited' | 'disputed' | 'cancelled'
+  court_number: number | null
+  scheduled_time: string | null
+  window_start: string | null
+  window_end: string | null
+  reported_by: string | null
+  confirmed_by: string | null
+  parent_fixture_id: string | null
+  created_at: string
+  updated_at: string
+}
