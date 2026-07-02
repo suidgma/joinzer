@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const { data: tournament } = await db
-    .from('tournaments').select('id, name, status, organizer_id, scheduling_method').eq('id', params.id).single()
+    .from('tournaments').select('id, name, status, organizer_id, scheduling_method, show_seeds').eq('id', params.id).single()
   if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   let allowed = tournament.organizer_id === user.id
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
   const [{ data: divisions }, { data: regsRaw }, { data: matches }] = await Promise.all([
     db.from('tournament_divisions')
-      .select('id, tournament_id, name, format, bracket_type, format_settings_json, team_type')
+      .select('id, tournament_id, name, format, bracket_type, format_settings_json, team_type, show_seeds')
       .eq('tournament_id', params.id).order('created_at', { ascending: true }),
     db.from('tournament_registrations')
       .select('id, tournament_id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, seed, checked_in')
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   }))
 
   return NextResponse.json({
-    tournament: { id: tournament.id, name: tournament.name, status: tournament.status, scheduling_method: tournament.scheduling_method, is_lead_organizer: tournament.organizer_id === user.id },
+    tournament: { id: tournament.id, name: tournament.name, status: tournament.status, scheduling_method: tournament.scheduling_method, show_seeds: tournament.show_seeds, is_lead_organizer: tournament.organizer_id === user.id },
     divisions: divisions ?? [],
     registrations,
     courts: [],

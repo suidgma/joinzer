@@ -25,11 +25,11 @@ export default async function DivisionManagePage(
     { data: staffRow },
   ] = await Promise.all([
     db.from('tournaments')
-      .select('id, name, organizer_id, start_date, start_time, scheduling_method, location:locations!location_id(name, court_count)')
+      .select('id, name, organizer_id, start_date, start_time, scheduling_method, show_seeds, location:locations!location_id(name, court_count)')
       .eq('id', params.id)
       .single(),
     db.from('tournament_divisions')
-      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, scheduling_method')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, scheduling_method, show_seeds')
       .eq('id', params.divisionId)
       .eq('tournament_id', params.id)
       .single(),
@@ -88,6 +88,7 @@ export default async function DivisionManagePage(
       currentUserId={user?.id ?? null}
       locationCourtCount={(tournament as any).location?.court_count ?? null}
       isRolling={((division as any).scheduling_method ?? (tournament as any).scheduling_method) === 'rolling'}
+      initialShowSeeds={(division as any).show_seeds ?? (tournament as any).show_seeds ?? false}
     />
   )
 }
