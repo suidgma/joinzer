@@ -6,6 +6,7 @@ import { resolveCompletion } from '@/lib/tournament/resolveCompletion'
 import { resetDeciderSlot } from '@/lib/tournament/scheduleGenerator'
 import { logAudit } from '@/lib/audit/log'
 import { createNotifications } from '@/lib/notifications/create'
+import { validateScores } from '@/lib/scoring/validateScores'
 
 // POST /api/tournaments/[id]/matches/[matchId]/score
 // Organizer-only score write path for the tournament day view.
@@ -22,14 +23,9 @@ export async function POST(
   const body = await req.json().catch(() => ({}))
   const { team_1_score, team_2_score } = body
 
-  if (typeof team_1_score !== 'number' || typeof team_2_score !== 'number') {
-    return NextResponse.json({ error: 'Scores must be numbers' }, { status: 400 })
-  }
-  if (team_1_score < 0 || team_2_score < 0) {
-    return NextResponse.json({ error: 'Scores cannot be negative' }, { status: 400 })
-  }
-  if (team_1_score === team_2_score) {
-    return NextResponse.json({ error: 'Tie scores are not allowed' }, { status: 400 })
+  const scoreCheck = validateScores(team_1_score, team_2_score)
+  if (!scoreCheck.ok) {
+    return NextResponse.json({ error: scoreCheck.error }, { status: 400 })
   }
 
   const service = createServiceClient(
