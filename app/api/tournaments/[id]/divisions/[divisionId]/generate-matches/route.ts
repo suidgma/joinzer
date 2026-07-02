@@ -12,6 +12,7 @@ import {
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 import { divisionPlayoffPlaceholders } from '@/lib/tournament/playoffPlaceholders'
 import { applyByeAdvancements } from '@/lib/tournament/advanceByes'
+import { persistAutoSeeds } from '@/lib/tournament/autoSeed'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 export async function POST(
@@ -36,7 +37,7 @@ export async function POST(
   // Verify organizer
   const { data: tournament } = await service
     .from('tournaments')
-    .select('organizer_id')
+    .select('organizer_id, show_seeds')
     .eq('id', params.id)
     .single()
   if (!tournament || tournament.organizer_id !== user.id) {
@@ -78,11 +79,15 @@ export async function POST(
   // Fetch division format
   const { data: division } = await service
     .from('tournament_divisions')
-    .select('id, format, bracket_type, format_settings_json, partner_mode')
+    .select('id, format, bracket_type, format_settings_json, partner_mode, show_seeds')
     .eq('id', params.divisionId)
     .eq('tournament_id', params.id)
     .single()
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 })
+
+  // Seeds are displayed only when the organizer turned "Show seed numbers" on
+  // (per-division override falls back to the tournament default).
+  const showSeeds = (division.show_seeds ?? tournament.show_seeds) === true
 
   // Fetch settled registered teams (paid, waived, comped) — unpaid rows (abandoned checkouts) must not get bracket slots.
   // user_id is included so we can dedupe: if the same player somehow has two settled registrations
@@ -130,6 +135,9 @@ export async function POST(
   }
 
   let matchRows: object[]
+  // Canonical team registration ids in bracket-build order — used to auto-assign
+  // display seeds (1..N) when the field is unseeded but seeds are shown.
+  let teamOrder: string[] = []
 
   if (isRotating) {
     // Rotating: each registration is a solo player. Don't dedupe — every
@@ -161,6 +169,7 @@ export async function POST(
         error: `Need at least 2 settled registrations to generate matches. This division has ${teams.length} settled registration${teams.length === 1 ? '' : 's'}.`,
       }, { status: 400 })
     }
+    teamOrder = teams
 
     if (ft === 'single_elimination') {
       matchRows = singleEliminationBracket(teams, 'single_elimination', base, 1, hasSeeds).rows
@@ -193,6 +202,13 @@ export async function POST(
 
   if (error || !inserted) {
     return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 })
+  }
+
+  // Auto-seed an unseeded field so "Show seed numbers" has values to display. Runs
+  // only when seeds are shown and none were set manually — the seed matches the
+  // bracket-build order, so the numbers line up with the drawn bracket.
+  if (showSeeds && !hasSeeds && teamOrder.length > 0) {
+    await persistAutoSeeds(service, teamOrder)
   }
 
   // Advance round-1 BYE winners into the next round so the bracket is correct from

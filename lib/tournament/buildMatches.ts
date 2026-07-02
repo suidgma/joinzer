@@ -32,7 +32,7 @@ export function buildDivisionMatchRows(
   division: BuildDivision,
   registrations: BuildReg[],
   base: Record<string, unknown>,
-): { rows: object[] } | { error: string } {
+): { rows: object[]; teamOrder: string[]; hadSeeds: boolean } | { error: string } {
   // One bracket slot per person — drop accidental duplicate registrations.
   const seen = new Set<string>()
   const deduped = registrations.filter(r => {
@@ -63,7 +63,8 @@ export function buildDivisionMatchRows(
   if (isRotating) {
     const playerIds = deduped.map(r => r.id)
     if (playerIds.length < 4) return { error: `rotating doubles needs 4+ registrations (${playerIds.length})` }
-    return { rows: rotatingDoublesMatches(playerIds, base).rows }
+    // Rotating: partners change every round, so a per-team seed is meaningless — no teamOrder.
+    return { rows: rotatingDoublesMatches(playerIds, base).rows, teamOrder: [], hadSeeds: hasSeeds }
   }
 
   if (isDoublesFormat(division.format)) {
@@ -76,18 +77,21 @@ export function buildDivisionMatchRows(
   const teams = dedupeRegistrationsToTeams(deduped)
   if (teams.length < 2) return { error: `fewer than 2 settled teams (${teams.length})` }
 
+  // `teams` is the canonical team registration id per team, in bracket-build order —
+  // the order a display seed (1..N) would follow when the field is auto-seeded.
+  let rows: object[]
   if (ft === 'single_elimination') {
-    return { rows: singleEliminationBracket(teams, 'single_elimination', base, 1, hasSeeds).rows }
-  }
-  if (ft === 'double_elimination') {
-    return { rows: doubleEliminationBracket(teams, base, 1, hasSeeds) }
-  }
-  if (ft === 'pool_play_playoffs') {
+    rows = singleEliminationBracket(teams, 'single_elimination', base, 1, hasSeeds).rows
+  } else if (ft === 'double_elimination') {
+    rows = doubleEliminationBracket(teams, base, 1, hasSeeds)
+  } else if (ft === 'pool_play_playoffs') {
     const numPools = (fs.number_of_pools as number) ?? 2
     const poolRows = poolPlayMatches(teams, numPools, base).rows
     // Playoff bracket placeholders, scheduled from the start (filled when pools finish).
-    return { rows: [...poolRows, ...divisionPlayoffPlaceholders(ft, fs, teams.length, base, poolRows.length + 1)] }
+    rows = [...poolRows, ...divisionPlayoffPlaceholders(ft, fs, teams.length, base, poolRows.length + 1)]
+  } else {
+    const rrRows = roundRobinMatches(teams, base).rows
+    rows = [...rrRows, ...divisionPlayoffPlaceholders(ft, fs, teams.length, base, rrRows.length + 1)]
   }
-  const rrRows = roundRobinMatches(teams, base).rows
-  return { rows: [...rrRows, ...divisionPlayoffPlaceholders(ft, fs, teams.length, base, rrRows.length + 1)] }
+  return { rows, teamOrder: teams, hadSeeds: hasSeeds }
 }
