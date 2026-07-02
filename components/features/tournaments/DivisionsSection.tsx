@@ -121,6 +121,7 @@ type Division = {
   waitlist_enabled: boolean
   status: string
   bracket_type: BracketType
+  scheduling_method?: 'timed' | 'rolling' | null
   format_settings_json: FormatSettings
   cost_cents: number | null
   min_age: number | null
@@ -146,13 +147,14 @@ type Props = {
   defaultWinBy?: number
   defaultGamesTo?: number
   defaultBracketType?: BracketType
+  tournamentSchedulingMethod?: 'timed' | 'rolling'
   defaultLocationId?: string | null
   locations?: LocationOption[]
   matchCountByDivision?: Record<string, number>
   matchesByDivision?: Record<string, MatchItem[]>
 }
 
-export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', defaultLocationId = null, locations = [], matchCountByDivision = {}, matchesByDivision = {} }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', tournamentSchedulingMethod = 'timed', defaultLocationId = null, locations = [], matchCountByDivision = {}, matchesByDivision = {} }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const { confirm, alert } = useDialog()
@@ -230,6 +232,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [fMax, setFMax] = useState<number | ''>(16)
   const [fWaitlist, setFWaitlist] = useState(false)
   const [fBracketType, setFBracketType] = useState<BracketType>(defaultBracketType)
+  const [fSchedulingMethod, setFSchedulingMethod] = useState<'' | 'timed' | 'rolling'>('')
   const [fFormatSettings, setFFormatSettings] = useState<FormatSettings>({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
   const [fLocationId, setFLocationId] = useState<string>(defaultLocationId ?? '')
   const [fCostDollars, setFCostDollars] = useState('')
@@ -258,6 +261,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [editMax, setEditMax] = useState<number | ''>(16)
   const [editWaitlist, setEditWaitlist] = useState(false)
   const [editBracketType, setEditBracketType] = useState<BracketType>('round_robin')
+  const [editSchedulingMethod, setEditSchedulingMethod] = useState<'' | 'timed' | 'rolling'>('')
   const [editFormatSettings, setEditFormatSettings] = useState<FormatSettings>(FORMAT_DEFAULTS.round_robin)
   const [editLocationId, setEditLocationId] = useState<string>('')
   const [editCostDollars, setEditCostDollars] = useState('')
@@ -323,6 +327,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         waitlist_enabled: fWaitlist,
         status: 'active',
         bracket_type: fBracketType,
+        scheduling_method: fSchedulingMethod || null,
         format_settings_json: fFormatSettings,
         cost_cents: fCostDollars ? Math.round(parseFloat(fCostDollars) * 100) : null,
         min_age: fMinAge ? parseInt(fMinAge) : null,
@@ -330,7 +335,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
         start_time: fStartTimeEnabled ? fStartTime : null,
         location_id: fLocationId || null,
       })
-      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, scheduling_method, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !data) { setFError(error?.message ?? 'Failed'); setFLoading(false); return }
@@ -340,6 +345,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setFName(''); setFNameDirty(false); setFCategory('mixed'); setFSkill('')
     setFTeamType('doubles'); setFMax(16); setFWaitlist(false)
     setFBracketType(defaultBracketType)
+    setFSchedulingMethod('')
     setFFormatSettings({ ...FORMAT_DEFAULTS[defaultBracketType], win_by: defaultWinBy, games_to: defaultGamesTo })
     setFCostDollars(''); setFMinAge(''); setFMaxAge(''); setFStartTime(tournamentStartTime?.slice(0, 5) ?? '08:00')
     setFLocationId(defaultLocationId ?? '')
@@ -361,6 +367,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
     setEditMax(div.max_entries)
     setEditWaitlist(!!div.waitlist_enabled)
     setEditBracketType(div.bracket_type)
+    setEditSchedulingMethod((div.scheduling_method as any) ?? '')
     setEditFormatSettings(div.format_settings_json ?? FORMAT_DEFAULTS[div.bracket_type])
     setEditCostDollars(div.cost_cents != null ? String(div.cost_cents / 100) : '')
     setEditMinAge(div.min_age != null ? String(div.min_age) : '')
@@ -390,6 +397,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       max_entries: editMax === '' ? 2 : editMax,
       waitlist_enabled: editWaitlist,
       bracket_type: editBracketType,
+      scheduling_method: editSchedulingMethod || null,
       format_settings_json: editFormatSettings,
       cost_cents: newCostCents,
       min_age: editMinAge ? parseInt(editMinAge) : null,
@@ -403,7 +411,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       .from('tournament_divisions')
       .update(updatePayload)
       .eq('id', divisionId)
-      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, scheduling_method, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
       .single()
 
     if (error || !updated) { setEditFormatError(error?.message ?? 'Save failed'); setEditFormatLoading(false); return }
@@ -818,6 +826,16 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Scheduling</label>
+            <select value={fSchedulingMethod} onChange={e => setFSchedulingMethod(e.target.value as '' | 'timed' | 'rolling')} className="w-full input">
+              <option value="">{`Tournament default (${(tournamentSchedulingMethod ?? 'timed') === 'rolling' ? 'Rolling' : 'Timed'})`}</option>
+              <option value="timed">Timed (fixed times)</option>
+              <option value="rolling">Rolling (no clock times)</option>
+            </select>
+            <p className="text-[11px] text-brand-muted mt-1 leading-snug">Override the tournament&apos;s scheduling method for just this division.</p>
+          </div>
+
           <div className="border-t border-brand-border pt-3">
             <label className="block text-xs font-medium text-brand-muted mb-1">Division Name <span className="font-normal">(optional — auto-generated from selections above)</span></label>
             <input
@@ -1099,6 +1117,16 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                         onTypeChange={t => { setEditBracketType(t); setEditFormatSettings(s => ({ ...FORMAT_DEFAULTS[t], win_by: s.win_by, games_to: s.games_to })) }}
                         onSettingsChange={setEditFormatSettings}
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-brand-muted mb-1">Scheduling</label>
+                      <select value={editSchedulingMethod} onChange={e => setEditSchedulingMethod(e.target.value as '' | 'timed' | 'rolling')} className="w-full input">
+                        <option value="">{`Tournament default (${(tournamentSchedulingMethod ?? 'timed') === 'rolling' ? 'Rolling' : 'Timed'})`}</option>
+                        <option value="timed">Timed (fixed times)</option>
+                        <option value="rolling">Rolling (no clock times)</option>
+                      </select>
+                      <p className="text-[11px] text-brand-muted mt-1 leading-snug">Override the tournament&apos;s scheduling method for just this division.</p>
                     </div>
 
                     <div className="border-t border-brand-border pt-3">

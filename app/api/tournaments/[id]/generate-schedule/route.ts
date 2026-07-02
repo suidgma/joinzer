@@ -4,7 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { canManage } from '@/lib/tournament/access'
 import { DEFAULT_SCHEDULE_SETTINGS, type ScheduleSettings } from '@/lib/types'
 import { buildDivisionMatchRows } from '@/lib/tournament/buildMatches'
-import { scheduleBlockMatches, type SchedulableMatch } from '@/lib/tournament/scheduleGenerator'
+import { scheduleBlockMatches, orderByDependency, type SchedulableMatch } from '@/lib/tournament/scheduleGenerator'
 import { buildRollingSchedule } from '@/lib/tournament/schedule/rollingScheduler'
 import { assignSequenceTimed, assignSequenceInOrder } from '@/lib/tournament/schedule/assignSequence'
 import { detectPlayerConflicts } from '@/lib/tournament/scheduleConflicts'
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const [{ data: existing }, { data: divisions }, { data: regs }] = await Promise.all([
     db.from('tournament_matches').select('id, is_draft').in('division_id', assignedDivisionIds),
     db.from('tournament_divisions')
-      .select('id, format, bracket_type, format_settings_json, partner_mode')
+      .select('id, format, bracket_type, format_settings_json, partner_mode, scheduling_method')
       .in('id', assignedDivisionIds),
     db.from('tournament_registrations')
       .select('id, division_id, user_id, partner_registration_id, seed')
@@ -120,6 +120,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const allRows: object[] = []
   // Rolling: matches accumulated in dependency (play) order across blocks, for the sequence.
   const rollingOrdered: SchedulableMatch[] = []
+  // Dependency (play) order of ALL matches across blocks — feeds the tournament-wide
+  // Match # for a rolling-default tournament (incl. any timed-override divisions).
+  const orderedAll: SchedulableMatch[] = []
+  // A division may override the tournament's method; null inherits it.
+  const effectiveRolling = (divId: string): boolean =>
+    ((divisionById.get(divId) as any)?.scheduling_method ?? tournamentRow?.scheduling_method) === 'rolling'
   const skipped: { divisionId: string; reason: string }[] = []
   let overflowTotal = 0
 
@@ -158,22 +164,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
 
     if (blockRows.length === 0) continue
-    if (rolling) {
-      // Rolling: court + play-order only, no times. A block contributes its courts.
-      const orderedBlock = buildRollingSchedule({
-        court_numbers: block.court_numbers ?? [],
-        matches: blockRows,
-        blockDate: block.block_date,
-        startTime: block.start_time,
-        keepDivisionsGrouped: settings.keep_divisions_grouped,
-        divisionPriority,
-        byPriority: settings.schedule_by_priority,
-      })
-      rollingOrdered.push(...orderedBlock)
-    } else {
+    // Split the block by each division's effective method. Timed divisions get real
+    // court+time slots; rolling divisions get court + play-order (no clock times).
+    const timedRows = blockRows.filter(m => !effectiveRolling(m.division_id))
+    const rollingRows = blockRows.filter(m => effectiveRolling(m.division_id))
+    if (timedRows.length > 0) {
       const { overflowCount } = scheduleBlockMatches(
         { block_date: block.block_date, start_time: block.start_time, end_time: block.end_time, court_numbers: block.court_numbers ?? [] },
-        blockRows,
+        timedRows,
         settings,
         settings.keep_divisions_grouped,
         settings.allow_court_sharing,
@@ -182,6 +180,20 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       )
       overflowTotal += overflowCount
     }
+    if (rollingRows.length > 0) {
+      const orderedBlock = buildRollingSchedule({
+        court_numbers: block.court_numbers ?? [],
+        matches: rollingRows,
+        blockDate: block.block_date,
+        startTime: block.start_time,
+        keepDivisionsGrouped: settings.keep_divisions_grouped,
+        divisionPriority,
+        byPriority: settings.schedule_by_priority,
+      })
+      rollingOrdered.push(...orderedBlock)
+    }
+    // Tournament-wide sequence follows dependency (play) order across the block.
+    orderedAll.push(...orderByDependency(blockRows, { keepDivisionsGrouped: settings.keep_divisions_grouped, divisionPriority, byPriority: settings.schedule_by_priority }))
     allRows.push(...blockRows)
   }
 
@@ -193,7 +205,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
 
   // Tournament-wide, stable "Match #" (sequence_number = 1..N), assigned once here.
-  if (rolling) assignSequenceInOrder(rollingOrdered)
+  // Rolling-default → play order (incl. timed-override divisions in dependency order);
+  // timed-default → by time. `rolling` is the tournament default.
+  if (rolling) assignSequenceInOrder(orderedAll)
   else assignSequenceTimed(allRows as SchedulableMatch[])
 
   // ── Confirmation gates (all BEFORE any destructive delete) ───────────────────
