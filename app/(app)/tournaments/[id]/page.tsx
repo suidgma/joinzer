@@ -58,7 +58,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select(`
         id, name, description, start_date, start_time, estimated_end_time, additional_days,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type, scheduling_method,
+        cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type, scheduling_method, show_seeds,
         location:locations!location_id (id, name, subarea, court_count),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -67,7 +67,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .single(),
     db
       .from('tournament_divisions')
-      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, scheduling_method, format_settings_json, cost_cents, min_age, max_age, start_time, location_id')
+      .select('id, name, format, category, team_type, partner_mode, skill_min, skill_max, max_entries, waitlist_enabled, status, bracket_type, scheduling_method, format_settings_json, cost_cents, min_age, max_age, start_time, location_id, show_seeds')
       .eq('tournament_id', params.id)
       .order('created_at', { ascending: true }),
     db
@@ -290,6 +290,12 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       matchesByDivision[m.division_id].push(m)
     }
 
+    // Effective "show seed numbers" per division (division override → tournament
+    // default), baked into display_seed so every match label renders it uniformly.
+    const orgShowSeeds = new Map<string, boolean>()
+    for (const div of (divisionsRaw ?? []) as any[]) {
+      orgShowSeeds.set(div.id, (div.show_seeds ?? (tournament as any).show_seeds) === true)
+    }
     const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => {
       const prof = profileById[r.user_id] ?? {}
       return {
@@ -303,6 +309,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         partner_registration_id: r.partner_registration_id ?? null,
         checked_in: r.checked_in ?? false,
         payment_status: r.payment_status ?? null,
+        display_seed: orgShowSeeds.get(r.division_id) && r.seed != null ? r.seed : null,
         gender: prof.gender ?? null,
         dupr_rating: prof.dupr_rating ?? null,
         estimated_rating: prof.estimated_rating ?? null,

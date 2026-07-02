@@ -27,9 +27,9 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
     { data: matchesData },
     { data: staffRow },
   ] = await Promise.all([
-    db.from('tournaments').select('id, name, status, organizer_id, scheduling_method').eq('id', tournamentId).single(),
-    db.from('tournament_divisions').select('id, name, bracket_type, format').eq('tournament_id', tournamentId).order('created_at', { ascending: true }),
-    db.from('tournament_registrations').select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, checked_in, payment_status').eq('tournament_id', tournamentId),
+    db.from('tournaments').select('id, name, status, organizer_id, scheduling_method, show_seeds').eq('id', tournamentId).single(),
+    db.from('tournament_divisions').select('id, name, bracket_type, format, show_seeds').eq('tournament_id', tournamentId).order('created_at', { ascending: true }),
+    db.from('tournament_registrations').select('id, division_id, user_id, partner_user_id, partner_registration_id, team_name, status, checked_in, payment_status, seed').eq('tournament_id', tournamentId),
     db.from('tournament_matches').select(
       'id, division_id, round_number, match_number, match_stage, pool_number, sequence_number, ' +
       'court_number, scheduled_time, scheduled_end_time, team_1_registration_id, team_2_registration_id, ' +
@@ -58,6 +58,15 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
   const isCoOrganizer = (staffRow as any)?.role === 'co_organizer'
   const canEdit = isOrganizer || isCoOrganizer
 
+  // Effective "show seed numbers" per division: the division override, else the
+  // tournament default. Baked into each registration's display_seed so every match
+  // label renders seeds without threading the setting through each component.
+  const tournamentShowSeeds = (tournament as any)?.show_seeds === true
+  const divShowSeeds = new Map<string, boolean>()
+  for (const d of (divisionsRaw ?? []) as any[]) {
+    divShowSeeds.set(d.id, (d.show_seeds ?? tournamentShowSeeds) === true)
+  }
+
   const orgRegs: OrgRegistration[] = (regsRaw ?? []).map((r: any) => {
     const prof = profileById[r.user_id] ?? {}
     return {
@@ -71,6 +80,7 @@ export async function fetchTournamentOrgData(tournamentId: string): Promise<Tour
       partner_registration_id: r.partner_registration_id ?? null,
       checked_in: r.checked_in ?? false,
       payment_status: r.payment_status ?? null,
+      display_seed: divShowSeeds.get(r.division_id) && r.seed != null ? r.seed : null,
       gender: prof.gender ?? null,
       dupr_rating: prof.dupr_rating ?? null,
       estimated_rating: prof.estimated_rating ?? null,
