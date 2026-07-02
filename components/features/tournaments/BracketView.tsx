@@ -79,7 +79,9 @@ function TeamNameDisplay({ regId, source, regs, isDoubles, showSeeds }: {
 }) {
   // No team yet: show the position label ("1st", "Pool 1 #2") if this is a
   // placeholder slot, else a plain TBD (a slot waiting on an upstream winner).
-  if (!regId) return <span className="text-brand-muted italic">{source?.label ?? 'TBD'}</span>
+  // Non-italic: slanted numerals ("#1", "#2") were hard to read at this size. The muted color
+  // still marks it as a placeholder vs. the darker confirmed team names.
+  if (!regId) return <span className="text-brand-muted">{source?.label ?? 'TBD'}</span>
   const r = regs.find(x => x.id === regId)
   if (!r) return <span>—</span>
   const seedPrefix = showSeeds && r.seed != null
