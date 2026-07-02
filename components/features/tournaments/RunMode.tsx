@@ -273,6 +273,20 @@ export default function RunMode({ tournamentId }: { tournamentId: string }) {
           <p className="text-xs text-brand-muted">Run mode{canWrite ? '' : ' · read-only'}</p>
         </div>
 
+        {canWrite && (
+          <div className="rounded-xl border border-brand-border bg-brand-soft/50 px-3 py-2.5 text-xs text-brand-muted space-y-1">
+            <p className="font-semibold text-brand-dark">Offline mode — for running this tournament with no wifi at the venue</p>
+            <p>
+              It’s loaded on this device: score, check players in, and run the whole event with no connection — changes sync when you reconnect.
+            </p>
+            <p>
+              <span className="font-medium text-brand-dark">Have wifi/signal?</span> You don’t need this — the{' '}
+              <Link href={`/tournaments/${tournamentId}/live`} className="font-semibold text-brand-active underline">live view</Link>{' '}
+              works online and lets co‑organizers help. Only this one device can run a tournament offline.
+            </p>
+          </div>
+        )}
+
         {!canWrite && (
           <div className="rounded-xl border border-brand-border bg-brand-soft/60 px-3 py-2.5">
             <p className="text-xs font-semibold text-brand-dark">Read-only — you’re not the lead organizer</p>
