@@ -437,25 +437,56 @@ export default function ImportPage() {
         )}
 
         {result != null && (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-1">
-            <p className="text-sm font-semibold text-green-700">
-              ✓ {result.registered} registration{result.registered !== 1 ? 's' : ''} added
-              {result.stubs > 0 && ` · ${result.stubs} new account${result.stubs !== 1 ? 's' : ''} created`}
-            </p>
-            {result.stubs > 0 && (
-              <p className="text-[11px] text-green-700">
-                Each new account gets a magic-link invite (skipped automatically on dummy tournaments).
-              </p>
-            )}
-            {Object.entries(result.byDivision).length > 0 && (
-              <ul className="text-[11px] text-green-700 mt-1 space-y-0.5">
-                {Object.entries(result.byDivision).map(([id, d]) => (
-                  <li key={id}>
-                    {d.name}: {d.registered} added{d.stubs > 0 && `, ${d.stubs} new`}
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setResult(null)}
+          >
+            <div
+              className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 border-b border-brand-border flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                <h2 className="text-base font-bold text-brand-dark">Import complete</h2>
+              </div>
+              <div className="px-5 py-4 space-y-2 max-h-[60vh] overflow-y-auto">
+                <p className="text-sm font-semibold text-brand-dark">
+                  {result.registered} registration{result.registered !== 1 ? 's' : ''} added
+                  {result.stubs > 0 && ` · ${result.stubs} new account${result.stubs !== 1 ? 's' : ''} created`}
+                </p>
+                {result.stubs > 0 && (
+                  <p className="text-xs text-brand-muted">
+                    Each new account gets a magic-link invite (skipped automatically on dummy tournaments).
+                  </p>
+                )}
+                {Object.entries(result.byDivision).length > 0 && (
+                  <ul className="text-xs text-brand-dark mt-1 space-y-1 border-t border-brand-border/60 pt-2">
+                    {Object.entries(result.byDivision).map(([id, d]) => (
+                      <li key={id} className="flex justify-between gap-3">
+                        <span className="min-w-0 truncate">{d.name}</span>
+                        <span className="shrink-0 text-brand-muted tabular-nums">{d.registered} added{d.stubs > 0 && `, ${d.stubs} new`}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-brand-border bg-brand-surface flex justify-end gap-2">
+                <button
+                  onClick={() => { setResult(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                  className="px-3 py-1.5 rounded-lg border border-brand-border text-brand-muted text-sm font-semibold hover:bg-brand-soft transition-colors"
+                >
+                  Import more
+                </button>
+                <Link
+                  href={`/tournaments/${tournamentId}`}
+                  className="px-3 py-1.5 rounded-lg bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+                >
+                  View tournament →
+                </Link>
+              </div>
+            </div>
           </div>
         )}
 
