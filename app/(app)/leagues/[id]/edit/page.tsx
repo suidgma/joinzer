@@ -9,6 +9,7 @@ import ManageNav from '@/components/ui/manage-nav'
 import WizardOutline from '@/components/ui/wizard-outline'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import type { WizardStep } from '@/components/ui/wizard-outline'
+import { getRunnableSession } from '@/lib/leagues/runSession'
 import EditLeagueForm from './EditLeagueForm'
 
 const STEPS: WizardStep[] = [
@@ -41,6 +42,11 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
     .maybeSingle()
   const isCoAdmin = myReg?.is_co_admin === true
   if (league.created_by !== user.id && !isCoAdmin) redirect(`/leagues/${id}`)
+
+  const runnable = await getRunnableSession(supabase, id, true)
+  const runSessionAction = runnable
+    ? { label: 'Run Session', href: `/leagues/${id}/sessions/${runnable.id}/live` }
+    : undefined
 
   const [{ data: sessionRows, count: sessionCount }, { count: regCount }] = await Promise.all([
     supabase
@@ -79,10 +85,10 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
           <span className="text-sm font-medium text-brand-dark">Edit League</span>
         </div>
       }
-      sidebar={<ManageNav items={navItems} />}
+      sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
       rail={<WizardOutline steps={STEPS} title="Edit League" />}
     >
-      <ManageNav items={navItems} mobileOnly />
+      <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
       <EditLeagueForm
         leagueId={id}
         initialData={league as any}

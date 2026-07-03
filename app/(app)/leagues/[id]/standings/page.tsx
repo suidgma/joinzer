@@ -26,7 +26,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       .eq('status', 'registered'),
     supabase
       .from('league_sessions')
-      .select('id, session_number, session_date')
+      .select('id, session_number, session_date, status')
       .eq('league_id', params.id)
       .order('session_date', { ascending: true }),
   ])
@@ -34,6 +34,15 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   if (!league) notFound()
 
   const isManager0 = user?.id === league.created_by
+
+  // "Run Session" action for the sidebar — in-progress session, else the next
+  // scheduled one. Creator only (co-admins get a reduced nav on standings).
+  const runnable = isManager0
+    ? (sessions ?? []).find((s: any) => s.status === 'in_progress') ?? (sessions ?? []).find((s: any) => s.status === 'scheduled')
+    : null
+  const runSessionAction = runnable
+    ? { label: 'Run Session', href: `/leagues/${params.id}/sessions/${runnable.id}/live` }
+    : undefined
 
   // ── Box leagues: per-cycle box standings + match history + promotion/relegation.
   //    Early return keeps the session_rr path below untouched. ?cycle=<id> picks a
@@ -168,9 +177,9 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             <span className="text-sm font-medium text-brand-dark">Standings</span>
           </div>
         }
-        sidebar={<ManageNav items={navItems} />}
+        sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
       >
-        <ManageNav items={navItems} mobileOnly />
+        <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
         <div className="space-y-5 pb-8 max-w-2xl">
           <div className="flex items-end justify-between gap-3 flex-wrap">
             <div>
@@ -387,9 +396,9 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           <span className="text-sm font-medium text-brand-dark">Standings</span>
         </div>
       }
-      sidebar={<ManageNav items={navItems} />}
+      sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
     >
-      <ManageNav items={navItems} mobileOnly />
+      <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
       <div className="space-y-6 pb-8">
 
       <div>
