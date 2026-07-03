@@ -165,7 +165,6 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         { label: 'Edit', href: `/leagues/${params.id}/edit` },
       ] : []),
     ]
-    const anyRows = boxViews.some(b => b.rows.some(r => r.wins + r.losses > 0))
     const isPast = selectedCycle && selectedCycle.status !== 'active'
 
     return (
@@ -181,7 +180,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       >
         <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
         <div className="space-y-5 pb-8 max-w-2xl">
-          <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
             <div>
               <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
               <p className="text-xs text-brand-muted">
@@ -202,10 +201,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
               <p className="text-xs text-brand-muted">Seed boxes and generate matches on the Roster screen.</p>
             </div>
           ) : (
-            <>
-              {!anyRows && <p className="text-xs text-brand-muted">No results entered yet — standings start at 0–0.</p>}
-              <BoxStandings boxes={boxViews} />
-            </>
+            <BoxStandings boxes={boxViews} />
           )}
         </div>
       </DesktopShell>
