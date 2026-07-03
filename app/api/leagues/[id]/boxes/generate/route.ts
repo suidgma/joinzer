@@ -13,11 +13,14 @@ function admin() {
 // Generates a round-robin of league_fixtures within each box of the active cycle
 // (reusing the tournament roundRobinMatches). Replaces the cycle's existing
 // fixtures. Organizer only. Box format.
-export async function POST(_req: NextRequest, props: Params) {
+export async function POST(req: NextRequest, props: Params) {
   const params = await props.params
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json().catch(() => ({}))
+  const force = body.force === true
 
   const db = admin()
   const { data: league } = await db.from('leagues').select('created_by, format_kind').eq('id', params.id).single()
@@ -73,8 +76,16 @@ export async function POST(_req: NextRequest, props: Params) {
     return NextResponse.json({ error: 'No boxes have 2+ players to schedule.' }, { status: 400 })
   }
 
-  // Replace the cycle's fixtures. (Scoring isn't wired yet — a re-generate guard
-  // for completed fixtures lands with PR-1.6.)
+  // Don't silently wipe entered results — re-generating over completed fixtures
+  // needs an explicit force.
+  const { count: completed } = await db
+    .from('league_fixtures').select('id', { count: 'exact', head: true })
+    .eq('league_id', params.id).eq('period_id', cycle.id).eq('status', 'completed')
+  if ((completed ?? 0) > 0 && !force) {
+    return NextResponse.json({ error: 'completed_exists', completed }, { status: 409 })
+  }
+
+  // Replace the cycle's fixtures.
   await db.from('league_fixtures').delete().eq('league_id', params.id).eq('period_id', cycle.id)
   const { error: insErr } = await db.from('league_fixtures').insert(fixtureRows)
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
