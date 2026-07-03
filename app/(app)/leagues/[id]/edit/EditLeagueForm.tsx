@@ -137,10 +137,19 @@ export default function EditLeagueForm({
   const [subCreditCap, setSubCreditCap] = useState(d.sub_credit_cap?.toString() ?? '7')
   const [noPlayDates, setNoPlayDates] = useState<string[]>(d.no_play_dates ?? [])
   const [noPlayInput, setNoPlayInput] = useState('')
+  // League format (Phase 1) — mirrors Create. Box create is enabled unless the
+  // env flag is explicitly 'false'.
+  const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>(d.format_kind === 'box' ? 'box' : 'session_rr')
+  const [boxSize, setBoxSize] = useState((d.format_settings_json?.box_size ?? 5).toString())
+  const [cycleWeeks, setCycleWeeks] = useState((d.format_settings_json?.cycle_length_weeks ?? 4).toString())
+  const [promoteCount, setPromoteCount] = useState((d.format_settings_json?.promote_count ?? 1).toString())
+  const [relegateCount, setRelegateCount] = useState((d.format_settings_json?.relegate_count ?? 1).toString())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const pointsToWinNum = parseInt(pointsToWin) || 11
+  const isBox = formatKind === 'box'
   const hasRegistrants = registrantCount > 0
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
@@ -173,9 +182,9 @@ export default function EditLeagueForm({
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
-        end_date: lastDate || null,
-        play_days: playDays ? parseInt(playDays) : null,
-        games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
+        end_date: isBox ? null : (lastDate || null),
+        play_days: isBox ? null : (playDays ? parseInt(playDays) : null),
+        games_per_session: isBox ? null : (gamesPerSession ? parseInt(gamesPerSession) : null),
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
@@ -185,16 +194,25 @@ export default function EditLeagueForm({
         standings_method: standingsMethod,
         points_to_win: pointsToWinNum,
         win_by: winBy,
-        partner_mode: teamType === 'doubles' ? partnerMode : 'rotating',
+        partner_mode: teamType !== 'doubles' ? 'rotating' : (isBox ? 'fixed' : partnerMode),
         sub_credit_cap: parseInt(subCreditCap) || 7,
-        no_play_dates: noPlayDates,
+        no_play_dates: isBox ? [] : noPlayDates,
+        format_kind: formatKind,
+        format_settings_json: isBox
+          ? {
+              box_size: parseInt(boxSize) || 5,
+              cycle_length_weeks: parseInt(cycleWeeks) || 4,
+              promote_count: parseInt(promoteCount) || 1,
+              relegate_count: parseInt(relegateCount) || 1,
+            }
+          : {},
       })
       .eq('id', leagueId)
 
     if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
-    // Generate sessions only if none exist yet
-    if (willGenerateSessions) {
+    // Generate sessions only if none exist yet — box leagues use cycles, not sessions.
+    if (!isBox && willGenerateSessions) {
       const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = generatedDates.map((d, i) => ({
         league_id: leagueId,
@@ -225,6 +243,25 @@ export default function EditLeagueForm({
             className="w-full input"
           />
         </FormRow>
+        {BOX_ENABLED && (
+          <FormRow
+            label="League format"
+            helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles, with promotion & relegation."
+          >
+            <div className="grid grid-cols-2 gap-2">
+              {([['session_rr', 'Round Robin'], ['box', 'Box League']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setFormatKind(val)}
+                  className={`p-2.5 rounded-lg border text-left ${formatKind === val ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                >
+                  <div className="text-sm font-semibold text-brand-dark">{label}</div>
+                </button>
+              ))}
+            </div>
+          </FormRow>
+        )}
         <FormRow label="Team type" helpText={lockHint}>
           <div className="grid grid-cols-2 gap-2">
             {(['doubles', 'singles'] as const).map((t) => (
@@ -239,7 +276,14 @@ export default function EditLeagueForm({
             ))}
           </div>
         </FormRow>
-        {teamType === 'doubles' && (
+        {teamType === 'doubles' && isBox && (
+          <FormRow label="Partner mode">
+            <p className="text-sm text-brand-muted">
+              Box doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant for the whole cycle.
+            </p>
+          </FormRow>
+        )}
+        {teamType === 'doubles' && !isBox && (
           <FormRow label="Partner mode">
             <div className="grid grid-cols-2 gap-2">
               {(['rotating', 'fixed'] as const).map((m) => (
@@ -374,6 +418,30 @@ export default function EditLeagueForm({
             </div>
           </div>
         </FormRow>
+        {isBox && (
+          <>
+            <FormRow label="Box size" width="xs" helpText="Players per box. Boxes are formed from the roster by rating.">
+              <input type="number" min="3" value={boxSize} onChange={(e) => setBoxSize(e.target.value)} className="w-full input" />
+            </FormRow>
+            <FormRow label="Cycle length" width="sm" helpText="Weeks per cycle before promotion & relegation.">
+              <input type="number" min="1" value={cycleWeeks} onChange={(e) => setCycleWeeks(e.target.value)} className="w-full input" />
+            </FormRow>
+            <FormRow label="Promote / relegate" width="md" helpText="How many teams move up from each box (and down) at cycle end.">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-brand-muted mb-1">Promote top</label>
+                  <input type="number" min="0" value={promoteCount} onChange={(e) => setPromoteCount(e.target.value)} className="w-full input" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-brand-muted mb-1">Relegate bottom</label>
+                  <input type="number" min="0" value={relegateCount} onChange={(e) => setRelegateCount(e.target.value)} className="w-full input" />
+                </div>
+              </div>
+            </FormRow>
+          </>
+        )}
+        {!isBox && (
+          <>
         <FormRow
           label="Season length"
           width="md"
@@ -471,6 +539,8 @@ export default function EditLeagueForm({
           </FormRow>
         )}
         <SessionManager leagueId={leagueId} sessions={sessions} />
+          </>
+        )}
       </FormSection>
 
       <FormSection title="Registration" defaultOpen>
