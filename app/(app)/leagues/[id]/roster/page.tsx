@@ -14,7 +14,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, created_by, max_players, format, partner_mode')
+    .select('id, name, created_by, max_players, format, partner_mode, format_kind')
     .eq('id', params.id)
     .single()
 
@@ -67,6 +67,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     { label: 'Overview', href: `/leagues/${params.id}` },
     { label: 'Standings', href: `/leagues/${params.id}/standings` },
     { label: 'Roster', href: `/leagues/${params.id}/roster` },
+    ...((league as any).format_kind === 'box' ? [{ label: 'Boxes', href: `/leagues/${params.id}/boxes` }] : []),
     { label: 'Edit', href: `/leagues/${params.id}/edit` },
   ]
 
