@@ -171,7 +171,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         sidebar={<ManageNav items={navItems} />}
       >
         <ManageNav items={navItems} mobileOnly />
-        <div className="space-y-6 pb-8">
+        <div className="space-y-5 pb-8 max-w-2xl">
           <div className="flex items-end justify-between gap-3 flex-wrap">
             <div>
               <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
