@@ -67,7 +67,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
   const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>('session_rr')
   const [boxSize, setBoxSize] = useState('5')
-  const [cycleWeeks, setCycleWeeks] = useState('4')
+  const [cycleWeeks, setCycleWeeks] = useState('1')
   const [promoteCount, setPromoteCount] = useState('1')
   const [relegateCount, setRelegateCount] = useState('1')
   const [loading, setLoading] = useState(false)
@@ -186,7 +186,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         format_settings_json: isBox
           ? {
               box_size: parseInt(boxSize) || 5,
-              cycle_length_weeks: parseInt(cycleWeeks) || 4,
+              cycle_length_weeks: parseInt(cycleWeeks) || 1,
               promote_count: parseInt(promoteCount) || 1,
               relegate_count: parseInt(relegateCount) || 1,
             }
