@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assignBoxesByRating, type BoxEntrant } from '../boxAssignment'
+import { assignBoxesByRating, chunkBoxes, type BoxEntrant } from '../boxAssignment'
 
 const e = (id: string, rating: number | null): BoxEntrant => ({ registrationId: id, rating })
 
@@ -44,5 +44,20 @@ describe('assignBoxesByRating', () => {
     const boxes = assignBoxesByRating([e('a', 4), e('b', 3.5), e('c', 3), e('d', 2.5)], 0)
     expect(boxes.length).toBe(2)
     expect(boxes.every(b => b.members.length === 2)).toBe(true)
+  })
+})
+
+describe('chunkBoxes', () => {
+  it('preserves the given order (no rating sort)', () => {
+    // Intentionally out of rating order — a hand-seeded roster must persist as-is.
+    const boxes = chunkBoxes(['d', 'a', 'c', 'b'], 2)
+    expect(boxes[0].members.map(m => m.registrationId)).toEqual(['d', 'a'])
+    expect(boxes[1].members.map(m => m.registrationId)).toEqual(['c', 'b'])
+  })
+
+  it('folds a trailing lone box up', () => {
+    const boxes = chunkBoxes(['a', 'b', 'c', 'd', 'e'], 2)
+    expect(boxes.length).toBe(2)
+    expect(boxes[1].members.map(m => m.registrationId)).toEqual(['c', 'd', 'e'])
   })
 })
