@@ -1,10 +1,21 @@
 'use client'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDialog } from '@/components/ui/DialogProvider'
 
-type Match = { id: string; name1: string; name2: string; status: string; score1: number | null; score2: number | null }
+type Match = { id: string; round: number | null; name1: string; name2: string; status: string; score1: number | null; score2: number | null }
 export type BoxView = { id: string; name: string; matches: Match[] }
+
+// Group a box's matches by round (Round 1, Round 2, …); unrounded fixtures sort last.
+function groupByRound(matches: Match[]): [number | null, Match[]][] {
+  const map = new Map<number | null, Match[]>()
+  for (const m of matches) {
+    const k = m.round ?? null
+    if (!map.has(k)) map.set(k, [])
+    map.get(k)!.push(m)
+  }
+  return [...map.entries()].sort((a, b) => (a[0] ?? Infinity) - (b[0] ?? Infinity))
+}
 
 // Box matches: a round-robin within each box, with organizer score entry
 // (winner + loser score; winner scores points-to-win). Standings land with 1.5.
@@ -121,7 +132,14 @@ export default function BoxFixtures({
                 {b.name} · {b.matches.length} match{b.matches.length === 1 ? '' : 'es'}
               </div>
               <ul className="divide-y divide-brand-border/60">
-                {b.matches.map(m => {
+                {groupByRound(b.matches).map(([round, ms]) => (
+                  <Fragment key={round ?? 'none'}>
+                    {round != null && (
+                      <li className="px-3 py-1 bg-brand-soft/25 text-[10px] font-bold text-brand-muted uppercase tracking-wide">
+                        Round {round}
+                      </li>
+                    )}
+                    {ms.map(m => {
                   const done = m.status === 'completed' && m.score1 != null
                   return (
                     <li key={m.id} className="text-xs">
@@ -171,7 +189,9 @@ export default function BoxFixtures({
                       )}
                     </li>
                   )
-                })}
+                    })}
+                  </Fragment>
+                ))}
                 {b.matches.length === 0 && (
                   <li className="px-3 py-2 text-xs text-brand-muted">No matches — box needs 2+ players.</li>
                 )}

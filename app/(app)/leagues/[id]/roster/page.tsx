@@ -154,7 +154,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         const nameOf = (regId: string | null): string => (regId && byRegId.has(regId) ? teamName(byRegId.get(regId)) : 'TBD')
         const { data: fx } = await admin
           .from('league_fixtures')
-          .select('id, box_id, match_number, team_1_registration_id, team_2_registration_id, status, team_1_score, team_2_score')
+          .select('id, box_id, match_number, round_number, team_1_registration_id, team_2_registration_id, status, team_1_score, team_2_score')
           .eq('period_id', cyc.id)
           .order('match_number', { ascending: true })
         const fxByBox = new Map<string, any[]>()
@@ -167,6 +167,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
           name: b.name ?? `Box ${b.tier_rank}`,
           matches: (fxByBox.get(b.id) ?? []).map((f: any) => ({
             id: f.id,
+            round: f.round_number ?? null,
             name1: nameOf(f.team_1_registration_id),
             name2: nameOf(f.team_2_registration_id),
             status: f.status,

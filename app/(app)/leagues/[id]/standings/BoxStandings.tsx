@@ -1,6 +1,17 @@
 type Row = { rank: number; name: string; movement?: 'up' | 'down' | null; wins: number; losses: number; winPct: number; pf: number; pa: number; diff: number }
-type MatchResult = { id: string; name1: string; name2: string; score1: number; score2: number; winner1: boolean }
+type MatchResult = { id: string; round: number | null; name1: string; name2: string; score1: number; score2: number; winner1: boolean }
 export type BoxStandingView = { name: string; rows: Row[]; matches?: MatchResult[] }
+
+// Group results by round (Round 1, Round 2, …); unrounded fixtures sort last.
+function groupByRound(matches: MatchResult[]): [number | null, MatchResult[]][] {
+  const map = new Map<number | null, MatchResult[]>()
+  for (const m of matches) {
+    const k = m.round ?? null
+    if (!map.has(k)) map.set(k, [])
+    map.get(k)!.push(m)
+  }
+  return [...map.entries()].sort((a, b) => (a[0] ?? Infinity) - (b[0] ?? Infinity))
+}
 
 // Per-box standings tables (win% → point differential → points-for) plus, for a
 // completed cycle, the match results and who promoted (▲) / relegated (▼).
@@ -47,20 +58,27 @@ export default function BoxStandings({ boxes }: { boxes: BoxStandingView[] }) {
           {b.matches && b.matches.length > 0 && (
             <div className="border-t border-brand-border/60 bg-brand-soft/20">
               <p className="px-3 pt-2 text-[10px] font-bold text-brand-muted uppercase tracking-wider">Results</p>
-              <ul className="px-3 pb-2 pt-1 space-y-0.5">
-                {b.matches.map(m => {
-                  const winner = m.winner1 ? m.name1 : m.name2
-                  const loser = m.winner1 ? m.name2 : m.name1
-                  const ws = Math.max(m.score1, m.score2)
-                  const ls = Math.min(m.score1, m.score2)
-                  return (
-                    <li key={m.id} className="text-xs text-brand-muted truncate">
-                      <span className="font-semibold text-brand-dark">{winner}</span> def. {loser}
-                      <span className="ml-1.5 tabular-nums text-brand-dark">{ws}–{ls}</span>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className="px-3 pb-2 pt-1 space-y-1.5">
+                {groupByRound(b.matches).map(([round, ms]) => (
+                  <div key={round ?? 'none'} className="space-y-0.5">
+                    {round != null && <p className="text-[10px] font-semibold text-brand-dark">Round {round}</p>}
+                    <ul className="space-y-0.5">
+                      {ms.map(m => {
+                        const winner = m.winner1 ? m.name1 : m.name2
+                        const loser = m.winner1 ? m.name2 : m.name1
+                        const ws = Math.max(m.score1, m.score2)
+                        const ls = Math.min(m.score1, m.score2)
+                        return (
+                          <li key={m.id} className="text-xs text-brand-muted truncate">
+                            <span className="font-semibold text-brand-dark">{winner}</span> def. {loser}
+                            <span className="ml-1.5 tabular-nums text-brand-dark">{ws}–{ls}</span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
