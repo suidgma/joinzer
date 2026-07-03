@@ -5,6 +5,7 @@ import Link from 'next/link'
 import LeagueRosterManager from './LeagueRosterManager'
 import BoxSeedingSection from './BoxSeedingSection'
 import BoxFixtures, { type BoxView } from './BoxFixtures'
+import BoxCycleBar from './BoxCycleBar'
 import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
@@ -82,6 +83,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   // if saved boxes don't match the current preview (box size / roster changed) the
   // seeding is out of date. Set false only when persisted boxes == preview.
   let boxesDirty = true
+  let boxCycleNumber = 1
   if (isBox) {
     boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
     const doubles = isDoublesFormat((league as any).format)
@@ -115,10 +117,11 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     let ordered = entrantIds
     const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { data: cyc } = await admin
-      .from('league_periods').select('id')
+      .from('league_periods').select('id, period_number')
       .eq('league_id', params.id).eq('period_kind', 'cycle').eq('status', 'active')
       .order('period_number', { ascending: false }).limit(1).maybeSingle()
     if (cyc) {
+      boxCycleNumber = (cyc as any).period_number ?? 1
       const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cyc.id)
       const tierByBox = new Map((bx ?? []).map((b: any) => [b.id, b.tier_rank]))
       const bxIds = (bx ?? []).map((b: any) => b.id)
@@ -200,6 +203,14 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
       sidebar={<ManageNav items={navItems} />}
     >
       <ManageNav items={navItems} mobileOnly />
+      {isBox && boxesExist && (
+        <BoxCycleBar
+          leagueId={params.id}
+          cycleNumber={boxCycleNumber}
+          canAdvance={boxViews.some(b => b.matches.length > 0)}
+          incomplete={boxViews.reduce((n, b) => n + b.matches.filter(m => m.status !== 'completed').length, 0)}
+        />
+      )}
       {isBox && boxEntrants.length > 0 && (
         <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
       )}
