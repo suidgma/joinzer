@@ -77,7 +77,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   if (isBox) {
     boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
     const doubles = isDoublesFormat((league as any).format)
-    const settled = registered.filter((r: any) => r.payment_status == null || ['paid', 'waived', 'comped'].includes(r.payment_status))
+    const settled = registered.filter((r: any) => r.payment_status == null || ['paid', 'waived', 'comped', 'free'].includes(r.payment_status))
     const byRegId = new Map(settled.map((r: any) => [r.id, r]))
     const profileByUser = new Map(settled.map((r: any) => [r.user_id, r.profile]))
     const ratingOfUser = (userId: string): number | null => {

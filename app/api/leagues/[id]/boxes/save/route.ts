@@ -46,7 +46,7 @@ export async function POST(req: NextRequest, props: Params) {
     .in('id', orderedIds)
   const valid = new Set(
     (regRows ?? [])
-      .filter((r: any) => r.status === 'registered' && (r.payment_status == null || ['paid', 'waived', 'comped'].includes(r.payment_status)))
+      .filter((r: any) => r.status === 'registered' && (r.payment_status == null || ['paid', 'waived', 'comped', 'free'].includes(r.payment_status)))
       .map((r: any) => r.id),
   )
   const cleanOrder = orderedIds.filter(id => valid.has(id))
