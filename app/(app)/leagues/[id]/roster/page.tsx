@@ -203,31 +203,33 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
       sidebar={<ManageNav items={navItems} />}
     >
       <ManageNav items={navItems} mobileOnly />
-      {isBox && boxesExist && (
-        <BoxCycleBar
+      <div className={isBox ? 'max-w-2xl' : undefined}>
+        {isBox && boxesExist && (
+          <BoxCycleBar
+            leagueId={params.id}
+            cycleNumber={boxCycleNumber}
+            canAdvance={boxViews.some(b => b.matches.length > 0)}
+            incomplete={boxViews.reduce((n, b) => n + b.matches.filter(m => m.status !== 'completed').length, 0)}
+          />
+        )}
+        {isBox && boxEntrants.length > 0 && (
+          <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
+        )}
+        {isBox && boxesExist && (
+          <BoxFixtures leagueId={params.id} boxes={boxViews} pointsToWin={(league as any).points_to_win ?? 11} stale={boxesDirty} />
+        )}
+        <LeagueRosterManager
           leagueId={params.id}
-          cycleNumber={boxCycleNumber}
-          canAdvance={boxViews.some(b => b.matches.length > 0)}
-          incomplete={boxViews.reduce((n, b) => n + b.matches.filter(m => m.status !== 'completed').length, 0)}
+          leagueName={league.name}
+          maxPlayers={league.max_players ?? null}
+          partnerMode={(league as any).partner_mode ?? null}
+          registered={registered}
+          waitlisted={waitlisted}
+          subInterest={(subInterest ?? []) as any[]}
+          availablePlayers={availablePlayers}
+          isPrimaryOrganizer={league.created_by === user.id}
         />
-      )}
-      {isBox && boxEntrants.length > 0 && (
-        <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
-      )}
-      {isBox && boxesExist && (
-        <BoxFixtures leagueId={params.id} boxes={boxViews} pointsToWin={(league as any).points_to_win ?? 11} stale={boxesDirty} />
-      )}
-      <LeagueRosterManager
-        leagueId={params.id}
-        leagueName={league.name}
-        maxPlayers={league.max_players ?? null}
-        partnerMode={(league as any).partner_mode ?? null}
-        registered={registered}
-        waitlisted={waitlisted}
-        subInterest={(subInterest ?? []) as any[]}
-        availablePlayers={availablePlayers}
-        isPrimaryOrganizer={league.created_by === user.id}
-      />
+      </div>
     </DesktopShell>
   )
 }
