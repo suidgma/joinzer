@@ -87,7 +87,16 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         const rows = computeFixtureStandings((fx ?? []) as any, regsForBox, { boxId: b.id }, nameOf)
         return {
           name: b.name ?? `Box ${b.tier_rank}`,
-          rows: rows.map((row, i) => ({ rank: i + 1, name: nameOf(row.regId), wins: row.wins, losses: row.losses, pf: row.pf, pa: row.pa, diff: row.pf - row.pa })),
+          rows: rows.map((row, i) => ({
+            rank: i + 1,
+            name: nameOf(row.regId),
+            wins: row.wins,
+            losses: row.losses,
+            winPct: (row.wins + row.losses) > 0 ? row.wins / (row.wins + row.losses) : 0,
+            pf: row.pf,
+            pa: row.pa,
+            diff: row.pf - row.pa,
+          })),
         }
       })
     }
