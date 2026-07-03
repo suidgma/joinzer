@@ -7,11 +7,13 @@ import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import StandingsTable from './StandingsTable'
 import BoxStandings, { type BoxStandingView } from './BoxStandings'
+import CycleSelector from './CycleSelector'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
 
-export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }> }) {
+export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string }> }) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -33,19 +35,21 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
 
   const isManager0 = user?.id === league.created_by
 
-  // ── Box leagues: per-box standings from fixtures. Early return keeps the
-  //    session_rr path below completely untouched. ──
+  // ── Box leagues: per-cycle box standings + match history + promotion/relegation.
+  //    Early return keeps the session_rr path below untouched. ?cycle=<id> picks a
+  //    past cycle; movement (▲/▼) compares to the following cycle's boxes. ──
   if ((league as any).format_kind === 'box') {
     const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const doubles = isDoublesFormat((league as any).format)
     const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
 
+    // All non-cancelled regs (past cycles may include players removed since) — used
+    // only for names; box membership is the source of truth for who was in a box.
     const { data: regsRaw } = await admin
       .from('league_registrations')
-      .select('id, user_id, status, payment_status, partner_registration_id, profile:profiles!user_id(name)')
-      .eq('league_id', params.id).eq('status', 'registered')
-    const settled = (regsRaw ?? []).filter((r: any) => r.payment_status == null || ['paid', 'waived', 'comped', 'free'].includes(r.payment_status))
-    const byRegId = new Map(settled.map((r: any) => [r.id, r]))
+      .select('id, status, partner_registration_id, profile:profiles!user_id(name)')
+      .eq('league_id', params.id).neq('status', 'cancelled')
+    const byRegId = new Map((regsRaw ?? []).map((r: any) => [r.id, r]))
     const nameOf = (regId: string): string => {
       const r: any = byRegId.get(regId)
       if (!r) return 'Player'
@@ -56,40 +60,82 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       return b ? `${a}/${b}` : (a || 'Team')
     }
 
-    const { data: cyc } = await admin
-      .from('league_periods').select('id')
-      .eq('league_id', params.id).eq('period_kind', 'cycle').eq('status', 'active')
-      .order('period_number', { ascending: false }).limit(1).maybeSingle()
+    const { data: cyclesRaw } = await admin
+      .from('league_periods').select('id, period_number, status')
+      .eq('league_id', params.id).eq('period_kind', 'cycle')
+      .order('period_number', { ascending: true })
+    const cycles = (cyclesRaw ?? []) as any[]
+    const activeCycle = cycles.find(c => c.status === 'active') ?? cycles[cycles.length - 1]
+    const selectedCycle = cycles.find(c => c.id === searchParams.cycle) ?? activeCycle
 
     let boxViews: BoxStandingView[] = []
-    if (cyc) {
-      const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cyc.id).order('tier_rank', { ascending: true })
+    if (selectedCycle) {
+      const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', selectedCycle.id).order('tier_rank', { ascending: true })
       const bxIds = (bx ?? []).map((b: any) => b.id)
+      const tierByBox = new Map((bx ?? []).map((b: any) => [b.id, b.tier_rank]))
       const { data: mem } = bxIds.length
-        ? await admin.from('league_box_members').select('box_id, registration_id').in('box_id', bxIds)
+        ? await admin.from('league_box_members').select('box_id, registration_id, seed_in_box').in('box_id', bxIds)
         : { data: [] as any[] }
       const memberIdsByBox = new Map<string, string[]>()
+      const currentTierByReg = new Map<string, number>()
       for (const m of (mem ?? [])) {
         if (!memberIdsByBox.has(m.box_id)) memberIdsByBox.set(m.box_id, [])
         memberIdsByBox.get(m.box_id)!.push(m.registration_id)
+        currentTierByReg.set(m.registration_id, tierByBox.get(m.box_id)!)
       }
       const { data: fx } = bxIds.length
         ? await admin.from('league_fixtures')
-            .select('match_stage, round_number, status, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, box_id, period_id')
-            .eq('period_id', cyc.id)
+            .select('id, status, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, box_id, match_stage, round_number, period_id')
+            .eq('period_id', selectedCycle.id)
         : { data: [] as any[] }
 
+      // Movement: where did each player land in the next cycle?
+      const nextCycle = cycles.find(c => c.period_number === selectedCycle.period_number + 1)
+      const nextTierByReg = new Map<string, number>()
+      if (nextCycle) {
+        const { data: nbx } = await admin.from('league_boxes').select('id, tier_rank').eq('period_id', nextCycle.id)
+        const nTierByBox = new Map((nbx ?? []).map((b: any) => [b.id, b.tier_rank]))
+        const nbxIds = (nbx ?? []).map((b: any) => b.id)
+        const { data: nmem } = nbxIds.length
+          ? await admin.from('league_box_members').select('box_id, registration_id').in('box_id', nbxIds)
+          : { data: [] as any[] }
+        for (const m of (nmem ?? [])) nextTierByReg.set(m.registration_id, nTierByBox.get(m.box_id)!)
+      }
+      const movementOf = (regId: string): 'up' | 'down' | null => {
+        if (!nextCycle) return null
+        const cur = currentTierByReg.get(regId), nxt = nextTierByReg.get(regId)
+        if (cur == null || nxt == null) return null
+        return nxt < cur ? 'up' : nxt > cur ? 'down' : null
+      }
+
+      const fxByBox = new Map<string, any[]>()
+      for (const f of (fx ?? [])) {
+        if (!fxByBox.has(f.box_id)) fxByBox.set(f.box_id, [])
+        fxByBox.get(f.box_id)!.push(f)
+      }
+
       boxViews = (bx ?? []).map((b: any) => {
-        const memberIds = new Set(memberIdsByBox.get(b.id) ?? [])
-        const regsForBox = settled
-          .filter((r: any) => memberIds.has(r.id))
-          .map((r: any) => ({ id: r.id, status: r.status, partner_registration_id: r.partner_registration_id }))
+        // Box membership is the historical truth (force 'registered' so past
+        // members show even if their registration status later changed).
+        const memberIds = memberIdsByBox.get(b.id) ?? []
+        const regsForBox = memberIds.map((id: string) => ({ id, status: 'registered', partner_registration_id: byRegId.get(id)?.partner_registration_id ?? null }))
         const rows = computeFixtureStandings((fx ?? []) as any, regsForBox, { boxId: b.id }, nameOf)
+        const matches = (fxByBox.get(b.id) ?? [])
+          .filter((f: any) => f.status === 'completed' && f.team_1_score != null)
+          .map((f: any) => ({
+            id: f.id,
+            name1: nameOf(f.team_1_registration_id),
+            name2: nameOf(f.team_2_registration_id),
+            score1: f.team_1_score,
+            score2: f.team_2_score,
+            winner1: f.winner_registration_id === f.team_1_registration_id,
+          }))
         return {
           name: b.name ?? `Box ${b.tier_rank}`,
           rows: rows.map((row, i) => ({
             rank: i + 1,
             name: nameOf(row.regId),
+            movement: movementOf(row.regId),
             wins: row.wins,
             losses: row.losses,
             winPct: (row.wins + row.losses) > 0 ? row.wins / (row.wins + row.losses) : 0,
@@ -97,6 +143,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             pa: row.pa,
             diff: row.pf - row.pa,
           })),
+          matches,
         }
       })
     }
@@ -110,6 +157,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       ] : []),
     ]
     const anyRows = boxViews.some(b => b.rows.some(r => r.wins + r.losses > 0))
+    const isPast = selectedCycle && selectedCycle.status !== 'active'
 
     return (
       <DesktopShell
@@ -124,9 +172,19 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       >
         <ManageNav items={navItems} mobileOnly />
         <div className="space-y-6 pb-8">
-          <div>
-            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
-            <p className="text-xs text-brand-muted">Per-box standings — win %, then point differential.</p>
+          <div className="flex items-end justify-between gap-3 flex-wrap">
+            <div>
+              <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+              <p className="text-xs text-brand-muted">
+                Per-box — win %, then point differential.{isPast ? ' Finished cycle (▲ promoted · ▼ relegated).' : ''}
+              </p>
+            </div>
+            {cycles.length > 1 && selectedCycle && (
+              <CycleSelector
+                cycles={cycles.map(c => ({ id: c.id, number: c.period_number, active: c.status === 'active' }))}
+                selectedId={selectedCycle.id}
+              />
+            )}
           </div>
           {boxViews.length === 0 ? (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
