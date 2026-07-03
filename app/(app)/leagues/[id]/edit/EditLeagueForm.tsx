@@ -184,9 +184,9 @@ export default function EditLeagueForm({
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
-        end_date: isBox ? null : (lastDate || null),
-        play_days: isBox ? null : (playDays ? parseInt(playDays) : null),
-        games_per_session: isBox ? null : (gamesPerSession ? parseInt(gamesPerSession) : null),
+        end_date: lastDate || null,
+        play_days: playDays ? parseInt(playDays) : null,
+        games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
@@ -198,7 +198,7 @@ export default function EditLeagueForm({
         win_by: winBy,
         partner_mode: teamType !== 'doubles' ? 'rotating' : (isBox ? 'fixed' : partnerMode),
         sub_credit_cap: parseInt(subCreditCap) || 7,
-        no_play_dates: isBox ? [] : noPlayDates,
+        no_play_dates: noPlayDates,
         format_kind: formatKind,
         format_settings_json: isBox
           ? {
@@ -427,30 +427,6 @@ export default function EditLeagueForm({
             </div>
           </div>
         </FormRow>
-        {isBox && (
-          <>
-            <FormRow label="Box size" width="xs" helpText="Players per box. Boxes are formed from the roster by rating.">
-              <input type="number" min="3" value={boxSize} onChange={(e) => setBoxSize(e.target.value)} className="w-full input" />
-            </FormRow>
-            <FormRow label="Cycle length" width="sm" helpText="Weeks per cycle before promotion & relegation.">
-              <input type="number" min="1" value={cycleWeeks} onChange={(e) => setCycleWeeks(e.target.value)} className="w-full input" />
-            </FormRow>
-            <FormRow label="Promote / relegate" width="md" helpText="How many teams move up from each box (and down) at cycle end.">
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-brand-muted mb-1">Promote top</label>
-                  <input type="number" min="0" value={promoteCount} onChange={(e) => setPromoteCount(e.target.value)} className="w-full input" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-brand-muted mb-1">Relegate bottom</label>
-                  <input type="number" min="0" value={relegateCount} onChange={(e) => setRelegateCount(e.target.value)} className="w-full input" />
-                </div>
-              </div>
-            </FormRow>
-          </>
-        )}
-        {!isBox && (
-          <>
         <FormRow
           label="Season length"
           width="md"
@@ -540,17 +516,38 @@ export default function EditLeagueForm({
                     </p>
                   ))}
                 </div>
-                <p className="text-xs text-brand-active font-medium">These sessions will be created when you save.</p>
+                {!isBox && <p className="text-xs text-brand-active font-medium">These sessions will be created when you save.</p>}
               </div>
             ) : (
               <p className="text-sm text-brand-muted">Set a start date and play days to preview the session schedule.</p>
             )}
           </FormRow>
         )}
-        <SessionManager leagueId={leagueId} sessions={sessions} />
-          </>
-        )}
+        {!isBox && <SessionManager leagueId={leagueId} sessions={sessions} />}
       </FormSection>
+
+      {isBox && (
+        <FormSection title="Box League" description="Box size, cycle length, and promotion / relegation." defaultOpen>
+          <FormRow label="Box size" width="xs" helpText="Players per box. Boxes are formed from the roster by rating.">
+            <input type="number" min="3" value={boxSize} onChange={(e) => setBoxSize(e.target.value)} className="w-full input" />
+          </FormRow>
+          <FormRow label="Cycle length" width="sm" helpText="Weeks per cycle before promotion & relegation.">
+            <input type="number" min="1" value={cycleWeeks} onChange={(e) => setCycleWeeks(e.target.value)} className="w-full input" />
+          </FormRow>
+          <FormRow label="Promote / relegate" width="md" helpText="How many players move up from each box (and down) at cycle end.">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-brand-muted mb-1">Promote top</label>
+                <input type="number" min="0" value={promoteCount} onChange={(e) => setPromoteCount(e.target.value)} className="w-full input" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-brand-muted mb-1">Relegate bottom</label>
+                <input type="number" min="0" value={relegateCount} onChange={(e) => setRelegateCount(e.target.value)} className="w-full input" />
+              </div>
+            </div>
+          </FormRow>
+        </FormSection>
+      )}
 
       <FormSection title="Registration" defaultOpen>
         <FormRow label="Status" width="sm">
