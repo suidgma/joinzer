@@ -92,13 +92,17 @@ export default function BoxFixtures({
           <h3 className="text-sm font-semibold text-brand-dark">Matches</h3>
           <p className="text-[11px] text-brand-muted">A round-robin within each box — tap Score to enter a result.</p>
         </div>
-        <button
-          onClick={generate}
-          disabled={busy}
-          className="shrink-0 px-3 py-2 rounded-lg bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
-        >
-          {busy ? 'Generating…' : hasFixtures ? 'Re-generate matches' : 'Generate matches'}
-        </button>
+        {/* Once results are in, re-generating would wipe them — hide it. Changing
+            the boxes after scoring goes through re-seeding (which confirms). */}
+        {completedCount === 0 && (
+          <button
+            onClick={generate}
+            disabled={busy}
+            className="shrink-0 px-3 py-2 rounded-lg bg-brand-dark text-white text-sm font-semibold hover:bg-brand-dark/90 disabled:opacity-50 transition-colors"
+          >
+            {busy ? 'Generating…' : hasFixtures ? 'Re-generate matches' : 'Generate matches'}
+          </button>
+        )}
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       {stale && hasFixtures && (
