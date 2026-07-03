@@ -155,6 +155,18 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
 
   // Sessions where the user is an assigned sub (from league_session_players)
   const sessionIdSet = new Set((sessions ?? []).map((s) => s.id))
+
+  // Sessions whose schedule players may view: a round has been locked (or
+  // completed). Locking a round doesn't flip the session to 'in_progress', so the
+  // player "Schedule & scores" link is gated on this, not the session's own status.
+  const { data: viewableRounds } = !isAdmin && user && sessionIdSet.size > 0
+    ? await supabase
+        .from('league_rounds')
+        .select('session_id')
+        .in('session_id', [...sessionIdSet])
+        .in('status', ['locked', 'completed'])
+    : { data: [] as { session_id: string }[] }
+  const sessionsWithSchedule = new Set((viewableRounds ?? []).map((r) => r.session_id as string))
   const assignedSubSessions = (mySubAssignments ?? [])
     .filter((sp) => sessionIdSet.has(sp.session_id as string))
     .map((sp) => (sessions ?? []).find((s) => s.id === sp.session_id))
@@ -479,7 +491,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
                           Session {s.session_number} — {formatSessionDate(s.session_date)}
                         </p>
                         {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
-                        {(s.status === 'completed' || s.status === 'in_progress') && (
+                        {(s.status === 'completed' || s.status === 'in_progress' || sessionsWithSchedule.has(s.id)) && (
                           <Link href={`/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2 mt-1 block">
                             Schedule &amp; scores →
                           </Link>
