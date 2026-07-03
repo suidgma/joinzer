@@ -10,7 +10,7 @@ import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
-import { getRunnableSession } from '@/lib/leagues/runSession'
+import { getRunSessionAction } from '@/lib/leagues/runSession'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 import { chunkBoxes } from '@/lib/leagues/boxAssignment'
@@ -41,10 +41,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   const isCoAdmin = myReg?.is_co_admin === true
   if (league.created_by !== user.id && !isCoAdmin) redirect(`/leagues/${params.id}`)
 
-  const runnable = await getRunnableSession(supabase, params.id, true)
-  const runSessionAction = runnable
-    ? { label: 'Run Session', href: `/leagues/${params.id}/sessions/${runnable.id}/live` }
-    : undefined
+  const runSessionAction = await getRunSessionAction(params.id, true, (league as any).format_kind)
 
   const [{ data: registrations }, { data: subInterest }, { data: allProfiles }] =
     await Promise.all([
