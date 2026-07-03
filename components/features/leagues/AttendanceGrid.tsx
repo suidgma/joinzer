@@ -10,31 +10,12 @@
 //
 // See docs/phases/unified-attendance.md.
 
-export type AttendanceStatus =
-  | 'present'
-  | 'coming'
-  | 'late'
-  | 'cannot_attend'
-  | 'has_sub'
-  | 'not_present'
+import type { LeagueAttendanceStatus } from '@/lib/types'
+import type { AttendeeRow } from '@/lib/leagues/attendance'
 
-export type AttendeeRow = {
-  /** Opaque row id — session_player id for round-robin, attendance/registration id elsewhere. */
-  id: string
-  displayName: string
-  kind: 'roster' | 'sub' | 'guest'
-  status: AttendanceStatus
-  /** Fixed-partner grouping label (roster rows only). Rows sharing a teamName group under a header. */
-  teamName?: string
-  /** Precomputed self-report badge, e.g. "Here" / "Cmg" / "Late" / "Out". */
-  selfReportBadge?: string
-  /** On a covered roster row (status 'has_sub'): who is covering. */
-  subbedByName?: string
-  /** On a sub row: the absent member they cover ("for X"). */
-  coveringName?: string
-}
+export type { AttendeeRow }
 
-const ROSTER_STATUSES: { key: AttendanceStatus; label: string; sublabel?: string }[] = [
+const ROSTER_STATUSES: { key: LeagueAttendanceStatus; label: string; sublabel?: string }[] = [
   { key: 'present',       label: 'Here' },
   { key: 'coming',        label: 'Coming' },
   { key: 'late',          label: 'Late' },
@@ -43,7 +24,7 @@ const ROSTER_STATUSES: { key: AttendanceStatus; label: string; sublabel?: string
   { key: 'not_present',   label: 'Not',    sublabel: 'Here' },
 ]
 
-const SUB_STATUSES: { key: AttendanceStatus; label: string; sublabel?: string }[] = [
+const SUB_STATUSES: { key: LeagueAttendanceStatus; label: string; sublabel?: string }[] = [
   { key: 'present',       label: 'Here' },
   { key: 'coming',        label: 'Coming' },
   { key: 'late',          label: 'Late' },
@@ -51,7 +32,7 @@ const SUB_STATUSES: { key: AttendanceStatus; label: string; sublabel?: string }[
   { key: 'not_present',   label: 'Not',    sublabel: 'Here' },
 ]
 
-const ROW_BG: Record<AttendanceStatus, string> = {
+const ROW_BG: Record<LeagueAttendanceStatus, string> = {
   present:       'bg-brand/10',
   coming:        'bg-blue-50',
   late:          'bg-yellow-50',
@@ -63,8 +44,8 @@ const ROW_BG: Record<AttendanceStatus, string> = {
 type Props = {
   roster: AttendeeRow[]
   subs: AttendeeRow[]
-  onSetStatus: (rowId: string, status: AttendanceStatus) => void
-  onSetAll: (rowIds: string[], status: AttendanceStatus) => void
+  onSetStatus: (rowId: string, status: LeagueAttendanceStatus) => void
+  onSetAll: (rowIds: string[], status: LeagueAttendanceStatus) => void
   /** Opens the assign-sub flow for a covered roster row. Omit to hide sub controls (read-only hosts). */
   onAssignSub?: (rowId: string) => void
   disabled?: boolean
