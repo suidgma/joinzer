@@ -7,6 +7,8 @@ import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import BoxAttendanceManager, { type BoxAttendee } from './BoxAttendanceManager'
+import BoxFixtures, { type BoxView } from '../roster/BoxFixtures'
+import BoxCycleBar from '../roster/BoxCycleBar'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +22,7 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, created_by, format, format_kind')
+    .select('id, name, created_by, format, format_kind, points_to_win')
     .eq('id', params.id)
     .single()
   if (!league) notFound()
@@ -111,6 +113,13 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
     .from('league_attendance')
     .select('id, registration_id, user_id, guest_name, status, subbing_for_registration_id')
     .eq('period_id', cycle.id)
+  const { data: fixtures } = boxIds.length
+    ? await admin
+        .from('league_fixtures')
+        .select('id, box_id, match_number, round_number, team_1_registration_id, team_2_registration_id, status, team_1_score, team_2_score')
+        .eq('period_id', cycle.id)
+        .order('match_number', { ascending: true })
+    : { data: [] as any[] }
 
   // registration_id → attendance row (for box members)
   const attByReg = new Map<string, any>()
@@ -169,13 +178,36 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
     .filter((s: any) => s.userId)
     .sort((a: any, b: any) => a.name.localeCompare(b.name))
 
+  // Matches (round-robin fixtures) — generated + scored here so the run flow lives
+  // in one place. Setup (seeding the boxes) stays on the Roster page.
+  const fxByBox = new Map<string, any[]>()
+  for (const f of fixtures ?? []) {
+    if (!fxByBox.has(f.box_id)) fxByBox.set(f.box_id, [])
+    fxByBox.get(f.box_id)!.push(f)
+  }
+  const boxViews: BoxView[] = (boxes ?? []).map((b: any) => ({
+    id: b.id,
+    name: b.name ?? `Box ${b.tier_rank}`,
+    matches: (fxByBox.get(b.id) ?? []).map((f: any) => ({
+      id: f.id,
+      round: f.round_number ?? null,
+      name1: nameOf(f.team_1_registration_id),
+      name2: nameOf(f.team_2_registration_id),
+      status: f.status,
+      score1: f.team_1_score,
+      score2: f.team_2_score,
+    })),
+  }))
+  const hasFixtures = boxViews.some(b => b.matches.length > 0)
+  const incomplete = boxViews.reduce((n, b) => n + b.matches.filter(m => m.status !== 'completed').length, 0)
+
   return (
     <DesktopShell header={header} sidebar={<ManageNav items={navItems} />}>
       <ManageNav items={navItems} mobileOnly />
       <div className="max-w-2xl space-y-4 pb-8">
         <div>
-          <h1 className="font-heading text-xl font-bold text-brand-dark">Attendance</h1>
-          <p className="text-xs text-brand-muted">Cycle {(cycle as any).period_number} — mark who&apos;s here and assign subs.</p>
+          <h1 className="font-heading text-xl font-bold text-brand-dark">Run Session · Cycle {(cycle as any).period_number}</h1>
+          <p className="text-xs text-brand-muted">Mark attendance, assign subs, then generate and score this cycle&apos;s matches.</p>
         </div>
         <BoxAttendanceManager
           leagueId={params.id}
@@ -183,6 +215,19 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
           initialAttendees={attendees}
           availableSubs={availableSubs}
         />
+        <BoxFixtures
+          leagueId={params.id}
+          boxes={boxViews}
+          pointsToWin={(league as any).points_to_win ?? 11}
+        />
+        {hasFixtures && (
+          <BoxCycleBar
+            leagueId={params.id}
+            cycleNumber={(cycle as any).period_number}
+            canAdvance
+            incomplete={incomplete}
+          />
+        )}
       </div>
     </DesktopShell>
   )
