@@ -1,4 +1,4 @@
-type Row = { rank: number; name: string; wins: number; losses: number; pf: number; pa: number; diff: number }
+type Row = { rank: number; name: string; wins: number; losses: number; winPct: number; pf: number; pa: number; diff: number }
 export type BoxStandingView = { name: string; rows: Row[] }
 
 // Per-box standings tables (win% → point differential → points-for), computed
@@ -17,6 +17,7 @@ export default function BoxStandings({ boxes }: { boxes: BoxStandingView[] }) {
                 <th className="text-left px-3 py-1.5 font-medium w-6">#</th>
                 <th className="text-left px-1 py-1.5 font-medium">Player</th>
                 <th className="text-center px-2 py-1.5 font-medium">W–L</th>
+                <th className="text-center px-2 py-1.5 font-medium">Win%</th>
                 <th className="text-center px-2 py-1.5 font-medium">PF</th>
                 <th className="text-center px-2 py-1.5 font-medium">+/-</th>
               </tr>
@@ -27,12 +28,13 @@ export default function BoxStandings({ boxes }: { boxes: BoxStandingView[] }) {
                   <td className="px-3 py-1.5 text-brand-muted tabular-nums">{r.rank}</td>
                   <td className="px-1 py-1.5 font-medium text-brand-dark truncate">{r.name}</td>
                   <td className="px-2 py-1.5 text-center tabular-nums">{r.wins}–{r.losses}</td>
+                  <td className="px-2 py-1.5 text-center tabular-nums">{Math.round(r.winPct * 100)}%</td>
                   <td className="px-2 py-1.5 text-center tabular-nums">{r.pf}</td>
                   <td className="px-2 py-1.5 text-center tabular-nums">{r.diff > 0 ? `+${r.diff}` : r.diff}</td>
                 </tr>
               ))}
               {b.rows.length === 0 && (
-                <tr><td colSpan={5} className="px-3 py-2 text-brand-muted">No players.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-2 text-brand-muted">No players.</td></tr>
               )}
             </tbody>
           </table>
