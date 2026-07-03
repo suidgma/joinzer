@@ -22,7 +22,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, created_by, max_players, format, partner_mode, format_kind, format_settings_json')
+    .select('id, name, created_by, max_players, format, partner_mode, format_kind, format_settings_json, points_to_win')
     .eq('id', params.id)
     .single()
 
@@ -188,7 +188,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
         <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} />
       )}
       {isBox && boxesExist && (
-        <BoxFixtures leagueId={params.id} boxes={boxViews} />
+        <BoxFixtures leagueId={params.id} boxes={boxViews} pointsToWin={(league as any).points_to_win ?? 11} />
       )}
       <LeagueRosterManager
         leagueId={params.id}
