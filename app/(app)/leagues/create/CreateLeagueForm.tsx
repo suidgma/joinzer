@@ -60,10 +60,11 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('total_points')
   const [noPlayDates, setNoPlayDates] = useState<string[]>([])
   const [noPlayInput, setNoPlayInput] = useState('')
-  // League format (Phase 1). Box is gated behind a flag until the full Box vertical
-  // (assignment → generation → standings → scoring → promotion/relegation) ships;
-  // until then only Round Robin is offered and create behavior is unchanged.
-  const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES === 'true'
+  // League format (Phase 1). Box create is ENABLED on prod: create + box
+  // assignment are built; fixture generation / standings / scoring are still in
+  // progress. Defaults on so no Vercel env change is needed; set
+  // NEXT_PUBLIC_ENABLE_BOX_LEAGUES='false' to hide it again.
+  const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
   const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>('session_rr')
   const [boxSize, setBoxSize] = useState('5')
   const [cycleWeeks, setCycleWeeks] = useState('4')
