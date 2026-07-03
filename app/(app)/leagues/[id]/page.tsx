@@ -12,6 +12,7 @@ import LeagueRosterPanel from './LeagueRosterPanel'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
+import { getRunSessionAction } from '@/lib/leagues/runSession'
 
 // Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
 function fmtTime(t: string | null): string | null {
@@ -242,12 +243,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     ] : []),
   ]
 
-  const runSession = isAdmin
-    ? (sessions ?? []).find(s => s.status === 'in_progress') ?? (sessions ?? []).find(s => s.status === 'scheduled')
-    : null
-  const runSessionAction = runSession
-    ? { label: 'Run Session', href: `/leagues/${params.id}/sessions/${runSession.id}/live` }
-    : undefined
+  const runSessionAction = await getRunSessionAction(params.id, isAdmin, (league as any).format_kind)
 
   return (
     <DesktopShell

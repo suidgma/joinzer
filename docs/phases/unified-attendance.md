@@ -119,20 +119,26 @@ add a lightweight session-under-period without reworking the attendance table
 Sequenced so **box gets the feature by Phase 3** and the **risky round-robin
 migration lands last**, behind everything else being proven.
 
-- **Phase 1 — Extract the shared `<AttendanceGrid>` (no behavior change).**
-  Pull the grid + sub modals out of `LiveSessionManager` into a shared component
-  driven by `AttendeeRow[]`. Re-mount it in round-robin so it behaves identically.
-  Pure refactor; safe; prerequisite for everything.
+- **Phase 1 — Extract the shared `<AttendanceGrid>` (no behavior change). ✅ DONE (PR #225).**
+  Pulled the grid out of `LiveSessionManager` into
+  `components/features/leagues/AttendanceGrid.tsx` driven by `AttendeeRow[]`.
+  Round-robin behaves identically.
 
-- **Phase 2 — Generic `league_attendance` schema.**
-  Migration for the unified table (applied to prod first, per project rule). No
-  behavior change yet — just the table + types + a small data-access helper.
+- **Phase 2 — Generic `league_attendance` schema. ✅ DONE (PR #226).**
+  `league_attendance` table applied to prod; `LeagueAttendance` types; the shared
+  `AttendeeRow` type + the pure `buildAttendeeRows` substitute-overlay resolver
+  (`lib/leagues/attendance.ts`, unit-tested). Still unused by any reader/writer.
 
-- **Phase 3 — Box attendance + subs.**
-  A box "play" surface (reached via the **Run Session** action we already added to
-  the league nav) mounts `<AttendanceGrid>` backed by `league_attendance`
-  (`period_id` = active cycle) via the service-role admin client. Add/assign subs;
-  covered registration keeps the credit. **This delivers the user's core ask.**
+- **Phase 3 — Box attendance + subs. ✅ BUILT (PR #227), pending live QA.**
+  `/leagues/[id]/attendance` (`<BoxAttendanceManager>`), reached via the **Run
+  Session** nav action (now format-aware — `lib/leagues/runSession.ts`
+  `getRunSessionAction`). Mounts `<AttendanceGrid>` backed by `league_attendance`
+  (`period_id` = active cycle) via the service-role admin client, box members
+  grouped by box. Set status / add sub / assign sub routes under
+  `/api/leagues/[id]/attendance`. Covered registration keeps the credit, so
+  standings/promotion-relegation need no change. **v1 caveat:** attendance + subs
+  operate at the **entrant** level (a team in doubles, a player in singles);
+  per-individual-within-a-doubles-team subbing is a future refinement.
 
 - **Phase 4 — Migrate round-robin onto `league_attendance`.**
   Re-point round-robin attendance read/write and round-generation eligibility to

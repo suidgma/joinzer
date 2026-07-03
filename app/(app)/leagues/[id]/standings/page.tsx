@@ -10,6 +10,7 @@ import BoxStandings, { type BoxStandingView } from './BoxStandings'
 import CycleSelector from './CycleSelector'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
+import { getRunSessionAction } from '@/lib/leagues/runSession'
 
 export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string }> }) {
   const params = await props.params;
@@ -35,14 +36,10 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
 
   const isManager0 = user?.id === league.created_by
 
-  // "Run Session" action for the sidebar — in-progress session, else the next
-  // scheduled one. Creator only (co-admins get a reduced nav on standings).
-  const runnable = isManager0
-    ? (sessions ?? []).find((s: any) => s.status === 'in_progress') ?? (sessions ?? []).find((s: any) => s.status === 'scheduled')
-    : null
-  const runSessionAction = runnable
-    ? { label: 'Run Session', href: `/leagues/${params.id}/sessions/${runnable.id}/live` }
-    : undefined
+  // "Run Session" action for the sidebar (creator only — co-admins get a reduced
+  // nav on standings). Format-aware: session live page for round-robin, the active
+  // cycle's attendance surface for box.
+  const runSessionAction = await getRunSessionAction(params.id, isManager0, (league as any).format_kind)
 
   // ── Box leagues: per-cycle box standings + match history + promotion/relegation.
   //    Early return keeps the session_rr path below untouched. ?cycle=<id> picks a
