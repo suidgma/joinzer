@@ -80,6 +80,13 @@ export default function BoxFixtures({
     if (isNaN(loser) || loser < 0 || loser >= pointsToWin) { setError(`Loser score must be 0–${pointsToWin - 1}`); return }
     const team_1_score = winner === 1 ? pointsToWin : loser
     const team_2_score = winner === 2 ? pointsToWin : loser
+
+    // Does this score complete the cycle? True only on the transition — the match
+    // was unscored and every other match already has a result — so we prompt once.
+    const wasUnscored = !(m.status === 'completed' && m.score1 != null)
+    const othersUnscored = allMatches.filter(x => x.id !== m.id && !(x.status === 'completed' && x.score1 != null)).length
+    const completesCycle = wasUnscored && othersUnscored === 0
+
     setSavingId(m.id); setError(null)
     try {
       const res = await fetch(`/api/leagues/${leagueId}/fixtures/${m.id}/score`, {
@@ -90,6 +97,26 @@ export default function BoxFixtures({
       const j = await res.json().catch(() => ({}))
       if (!res.ok) { setError(j.error ?? 'Failed to save'); return }
       setScoringId(null)
+
+      if (completesCycle) {
+        const go = await confirm({
+          title: 'Cycle complete! 🎉',
+          body: 'Every match is scored. Advance to the next cycle now? This promotes the top and relegates the bottom of each box, then opens the next cycle.',
+          confirmLabel: 'Advance to next cycle',
+          cancelLabel: 'Not yet',
+        })
+        if (go) {
+          const adv = await fetch(`/api/leagues/${leagueId}/cycles/advance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: false }),
+          })
+          if (!adv.ok) {
+            const aj = await adv.json().catch(() => ({}))
+            setError(aj.error === 'incomplete' ? 'Some matches have no score.' : (aj.error ?? 'Failed to advance'))
+          }
+        }
+      }
       router.refresh()
     } finally {
       setSavingId(null)
