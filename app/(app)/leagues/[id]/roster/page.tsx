@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LeagueRosterManager from './LeagueRosterManager'
 import BoxSeedingSection from './BoxSeedingSection'
+import BoxFixtures, { type BoxView } from './BoxFixtures'
 import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
@@ -74,6 +75,8 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   const isBox = (league as any).format_kind === 'box'
   let boxSize = 5
   let boxEntrants: SeededItem[] = []
+  let boxesExist = false
+  let boxViews: BoxView[] = []
   if (isBox) {
     boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
     const doubles = isDoublesFormat((league as any).format)
@@ -111,10 +114,11 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
       .eq('league_id', params.id).eq('period_kind', 'cycle').eq('status', 'active')
       .order('period_number', { ascending: false }).limit(1).maybeSingle()
     if (cyc) {
-      const { data: bx } = await admin.from('league_boxes').select('id, tier_rank').eq('period_id', cyc.id)
+      const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cyc.id)
       const tierByBox = new Map((bx ?? []).map((b: any) => [b.id, b.tier_rank]))
       const bxIds = (bx ?? []).map((b: any) => b.id)
       if (bxIds.length) {
+        boxesExist = true
         const { data: mem } = await admin.from('league_box_members').select('box_id, registration_id, seed_in_box').in('box_id', bxIds)
         const existing = (mem ?? [])
           .slice()
@@ -123,6 +127,31 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
           .filter((id: string) => byRegId.has(id))
         const inBox = new Set(existing)
         ordered = [...existing, ...entrantIds.filter((id: string) => !inBox.has(id))]
+
+        // Fixtures per box for the Matches view.
+        const nameOf = (regId: string | null): string => (regId && byRegId.has(regId) ? teamName(byRegId.get(regId)) : 'TBD')
+        const { data: fx } = await admin
+          .from('league_fixtures')
+          .select('id, box_id, match_number, team_1_registration_id, team_2_registration_id, status, team_1_score, team_2_score')
+          .eq('period_id', cyc.id)
+          .order('match_number', { ascending: true })
+        const fxByBox = new Map<string, any[]>()
+        for (const f of (fx ?? [])) {
+          if (!fxByBox.has(f.box_id)) fxByBox.set(f.box_id, [])
+          fxByBox.get(f.box_id)!.push(f)
+        }
+        boxViews = (bx ?? []).map((b: any) => ({
+          id: b.id,
+          name: b.name ?? `Box ${b.tier_rank}`,
+          matches: (fxByBox.get(b.id) ?? []).map((f: any) => ({
+            id: f.id,
+            name1: nameOf(f.team_1_registration_id),
+            name2: nameOf(f.team_2_registration_id),
+            status: f.status,
+            score1: f.team_1_score,
+            score2: f.team_2_score,
+          })),
+        }))
       }
     }
     if (ordered === entrantIds) {
@@ -157,6 +186,9 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
       <ManageNav items={navItems} mobileOnly />
       {isBox && boxEntrants.length > 0 && (
         <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} />
+      )}
+      {isBox && boxesExist && (
+        <BoxFixtures leagueId={params.id} boxes={boxViews} />
       )}
       <LeagueRosterManager
         leagueId={params.id}
