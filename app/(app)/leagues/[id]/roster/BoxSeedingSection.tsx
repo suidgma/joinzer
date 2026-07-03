@@ -44,6 +44,10 @@ export default function BoxSeedingSection({
         Players are seeded top-to-bottom into rating-tiered boxes (Box 1 = top). Auto-seed, drag to fine-tune, then save. Saving re-seeds the boxes and clears any generated matches.
       </p>
       <SeededRoster
+        // Remount when the entrants/order actually change (e.g. after advancing a
+        // cycle) — SeededRoster seeds its order state on mount, so without a fresh
+        // key a router.refresh() would keep showing the previous cycle's order.
+        key={entrants.map(e => e.id).join(',')}
         items={entrants}
         groupSize={boxSize}
         groupLabel={(tier) => `Box ${tier}`}
