@@ -221,3 +221,35 @@ export type LeagueBoxMember = {
   seed_in_box: number | null
   created_at: string
 }
+
+// Unified attendance status — the six values shared by every league format's
+// attendance grid. See components/features/leagues/AttendanceGrid.tsx.
+export type LeagueAttendanceStatus =
+  | 'present'
+  | 'coming'
+  | 'late'
+  | 'cannot_attend'
+  | 'has_sub'
+  | 'not_present'
+
+// Format-agnostic attendance (docs/phases/unified-attendance.md, Phase 2). Keyed
+// on a play occasion (a round-robin session XOR a box/flex/etc. period) and an
+// attendee (a registration and/or known profile, or an ad-hoc guest). A sub is a
+// row whose subbing_for_registration_id points at the covered roster member.
+// Unused until the box reader/writer (Phase 3).
+export type LeagueAttendance = {
+  id: string
+  league_id: string
+  session_id: string | null
+  period_id: string | null
+  registration_id: string | null
+  user_id: string | null
+  guest_name: string | null
+  status: LeagueAttendanceStatus
+  subbing_for_registration_id: string | null
+  arrived_after_round: number | null
+  checked_in_at: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
