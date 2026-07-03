@@ -1,6 +1,7 @@
 # Unified Attendance & Substitutes
 
-> Status: **design + phased build** (started July 3, 2026)
+> Status: **shipped** (July 3, 2026). Phases 1–3 merged. Phase 4 (round-robin
+> storage migration) was evaluated and **intentionally not pursued** — see §4.
 > Goal: one format-agnostic attendance + substitute capability that works for
 > round-robin **and** box leagues today, and every future league type for free.
 
@@ -129,7 +130,7 @@ migration lands last**, behind everything else being proven.
   `AttendeeRow` type + the pure `buildAttendeeRows` substitute-overlay resolver
   (`lib/leagues/attendance.ts`, unit-tested). Still unused by any reader/writer.
 
-- **Phase 3 — Box attendance + subs. ✅ BUILT (PR #227), pending live QA.**
+- **Phase 3 — Box attendance + subs. ✅ DONE (merged, PR #227).**
   `/leagues/[id]/attendance` (`<BoxAttendanceManager>`), reached via the **Run
   Session** nav action (now format-aware — `lib/leagues/runSession.ts`
   `getRunSessionAction`). Mounts `<AttendanceGrid>` backed by `league_attendance`
@@ -140,12 +141,23 @@ migration lands last**, behind everything else being proven.
   operate at the **entrant** level (a team in doubles, a player in singles);
   per-individual-within-a-doubles-team subbing is a future refinement.
 
-- **Phase 4 — Migrate round-robin onto `league_attendance`.**
-  Re-point round-robin attendance read/write and round-generation eligibility to
-  the unified table; keep `league_session_players` as the lineup entity. Highest
-  risk → done last, with the existing scheduler tests as the guardrail.
+- **Phase 4 — Migrate round-robin onto `league_attendance`. ❌ NOT PURSUED (decision, July 3, 2026).**
+  Evaluated and rejected as high-risk / low-reward. Round-robin's attendance lives
+  on `league_session_players.actual_status`, and that table **is the lineup** —
+  `league_round_matches` FK to `league_session_players.id`, and subs *and guests*
+  each get a session-player row (guests have no `user_id` or registration). The
+  unified `league_attendance` is keyed on registration/user/guest, with no
+  session-player slot concept, so a migration would either pollute the generic
+  table with an RR-specific `session_player_id` or break for guests (no `user_id`).
+  Either way `league_session_players` must stay (match slots need it), leaving the
+  status in **two tables to keep in sync** across organizer taps, self-check-in
+  realtime, the offline queue, round-gen eligibility, and results crediting — real
+  risk to the working scheduler, for storage uniformity **no current feature
+  needs**. The unification goal is already met at the UI + model level (shared
+  grid, resolver, six-status model; box on `league_attendance`). Revisit only if a
+  concrete cross-format need appears (e.g. cross-league attendance history).
 
-Each phase is its own PR (or a small stack).
+Phases 1–3 each shipped as their own PR.
 
 ---
 
@@ -153,10 +165,9 @@ Each phase is its own PR (or a small stack).
 
 - Phase 1 is a behavior-preserving refactor; the round-robin live page must look
   and act identically.
-- `league_attendance` is additive; nothing reads it until Phase 3+.
-- The round-robin migration (Phase 4) is the only change to working production
-  code and is intentionally last. The scheduler's fairness/eligibility behavior is
-  pinned by existing tests in `lib/scheduling` — keep them green.
+- `league_attendance` is additive; only box reads/writes it.
+- Round-robin's live-session engine and scheduler were left untouched (Phase 4 not
+  pursued), so its fairness/eligibility behavior is unchanged.
 - Box tables (incl. `league_attendance`) are RLS deny-all + service-role, matching
   the established box pattern in the box API routes.
 
