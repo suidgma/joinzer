@@ -8,8 +8,8 @@ export default function CycleSelector({
   const router = useRouter()
   const pathname = usePathname()
   return (
-    <label className="flex items-center gap-2 text-xs text-brand-muted">
-      Select Cycle
+    <label className="flex items-center gap-2 text-xs text-brand-muted whitespace-nowrap">
+      Select Cycle:
       <select
         value={selectedId}
         onChange={e => router.push(`${pathname}?cycle=${e.target.value}`)}
