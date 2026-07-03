@@ -57,12 +57,14 @@ export default function FormRow({
           {required && <span className="ml-1 text-red-500" aria-hidden>*</span>}
         </label>
       </div>
-      <div className={`flex-1 min-w-0 ${FIELD_WIDTHS[width]}`}>
-        {children}
+      <div className="flex-1 min-w-0">
+        {/* Only the input is width-capped; the help text / error may run wider than
+            a narrow field so short inputs (xs/sm) don't squish their description. */}
+        <div className={FIELD_WIDTHS[width]}>{children}</div>
         {error ? (
-          <p className="mt-1.5 text-sm text-red-600" role="alert">{error}</p>
+          <p className="mt-1.5 text-sm text-red-600 lg:max-w-xl" role="alert">{error}</p>
         ) : helpText ? (
-          <p className="mt-1.5 text-sm text-gray-500">{helpText}</p>
+          <p className="mt-1.5 text-sm text-gray-500 lg:max-w-xl">{helpText}</p>
         ) : null}
       </div>
     </div>
