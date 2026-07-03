@@ -9,14 +9,14 @@ export default function CycleSelector({
   const pathname = usePathname()
   return (
     <label className="flex items-center gap-2 text-xs text-brand-muted">
-      Cycle
+      Select Cycle
       <select
         value={selectedId}
         onChange={e => router.push(`${pathname}?cycle=${e.target.value}`)}
         className="input text-sm py-1"
       >
         {cycles.map(c => (
-          <option key={c.id} value={c.id}>Cycle {c.number}{c.active ? ' (current)' : ''}</option>
+          <option key={c.id} value={c.id}>{c.number}{c.active ? ' (current)' : ''}</option>
         ))}
       </select>
     </label>
