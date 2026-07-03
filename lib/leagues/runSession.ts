@@ -22,22 +22,8 @@ export async function getRunSessionAction(
   const db = admin()
 
   if (formatKind === 'box') {
-    const { data: cycle } = await db
-      .from('league_periods')
-      .select('id')
-      .eq('league_id', leagueId)
-      .eq('period_kind', 'cycle')
-      .eq('status', 'active')
-      .order('period_number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (!cycle) return undefined
-    // Need at least one box to have something to take attendance for.
-    const { count } = await db
-      .from('league_boxes')
-      .select('id', { count: 'exact', head: true })
-      .eq('period_id', cycle.id)
-    if (!count) return undefined
+    // Always available for box admins — the Run Session surface hosts seeding
+    // (even before a cycle exists), attendance, matches, and cycle advance.
     return { label: 'Run Session', href: `/leagues/${leagueId}/attendance` }
   }
 

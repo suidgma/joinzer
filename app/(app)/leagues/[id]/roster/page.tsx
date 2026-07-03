@@ -1,19 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LeagueRosterManager from './LeagueRosterManager'
-import BoxSeedingSection from './BoxSeedingSection'
-import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
-import { isDoublesFormat } from '@/lib/taxonomy/formats'
-import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
-import { chunkBoxes } from '@/lib/leagues/boxAssignment'
-
-const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
 
 export default async function LeagueRosterPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -74,86 +66,9 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   const registered = (registrations ?? []).filter((r) => r.status === 'registered') as any[]
   const waitlisted = (registrations ?? []).filter((r) => r.status === 'waitlist') as any[]
 
-  // ── Box seeding entrants (format-aware; seeding replaces the separate Boxes screen) ──
+  // Box leagues do their seeding + running on the Run Session surface now; the
+  // roster is just registrations (the max-w wrapper keeps it readable for box).
   const isBox = (league as any).format_kind === 'box'
-  let boxSize = 5
-  let boxEntrants: SeededItem[] = []
-  // Dirty by default: a fresh box league (no saved boxes) needs a first save, and
-  // if saved boxes don't match the current preview (box size / roster changed) the
-  // seeding is out of date. Set false only when persisted boxes == preview.
-  let boxesDirty = true
-  if (isBox) {
-    boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
-    const doubles = isDoublesFormat((league as any).format)
-    const settled = registered.filter((r: any) => r.payment_status == null || ['paid', 'waived', 'comped', 'free'].includes(r.payment_status))
-    const byRegId = new Map(settled.map((r: any) => [r.id, r]))
-    const profileByUser = new Map(settled.map((r: any) => [r.user_id, r.profile]))
-    const ratingOfUser = (userId: string): number | null => {
-      const p: any = profileByUser.get(userId)
-      return p?.dupr_rating ?? p?.estimated_rating ?? null
-    }
-    const teamName = (reg: any): string => {
-      const a = firstName(profileByUser.get(reg.user_id)?.name)
-      if (!doubles) return a || 'Player'
-      const partner: any = reg.partner_registration_id ? byRegId.get(reg.partner_registration_id) : null
-      const b = partner ? firstName(profileByUser.get(partner.user_id)?.name) : ''
-      return b ? `${a}/${b}` : (a || 'Team')
-    }
-    const teamRating = (reg: any): number | null => {
-      const r1 = ratingOfUser(reg.user_id)
-      if (!doubles) return r1
-      const partner: any = reg.partner_registration_id ? byRegId.get(reg.partner_registration_id) : null
-      const r2 = partner ? ratingOfUser(partner.user_id) : null
-      if (r1 != null && r2 != null) return (r1 + r2) / 2
-      return r1 ?? r2
-    }
-
-    const entrantIds = doubles ? dedupeRegistrationsToTeams(settled) : settled.map((r: any) => r.id)
-
-    // Prefer the saved box order (read via service role — box tables are RLS
-    // deny-all), else default to rating order. Append any not-yet-boxed entrants.
-    let ordered = entrantIds
-    const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: cyc } = await admin
-      .from('league_periods').select('id, period_number')
-      .eq('league_id', params.id).eq('period_kind', 'cycle').eq('status', 'active')
-      .order('period_number', { ascending: false }).limit(1).maybeSingle()
-    if (cyc) {
-      const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cyc.id)
-      const tierByBox = new Map((bx ?? []).map((b: any) => [b.id, b.tier_rank]))
-      const bxIds = (bx ?? []).map((b: any) => b.id)
-      if (bxIds.length) {
-        const { data: mem } = await admin.from('league_box_members').select('box_id, registration_id, seed_in_box').in('box_id', bxIds)
-        const existing = (mem ?? [])
-          .slice()
-          .sort((a: any, b: any) => (tierByBox.get(a.box_id)! - tierByBox.get(b.box_id)!) || (a.seed_in_box - b.seed_in_box))
-          .map((m: any) => m.registration_id)
-          .filter((id: string) => byRegId.has(id))
-        const inBox = new Set(existing)
-        ordered = [...existing, ...entrantIds.filter((id: string) => !inBox.has(id))]
-
-        // Is the saved box structure still current? Compare persisted boxes
-        // (members per tier, settled only) to what saving would now produce.
-        const persistedStructure = (bx ?? []).map((b: any) =>
-          (mem ?? [])
-            .filter((m: any) => m.box_id === b.id)
-            .sort((x: any, y: any) => (x.seed_in_box ?? 0) - (y.seed_in_box ?? 0))
-            .map((m: any) => m.registration_id)
-            .filter((rid: string) => byRegId.has(rid)))
-        const previewStructure = chunkBoxes(ordered, boxSize).map(bp => bp.members.map(m => m.registrationId))
-        boxesDirty = JSON.stringify(persistedStructure) !== JSON.stringify(previewStructure)
-      }
-    }
-    if (ordered === entrantIds) {
-      ordered = [...entrantIds].sort((a: string, b: string) =>
-        (teamRating(byRegId.get(b)) ?? -Infinity) - (teamRating(byRegId.get(a)) ?? -Infinity))
-    }
-
-    boxEntrants = ordered.map((id: string) => {
-      const reg = byRegId.get(id)
-      return { id, name: teamName(reg), rating: teamRating(reg) }
-    })
-  }
 
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
@@ -175,18 +90,6 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     >
       <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
       <div className={isBox ? 'max-w-2xl' : undefined}>
-        {isBox && boxEntrants.length > 0 && (
-          <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
-        )}
-        {isBox && runSessionAction && (
-          <Link
-            href={runSessionAction.href}
-            className="mb-4 flex items-center justify-between gap-3 bg-brand-soft/40 border border-brand-border rounded-xl px-3 py-2.5 hover:border-brand-active transition-colors"
-          >
-            <span className="text-sm text-brand-dark">Boxes set? <span className="font-semibold">Run Session</span> to generate matches and enter scores.</span>
-            <span className="shrink-0 text-brand-active font-semibold text-sm">→</span>
-          </Link>
-        )}
         <LeagueRosterManager
           leagueId={params.id}
           leagueName={league.name}
