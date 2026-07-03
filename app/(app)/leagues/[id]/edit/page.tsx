@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import DesktopShell from '@/components/ui/desktop-shell'
@@ -54,6 +55,14 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
       .neq('status', 'cancelled'),
   ])
 
+  // Lock the format selector once the current format has structure that a switch
+  // would orphan: sessions (round-robin) or saved boxes (box). Box tables are RLS
+  // deny-all, so count via the service role.
+  const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { count: boxCount } = await admin
+    .from('league_boxes').select('id', { count: 'exact', head: true }).eq('league_id', id)
+  const formatLocked = (sessionCount ?? 0) > 0 || (boxCount ?? 0) > 0
+
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${id}` },
     { label: 'Standings', href: `/leagues/${id}/standings` },
@@ -81,6 +90,7 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
         existingSessionCount={sessionCount ?? 0}
         registrantCount={regCount ?? 0}
         sessions={(sessionRows ?? []) as any[]}
+        formatLocked={formatLocked}
       />
     </DesktopShell>
   )

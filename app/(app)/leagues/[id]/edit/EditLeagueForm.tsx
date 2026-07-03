@@ -94,6 +94,7 @@ type Props = {
   existingSessionCount: number
   registrantCount: number
   sessions: SessionRow[]
+  formatLocked: boolean
 }
 
 export default function EditLeagueForm({
@@ -103,6 +104,7 @@ export default function EditLeagueForm({
   existingSessionCount,
   registrantCount,
   sessions,
+  formatLocked,
 }: Props) {
   const router = useRouter()
 
@@ -246,19 +248,26 @@ export default function EditLeagueForm({
         {BOX_ENABLED && (
           <FormRow
             label="League format"
-            helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles, with promotion & relegation."
+            helpText={formatLocked
+              ? 'Format is locked — this league already has sessions or boxes. Delete them first to switch format (box settings below stay editable).'
+              : 'Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles, with promotion & relegation.'}
           >
             <div className="grid grid-cols-2 gap-2">
-              {([['session_rr', 'Round Robin'], ['box', 'Box League']] as const).map(([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setFormatKind(val)}
-                  className={`p-2.5 rounded-lg border text-left ${formatKind === val ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
-                >
-                  <div className="text-sm font-semibold text-brand-dark">{label}</div>
-                </button>
-              ))}
+              {([['session_rr', 'Round Robin'], ['box', 'Box League']] as const).map(([val, label]) => {
+                const active = formatKind === val
+                const disabled = formatLocked && !active
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => { if (!formatLocked) setFormatKind(val) }}
+                    className={`p-2.5 rounded-lg border text-left ${active ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="text-sm font-semibold text-brand-dark">{label}</div>
+                  </button>
+                )
+              })}
             </div>
           </FormRow>
         )}
