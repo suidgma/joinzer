@@ -502,7 +502,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
                         {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
                         {(s.status === 'completed' || s.status === 'in_progress') && (
                           <Link href={`/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2 mt-1 block">
-                            Results →
+                            Schedule &amp; scores →
                           </Link>
                         )}
                       </div>

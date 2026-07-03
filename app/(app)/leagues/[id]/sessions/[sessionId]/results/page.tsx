@@ -17,13 +17,18 @@ export default async function SessionResultsPage(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: league }, { data: session }] = await Promise.all([
+  const [{ data: league }, { data: session }, { data: myReg }] = await Promise.all([
     supabase.from('leagues').select('id, name, created_by, points_to_win').eq('id', params.id).single(),
     supabase.from('league_sessions').select('id, session_number, session_date, status, rounds_planned').eq('id', params.sessionId).single(),
+    supabase.from('league_registrations').select('status, is_co_admin').eq('league_id', params.id).eq('user_id', user.id).maybeSingle(),
   ])
 
   if (!league || !session) notFound()
-  if (league.created_by !== user.id) redirect(`/leagues/${params.id}`)
+  // Organizer / co-admin can enter scores; registered players get a read-only view
+  // (locked-round schedule + scores). Everyone else is bounced.
+  const canEdit = league.created_by === user.id || myReg?.is_co_admin === true
+  const canView = canEdit || myReg?.status === 'registered'
+  if (!canView) redirect(`/leagues/${params.id}`)
 
   // Fetch all data in parallel
   const [
@@ -145,10 +150,18 @@ export default async function SessionResultsPage(
     return !lockedPlayerSigs.has(sig)
   })
 
+  // Locked-round schedule grouped by round, for the read-only player view.
+  const roundsGrouped = new Map<number, LockedMatch[]>()
+  for (const m of lockedMatches) {
+    if (!roundsGrouped.has(m.roundNumber)) roundsGrouped.set(m.roundNumber, [])
+    roundsGrouped.get(m.roundNumber)!.push(m)
+  }
+  const roundEntries = [...roundsGrouped.entries()].sort(([a], [b]) => a - b)
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
       <div className="flex items-center gap-2">
-        <Link href={`/leagues/${params.id}/sessions/${params.sessionId}/live`} className="text-brand-muted text-sm">← Back</Link>
+        <Link href={canEdit ? `/leagues/${params.id}/sessions/${params.sessionId}/live` : `/leagues/${params.id}`} className="text-brand-muted text-sm">← Back</Link>
       </div>
 
       <div>
@@ -156,8 +169,44 @@ export default async function SessionResultsPage(
         <p className="text-sm text-brand-muted">{dateStr}</p>
       </div>
 
-      {/* Auto-populated from locked rounds */}
-      <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} roundsPlanned={session.rounds_planned ?? 7} pointsToWin={league.points_to_win ?? 11} />
+      {/* Organizer: editable scoring. Registered player: read-only schedule + scores. */}
+      {canEdit ? (
+        <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} roundsPlanned={session.rounds_planned ?? 7} pointsToWin={league.points_to_win ?? 11} />
+      ) : roundEntries.length > 0 ? (
+        <div className="space-y-4">
+          {roundEntries.map(([round, matches]) => (
+            <section key={round} className="space-y-2">
+              <h2 className="text-sm font-semibold text-brand-dark uppercase tracking-wide">Round {round}</h2>
+              <div className="space-y-2">
+                {matches.map((m) => {
+                  const score = m.existingScore
+                  const t1Won = score ? score.team1Score > score.team2Score : false
+                  return (
+                    <div key={m.roundMatchId} className="bg-brand-surface border border-brand-border rounded-xl p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`flex-1 min-w-0 ${score && t1Won ? 'font-semibold text-brand-dark' : 'text-brand-dark'}`}>
+                          {m.team1.map((p) => <p key={p.userId} className="truncate">{p.name}</p>)}
+                        </div>
+                        <div className="text-center px-2 shrink-0">
+                          {score
+                            ? <p className="font-bold text-brand-dark tabular-nums">{score.team1Score} – {score.team2Score}</p>
+                            : <p className="text-brand-muted text-xs">vs</p>}
+                          {m.courtNumber && <p className="text-[11px] text-brand-muted">Court {m.courtNumber}</p>}
+                        </div>
+                        <div className={`flex-1 min-w-0 text-right ${score && !t1Won ? 'font-semibold text-brand-dark' : 'text-brand-dark'}`}>
+                          {m.team2.map((p) => <p key={p.userId} className="truncate">{p.name}</p>)}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-brand-muted">No schedule yet — matchups appear once the organizer locks a round.</p>
+      )}
 
       {/* Manually entered matches (not from locked rounds) */}
       {manualMatches.length > 0 && (
@@ -193,8 +242,10 @@ export default async function SessionResultsPage(
         </section>
       )}
 
-      {/* Manual add form — collapsed by default */}
-      <MatchEntryForm sessionId={params.sessionId} players={players} leagueId={params.id} pointsToWin={league.points_to_win ?? 11} />
+      {/* Manual add form — organizer only */}
+      {canEdit && (
+        <MatchEntryForm sessionId={params.sessionId} players={players} leagueId={params.id} pointsToWin={league.points_to_win ?? 11} />
+      )}
     </main>
   )
 }
