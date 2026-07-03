@@ -130,6 +130,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           .filter((f: any) => f.status === 'completed' && f.team_1_score != null)
           .map((f: any) => ({
             id: f.id,
+            round: f.round_number ?? null,
             name1: nameOf(f.team_1_registration_id),
             name2: nameOf(f.team_2_registration_id),
             score1: f.team_1_score,
