@@ -7,9 +7,9 @@ import { formatSkillRange } from '@/lib/taxonomy/formats'
 
 const SKILL_TIERS = [
   'Beginner',
-  'Beginner Plus',
+  'Beginner+',
   'Intermediate',
-  'Intermediate Plus',
+  'Intermediate+',
   'Advanced',
 ] as const
 
@@ -18,9 +18,9 @@ type SkillTier = typeof SKILL_TIERS[number]
 // Numeric range for each tier pill — used for overlap filtering
 const TIER_RANGES: Record<SkillTier, [number, number]> = {
   'Beginner':          [2.0, 2.5],
-  'Beginner Plus':     [2.5, 3.0],
+  'Beginner+':     [2.5, 3.0],
   'Intermediate':      [3.0, 3.5],
-  'Intermediate Plus': [3.5, 4.0],
+  'Intermediate+': [3.5, 4.0],
   'Advanced':          [4.0, 4.5],
 }
 
