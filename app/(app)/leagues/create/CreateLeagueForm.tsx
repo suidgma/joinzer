@@ -393,28 +393,6 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             ))}
           </select>
         </FormRow>
-        <FormRow label="Start date" htmlFor="start-date" width="sm" required>
-          <input
-            id="start-date"
-            type="date"
-            required
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full input"
-          />
-        </FormRow>
-        <FormRow label="Times" width="md">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
-              <TimeSelect value={startTime} onChange={setStartTime} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
-              <TimeSelect value={estimatedEndTime} onChange={setEstimatedEndTime} />
-            </div>
-          </div>
-        </FormRow>
         <FormRow
           label="Season length"
           width="md"
@@ -444,6 +422,28 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               />
             </div>
           </div>
+        </FormRow>
+        <FormRow label="Times" width="md">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Start</label>
+              <TimeSelect value={startTime} onChange={setStartTime} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Est. end</label>
+              <TimeSelect value={estimatedEndTime} onChange={setEstimatedEndTime} />
+            </div>
+          </div>
+        </FormRow>
+        <FormRow label="Start date" htmlFor="start-date" width="sm" required>
+          <input
+            id="start-date"
+            type="date"
+            required
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full input"
+          />
         </FormRow>
         <FormRow
           label="No-play dates"
