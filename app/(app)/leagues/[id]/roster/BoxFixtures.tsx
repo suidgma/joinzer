@@ -9,8 +9,8 @@ export type BoxView = { id: string; name: string; matches: Match[] }
 // Box matches: a round-robin within each box, with organizer score entry
 // (winner + loser score; winner scores points-to-win). Standings land with 1.5.
 export default function BoxFixtures({
-  leagueId, boxes, pointsToWin,
-}: { leagueId: string; boxes: BoxView[]; pointsToWin: number }) {
+  leagueId, boxes, pointsToWin, stale,
+}: { leagueId: string; boxes: BoxView[]; pointsToWin: number; stale?: boolean }) {
   const router = useRouter()
   const { confirm } = useDialog()
   const [busy, setBusy] = useState(false)
@@ -101,6 +101,11 @@ export default function BoxFixtures({
         </button>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
+      {stale && hasFixtures && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          ⚠ These matches are from an older box setup. <span className="font-semibold">Save boxes</span> above, then re-generate.
+        </p>
+      )}
 
       {!hasFixtures ? (
         <p className="text-xs text-brand-muted">No matches yet — generate the round-robin once your boxes look right.</p>

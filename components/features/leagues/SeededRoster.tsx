@@ -12,6 +12,9 @@ type Props = {
   groupSize?: number
   groupLabel?: (tierRank: number) => string
   saveLabel?: string
+  // Start in the "unsaved" state — e.g. when the persisted boxes no longer match
+  // this preview (box size changed, players added/removed). Defaults to saved.
+  initialSaved?: boolean
   onSave: (orderedIds: string[]) => Promise<void>
 }
 
@@ -19,10 +22,10 @@ type Props = {
 // leagues pass groupSize=box_size to show tier dividers; the saved order is what
 // gets persisted (as boxes, for box). Deliberately format-agnostic so flex /
 // ladder / team can reuse it later. See docs/phases/league-seeded-roster.md.
-export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, onSave }: Props) {
+export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, initialSaved = true, onSave }: Props) {
   const [order, setOrder] = useState<SeededItem[]>(items)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(true)
+  const [saved, setSaved] = useState(initialSaved)
   const [error, setError] = useState<string | null>(null)
 
   const dragIndex = useRef<number | null>(null)

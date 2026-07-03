@@ -11,6 +11,7 @@ import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
+import { chunkBoxes } from '@/lib/leagues/boxAssignment'
 
 const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
 
@@ -77,6 +78,10 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   let boxEntrants: SeededItem[] = []
   let boxesExist = false
   let boxViews: BoxView[] = []
+  // Dirty by default: a fresh box league (no saved boxes) needs a first save, and
+  // if saved boxes don't match the current preview (box size / roster changed) the
+  // seeding is out of date. Set false only when persisted boxes == preview.
+  let boxesDirty = true
   if (isBox) {
     boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
     const doubles = isDoublesFormat((league as any).format)
@@ -127,6 +132,17 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
           .filter((id: string) => byRegId.has(id))
         const inBox = new Set(existing)
         ordered = [...existing, ...entrantIds.filter((id: string) => !inBox.has(id))]
+
+        // Is the saved box structure still current? Compare persisted boxes
+        // (members per tier, settled only) to what saving would now produce.
+        const persistedStructure = (bx ?? []).map((b: any) =>
+          (mem ?? [])
+            .filter((m: any) => m.box_id === b.id)
+            .sort((x: any, y: any) => (x.seed_in_box ?? 0) - (y.seed_in_box ?? 0))
+            .map((m: any) => m.registration_id)
+            .filter((rid: string) => byRegId.has(rid)))
+        const previewStructure = chunkBoxes(ordered, boxSize).map(bp => bp.members.map(m => m.registrationId))
+        boxesDirty = JSON.stringify(persistedStructure) !== JSON.stringify(previewStructure)
 
         // Fixtures per box for the Matches view.
         const nameOf = (regId: string | null): string => (regId && byRegId.has(regId) ? teamName(byRegId.get(regId)) : 'TBD')
@@ -185,10 +201,10 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     >
       <ManageNav items={navItems} mobileOnly />
       {isBox && boxEntrants.length > 0 && (
-        <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} />
+        <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
       )}
       {isBox && boxesExist && (
-        <BoxFixtures leagueId={params.id} boxes={boxViews} pointsToWin={(league as any).points_to_win ?? 11} />
+        <BoxFixtures leagueId={params.id} boxes={boxViews} pointsToWin={(league as any).points_to_win ?? 11} stale={boxesDirty} />
       )}
       <LeagueRosterManager
         leagueId={params.id}

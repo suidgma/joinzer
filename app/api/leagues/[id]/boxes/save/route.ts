@@ -69,6 +69,16 @@ export async function POST(req: NextRequest, props: Params) {
     cycle = created
   }
 
+  // Re-seeding changes box membership, so the cycle's fixtures become stale and
+  // are cleared below. Don't silently wipe entered results — require force.
+  const force = body.force === true
+  const { count: completed } = await db
+    .from('league_fixtures').select('id', { count: 'exact', head: true })
+    .eq('league_id', params.id).eq('period_id', cycle.id).eq('status', 'completed')
+  if ((completed ?? 0) > 0 && !force) {
+    return NextResponse.json({ error: 'completed_exists', completed }, { status: 409 })
+  }
+
   const assigned = chunkBoxes(cleanOrder, boxSize)
 
   await db.from('league_boxes').delete().eq('period_id', cycle.id)
@@ -87,6 +97,10 @@ export async function POST(req: NextRequest, props: Params) {
   )
   const { error: memErr } = await db.from('league_box_members').insert(memberRows)
   if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 })
+
+  // Boxes changed — old fixtures reference the old membership. Clear them so the
+  // schedule regenerates fresh (Matches shows "Generate matches").
+  await db.from('league_fixtures').delete().eq('league_id', params.id).eq('period_id', cycle.id)
 
   return NextResponse.json({ ok: true, boxes: assigned.length })
 }
