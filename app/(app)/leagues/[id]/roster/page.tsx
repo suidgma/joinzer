@@ -4,8 +4,6 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LeagueRosterManager from './LeagueRosterManager'
 import BoxSeedingSection from './BoxSeedingSection'
-import BoxFixtures, { type BoxView } from './BoxFixtures'
-import BoxCycleBar from './BoxCycleBar'
 import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
@@ -80,13 +78,10 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   const isBox = (league as any).format_kind === 'box'
   let boxSize = 5
   let boxEntrants: SeededItem[] = []
-  let boxesExist = false
-  let boxViews: BoxView[] = []
   // Dirty by default: a fresh box league (no saved boxes) needs a first save, and
   // if saved boxes don't match the current preview (box size / roster changed) the
   // seeding is out of date. Set false only when persisted boxes == preview.
   let boxesDirty = true
-  let boxCycleNumber = 1
   if (isBox) {
     boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
     const doubles = isDoublesFormat((league as any).format)
@@ -124,12 +119,10 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
       .eq('league_id', params.id).eq('period_kind', 'cycle').eq('status', 'active')
       .order('period_number', { ascending: false }).limit(1).maybeSingle()
     if (cyc) {
-      boxCycleNumber = (cyc as any).period_number ?? 1
       const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cyc.id)
       const tierByBox = new Map((bx ?? []).map((b: any) => [b.id, b.tier_rank]))
       const bxIds = (bx ?? []).map((b: any) => b.id)
       if (bxIds.length) {
-        boxesExist = true
         const { data: mem } = await admin.from('league_box_members').select('box_id, registration_id, seed_in_box').in('box_id', bxIds)
         const existing = (mem ?? [])
           .slice()
@@ -149,32 +142,6 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
             .filter((rid: string) => byRegId.has(rid)))
         const previewStructure = chunkBoxes(ordered, boxSize).map(bp => bp.members.map(m => m.registrationId))
         boxesDirty = JSON.stringify(persistedStructure) !== JSON.stringify(previewStructure)
-
-        // Fixtures per box for the Matches view.
-        const nameOf = (regId: string | null): string => (regId && byRegId.has(regId) ? teamName(byRegId.get(regId)) : 'TBD')
-        const { data: fx } = await admin
-          .from('league_fixtures')
-          .select('id, box_id, match_number, round_number, team_1_registration_id, team_2_registration_id, status, team_1_score, team_2_score')
-          .eq('period_id', cyc.id)
-          .order('match_number', { ascending: true })
-        const fxByBox = new Map<string, any[]>()
-        for (const f of (fx ?? [])) {
-          if (!fxByBox.has(f.box_id)) fxByBox.set(f.box_id, [])
-          fxByBox.get(f.box_id)!.push(f)
-        }
-        boxViews = (bx ?? []).map((b: any) => ({
-          id: b.id,
-          name: b.name ?? `Box ${b.tier_rank}`,
-          matches: (fxByBox.get(b.id) ?? []).map((f: any) => ({
-            id: f.id,
-            round: f.round_number ?? null,
-            name1: nameOf(f.team_1_registration_id),
-            name2: nameOf(f.team_2_registration_id),
-            status: f.status,
-            score1: f.team_1_score,
-            score2: f.team_2_score,
-          })),
-        }))
       }
     }
     if (ordered === entrantIds) {
@@ -208,19 +175,17 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     >
       <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
       <div className={isBox ? 'max-w-2xl' : undefined}>
-        {isBox && boxesExist && (
-          <BoxCycleBar
-            leagueId={params.id}
-            cycleNumber={boxCycleNumber}
-            canAdvance={boxViews.some(b => b.matches.length > 0)}
-            incomplete={boxViews.reduce((n, b) => n + b.matches.filter(m => m.status !== 'completed').length, 0)}
-          />
-        )}
         {isBox && boxEntrants.length > 0 && (
           <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
         )}
-        {isBox && boxesExist && (
-          <BoxFixtures leagueId={params.id} boxes={boxViews} pointsToWin={(league as any).points_to_win ?? 11} stale={boxesDirty} />
+        {isBox && runSessionAction && (
+          <Link
+            href={runSessionAction.href}
+            className="mb-4 flex items-center justify-between gap-3 bg-brand-soft/40 border border-brand-border rounded-xl px-3 py-2.5 hover:border-brand-active transition-colors"
+          >
+            <span className="text-sm text-brand-dark">Boxes set? <span className="font-semibold">Run Session</span> to generate matches and enter scores.</span>
+            <span className="shrink-0 text-brand-active font-semibold text-sm">→</span>
+          </Link>
         )}
         <LeagueRosterManager
           leagueId={params.id}
