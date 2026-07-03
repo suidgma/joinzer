@@ -6,7 +6,11 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
+import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
+import { chunkBoxes } from '@/lib/leagues/boxAssignment'
+import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import BoxAttendanceManager, { type BoxAttendee } from './BoxAttendanceManager'
+import BoxSeedingSection from '../roster/BoxSeedingSection'
 import BoxFixtures, { type BoxView } from '../roster/BoxFixtures'
 import BoxCycleBar from '../roster/BoxCycleBar'
 
@@ -14,7 +18,7 @@ export const dynamic = 'force-dynamic'
 
 const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
 
-export default async function BoxAttendancePage(props: { params: Promise<{ id: string }> }) {
+export default async function BoxRunSessionPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,12 +26,12 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, created_by, format, format_kind, points_to_win')
+    .select('id, name, created_by, format, format_kind, format_settings_json, points_to_win')
     .eq('id', params.id)
     .single()
   if (!league) notFound()
 
-  // Attendance run mode is box-only for now (round-robin uses the session live page).
+  // Run Session is box-only for now (round-robin uses the session live page).
   if ((league as any).format_kind !== 'box') redirect(`/leagues/${params.id}`)
 
   // Organizer or co-admin only.
@@ -42,10 +46,9 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
 
   const doubles = isDoublesFormat((league as any).format)
 
-  // Registrations (for entrant names) — non-cancelled.
   const { data: regs } = await supabase
     .from('league_registrations')
-    .select('id, user_id, partner_registration_id, status, payment_status, profile:profiles!user_id(id, name)')
+    .select('id, user_id, status, payment_status, partner_registration_id, profile:profiles!user_id(id, name, dupr_rating, estimated_rating)')
     .eq('league_id', params.id)
     .neq('status', 'cancelled')
   const byRegId = new Map((regs ?? []).map((r: any) => [r.id, r]))
@@ -60,7 +63,7 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
     return b ? `${a}/${b}` : (a || 'Team')
   }
 
-  // Box structure + attendance — box tables are RLS deny-all, so read via service role.
+  // ── Box structure — box tables are RLS deny-all, so read via the service role. ──
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: cycle } = await admin
     .from('league_periods')
@@ -72,59 +75,71 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
     .limit(1)
     .maybeSingle()
 
-  const navItems: ManageNavItem[] = [
-    { label: 'Overview', href: `/leagues/${params.id}` },
-    { label: 'Standings', href: `/leagues/${params.id}/standings` },
-    { label: 'Roster', href: `/leagues/${params.id}/roster` },
-    { label: 'Edit', href: `/leagues/${params.id}/edit` },
-  ]
-
-  const header = (
-    <div className="flex items-center gap-3">
-      <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
-      <span className="text-brand-muted text-sm">/</span>
-      <span className="text-sm font-medium text-brand-dark">Attendance</span>
-    </div>
-  )
-
-  if (!cycle) {
-    return (
-      <DesktopShell header={header} sidebar={<ManageNav items={navItems} />}>
-        <ManageNav items={navItems} mobileOnly />
-        <div className="max-w-2xl bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
-          <p className="text-2xl">🏓</p>
-          <p className="text-sm font-medium text-brand-dark">No active cycle</p>
-          <p className="text-xs text-brand-muted">Seed boxes on the Roster screen first, then take attendance here.</p>
-        </div>
-      </DesktopShell>
-    )
-  }
-
-  const { data: boxes } = await admin
-    .from('league_boxes')
-    .select('id, tier_rank, name')
-    .eq('period_id', cycle.id)
-    .order('tier_rank', { ascending: true })
+  const { data: boxes } = cycle
+    ? await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cycle.id).order('tier_rank', { ascending: true })
+    : { data: [] as any[] }
   const boxIds = (boxes ?? []).map((b: any) => b.id)
   const { data: members } = boxIds.length
     ? await admin.from('league_box_members').select('box_id, registration_id, seed_in_box').in('box_id', boxIds)
     : { data: [] as any[] }
-  const { data: attendance } = await admin
-    .from('league_attendance')
-    .select('id, registration_id, user_id, guest_name, status, subbing_for_registration_id')
-    .eq('period_id', cycle.id)
+  const { data: attendance } = cycle
+    ? await admin.from('league_attendance').select('id, registration_id, user_id, guest_name, status, subbing_for_registration_id').eq('period_id', cycle.id)
+    : { data: [] as any[] }
   const { data: fixtures } = boxIds.length
     ? await admin
         .from('league_fixtures')
         .select('id, box_id, match_number, round_number, team_1_registration_id, team_2_registration_id, status, team_1_score, team_2_score')
-        .eq('period_id', cycle.id)
+        .eq('period_id', cycle!.id)
         .order('match_number', { ascending: true })
     : { data: [] as any[] }
 
-  // registration_id → attendance row (for box members)
+  const hasCompletedMatches = (fixtures ?? []).some((f: any) => f.status === 'completed')
+
+  // ── Seeding entrants (order players into rating-tiered boxes) — the setup step,
+  //    shown only until the cycle's matches start being played. ──
+  const boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
+  const registered = (regs ?? []).filter((r: any) => r.status === 'registered')
+  const settled = registered.filter((r: any) => r.payment_status == null || ['paid', 'waived', 'comped', 'free'].includes(r.payment_status))
+  const settledById = new Map(settled.map((r: any) => [r.id, r]))
+  const ratingOf = (reg: any): number | null => reg?.profile?.dupr_rating ?? reg?.profile?.estimated_rating ?? null
+  const teamRating = (reg: any): number | null => {
+    const r1 = ratingOf(reg)
+    if (!doubles) return r1
+    const partner: any = reg?.partner_registration_id ? settledById.get(reg.partner_registration_id) : null
+    const r2 = partner ? ratingOf(partner) : null
+    if (r1 != null && r2 != null) return (r1 + r2) / 2
+    return r1 ?? r2
+  }
+  const entrantIds = doubles ? dedupeRegistrationsToTeams(settled) : settled.map((r: any) => r.id)
+  let ordered = entrantIds
+  let boxesDirty = true
+  if (boxIds.length) {
+    const tierByBox = new Map((boxes ?? []).map((b: any) => [b.id, b.tier_rank]))
+    const existing = (members ?? [])
+      .slice()
+      .sort((a: any, b: any) => (tierByBox.get(a.box_id)! - tierByBox.get(b.box_id)!) || (a.seed_in_box - b.seed_in_box))
+      .map((m: any) => m.registration_id)
+      .filter((id: string) => settledById.has(id))
+    const inBox = new Set(existing)
+    ordered = [...existing, ...entrantIds.filter((id: string) => !inBox.has(id))]
+    const persistedStructure = (boxes ?? []).map((b: any) =>
+      (members ?? [])
+        .filter((m: any) => m.box_id === b.id)
+        .sort((x: any, y: any) => (x.seed_in_box ?? 0) - (y.seed_in_box ?? 0))
+        .map((m: any) => m.registration_id)
+        .filter((rid: string) => settledById.has(rid)))
+    const previewStructure = chunkBoxes(ordered, boxSize).map(bp => bp.members.map(m => m.registrationId))
+    boxesDirty = JSON.stringify(persistedStructure) !== JSON.stringify(previewStructure)
+  }
+  if (ordered === entrantIds) {
+    ordered = [...entrantIds].sort((a: string, b: string) =>
+      (teamRating(settledById.get(b)) ?? -Infinity) - (teamRating(settledById.get(a)) ?? -Infinity))
+  }
+  const boxEntrants: SeededItem[] = ordered.map((id: string) => ({ id, name: nameOf(id), rating: teamRating(settledById.get(id)) }))
+
+  // ── Attendance rows (box members grouped by box; sub/guest rows separately). ──
   const attByReg = new Map<string, any>()
   for (const a of attendance ?? []) if (a.registration_id) attByReg.set(a.registration_id, a)
-
   const membersByBox = new Map<string, any[]>()
   for (const m of members ?? []) {
     if (!membersByBox.has(m.box_id)) membersByBox.set(m.box_id, [])
@@ -132,7 +147,6 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
   }
   const boxMemberRegIds = new Set((members ?? []).map((m: any) => m.registration_id))
 
-  // Roster attendees — box members, grouped by box (box name is the grid group).
   const attendees: BoxAttendee[] = []
   for (const box of boxes ?? []) {
     const boxName = (box as any).name ?? `Box ${(box as any).tier_rank}`
@@ -151,11 +165,8 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
       })
     }
   }
-
-  // Sub / guest attendees — attendance rows that aren't box members.
   for (const a of attendance ?? []) {
-    const isBoxMember = a.registration_id && boxMemberRegIds.has(a.registration_id)
-    if (isBoxMember) continue
+    if (a.registration_id && boxMemberRegIds.has(a.registration_id)) continue
     const isGuest = !a.registration_id && !!a.guest_name
     attendees.push({
       rowId: a.id,
@@ -168,18 +179,14 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
     })
   }
 
-  // Available subs for the assign/add modals: registered players not in a box and
-  // not already an attendance row this cycle.
   const attendeeUserIds = new Set((attendance ?? []).map((a: any) => a.user_id).filter(Boolean))
-  const availableSubs = (regs ?? [])
-    .filter((r: any) => r.status === 'registered')
+  const availableSubs = registered
     .filter((r: any) => !boxMemberRegIds.has(r.id) && !attendeeUserIds.has(r.user_id))
     .map((r: any) => ({ userId: r.user_id as string, name: r.profile?.name ?? 'Player' }))
     .filter((s: any) => s.userId)
     .sort((a: any, b: any) => a.name.localeCompare(b.name))
 
-  // Matches (round-robin fixtures) — generated + scored here so the run flow lives
-  // in one place. Setup (seeding the boxes) stays on the Roster page.
+  // ── Matches ──
   const fxByBox = new Map<string, any[]>()
   for (const f of fixtures ?? []) {
     if (!fxByBox.has(f.box_id)) fxByBox.set(f.box_id, [])
@@ -201,32 +208,74 @@ export default async function BoxAttendancePage(props: { params: Promise<{ id: s
   const hasFixtures = boxViews.some(b => b.matches.length > 0)
   const incomplete = boxViews.reduce((n, b) => n + b.matches.filter(m => m.status !== 'completed').length, 0)
 
+  const navItems: ManageNavItem[] = [
+    { label: 'Overview', href: `/leagues/${params.id}` },
+    { label: 'Standings', href: `/leagues/${params.id}/standings` },
+    { label: 'Roster', href: `/leagues/${params.id}/roster` },
+    { label: 'Edit', href: `/leagues/${params.id}/edit` },
+  ]
+  const header = (
+    <div className="flex items-center gap-3">
+      <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+      <span className="text-brand-muted text-sm">/</span>
+      <span className="text-sm font-medium text-brand-dark">Run Session</span>
+    </div>
+  )
+
+  // The seeding (re-order into boxes) is the setup step — show it until this cycle's
+  // matches start being scored. After that, order changes automatically via
+  // promotion/relegation when the cycle advances.
+  const showSeeding = !hasCompletedMatches && boxEntrants.length > 0
+
   return (
     <DesktopShell header={header} sidebar={<ManageNav items={navItems} />}>
       <ManageNav items={navItems} mobileOnly />
       <div className="max-w-2xl space-y-4 pb-8">
         <div>
-          <h1 className="font-heading text-xl font-bold text-brand-dark">Run Session · Cycle {(cycle as any).period_number}</h1>
-          <p className="text-xs text-brand-muted">Mark attendance, assign subs, then generate and score this cycle&apos;s matches.</p>
+          <h1 className="font-heading text-xl font-bold text-brand-dark">
+            Run Session{cycle ? ` · Cycle ${(cycle as any).period_number}` : ''}
+          </h1>
+          <p className="text-xs text-brand-muted">
+            {cycle
+              ? 'Seed the boxes (until play starts), take attendance, then generate and score matches.'
+              : 'Seed players into rating-tiered boxes and save to start Cycle 1.'}
+          </p>
         </div>
-        <BoxAttendanceManager
-          leagueId={params.id}
-          periodId={cycle.id}
-          initialAttendees={attendees}
-          availableSubs={availableSubs}
-        />
-        <BoxFixtures
-          leagueId={params.id}
-          boxes={boxViews}
-          pointsToWin={(league as any).points_to_win ?? 11}
-        />
-        {hasFixtures && (
-          <BoxCycleBar
-            leagueId={params.id}
-            cycleNumber={(cycle as any).period_number}
-            canAdvance
-            incomplete={incomplete}
-          />
+
+        {showSeeding && (
+          <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
+        )}
+
+        {!cycle && boxEntrants.length === 0 && (
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+            <p className="text-2xl">🏓</p>
+            <p className="text-sm font-medium text-brand-dark">No players yet</p>
+            <p className="text-xs text-brand-muted">Add players on the Roster screen, then seed them into boxes here.</p>
+          </div>
+        )}
+
+        {cycle && (
+          <>
+            <BoxAttendanceManager
+              leagueId={params.id}
+              periodId={cycle.id}
+              initialAttendees={attendees}
+              availableSubs={availableSubs}
+            />
+            <BoxFixtures
+              leagueId={params.id}
+              boxes={boxViews}
+              pointsToWin={(league as any).points_to_win ?? 11}
+            />
+            {hasFixtures && (
+              <BoxCycleBar
+                leagueId={params.id}
+                cycleNumber={(cycle as any).period_number}
+                canAdvance
+                incomplete={incomplete}
+              />
+            )}
+          </>
         )}
       </div>
     </DesktopShell>
