@@ -8,9 +8,16 @@ export interface ManageNavItem {
   href: string
 }
 
+export interface ManageNavAction {
+  label: string
+  href: string
+}
+
 interface ManageNavProps {
   items: ManageNavItem[]
   mobileOnly?: boolean
+  /** Optional primary action (e.g. "Run Session") rendered below the nav on every page. */
+  primaryAction?: ManageNavAction
 }
 
 /**
@@ -19,7 +26,7 @@ interface ManageNavProps {
  * Mobile: horizontally scrollable tab bar pinned below the page header.
  * Active state is derived from the current pathname.
  */
-export default function ManageNav({ items, mobileOnly = false }: ManageNavProps) {
+export default function ManageNav({ items, mobileOnly = false, primaryAction }: ManageNavProps) {
   const pathname = usePathname()
 
   return (
@@ -46,6 +53,14 @@ export default function ManageNav({ items, mobileOnly = false }: ManageNavProps)
           )
         })}
       </nav>
+      {primaryAction && (
+        <Link
+          href={primaryAction.href}
+          className="lg:hidden block w-full text-center px-4 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+        >
+          {primaryAction.label}
+        </Link>
+      )}
 
       {/* Desktop: sticky vertical sidebar */}
       {!mobileOnly && (
@@ -68,6 +83,14 @@ export default function ManageNav({ items, mobileOnly = false }: ManageNavProps)
               )
             })}
           </div>
+          {primaryAction && (
+            <Link
+              href={primaryAction.href}
+              className="mt-3 block w-full text-center px-3 py-2 rounded-lg bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
+            >
+              {primaryAction.label}
+            </Link>
+          )}
         </nav>
       )}
     </>

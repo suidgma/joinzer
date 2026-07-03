@@ -245,6 +245,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const runSession = isAdmin
     ? (sessions ?? []).find(s => s.status === 'in_progress') ?? (sessions ?? []).find(s => s.status === 'scheduled')
     : null
+  const runSessionAction = runSession
+    ? { label: 'Run Session', href: `/leagues/${params.id}/sessions/${runSession.id}/live` }
+    : undefined
 
   return (
     <DesktopShell
@@ -255,29 +258,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           <span className="text-sm font-medium text-brand-dark">{league.name}</span>
         </div>
       }
-      sidebar={
-        <div className="space-y-3">
-          <ManageNav items={navItems} />
-          {runSession && (
-            <Link
-              href={`/leagues/${params.id}/sessions/${runSession.id}/live`}
-              className="block w-full text-center px-3 py-2 rounded-lg bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
-            >
-              Run Session
-            </Link>
-          )}
-        </div>
-      }
+      sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
     >
-      <ManageNav items={navItems} mobileOnly />
-      {runSession && (
-        <Link
-          href={`/leagues/${params.id}/sessions/${runSession.id}/live`}
-          className="lg:hidden block w-full text-center px-4 py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover transition-colors"
-        >
-          Run Session
-        </Link>
-      )}
+      <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
       <div className="space-y-4 pb-8">
 
       {/* Header */}

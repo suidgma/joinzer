@@ -10,6 +10,7 @@ import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
+import { getRunnableSession } from '@/lib/leagues/runSession'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 import { chunkBoxes } from '@/lib/leagues/boxAssignment'
@@ -39,6 +40,11 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
     .single()
   const isCoAdmin = myReg?.is_co_admin === true
   if (league.created_by !== user.id && !isCoAdmin) redirect(`/leagues/${params.id}`)
+
+  const runnable = await getRunnableSession(supabase, params.id, true)
+  const runSessionAction = runnable
+    ? { label: 'Run Session', href: `/leagues/${params.id}/sessions/${runnable.id}/live` }
+    : undefined
 
   const [{ data: registrations }, { data: subInterest }, { data: allProfiles }] =
     await Promise.all([
@@ -200,9 +206,9 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
           <span className="text-sm font-medium text-brand-dark">Roster</span>
         </div>
       }
-      sidebar={<ManageNav items={navItems} />}
+      sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
     >
-      <ManageNav items={navItems} mobileOnly />
+      <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
       <div className={isBox ? 'max-w-2xl' : undefined}>
         {isBox && boxesExist && (
           <BoxCycleBar
