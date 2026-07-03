@@ -77,11 +77,11 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const pointsToWinNum = parseInt(pointsToWin) || 11
   const isBox = formatKind === 'box'
 
-  // Auto-set deadline to 7 days before league start date at 23:59 PT when startDate changes
+  // Auto-set deadline to 11:59pm the day before league start (PT) when startDate changes
   useEffect(() => {
     if (!deadlineTouched && startDate) {
       const d = new Date(startDate + 'T00:00:00')
-      d.setDate(d.getDate() - 7)
+      d.setDate(d.getDate() - 1)
       const yyyy = d.getFullYear()
       const mm = String(d.getMonth() + 1).padStart(2, '0')
       const dd = String(d.getDate()).padStart(2, '0')
