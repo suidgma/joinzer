@@ -1,10 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import StandingsTable from './StandingsTable'
+import BoxStandings, { type BoxStandingView } from './BoxStandings'
+import { isDoublesFormat } from '@/lib/taxonomy/formats'
+import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
 
 export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -12,7 +16,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: league }, { data: registrations }, { data: sessions }] = await Promise.all([
-    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method, partner_mode').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method, partner_mode, format_kind').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
       .select('user_id, partner_user_id, profile:profiles!user_id(id, name, profile_photo_url)')
@@ -26,6 +30,111 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   ])
 
   if (!league) notFound()
+
+  const isManager0 = user?.id === league.created_by
+
+  // ── Box leagues: per-box standings from fixtures. Early return keeps the
+  //    session_rr path below completely untouched. ──
+  if ((league as any).format_kind === 'box') {
+    const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const doubles = isDoublesFormat((league as any).format)
+    const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
+
+    const { data: regsRaw } = await admin
+      .from('league_registrations')
+      .select('id, user_id, status, payment_status, partner_registration_id, profile:profiles!user_id(name)')
+      .eq('league_id', params.id).eq('status', 'registered')
+    const settled = (regsRaw ?? []).filter((r: any) => r.payment_status == null || ['paid', 'waived', 'comped', 'free'].includes(r.payment_status))
+    const byRegId = new Map(settled.map((r: any) => [r.id, r]))
+    const nameOf = (regId: string): string => {
+      const r: any = byRegId.get(regId)
+      if (!r) return 'Player'
+      const a = firstName(r.profile?.name)
+      if (!doubles) return a || 'Player'
+      const partner: any = r.partner_registration_id ? byRegId.get(r.partner_registration_id) : null
+      const b = partner ? firstName(partner.profile?.name) : ''
+      return b ? `${a}/${b}` : (a || 'Team')
+    }
+
+    const { data: cyc } = await admin
+      .from('league_periods').select('id')
+      .eq('league_id', params.id).eq('period_kind', 'cycle').eq('status', 'active')
+      .order('period_number', { ascending: false }).limit(1).maybeSingle()
+
+    let boxViews: BoxStandingView[] = []
+    if (cyc) {
+      const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cyc.id).order('tier_rank', { ascending: true })
+      const bxIds = (bx ?? []).map((b: any) => b.id)
+      const { data: mem } = bxIds.length
+        ? await admin.from('league_box_members').select('box_id, registration_id').in('box_id', bxIds)
+        : { data: [] as any[] }
+      const memberIdsByBox = new Map<string, string[]>()
+      for (const m of (mem ?? [])) {
+        if (!memberIdsByBox.has(m.box_id)) memberIdsByBox.set(m.box_id, [])
+        memberIdsByBox.get(m.box_id)!.push(m.registration_id)
+      }
+      const { data: fx } = bxIds.length
+        ? await admin.from('league_fixtures')
+            .select('match_stage, round_number, status, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, box_id, period_id')
+            .eq('period_id', cyc.id)
+        : { data: [] as any[] }
+
+      boxViews = (bx ?? []).map((b: any) => {
+        const memberIds = new Set(memberIdsByBox.get(b.id) ?? [])
+        const regsForBox = settled
+          .filter((r: any) => memberIds.has(r.id))
+          .map((r: any) => ({ id: r.id, status: r.status, partner_registration_id: r.partner_registration_id }))
+        const rows = computeFixtureStandings((fx ?? []) as any, regsForBox, { boxId: b.id }, nameOf)
+        return {
+          name: b.name ?? `Box ${b.tier_rank}`,
+          rows: rows.map((row, i) => ({ rank: i + 1, name: nameOf(row.regId), wins: row.wins, losses: row.losses, pf: row.pf, pa: row.pa, diff: row.pf - row.pa })),
+        }
+      })
+    }
+
+    const navItems: ManageNavItem[] = [
+      { label: 'Overview', href: `/leagues/${params.id}` },
+      { label: 'Standings', href: `/leagues/${params.id}/standings` },
+      ...(isManager0 ? [
+        { label: 'Roster', href: `/leagues/${params.id}/roster` },
+        { label: 'Edit', href: `/leagues/${params.id}/edit` },
+      ] : []),
+    ]
+    const anyRows = boxViews.some(b => b.rows.some(r => r.wins + r.losses > 0))
+
+    return (
+      <DesktopShell
+        header={
+          <div className="flex items-center gap-3">
+            <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+            <span className="text-brand-muted text-sm">/</span>
+            <span className="text-sm font-medium text-brand-dark">Standings</span>
+          </div>
+        }
+        sidebar={<ManageNav items={navItems} />}
+      >
+        <ManageNav items={navItems} mobileOnly />
+        <div className="space-y-6 pb-8">
+          <div>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+            <p className="text-xs text-brand-muted">Per-box standings — win %, then point differential.</p>
+          </div>
+          {boxViews.length === 0 ? (
+            <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+              <p className="text-2xl">🏓</p>
+              <p className="text-sm font-medium text-brand-dark">No boxes yet</p>
+              <p className="text-xs text-brand-muted">Seed boxes and generate matches on the Roster screen.</p>
+            </div>
+          ) : (
+            <>
+              {!anyRows && <p className="text-xs text-brand-muted">No results entered yet — standings start at 0–0.</p>}
+              <BoxStandings boxes={boxViews} />
+            </>
+          )}
+        </div>
+      </DesktopShell>
+    )
+  }
 
   const sessionIds = (sessions ?? []).map((s) => s.id)
   const subCreditCap: number = (league as unknown as Record<string, unknown>)?.sub_credit_cap as number ?? 7
