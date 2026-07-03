@@ -144,7 +144,7 @@ export default function EditLeagueForm({
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
   const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>(d.format_kind === 'box' ? 'box' : 'session_rr')
   const [boxSize, setBoxSize] = useState((d.format_settings_json?.box_size ?? 5).toString())
-  const [cycleWeeks, setCycleWeeks] = useState((d.format_settings_json?.cycle_length_weeks ?? 4).toString())
+  const [cycleWeeks, setCycleWeeks] = useState((d.format_settings_json?.cycle_length_weeks ?? 1).toString())
   const [promoteCount, setPromoteCount] = useState((d.format_settings_json?.promote_count ?? 1).toString())
   const [relegateCount, setRelegateCount] = useState((d.format_settings_json?.relegate_count ?? 1).toString())
   const [loading, setLoading] = useState(false)
@@ -203,7 +203,7 @@ export default function EditLeagueForm({
         format_settings_json: isBox
           ? {
               box_size: parseInt(boxSize) || 5,
-              cycle_length_weeks: parseInt(cycleWeeks) || 4,
+              cycle_length_weeks: parseInt(cycleWeeks) || 1,
               promote_count: parseInt(promoteCount) || 1,
               relegate_count: parseInt(relegateCount) || 1,
             }
