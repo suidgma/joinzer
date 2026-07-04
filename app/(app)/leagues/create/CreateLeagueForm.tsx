@@ -66,7 +66,6 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   // NEXT_PUBLIC_ENABLE_BOX_LEAGUES='false' to hide it again.
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
   const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>('session_rr')
-  const [boxSize, setBoxSize] = useState('5')
   const [cycleWeeks, setCycleWeeks] = useState('1')
   const [promoteCount, setPromoteCount] = useState('1')
   const [relegateCount, setRelegateCount] = useState('1')
@@ -185,7 +184,6 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         format_kind: formatKind,
         format_settings_json: isBox
           ? {
-              box_size: parseInt(boxSize) || 5,
               cycle_length_weeks: parseInt(cycleWeeks) || 1,
               promote_count: parseInt(promoteCount) || 1,
               relegate_count: parseInt(relegateCount) || 1,
@@ -500,10 +498,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       </FormSection>
 
       {isBox && (
-        <FormSection title="Box League" description="Box size, cycle length, and promotion / relegation." defaultOpen>
-          <FormRow label="Box size" width="xs" helpText="Players per box. Boxes are formed from the roster by rating.">
-            <input type="number" min="3" value={boxSize} onChange={(e) => setBoxSize(e.target.value)} className="w-full input" />
-          </FormRow>
+        <FormSection title="Box League" description="Cycle length and promotion / relegation. You'll choose the number of boxes when you run the session." defaultOpen>
           <FormRow label="Cycle length" width="sm" helpText="Weeks per cycle before promotion & relegation.">
             <input type="number" min="1" value={cycleWeeks} onChange={(e) => setCycleWeeks(e.target.value)} className="w-full input" />
           </FormRow>

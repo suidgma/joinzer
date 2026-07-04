@@ -44,3 +44,27 @@ export function assignBoxesByRating(entrants: BoxEntrant[], boxSize: number): As
   const sorted = [...entrants].sort((a, b) => (b.rating ?? -Infinity) - (a.rating ?? -Infinity))
   return chunkBoxes(sorted.map(e => e.registrationId), boxSize)
 }
+
+// Split an ordered list into exactly `numBoxes` tiered boxes, as evenly as
+// possible: sizes differ by at most 1, and the first (n % numBoxes) boxes get the
+// extra player. Handles odd totals (13 into 3 → 5, 4, 4). Order is preserved (Box
+// 1 = top). numBoxes is clamped to [1, n]. This is the box-count model — the
+// organizer chooses how many boxes and players auto-fill.
+export function distributeIntoBoxes(orderedRegistrationIds: string[], numBoxes: number): AssignedBox[] {
+  const n = orderedRegistrationIds.length
+  const count = Math.max(1, Math.min(Math.floor(numBoxes) || 1, n || 1))
+  const base = Math.floor(n / count)
+  const remainder = n % count
+
+  const boxes: AssignedBox[] = []
+  let idx = 0
+  for (let i = 0; i < count; i++) {
+    const size = base + (i < remainder ? 1 : 0)
+    boxes.push({
+      tierRank: i + 1,
+      members: orderedRegistrationIds.slice(idx, idx + size).map((id, j) => ({ registrationId: id, seedInBox: j + 1 })),
+    })
+    idx += size
+  }
+  return boxes
+}

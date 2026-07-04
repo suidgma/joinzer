@@ -1,29 +1,32 @@
 'use client'
 import { useState, useRef, useMemo } from 'react'
 import { GripVertical, ArrowUp } from 'lucide-react'
-import { chunkBoxes } from '@/lib/leagues/boxAssignment'
+import { distributeIntoBoxes } from '@/lib/leagues/boxAssignment'
 
 export type SeededItem = { id: string; name: string; rating?: number | null; note?: string | null }
 
 type Props = {
   items: SeededItem[]
-  // When set, rows are visually split into tier groups every `groupSize`
-  // (using the same chunking the box save persists), with a header per group.
-  groupSize?: number
+  // When set, the organizer picks how many groups (boxes) and players auto-fill
+  // evenly into that many, with a header per group. Omit for a plain ordered list.
+  initialGroupCount?: number
+  maxGroups?: number
   groupLabel?: (tierRank: number) => string
   saveLabel?: string
   // Start in the "unsaved" state — e.g. when the persisted boxes no longer match
-  // this preview (box size changed, players added/removed). Defaults to saved.
+  // this preview (players added/removed). Defaults to saved.
   initialSaved?: boolean
-  onSave: (orderedIds: string[]) => Promise<void>
+  onSave: (orderedIds: string[], groupCount: number) => Promise<void>
 }
 
-// Generalized seeded roster: drag-to-reorder + auto-seed by rating + save. Box
-// leagues pass groupSize=box_size to show tier dividers; the saved order is what
-// gets persisted (as boxes, for box). Deliberately format-agnostic so flex /
-// ladder / team can reuse it later. See docs/phases/league-seeded-roster.md.
-export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, initialSaved = true, onSave }: Props) {
+// Generalized seeded roster: drag-to-reorder + auto-seed by rating + save. For box
+// leagues the organizer chooses the number of boxes and players auto-fill evenly;
+// the saved order + count is persisted (as boxes). Format-agnostic so flex / ladder
+// / team can reuse it later. See docs/phases/league-seeded-roster.md.
+export default function SeededRoster({ items, initialGroupCount, maxGroups, groupLabel, saveLabel, initialSaved = true, onSave }: Props) {
+  const grouping = initialGroupCount != null
   const [order, setOrder] = useState<SeededItem[]>(items)
+  const [groupCount, setGroupCount] = useState(initialGroupCount ?? 1)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(initialSaved)
   const [error, setError] = useState<string | null>(null)
@@ -32,15 +35,18 @@ export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, 
   const [dragOver, setDragOver] = useState<number | null>(null)
 
   const hasRatings = order.some(i => i.rating != null)
+  // Cap boxes so none can end up with a single player (a box needs 2+ to play).
+  const maxBoxes = Math.max(1, Math.min(maxGroups ?? Math.floor(order.length / 2), Math.floor(order.length / 2) || 1))
+  const boxCount = Math.min(Math.max(1, groupCount), maxBoxes)
 
-  // Flat render rows with tier-group headers, using the same chunk rule as save.
+  // Flat render rows with group headers, using the same distribution as save.
   const rows = useMemo(() => {
     const out: { item: SeededItem; index: number; groupStart?: string }[] = []
-    if (!groupSize) {
+    if (!grouping) {
       order.forEach((item, index) => out.push({ item, index }))
       return out
     }
-    const groups = chunkBoxes(order.map(i => i.id), groupSize)
+    const groups = distributeIntoBoxes(order.map(i => i.id), boxCount)
     const byId = new Map(order.map(i => [i.id, i]))
     let index = 0
     for (const g of groups) {
@@ -54,7 +60,7 @@ export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, 
       })
     }
     return out
-  }, [order, groupSize, groupLabel])
+  }, [order, grouping, boxCount, groupLabel])
 
   function handleDrop(to: number) {
     const from = dragIndex.current
@@ -78,7 +84,7 @@ export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, 
   async function save() {
     setSaving(true); setError(null)
     try {
-      await onSave(order.map(i => i.id))
+      await onSave(order.map(i => i.id), boxCount)
       setSaved(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -89,9 +95,21 @@ export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, 
 
   return (
     <div className="border border-brand-border rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-brand-border bg-brand-surface">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-brand-border bg-brand-surface">
         <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Seeding &amp; Boxes</p>
         <div className="flex items-center gap-3">
+          {grouping && (
+            <label className="flex items-center gap-1.5 text-xs text-brand-muted">
+              Boxes
+              <select
+                value={boxCount}
+                onChange={e => { setGroupCount(Number(e.target.value)); setSaved(false) }}
+                className="input text-xs py-0.5 pl-2 pr-6"
+              >
+                {Array.from({ length: maxBoxes }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          )}
           {hasRatings && (
             <button onClick={autoSeed} className="text-xs text-brand-active hover:underline">Auto-seed by rating</button>
           )}
@@ -143,7 +161,7 @@ export default function SeededRoster({ items, groupSize, groupLabel, saveLabel, 
 
       {order.length > 1 && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-brand-muted">
-          <ArrowUp className="w-3 h-3 shrink-0" /><span>Drag to re-order · players are split into boxes top-to-bottom · Save to apply</span>
+          <ArrowUp className="w-3 h-3 shrink-0" /><span>Pick the number of boxes · drag to re-order · players fill boxes top-to-bottom · Save to apply</span>
         </div>
       )}
     </div>
