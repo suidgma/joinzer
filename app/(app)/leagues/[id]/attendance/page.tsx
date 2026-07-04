@@ -7,7 +7,7 @@ import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
-import { chunkBoxes } from '@/lib/leagues/boxAssignment'
+import { distributeIntoBoxes } from '@/lib/leagues/boxAssignment'
 import type { SeededItem } from '@/components/features/leagues/SeededRoster'
 import BoxAttendanceManager, { type BoxAttendee } from './BoxAttendanceManager'
 import BoxSeedingSection from '../roster/BoxSeedingSection'
@@ -95,9 +95,8 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
 
   const hasCompletedMatches = (fixtures ?? []).some((f: any) => f.status === 'completed')
 
-  // ── Seeding entrants (order players into rating-tiered boxes) — the setup step,
-  //    shown only until the cycle's matches start being played. ──
-  const boxSize = ((league as any).format_settings_json?.box_size as number) ?? 5
+  // ── Seeding entrants — the organizer picks the number of boxes and players fill
+  //    them evenly. The setup step, shown only until the cycle's matches start. ──
   const registered = (regs ?? []).filter((r: any) => r.status === 'registered')
   const settled = registered.filter((r: any) => r.payment_status == null || ['paid', 'waived', 'comped', 'free'].includes(r.payment_status))
   const settledById = new Map(settled.map((r: any) => [r.id, r]))
@@ -128,7 +127,7 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
         .sort((x: any, y: any) => (x.seed_in_box ?? 0) - (y.seed_in_box ?? 0))
         .map((m: any) => m.registration_id)
         .filter((rid: string) => settledById.has(rid)))
-    const previewStructure = chunkBoxes(ordered, boxSize).map(bp => bp.members.map(m => m.registrationId))
+    const previewStructure = distributeIntoBoxes(ordered, (boxes ?? []).length).map(bp => bp.members.map(m => m.registrationId))
     boxesDirty = JSON.stringify(persistedStructure) !== JSON.stringify(previewStructure)
   }
   if (ordered === entrantIds) {
@@ -136,6 +135,15 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
       (teamRating(settledById.get(b)) ?? -Infinity) - (teamRating(settledById.get(a)) ?? -Infinity))
   }
   const boxEntrants: SeededItem[] = ordered.map((id: string) => ({ id, name: nameOf(id), rating: teamRating(settledById.get(id)) }))
+
+  // Box-count control: default to the saved number of boxes, else the remembered
+  // setting, else ~4 per box. Cap so no box can end up with a single player.
+  const maxBoxes = Math.max(1, Math.floor(boxEntrants.length / 2))
+  const savedBoxCount = (boxes ?? []).length
+  const defaultBoxCount = savedBoxCount > 0
+    ? savedBoxCount
+    : (((league as any).format_settings_json?.num_boxes as number) ?? Math.max(1, Math.round(boxEntrants.length / 4)))
+  const initialBoxCount = Math.max(1, Math.min(defaultBoxCount, maxBoxes))
 
   // ── Attendance rows (box members grouped by box; sub/guest rows separately). ──
   const attByReg = new Map<string, any>()
@@ -243,7 +251,7 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
         </div>
 
         {showSeeding && (
-          <BoxSeedingSection leagueId={params.id} boxSize={boxSize} entrants={boxEntrants} initialSaved={!boxesDirty} />
+          <BoxSeedingSection leagueId={params.id} initialBoxCount={initialBoxCount} maxBoxes={maxBoxes} entrants={boxEntrants} initialSaved={!boxesDirty} />
         )}
 
         {!cycle && boxEntrants.length === 0 && (

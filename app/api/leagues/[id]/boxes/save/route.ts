@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { chunkBoxes } from '@/lib/leagues/boxAssignment'
+import { distributeIntoBoxes } from '@/lib/leagues/boxAssignment'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -10,10 +10,11 @@ function admin() {
 }
 
 // POST /api/leagues/[id]/boxes/save
-// Persists a hand-seeded roster as boxes for the active cycle: chunks the given
-// order by the league's box_size (order preserved — no re-sort) and replaces the
-// cycle's boxes + members. Ensures Cycle 1 exists. Organizer only. Box format.
-// Body: { orderedRegistrationIds: string[] }.
+// Persists a hand-seeded roster as boxes for the active cycle: distributes the
+// given order into `numBoxes` even boxes (order preserved — no re-sort) and
+// replaces the cycle's boxes + members. Ensures Cycle 1 exists. Remembers numBoxes
+// as the default. Organizer only. Box format.
+// Body: { orderedRegistrationIds: string[], numBoxes?: number }.
 export async function POST(req: NextRequest, props: Params) {
   const params = await props.params
   const supabase = createClient()
@@ -35,8 +36,6 @@ export async function POST(req: NextRequest, props: Params) {
   if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (league.created_by !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (league.format_kind !== 'box') return NextResponse.json({ error: 'Not a box league' }, { status: 400 })
-
-  const boxSize = ((league.format_settings_json as any)?.box_size as number) ?? 5
 
   // Guard against stray ids: only settled registrations of this league may be seeded.
   const { data: regRows } = await db
@@ -79,7 +78,20 @@ export async function POST(req: NextRequest, props: Params) {
     return NextResponse.json({ error: 'completed_exists', completed }, { status: 409 })
   }
 
-  const assigned = chunkBoxes(cleanOrder, boxSize)
+  // Organizer chooses the number of boxes; players auto-fill evenly. Clamp so no
+  // box ends up with a single player (each needs 2+ to play), and fall back to a
+  // ~4-per-box default when unset.
+  const maxBoxes = Math.max(1, Math.floor(cleanOrder.length / 2))
+  const requested = Number(body.numBoxes)
+  const fallback = ((league.format_settings_json as any)?.num_boxes as number) ?? Math.max(1, Math.round(cleanOrder.length / 4))
+  const numBoxes = Math.max(1, Math.min(Number.isFinite(requested) && requested > 0 ? requested : fallback, maxBoxes))
+
+  const assigned = distributeIntoBoxes(cleanOrder, numBoxes)
+
+  // Remember the box count as the default for future re-seeds.
+  await db.from('leagues')
+    .update({ format_settings_json: { ...((league.format_settings_json as any) ?? {}), num_boxes: numBoxes } })
+    .eq('id', params.id)
 
   await db.from('league_boxes').delete().eq('period_id', cycle.id)
 

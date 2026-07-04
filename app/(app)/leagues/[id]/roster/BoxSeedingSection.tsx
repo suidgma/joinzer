@@ -2,20 +2,21 @@
 import { useDialog } from '@/components/ui/DialogProvider'
 import SeededRoster, { type SeededItem } from '@/components/features/leagues/SeededRoster'
 
-// Box seeding lives on the Roster screen (no separate Boxes screen). The seeded
-// order is persisted as boxes for the active cycle; re-seeding clears the cycle's
-// generated matches. See docs/phases/league-seeded-roster.md.
+// Box seeding lives on the Run Session screen (before play). The organizer picks
+// how many boxes; players auto-fill evenly. The seeded order + count is persisted
+// as boxes for the active cycle; re-seeding clears the cycle's generated matches.
+// See docs/phases/league-seeded-roster.md.
 export default function BoxSeedingSection({
-  leagueId, boxSize, entrants, initialSaved,
-}: { leagueId: string; boxSize: number; entrants: SeededItem[]; initialSaved: boolean }) {
+  leagueId, initialBoxCount, maxBoxes, entrants, initialSaved,
+}: { leagueId: string; initialBoxCount: number; maxBoxes: number; entrants: SeededItem[]; initialSaved: boolean }) {
   const { confirm } = useDialog()
 
-  async function onSave(orderedRegistrationIds: string[]) {
+  async function onSave(orderedRegistrationIds: string[], numBoxes: number) {
     const post = (force: boolean) =>
       fetch(`/api/leagues/${leagueId}/boxes/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderedRegistrationIds, force }),
+        body: JSON.stringify({ orderedRegistrationIds, numBoxes, force }),
       })
 
     let res = await post(false)
@@ -41,15 +42,16 @@ export default function BoxSeedingSection({
   return (
     <div className="mb-5 space-y-1.5">
       <p className="text-[11px] text-brand-muted">
-        Players are seeded top-to-bottom into rating-tiered boxes (Box 1 = top). Auto-seed, drag to fine-tune, then save. Saving re-seeds the boxes and clears any generated matches.
+        Choose how many boxes; players fill them top-to-bottom by rating (Box 1 = top). Auto-seed, adjust the box count, drag to fine-tune, then save. Saving re-seeds the boxes and clears any generated matches.
       </p>
       <SeededRoster
         // Remount when the entrants/order actually change (e.g. after advancing a
-        // cycle) — SeededRoster seeds its order state on mount, so without a fresh
-        // key a router.refresh() would keep showing the previous cycle's order.
+        // cycle) — SeededRoster seeds its state on mount, so without a fresh key a
+        // router.refresh() would keep showing the previous cycle's order.
         key={entrants.map(e => e.id).join(',')}
         items={entrants}
-        groupSize={boxSize}
+        initialGroupCount={initialBoxCount}
+        maxGroups={maxBoxes}
         groupLabel={(tier) => `Box ${tier}`}
         saveLabel="Save boxes"
         initialSaved={initialSaved}

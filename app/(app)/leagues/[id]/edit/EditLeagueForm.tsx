@@ -143,7 +143,6 @@ export default function EditLeagueForm({
   // env flag is explicitly 'false'.
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
   const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>(d.format_kind === 'box' ? 'box' : 'session_rr')
-  const [boxSize, setBoxSize] = useState((d.format_settings_json?.box_size ?? 5).toString())
   const [cycleWeeks, setCycleWeeks] = useState((d.format_settings_json?.cycle_length_weeks ?? 1).toString())
   const [promoteCount, setPromoteCount] = useState((d.format_settings_json?.promote_count ?? 1).toString())
   const [relegateCount, setRelegateCount] = useState((d.format_settings_json?.relegate_count ?? 1).toString())
@@ -202,7 +201,7 @@ export default function EditLeagueForm({
         format_kind: formatKind,
         format_settings_json: isBox
           ? {
-              box_size: parseInt(boxSize) || 5,
+              ...(d.format_settings_json ?? {}),
               cycle_length_weeks: parseInt(cycleWeeks) || 1,
               promote_count: parseInt(promoteCount) || 1,
               relegate_count: parseInt(relegateCount) || 1,
@@ -527,10 +526,7 @@ export default function EditLeagueForm({
       </FormSection>
 
       {isBox && (
-        <FormSection title="Box League" description="Box size, cycle length, and promotion / relegation." defaultOpen>
-          <FormRow label="Box size" width="xs" helpText="Players per box. Boxes are formed from the roster by rating.">
-            <input type="number" min="3" value={boxSize} onChange={(e) => setBoxSize(e.target.value)} className="w-full input" />
-          </FormRow>
+        <FormSection title="Box League" description="Cycle length and promotion / relegation. The number of boxes is set when you run the session." defaultOpen>
           <FormRow label="Cycle length" width="sm" helpText="Weeks per cycle before promotion & relegation.">
             <input type="number" min="1" value={cycleWeeks} onChange={(e) => setCycleWeeks(e.target.value)} className="w-full input" />
           </FormRow>
