@@ -25,56 +25,39 @@ export async function POST(req: NextRequest, props: Params) {
   const body = await req.json()
   const userId1: string = body.userId1
   const userId2: string | null = body.userId2 ?? null
-
   if (!userId1) return NextResponse.json({ error: 'userId1 required' }, { status: 400 })
 
-  // If userId2 is provided, first clear any existing partner links for both players
-  // to avoid orphaned links when re-assigning.
-  const { data: reg1 } = await db
+  // Load the involved registrations (need their ids for partner_registration_id —
+  // the box engine reads that column; the round-robin scheduler reads
+  // partner_user_id — so we keep both in sync).
+  const userIds = [userId1, ...(userId2 ? [userId2] : [])]
+  const { data: regs } = await db
     .from('league_registrations')
-    .select('partner_user_id')
+    .select('id, user_id, partner_user_id')
     .eq('league_id', params.id)
-    .eq('user_id', userId1)
-    .single()
+    .in('user_id', userIds)
+  const byUser = new Map((regs ?? []).map((r: any) => [r.user_id, r]))
+  const reg1 = byUser.get(userId1)
+  if (!reg1) return NextResponse.json({ error: 'Player not registered in this league' }, { status: 400 })
+  const reg2 = userId2 ? byUser.get(userId2) : null
+  if (userId2 && !reg2) return NextResponse.json({ error: 'Partner not registered in this league' }, { status: 400 })
 
-  const oldPartner1 = reg1?.partner_user_id ?? null
+  // Clear both columns for the two players plus anyone they were previously linked to
+  // (so we don't leave orphaned back-links), then set the new bidirectional pairing.
+  const toClear = new Set<string>([userId1])
+  if (userId2) toClear.add(userId2)
+  if (reg1.partner_user_id && reg1.partner_user_id !== userId2) toClear.add(reg1.partner_user_id)
+  if (reg2?.partner_user_id && reg2.partner_user_id !== userId1) toClear.add(reg2.partner_user_id)
+  await db.from('league_registrations')
+    .update({ partner_user_id: null, partner_registration_id: null })
+    .eq('league_id', params.id)
+    .in('user_id', [...toClear])
 
-  // Clear old partner's back-link if they had one
-  if (oldPartner1 && oldPartner1 !== userId2) {
-    await db.from('league_registrations')
-      .update({ partner_user_id: null })
-      .eq('league_id', params.id)
-      .eq('user_id', oldPartner1)
-  }
-
-  if (userId2) {
-    // Also clear userId2's existing partner's back-link
-    const { data: reg2 } = await db
-      .from('league_registrations')
-      .select('partner_user_id')
-      .eq('league_id', params.id)
-      .eq('user_id', userId2)
-      .single()
-
-    const oldPartner2 = reg2?.partner_user_id ?? null
-    if (oldPartner2 && oldPartner2 !== userId1) {
-      await db.from('league_registrations')
-        .update({ partner_user_id: null })
-        .eq('league_id', params.id)
-        .eq('user_id', oldPartner2)
-    }
-
-    // Set bidirectional link
+  if (userId2 && reg2) {
     await Promise.all([
-      db.from('league_registrations').update({ partner_user_id: userId2 }).eq('league_id', params.id).eq('user_id', userId1),
-      db.from('league_registrations').update({ partner_user_id: userId1 }).eq('league_id', params.id).eq('user_id', userId2),
+      db.from('league_registrations').update({ partner_user_id: userId2, partner_registration_id: reg2.id }).eq('id', reg1.id),
+      db.from('league_registrations').update({ partner_user_id: userId1, partner_registration_id: reg1.id }).eq('id', reg2.id),
     ])
-  } else {
-    // Unassign: clear userId1's partner_user_id only (old partner already cleared above)
-    await db.from('league_registrations')
-      .update({ partner_user_id: null })
-      .eq('league_id', params.id)
-      .eq('user_id', userId1)
   }
 
   return NextResponse.json({ ok: true })
