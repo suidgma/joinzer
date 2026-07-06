@@ -120,6 +120,28 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         fxByBox.get(f.box_id)!.push(f)
       }
 
+      // Sub names for this cycle's results — a covered member's matches show the sub
+      // who played (round-robin parity). The member still holds the standings credit.
+      const { data: att } = bxIds.length
+        ? await admin.from('league_attendance')
+            .select('registration_id, user_id, guest_name, subbing_for_registration_id')
+            .eq('period_id', selectedCycle.id).not('subbing_for_registration_id', 'is', null)
+        : { data: [] as any[] }
+      const subUserIds = [...new Set((att ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[]
+      const { data: subProfiles } = subUserIds.length
+        ? await admin.from('profiles').select('id, name').in('id', subUserIds)
+        : { data: [] as any[] }
+      const subNameByUser = new Map((subProfiles ?? []).map((p: any) => [p.id, p.name]))
+      const subNameByCoveredReg = new Map<string, string>()
+      for (const a of (att ?? [])) {
+        const nm = a.registration_id ? nameOf(a.registration_id) : (a.user_id ? (subNameByUser.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest'))
+        subNameByCoveredReg.set(a.subbing_for_registration_id, nm)
+      }
+      const matchName = (regId: string | null): string => {
+        const sub = regId ? subNameByCoveredReg.get(regId) : undefined
+        return sub ? (firstName(sub) || sub) : nameOf(regId as string)
+      }
+
       boxViews = (bx ?? []).map((b: any) => {
         // Box membership is the historical truth (force 'registered' so past
         // members show even if their registration status later changed).
@@ -131,8 +153,8 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           .map((f: any) => ({
             id: f.id,
             round: f.round_number ?? null,
-            name1: nameOf(f.team_1_registration_id),
-            name2: nameOf(f.team_2_registration_id),
+            name1: matchName(f.team_1_registration_id),
+            name2: matchName(f.team_2_registration_id),
             score1: f.team_1_score,
             score2: f.team_2_score,
             winner1: f.winner_registration_id === f.team_1_registration_id,
