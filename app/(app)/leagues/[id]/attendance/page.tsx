@@ -163,6 +163,13 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   }
   const boxMemberRegIds = new Set((members ?? []).map((m: any) => m.registration_id))
 
+  // Members actually being subbed this cycle (status 'has_sub'). A sub assignment
+  // that lingers after a member is marked back to present is ignored, so the sub
+  // stops showing "for X" and stops replacing the member in match assignments.
+  const coveredRegs = new Set(
+    (attendance ?? []).filter((a: any) => a.status === 'has_sub' && a.registration_id && boxMemberRegIds.has(a.registration_id)).map((a: any) => a.registration_id),
+  )
+
   // Resolve display names for sub/guest rows — subs can be any profile (like
   // round-robin), not just league registrants, so their name comes from `profiles`.
   const attendeeUserIds = [...new Set((attendance ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[]
@@ -204,7 +211,7 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
         ? nameOf(a.registration_id)
         : (a.user_id ? (nameByUserId.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest')),
       status: a.status,
-      subbingForRegistrationId: a.subbing_for_registration_id ?? null,
+      subbingForRegistrationId: (a.subbing_for_registration_id && coveredRegs.has(a.subbing_for_registration_id)) ? a.subbing_for_registration_id : null,
     })
   }
 
@@ -219,12 +226,14 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   const availableSubs = (profilePool ?? []).map((p: any) => ({ userId: p.id as string, name: p.name ?? 'Player' }))
 
   // ── Matches ──
-  // Show the sub's name in match assignments when a member is covered (round-robin
-  // parity — the sub plays under the covered member's registration, which still
-  // gets the scoring credit).
+  // Show the sub's name in match assignments when a member is actually being subbed
+  // (round-robin parity; the covered registration keeps the scoring credit). The
+  // sub's subbingForRegistrationId is already null unless the member is 'has_sub'.
   const subNameByCoveredReg = new Map<string, string>()
   for (const a of attendees) {
-    if (a.kind !== 'roster' && a.subbingForRegistrationId) subNameByCoveredReg.set(a.subbingForRegistrationId, a.displayName)
+    if (a.kind !== 'roster' && a.subbingForRegistrationId) {
+      subNameByCoveredReg.set(a.subbingForRegistrationId, a.displayName)
+    }
   }
   const matchName = (regId: string | null): string => {
     const sub = regId ? subNameByCoveredReg.get(regId) : undefined

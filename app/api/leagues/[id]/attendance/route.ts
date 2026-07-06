@@ -31,6 +31,15 @@ export async function POST(req: NextRequest, props: Params) {
 
   const now = new Date().toISOString()
 
+  // When a covered member is marked back to present (any non-'has_sub' status),
+  // un-assign their sub so it doesn't linger and show in matches.
+  async function clearCoveringSubs(coveredRegId: string | null, forPeriodId: string | null) {
+    if (status === 'has_sub' || !coveredRegId || !forPeriodId) return
+    await db.from('league_attendance')
+      .update({ subbing_for_registration_id: null, updated_at: now })
+      .eq('league_id', params.id).eq('period_id', forPeriodId).eq('subbing_for_registration_id', coveredRegId)
+  }
+
   if (attendanceId) {
     const { data, error } = await db
       .from('league_attendance')
@@ -40,6 +49,7 @@ export async function POST(req: NextRequest, props: Params) {
       .select()
       .single()
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 500 })
+    await clearCoveringSubs((data as any).registration_id, (data as any).period_id)
     return NextResponse.json({ attendance: data })
   }
 
@@ -63,6 +73,7 @@ export async function POST(req: NextRequest, props: Params) {
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await clearCoveringSubs(registrationId, periodId)
     return NextResponse.json({ attendance: data })
   }
 
