@@ -73,16 +73,23 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   // progress. Defaults on so no Vercel env change is needed; set
   // NEXT_PUBLIC_ENABLE_BOX_LEAGUES='false' to hide it again.
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
-  const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>('session_rr')
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder'>('session_rr')
   const [cycleWeeks, setCycleWeeks] = useState('1')
   const [promoteCount, setPromoteCount] = useState('1')
   const [relegateCount, setRelegateCount] = useState('1')
+  // Ladder settings (king-of-the-court / up-down).
+  const [roundsPerSession, setRoundsPerSession] = useState('6')
+  const [maxMove, setMaxMove] = useState('3')
+  const [initialRanking, setInitialRanking] = useState<'manual' | 'registration' | 'rating' | 'random'>('rating')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedLocation = locations.find((l) => l.id === locationId)
   const pointsToWinNum = parseInt(pointsToWin) || 11
   const isBox = formatKind === 'box'
+  const isLadder = formatKind === 'ladder'
+  // Period-based formats (box cycles, ladder sessions) don't generate weekly sessions.
+  const usesPeriods = isBox || isLadder
 
   // Auto-compose the league name from the chosen settings until the organizer edits
   // it. Clearing the field resumes autofill, so the name stays in sync with day /
@@ -100,7 +107,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       skill,
       CATEGORY_NAME[category] ?? '',
       teamType === 'doubles' ? 'Doubles' : 'Singles',
-      formatKind === 'box' ? 'Box League' : 'Round Robin',
+      formatKind === 'box' ? 'Box League' : formatKind === 'ladder' ? 'Ladder' : 'Round Robin',
     ].filter(Boolean).join(' ')
     setName(auto)
   }, [nameTouched, startDate, skillMin, skillMax, category, teamType, formatKind])
@@ -173,10 +180,11 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     if (!user) { router.push('/login'); return }
 
     // Partner mode is only meaningful for doubles. Singles → rotating (unused).
-    // Box doubles → fixed: the pair is one stable entrant for the whole cycle.
+    // Box / Ladder doubles → fixed: the pair is one stable entrant (one box member
+    // / one ladder position) for the whole season.
     const effectivePartnerMode = teamType !== 'doubles'
       ? 'rotating'
-      : isBox ? 'fixed' : partnerMode
+      : usesPeriods ? 'fixed' : partnerMode
 
     const { data: league, error: leagueErr } = await supabase
       .from('leagues')
@@ -206,15 +214,21 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
         no_play_dates: finalNoPlayDates,
-        // Selectable league format. session_rr (default) keeps today's weekly
-        // session behavior; box stores its knobs in format_settings_json and uses
-        // cycles/boxes instead of weekly sessions (created by later Box PRs).
+        // Selectable league format. session_rr (default) keeps weekly-session
+        // behavior; box and ladder store their knobs in format_settings_json and
+        // use league_periods (cycles / ladder sessions) instead of weekly sessions.
         format_kind: formatKind,
         format_settings_json: isBox
           ? {
               cycle_length_weeks: parseInt(cycleWeeks) || 1,
               promote_count: parseInt(promoteCount) || 1,
               relegate_count: parseInt(relegateCount) || 1,
+            }
+          : isLadder
+          ? {
+              rounds_per_session: parseInt(roundsPerSession) || 6,
+              max_move: parseInt(maxMove) || 3,
+              initial_ranking: initialRanking,
             }
           : {},
         created_by: user.id,
@@ -228,14 +242,15 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       return
     }
 
-    // Box leagues use cycles/boxes (created by later Box PRs), not weekly sessions.
-    if (!isBox && submitDates.length > 0) {
-      const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
+    // Period-based formats (box cycles, ladder sessions) create their play
+    // occasions on demand — not as pre-scheduled weekly league_sessions.
+    if (!usesPeriods && submitDates.length > 0) {
+      const roundsPlanned = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = submitDates.map((d, i) => ({
         league_id: league.id,
         session_date: d,
         session_number: i + 1,
-        rounds_planned: roundsPerSession,
+        rounds_planned: roundsPlanned,
       }))
       await supabase.from('league_sessions').insert(rows)
     }
@@ -250,15 +265,15 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         {BOX_ENABLED && (
           <FormRow
             label="League format"
-            helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles, with promotion & relegation."
+            helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles with promotion & relegation. Ladder: a ranked list where players move up/down after king-of-the-court nights."
           >
-            <div className="grid grid-cols-2 gap-2">
-              {([['session_rr', 'Round Robin'], ['box', 'Box League']] as const).map(([val, label]) => (
+            <div className="grid grid-cols-3 gap-2">
+              {([['session_rr', 'Round Robin'], ['box', 'Box League'], ['ladder', 'Ladder']] as const).map(([val, label]) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => setFormatKind(val)}
-                  className={`p-2.5 rounded-lg border text-left ${formatKind === val ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
+                  className={`p-2.5 rounded-lg border text-center ${formatKind === val ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
                 >
                   <div className="text-sm font-semibold text-brand-dark">{label}</div>
                 </button>
@@ -292,14 +307,14 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             ))}
           </select>
         </FormRow>
-        {teamType === 'doubles' && isBox && (
+        {teamType === 'doubles' && usesPeriods && (
           <FormRow label="Partner mode">
             <p className="text-sm text-brand-muted">
-              Box doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant for the whole cycle.
+              {isBox ? 'Box' : 'Ladder'} doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant{isBox ? ' for the whole cycle' : ' and holds one ladder position'}.
             </p>
           </FormRow>
         )}
-        {teamType === 'doubles' && !isBox && (
+        {teamType === 'doubles' && !usesPeriods && (
           <FormRow
             label="Partner mode"
             helpText="Rotating: scheduler picks a new partner each round. Fixed: captain picks partner at registration; same pair plays every match."
@@ -531,6 +546,25 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
                 <input type="number" min="0" value={relegateCount} onChange={(e) => setRelegateCount(e.target.value)} className="w-full input" />
               </div>
             </div>
+          </FormRow>
+        </FormSection>
+      )}
+
+      {isLadder && (
+        <FormSection title="Ladder League" description="King-of-the-court nights: players are seeded onto courts by rank, winners move up / losers move down, then the ladder updates. You'll set the starting order on the Roster screen." defaultOpen>
+          <FormRow label="Rounds per session" width="xs" helpText="How many short king-of-the-court games each night (you can finish early).">
+            <input type="number" min="1" value={roundsPerSession} onChange={(e) => setRoundsPerSession(e.target.value)} className="w-full input" />
+          </FormRow>
+          <FormRow label="Max move per night" width="xs" helpText="Most spots a player can climb or fall in one session — keeps the ladder gradual.">
+            <input type="number" min="1" value={maxMove} onChange={(e) => setMaxMove(e.target.value)} className="w-full input" />
+          </FormRow>
+          <FormRow label="Starting order" width="sm" helpText="How the initial ladder is seeded before session 1 (you can drag to adjust on Roster).">
+            <select value={initialRanking} onChange={(e) => setInitialRanking(e.target.value as typeof initialRanking)} className="w-full input">
+              <option value="rating">By rating / skill</option>
+              <option value="registration">Registration order</option>
+              <option value="random">Random</option>
+              <option value="manual">Manual (I'll set it)</option>
+            </select>
           </FormRow>
         </FormSection>
       )}
