@@ -11,6 +11,8 @@ import CycleSelector from './CycleSelector'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
+import { readLadderState } from '@/lib/leagues/ladderServer'
+import LadderStandings, { type LadderStandingRow } from './LadderStandings'
 
 export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string }> }) {
   const params = await props.params;
@@ -40,6 +42,68 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   // nav on standings). Format-aware: session live page for round-robin, the active
   // cycle's attendance surface for box.
   const runSessionAction = await getRunSessionAction(params.id, isManager0, (league as any).format_kind)
+
+  // ── Ladder leagues: the continuous ranking + movement + rank trend. ──
+  if ((league as any).format_kind === 'ladder') {
+    const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const state = await readLadderState(admin, params.id, (league as any).format, (league as any).format_settings_json ?? null)
+    const { data: hist } = await admin
+      .from('ladder_position_history')
+      .select('registration_id, session_number, position_before, position_after, wins, losses')
+      .eq('league_id', params.id)
+      .order('session_number', { ascending: true })
+    const history = (hist ?? []) as any[]
+    const hasHistory = history.length > 0
+    const latestSession = history.length ? Math.max(...history.map((h) => h.session_number ?? 0)) : 0
+    const byReg = new Map<string, any[]>()
+    for (const h of history) {
+      if (!byReg.has(h.registration_id)) byReg.set(h.registration_id, [])
+      byReg.get(h.registration_id)!.push(h)
+    }
+    const rows: LadderStandingRow[] = state.orderedIds.map((id, i) => {
+      const h = byReg.get(id) ?? []
+      const last = h.find((x) => x.session_number === latestSession) // their record IN the latest session (if they played)
+      return {
+        rank: i + 1,
+        name: state.nameOf(id),
+        prior: last ? last.position_before : null,
+        delta: last ? last.position_before - last.position_after : 0, // 0 = held rank (sat out)
+        wins: last?.wins ?? 0,
+        losses: last?.losses ?? 0,
+        spark: h.map((x) => -x.position_after), // negate so climbing plots upward
+      }
+    })
+
+    const navItems: ManageNavItem[] = [
+      { label: 'Overview', href: `/leagues/${params.id}` },
+      { label: 'Standings', href: `/leagues/${params.id}/standings` },
+      ...(isManager0 ? [
+        { label: 'Roster', href: `/leagues/${params.id}/roster` },
+        { label: 'Edit', href: `/leagues/${params.id}/edit` },
+      ] : []),
+    ]
+    return (
+      <DesktopShell
+        header={
+          <div className="flex items-center gap-3">
+            <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+            <span className="text-brand-muted text-sm">/</span>
+            <span className="text-sm font-medium text-brand-dark">Ladder</span>
+          </div>
+        }
+        sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
+      >
+        <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
+        <div className="space-y-4 pb-8 max-w-2xl">
+          <div>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Ladder</h1>
+            <p className="text-xs text-brand-muted">Current rank, movement since the last night (▲/▼), and trend.</p>
+          </div>
+          <LadderStandings rows={rows} hasHistory={hasHistory} />
+        </div>
+      </DesktopShell>
+    )
+  }
 
   // ── Box leagues: per-cycle box standings + match history + promotion/relegation.
   //    Early return keeps the session_rr path below untouched. ?cycle=<id> picks a

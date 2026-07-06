@@ -192,16 +192,18 @@ Fixture score route: `advancement = strategy-defined` — **none** (box), **conf
 
 ---
 
-## 10. Ladder League — high-level plan (after Flex)
+## 10. Ladder League — SHIPPED (king-of-the-court / up-down, July 7 2026)
 
-- **Challenge workflow:** `ladder_challenges (challenger_reg, challenged_reg, window, status: pending/accepted/declined/expired/played)`; on-demand `league_fixtures` per accepted challenge.
-- **Ranking model:** `ladder_positions (league_id, registration_id, rank | rating)` — position-swap (simple) or ELO (settings-driven).
-- **Challenge windows / cooldowns:** challenge range (± N ranks), response deadline, per-player cooldown, max open challenges (in `format_settings_json`).
-- **Inactive players:** inactivity decay / auto-decline after deadline.
-- **Forfeits:** no-response → forfeit + ranking penalty.
-- **Score handling:** fixture score route with **ranking-mutation** advancement (new `applyLadderResult`).
-- **Ranking updates:** swap or ELO delta on each completed challenge.
-- **Reuse:** score validation, notifications, windows, fixture row. **~25% reuse — mostly new;** belongs last.
+> The original sketch here was a *challenge* ladder. We built a **session-based king-of-the-court ladder** instead — the challenge model was rejected in planning (players wanted structured nights, not on-demand challenges), and a foursome/pod ladder was rejected as redundant with Box. Reuse ended up **~70%**, not ~25%.
+
+- **Format:** `leagues.format_kind='ladder'`. A season-long continuous ranking `ladder_positions (league_id, registration_id, position)` + trend `ladder_position_history` (per-participant per-session before/after/W-L). Entrants = singles or fixed-partner doubles teams (folded via `dedupeRegistrationsToTeams`).
+- **Session = `league_periods`** (`period_kind='ladder_session'`). Per-court games = `league_fixtures` (`round_number` + `court_number`, `match_stage` `ladder_round`/`ladder_bye`). Attendance/subs = `league_attendance`. No `league_boxes`.
+- **Play (king-of-the-court):** round 1 seeds present entrants onto **courts of 2** by rank; each round the **winner moves up a court, loser down** (`seedKotcRound`/`nextKotcRound`; `rounds_per_session` default 6). Odd → loser-sits bye rotation.
+- **Movement:** bounded — `boundedMovement` (odd-even transposition, `max_move` passes, default 3) toward the night's win-% (`computeFixtureStandings`), then `reintegrateRanking` so **absent entrants hold rank**. Subs play for the covered entrant's spot. Organizer confirms via **preview → Finalize** (`/ladder/finalize`); no auto-mutation.
+- **Engine:** `lib/leagues/ladder.ts` (pure, 16 tests) + `lib/leagues/ladderServer.ts` (reads/update). Routes `/api/leagues/[id]/ladder/{rank,start-session,round,finalize}`; score reuses `/fixtures/[id]/score`.
+- **UI:** Create/Edit format + settings; Roster order editor (reuses `SeededRoster`); Run hub `/leagues/[id]/ladder` (attendance via `BoxAttendanceManager`, rounds via `LadderRounds`); Standings ranking + `▲/▼` + trend; overview player card.
+- **Deliberately not reused:** box `applyPromotionRelegation` (leapfrogs a group winner to the tier top — wrong for a continuous ladder).
+- **v1 limits / future:** no re-finalize after close (fix scores first, else manual reorder); absent = hold only (decay/penalty later); alternative movement signals (net court movement, ELO) later; open *challenge* ladder still possible on this schema later.
 
 ---
 
