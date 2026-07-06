@@ -1,4 +1,5 @@
 'use client'
+import { useRouter } from 'next/navigation'
 import { useDialog } from '@/components/ui/DialogProvider'
 import SeededRoster, { type SeededItem } from '@/components/features/leagues/SeededRoster'
 
@@ -10,6 +11,7 @@ export default function BoxSeedingSection({
   leagueId, initialBoxCount, maxBoxes, entrants, initialSaved,
 }: { leagueId: string; initialBoxCount: number; maxBoxes: number; entrants: SeededItem[]; initialSaved: boolean }) {
   const { confirm } = useDialog()
+  const router = useRouter()
 
   async function onSave(orderedRegistrationIds: string[], numBoxes: number) {
     const post = (force: boolean) =>
@@ -37,6 +39,9 @@ export default function BoxSeedingSection({
       const j = await res.json().catch(() => ({}))
       throw new Error(j.error ?? 'Save failed')
     }
+    // Re-render the server component so the just-created cycle's attendance grid +
+    // matches appear immediately (no manual refresh needed).
+    router.refresh()
   }
 
   return (
