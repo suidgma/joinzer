@@ -53,6 +53,8 @@ export async function POST(req: NextRequest, props: Params) {
     if (!row) return NextResponse.json({ error: 'Sub not found' }, { status: 400 })
     subRowId = row.id
   } else if (subUserId) {
+    // A sub can be any profile (like round-robin) — link a registration if they
+    // have one, else store the bare user_id.
     const { data: reg } = await db
       .from('league_registrations')
       .select('id')
@@ -60,18 +62,14 @@ export async function POST(req: NextRequest, props: Params) {
       .eq('user_id', subUserId)
       .neq('status', 'cancelled')
       .maybeSingle()
-    if (!reg) return NextResponse.json({ error: 'Sub is not registered in this league' }, { status: 400 })
-    const { data: existing } = await db
-      .from('league_attendance')
-      .select('id')
-      .eq('period_id', periodId)
-      .eq('registration_id', reg.id)
-      .maybeSingle()
+    const { data: existing } = reg
+      ? await db.from('league_attendance').select('id').eq('period_id', periodId).eq('registration_id', reg.id).maybeSingle()
+      : await db.from('league_attendance').select('id').eq('period_id', periodId).eq('user_id', subUserId).limit(1).maybeSingle()
     subRowId = existing?.id ?? null
     if (!subRowId) {
       const { data: inserted, error } = await db
         .from('league_attendance')
-        .insert({ league_id: params.id, period_id: periodId, registration_id: reg.id, user_id: subUserId, status: 'present' })
+        .insert({ league_id: params.id, period_id: periodId, registration_id: reg?.id ?? null, user_id: subUserId, status: 'present' })
         .select('id')
         .single()
       if (error || !inserted) return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 })
