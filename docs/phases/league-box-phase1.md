@@ -3,6 +3,12 @@
 > ⚠️ **Design proposal, not current state.** Companion to `docs/phases/league-formats.md` (architecture) and `docs/phases/league-formats-phase0.md` (Phase 0 breakdown).
 > Additive, backward-compatible, **zero change to current production behavior** until a format explicitly opts in.
 > Last revised: July 2, 2026.
+>
+> **Diverged since shipped (July 6, 2026):** the box flow moved off the Roster
+> screen. Seeding, attendance, generate/score, and cycle advance all live on the
+> **Run Session** surface (`/leagues/[id]/attendance`), and boxes are formed by a
+> game-time **number of boxes** (not a create-time `box_size`; Create/Edit no
+> longer expose box size). See the CLAUDE.md box entry for current reality.
 
 ## Prerequisite: Phase 0 (merged)
 

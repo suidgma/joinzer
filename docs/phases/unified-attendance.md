@@ -140,6 +140,12 @@ migration lands last**, behind everything else being proven.
   standings/promotion-relegation need no change. **v1 caveat:** attendance + subs
   operate at the **entrant** level (a team in doubles, a player in singles);
   per-individual-within-a-doubles-team subbing is a future refinement.
+  **Since grown into the box "Run Session" hub (PRs #234–#236):** the same
+  `/leagues/[id]/attendance` page now also hosts **box seeding** (organizer picks
+  the *number of boxes*; players auto-fill evenly via `distributeIntoBoxes`, shown
+  only before matches are scored), **generate + score matches** (`BoxFixtures`),
+  and **advance the cycle** (`BoxCycleBar`). Run Session always shows for box
+  admins; the Roster page is registration-only.
 
 - **Phase 4 — Migrate round-robin onto `league_attendance`. ❌ NOT PURSUED (decision, July 3, 2026).**
   Evaluated and rejected as high-risk / low-reward. Round-robin's attendance lives

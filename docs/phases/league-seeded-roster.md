@@ -2,6 +2,13 @@
 
 > ⚠️ **Design proposal, not current state.** Companion to `docs/phases/league-formats.md` (architecture) and `docs/phases/league-box-phase1.md` (Box breakdown).
 > Design-only. No code yet. Last revised: July 3, 2026.
+>
+> **Since shipped (July 6, 2026):** two things diverged from this note. (1) The box
+> seeded roster now lives on the **Run Session** surface (`/leagues/[id]/attendance`),
+> not the Roster screen — and shows only before the cycle's matches are scored.
+> (2) Boxes are formed by **number of boxes** (organizer-chosen at game time,
+> `distributeIntoBoxes` splits evenly), **not** by a fixed `box_size` chunk. See the
+> CLAUDE.md box entry for current reality.
 
 ## Motivation
 
