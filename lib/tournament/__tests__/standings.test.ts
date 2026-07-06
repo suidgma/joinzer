@@ -75,3 +75,25 @@ describe('computeStandings — point-differential tiebreak', () => {
     expect(rows.map(r => r.regId)).toEqual(['Abel', 'Caleb', 'Byron', 'Dante'])
   })
 })
+
+describe('computeStandings — head-to-head tiebreak', () => {
+  // Round-robin of A, B, X, Y. A & B both finish 2-1 with +/- +4 and equal PF; X &
+  // Y both finish 1-2 with +/- -4 and equal PF — so within each pair only the
+  // head-to-head result differs. B beat A and Y beat X, so they must rank first in
+  // their pair even though the name tiebreak (A<B, X<Y) would say otherwise.
+  const four = ['A', 'B', 'X', 'Y']
+  const fourRegs: StandingsRegInput[] = four.map(p => ({ id: p, status: 'registered', partner_registration_id: null }))
+  const rr: StandingsMatchInput[] = [
+    m('round_robin', 1, 'B', 'A', 11, 7), // B beats A (head-to-head)
+    m('round_robin', 1, 'A', 'X', 11, 7),
+    m('round_robin', 1, 'A', 'Y', 11, 7),
+    m('round_robin', 1, 'X', 'B', 11, 7),
+    m('round_robin', 1, 'B', 'Y', 11, 7),
+    m('round_robin', 1, 'Y', 'X', 11, 7), // Y beats X (head-to-head)
+  ]
+
+  it('breaks a record + point-diff tie by head-to-head', () => {
+    const rows = computeStandings(rr, fourRegs, (id) => id)
+    expect(rows.map(r => r.regId)).toEqual(['B', 'A', 'Y', 'X'])
+  })
+})

@@ -4,11 +4,14 @@
 // One ranking rule for every format (round robin, pool play, single/double elim):
 //   1. Win percentage  (wins ÷ games played) — highest first
 //   2. Point differential (+/-)              — highest first
-//   3. Points scored (PF)                    — highest first
-//   4. Team name                             — alphabetical (final tiebreak)
+//   3. Head-to-head     (record among the tied teams, then their +/-)
+//   4. Points scored (PF)                    — highest first
+//   5. Team name                             — alphabetical (final tiebreak)
 // Win% (rather than raw wins) keeps an undefeated team above one with the same
 // number of wins but more losses, so a double-elim winners-bracket team still
 // outranks a one-loss losers-bracket team without any bracket-position math.
+// Head-to-head only breaks a tie once record AND +/- are equal (so a better +/-
+// still wins even if you lost the head-to-head, matching the point-diff test).
 //
 // Returns one canonical row per team (doubles partners folded together); the
 // caller supplies the display name from regId.
@@ -77,15 +80,48 @@ export function computeStandings(
     return games === 0 ? 0 : r.wins / games
   }
 
-  return Array.from(map.values())
-    .sort((a, b) => {
-      const wp = winPct(b) - winPct(a)
-      if (wp !== 0) return wp
-      const diff = (b.pf - b.pa) - (a.pf - a.pa)
-      if (diff !== 0) return diff
-      if (b.pf !== a.pf) return b.pf - a.pf
-      // Still tied (notably everyone at 0–0 before any match): order alphabetically
-      // by display name rather than leaving it at seed/insertion order.
-      return nameOf ? nameOf(a.regId).localeCompare(nameOf(b.regId)) : 0
-    })
+  // Primary sort: win% then point differential. Everything tied beyond that is
+  // broken by head-to-head (below), then PF, then name.
+  const rows = Array.from(map.values()).sort((a, b) => {
+    const wp = winPct(b) - winPct(a)
+    if (wp !== 0) return wp
+    return (b.pf - b.pa) - (a.pf - a.pa)
+  })
+
+  // Head-to-head: within each run of teams tied on (win%, +/-), re-rank by their
+  // record against *each other* (only matches between the tied teams count), then
+  // their head-to-head +/-, then overall PF, then name. This also cleanly handles
+  // the pre-play 0–0 case (no head-to-head games → falls straight through to name).
+  const groupKey = (r: StandingsRow) => `${winPct(r).toFixed(6)}|${r.pf - r.pa}`
+  const ordered: StandingsRow[] = []
+  for (let i = 0; i < rows.length; ) {
+    let j = i + 1
+    while (j < rows.length && groupKey(rows[j]) === groupKey(rows[i])) j++
+    const group = rows.slice(i, j)
+    if (group.length > 1) {
+      const ids = new Set(group.map(g => g.regId))
+      const h2h = new Map(group.map(g => [g.regId, { wins: 0, pf: 0, pa: 0 }]))
+      for (const mm of matches) {
+        if (mm.status !== 'completed' || !mm.team_1_registration_id || !mm.team_2_registration_id) continue
+        const t1 = canon(mm.team_1_registration_id), t2 = canon(mm.team_2_registration_id)
+        if (!ids.has(t1) || !ids.has(t2)) continue
+        const s1 = mm.team_1_score ?? 0, s2 = mm.team_2_score ?? 0
+        const w = mm.winner_registration_id ? canon(mm.winner_registration_id) : null
+        const a = h2h.get(t1)!, b = h2h.get(t2)!
+        if (w === t1) a.wins++; else if (w === t2) b.wins++
+        a.pf += s1; a.pa += s2; b.pf += s2; b.pa += s1
+      }
+      const hWins = (id: string) => h2h.get(id)!.wins
+      const hDiff = (id: string) => h2h.get(id)!.pf - h2h.get(id)!.pa
+      group.sort((a, b) => {
+        if (hWins(b.regId) !== hWins(a.regId)) return hWins(b.regId) - hWins(a.regId)
+        if (hDiff(b.regId) !== hDiff(a.regId)) return hDiff(b.regId) - hDiff(a.regId)
+        if (b.pf !== a.pf) return b.pf - a.pf
+        return nameOf ? nameOf(a.regId).localeCompare(nameOf(b.regId)) : 0
+      })
+    }
+    ordered.push(...group)
+    i = j
+  }
+  return ordered
 }
