@@ -27,6 +27,13 @@ const REG_OPTIONS = [
   { value: 'closed', label: 'Closed' },
 ]
 
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// League name auto-composes from these until the organizer edits it.
+const CATEGORY_NAME: Record<string, string> = {
+  men: "Men's", women: "Women's", mixed: 'Mixed', coed: 'Coed', open: 'Open',
+}
+
 // Append Pacific offset to a datetime-local string (YYYY-MM-DDTHH:mm) for DB storage
 function ptLocalToIso(local: string): string {
   const month = parseInt(local.slice(5, 7), 10)
@@ -37,6 +44,7 @@ function ptLocalToIso(local: string): string {
 export default function CreateLeagueForm({ locations }: { locations: LocationOption[] }) {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [nameTouched, setNameTouched] = useState(false)
   const [teamType, setTeamType] = useState<'doubles' | 'singles'>('doubles')
   const [category, setCategory] = useState('mixed')
   const [skillMin, setSkillMin] = useState('2.0')
@@ -75,6 +83,21 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const selectedLocation = locations.find((l) => l.id === locationId)
   const pointsToWinNum = parseInt(pointsToWin) || 11
   const isBox = formatKind === 'box'
+
+  // Auto-compose the league name from the chosen settings until the organizer edits
+  // it. Clearing the field resumes autofill, so the name stays in sync with day /
+  // category / team type / format without ever locking it.
+  useEffect(() => {
+    if (nameTouched) return
+    const day = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
+    const auto = [
+      day,
+      CATEGORY_NAME[category] ?? '',
+      teamType === 'doubles' ? 'Doubles' : 'Singles',
+      formatKind === 'box' ? 'Box League' : '',
+    ].filter(Boolean).join(' ')
+    setName(auto)
+  }, [nameTouched, startDate, category, teamType, formatKind])
 
   // Auto-set deadline to 11:59pm the day before league start (PT) when startDate changes
   useEffect(() => {
@@ -126,7 +149,6 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0, new Set(noPlayDates))
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
 
-  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const dayLabel = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
 
   async function handleSubmit(e: React.FormEvent) {
@@ -218,17 +240,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
 
-      <FormSection title="Basics" description="League details, format, and scoring rules." defaultOpen>
-        <FormRow label="League name" htmlFor="name" required>
-          <input
-            id="name"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Wednesday Night Mixed Doubles"
-            className="w-full input"
-          />
-        </FormRow>
+      <FormSection title="Basics" description="Format and scoring rules." defaultOpen>
         {BOX_ENABLED && (
           <FormRow
             label="League format"
@@ -518,6 +530,16 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       )}
 
       <FormSection title="Registration" defaultOpen>
+        <FormRow label="League name" htmlFor="name" required helpText="Auto-filled from your settings — edit to customize, or clear it to reset.">
+          <input
+            id="name"
+            required
+            value={name}
+            onChange={(e) => { setName(e.target.value); setNameTouched(e.target.value.trim() !== '') }}
+            placeholder="Wednesday Night Mixed Doubles"
+            className="w-full input"
+          />
+        </FormRow>
         <FormRow label="Status" width="sm">
           <select value={registrationStatus} onChange={(e) => setRegistrationStatus(e.target.value)} className="w-full input">
             {REG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
