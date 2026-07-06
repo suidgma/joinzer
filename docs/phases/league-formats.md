@@ -62,7 +62,7 @@ Six smallest-safe, additive changes:
 ## 2. Generalized league format model
 
 - **`leagues.format_kind`** `text not null default 'session_rr'`, check `in ('session_rr','box','flex','ladder','team')`. Existing rows default to `session_rr` → zero behavior change.
-- **`leagues.format_settings_json`** `jsonb not null default '{}'`. Mirrors `tournament_divisions.format_settings_json`. Holds per-format knobs (box size, cycle length, window length, challenge range) — never add a column per format.
+- **`leagues.format_settings_json`** `jsonb not null default '{}'`. Mirrors `tournament_divisions.format_settings_json`. Holds per-format knobs (number of boxes, cycle length, window length, challenge range) — never add a column per format.
 - **Shared format strategy interface** (`lib/leagues/formats/`):
   - `generateFixtures?(ctx)` → fixture rows (box/flex)
   - `generateNextRound?(ctx)` → round (session_rr delegates to `leagueScheduler`)
@@ -168,7 +168,7 @@ Fixture score route: `advancement = strategy-defined` — **none** (box), **conf
 ## 8. Box League — PR-sized plan (after Phase 0)
 
 - **Tables:** `league_periods` (cycle rows), `league_boxes (id, period_id, name, tier_rank, box_size)`, `league_box_members (box_id, registration_id, seed_in_box)`. (`league_fixtures.period_id/box_id` from Phase 0.)
-- **Settings** (`format_settings_json`): box size, # tiers, cycle length/dates, promote/relegate count, tiebreak/standings method, singles-vs-doubles.
+- **Settings** (`format_settings_json`): number of boxes (`num_boxes`, chosen at game time on the Run Session seeding page — not at creation), cycle length/dates, promote/relegate count, tiebreak/standings method, singles-vs-doubles.
 - **Cycle creation:** route to open a `league_periods` cycle.
 - **Box creation:** seed roster into tiered boxes by rating (reference `components/features/tournaments/SeedingPanel.tsx` `teamRating`) with organizer override.
 - **Fixture generation:** `poolPlayMatches(boxMemberRegIds, numBoxes, base, assignments=box membership)` → map rows to `league_fixtures` (`pool_number`→`box_id`). ~full reuse.
