@@ -47,6 +47,16 @@ export async function POST(req: NextRequest, props: Params) {
     membersByBox.get(m.box_id)!.push(m)
   }
 
+  // Only players marked "Here" (present) are scheduled. A member covered by a sub
+  // (has_sub) is included too — the sub plays under that member's registration.
+  const { data: attendance } = await db
+    .from('league_attendance').select('registration_id, status').eq('period_id', cycle.id)
+  const here = new Set(
+    (attendance ?? [])
+      .filter((a: any) => a.registration_id && (a.status === 'present' || a.status === 'has_sub'))
+      .map((a: any) => a.registration_id),
+  )
+
   const fixtureRows: any[] = []
   let matchNum = 1
   let skippedBoxes = 0
@@ -54,6 +64,7 @@ export async function POST(req: NextRequest, props: Params) {
     const memberIds = (membersByBox.get(box.id) ?? [])
       .slice().sort((a: any, b: any) => (a.seed_in_box ?? 0) - (b.seed_in_box ?? 0))
       .map((m: any) => m.registration_id)
+      .filter((id: string) => here.has(id))
     if (memberIds.length < 2) { skippedBoxes++; continue }
     const { rows, nextMatchNum } = roundRobinMatches(memberIds, { status: 'scheduled' } as any, matchNum)
     matchNum = nextMatchNum
@@ -73,7 +84,7 @@ export async function POST(req: NextRequest, props: Params) {
   }
 
   if (fixtureRows.length === 0) {
-    return NextResponse.json({ error: 'No boxes have 2+ players to schedule.' }, { status: 400 })
+    return NextResponse.json({ error: 'No box has 2+ players marked Here. Mark attendance first, then generate.' }, { status: 400 })
   }
 
   // Don't silently wipe entered results — re-generating over completed fixtures
