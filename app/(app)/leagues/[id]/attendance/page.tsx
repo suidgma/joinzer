@@ -240,15 +240,19 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   // Show the sub's name in match assignments when a member is actually being subbed
   // (round-robin parity; the covered registration keeps the scoring credit). The
   // sub's subbingForRegistrationId is already null unless the member is 'has_sub'.
-  const subNameByCoveredReg = new Map<string, string>()
+  // A doubles team is one entrant, so a whole-team sub links two covering rows to
+  // the same registration — collect all and render "SubA/SubB".
+  const subNamesByCoveredReg = new Map<string, string[]>()
   for (const a of attendees) {
     if (a.kind !== 'roster' && a.subbingForRegistrationId) {
-      subNameByCoveredReg.set(a.subbingForRegistrationId, a.displayName)
+      const arr = subNamesByCoveredReg.get(a.subbingForRegistrationId) ?? []
+      arr.push(firstName(a.displayName) || a.displayName)
+      subNamesByCoveredReg.set(a.subbingForRegistrationId, arr)
     }
   }
   const matchName = (regId: string | null): string => {
-    const sub = regId ? subNameByCoveredReg.get(regId) : undefined
-    return sub ? (firstName(sub) || sub) : nameOf(regId)
+    const subs = regId ? subNamesByCoveredReg.get(regId) : undefined
+    return subs && subs.length ? subs.join('/') : nameOf(regId)
   }
 
   const fxByBox = new Map<string, any[]>()
@@ -338,6 +342,7 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
               periodId={cycle.id}
               initialAttendees={attendees}
               availableSubs={availableSubs}
+              doubles={doubles}
             />
             <BoxFixtures
               leagueId={params.id}

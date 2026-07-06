@@ -135,14 +135,18 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         ? await admin.from('profiles').select('id, name').in('id', subUserIds)
         : { data: [] as any[] }
       const subNameByUser = new Map((subProfiles ?? []).map((p: any) => [p.id, p.name]))
-      const subNameByCoveredReg = new Map<string, string>()
+      // A doubles team is one entrant, so a whole-team sub links two covering rows
+      // to the same registration — collect all and render "SubA/SubB".
+      const subNamesByCoveredReg = new Map<string, string[]>()
       for (const a of subRows) {
         const nm = a.registration_id ? nameOf(a.registration_id) : (a.user_id ? (subNameByUser.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest'))
-        subNameByCoveredReg.set(a.subbing_for_registration_id, nm)
+        const arr = subNamesByCoveredReg.get(a.subbing_for_registration_id) ?? []
+        arr.push(firstName(nm) || nm)
+        subNamesByCoveredReg.set(a.subbing_for_registration_id, arr)
       }
       const matchName = (regId: string | null): string => {
-        const sub = regId ? subNameByCoveredReg.get(regId) : undefined
-        return sub ? (firstName(sub) || sub) : nameOf(regId as string)
+        const subs = regId ? subNamesByCoveredReg.get(regId) : undefined
+        return subs && subs.length ? subs.join('/') : nameOf(regId as string)
       }
 
       boxViews = (bx ?? []).map((b: any) => {

@@ -44,12 +44,18 @@ export type AttendeeInput = {
  * format-agnostic — round-robin, box, and future formats all feed it.
  */
 export function buildAttendeeRows(inputs: AttendeeInput[]): { roster: AttendeeRow[]; subs: AttendeeRow[] } {
-  // covering attendee's name, keyed by the covered member's registration
-  const coveringNameByReg = new Map<string, string>()
+  // covering attendees' names, keyed by the covered member's registration. A
+  // doubles team is one entrant, so a whole-team sub links TWO covering rows to
+  // the same registration — join them into "SubA/SubB".
+  const coveringNamesByReg = new Map<string, string[]>()
   // covered roster member's name, keyed by their registration
   const rosterNameByReg = new Map<string, string>()
   for (const i of inputs) {
-    if (i.subbingForRegistrationId) coveringNameByReg.set(i.subbingForRegistrationId, i.displayName)
+    if (i.subbingForRegistrationId) {
+      const arr = coveringNamesByReg.get(i.subbingForRegistrationId) ?? []
+      arr.push(i.displayName)
+      coveringNamesByReg.set(i.subbingForRegistrationId, arr)
+    }
     if (i.kind === 'roster' && i.registrationId) rosterNameByReg.set(i.registrationId, i.displayName)
   }
 
@@ -65,7 +71,8 @@ export function buildAttendeeRows(inputs: AttendeeInput[]): { roster: AttendeeRo
       selfReportBadge: i.selfReportBadge,
     }
     if (i.kind === 'roster') {
-      roster.push({ ...base, subbedByName: i.registrationId ? coveringNameByReg.get(i.registrationId) : undefined })
+      const covering = i.registrationId ? coveringNamesByReg.get(i.registrationId) : undefined
+      roster.push({ ...base, subbedByName: covering?.length ? covering.join('/') : undefined })
     } else {
       subs.push({ ...base, coveringName: i.subbingForRegistrationId ? rosterNameByReg.get(i.subbingForRegistrationId) : undefined })
     }
