@@ -11,6 +11,8 @@ export type BoxAttendee = {
   rowId: string
   attendanceId: string | null
   registrationId: string | null
+  /** Doubles roster rows: the partner's registration — the team's second slot. */
+  partnerRegistrationId?: string | null
   kind: 'roster' | 'sub' | 'guest'
   displayName: string
   status: LeagueAttendanceStatus
@@ -177,8 +179,9 @@ export default function BoxAttendanceManager({
 }
 
 // ── Assign Sub ────────────────────────────────────────────────────────────────
-// Doubles: a team is one entrant, so subbing it out replaces BOTH players — the
-// modal takes two picks and links both to the team's registration ("SubA/SubB").
+// Doubles: a team is one entrant with two slots. Sub out both players (whole team
+// out) or just one (the other is present) — each pick links to that player's own
+// registration, so the team renders per slot ("SubA/SubB" or "SubA/PresentPartner").
 function AssignSubModal({
   leagueId, periodId, member, doubles, unassignedSubs, availableSubs, onClose, onAssigned, setBusy,
 }: {
@@ -202,28 +205,48 @@ function AssignSubModal({
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // Two slots only when we know both player registrations. Each slot is optional —
+  // leave one empty when that player is here — but at least one is required.
+  const canPair = doubles && !!member.registrationId && !!member.partnerRegistrationId
   const nameOfValue = (v: string) => options.find((o) => o.value === v)?.name ?? 'Sub'
   const toChoice = (v: string) => (v.startsWith('att:') ? { subAttendanceId: v.slice(4) } : { subUserId: v.slice(5) })
 
   // Label each picker with the player it replaces ("A/B" → "Sub for A" / "Sub for B").
   const parts = member.displayName.split('/')
-  const label1 = doubles ? (parts[0] ? `Sub for ${parts[0]}` : 'Replacement 1') : null
-  const label2 = doubles ? (parts[1] ? `Sub for ${parts[1]}` : 'Replacement 2') : null
+  const label1 = parts[0] ? `Sub for ${parts[0]}` : 'Replacement 1'
+  const label2 = parts[1] ? `Sub for ${parts[1]}` : 'Replacement 2'
+
+  const canSubmit = canPair ? !!(value || value2) : !!value
 
   async function assign() {
-    if (!value || (doubles && !value2)) return
+    if (!canSubmit) return
     setSaving(true); setBusy(true); setErr(null)
-    const values = doubles ? [value, value2] : [value]
-    const body: Record<string, unknown> = { periodId, coveredRegistrationId: member.registrationId }
-    if (doubles) body.subs = values.map(toChoice)
-    else Object.assign(body, toChoice(value))
+
+    let body: Record<string, unknown>
+    let values: string[]
+    if (canPair) {
+      const slots = [
+        { forRegistrationId: member.registrationId as string, value },
+        { forRegistrationId: member.partnerRegistrationId as string, value: value2 },
+      ].filter((s) => s.value)
+      values = slots.map((s) => s.value)
+      body = {
+        periodId,
+        coveredRegistrationId: member.registrationId,
+        slotRegistrationIds: [member.registrationId, member.partnerRegistrationId],
+        subs: slots.map((s) => ({ ...toChoice(s.value), forRegistrationId: s.forRegistrationId })),
+      }
+    } else {
+      values = [value]
+      body = { periodId, coveredRegistrationId: member.registrationId, ...toChoice(value) }
+    }
 
     try {
       const res = await fetch(`/api/leagues/${leagueId}/attendance/assign-sub`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       const data = await res.json()
-      const rows: any[] | null = doubles ? (data.subs ?? null) : (data.sub ? [data.sub] : null)
+      const rows: any[] | null = canPair ? (data.subs ?? null) : (data.sub ? [data.sub] : null)
       if (!res.ok || !rows) { setErr(data.error ?? 'Failed to assign'); setSaving(false); setBusy(false); return }
       onAssigned(rows.map((row, i) => ({
         rowId: row.id,
@@ -232,7 +255,8 @@ function AssignSubModal({
         kind: (row.registration_id || row.user_id ? 'sub' : 'guest') as BoxAttendee['kind'],
         displayName: nameOfValue(values[i]),
         status: row.status,
-        subbingForRegistrationId: row.subbing_for_registration_id ?? member.registrationId,
+        // Group under the team's box row so the grid shows every cover on one row.
+        subbingForRegistrationId: member.registrationId,
       })))
     } catch {
       setErr('Network error')
@@ -246,22 +270,23 @@ function AssignSubModal({
     ))
 
   return (
-    <ModalShell title={doubles ? 'Assign Subs' : 'Assign Sub'} subtitle={`Covering for ${member.displayName}`} onClose={onClose}>
-      {options.length < (doubles ? 2 : 1) ? (
-        <p className="text-sm text-brand-muted">Not enough available players to assign{doubles ? ' a pair' : ''}.</p>
-      ) : doubles ? (
+    <ModalShell title={canPair ? 'Assign Subs' : 'Assign Sub'} subtitle={`Covering for ${member.displayName}`} onClose={onClose}>
+      {options.length < 1 ? (
+        <p className="text-sm text-brand-muted">No available players to assign.</p>
+      ) : canPair ? (
         <div className="space-y-3">
+          <p className="text-[11px] text-brand-muted">Leave a slot empty if that player is here.</p>
           <div className="space-y-1">
             <p className="text-xs font-medium text-brand-muted">{label1}</p>
             <select autoFocus value={value} onChange={(e) => setValue(e.target.value)} className="w-full input text-sm">
-              <option value="">— Select a sub —</option>
+              <option value="">— Here / no sub —</option>
               {optionList(value2)}
             </select>
           </div>
           <div className="space-y-1">
             <p className="text-xs font-medium text-brand-muted">{label2}</p>
             <select value={value2} onChange={(e) => setValue2(e.target.value)} className="w-full input text-sm">
-              <option value="">— Select a sub —</option>
+              <option value="">— Here / no sub —</option>
               {optionList(value)}
             </select>
           </div>
@@ -273,7 +298,7 @@ function AssignSubModal({
         </select>
       )}
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <ModalButtons onClose={onClose} onConfirm={assign} confirmLabel={saving ? 'Assigning…' : 'Assign'} disabled={saving || !value || (doubles && !value2)} />
+      <ModalButtons onClose={onClose} onConfirm={assign} confirmLabel={saving ? 'Assigning…' : 'Assign'} disabled={saving || !canSubmit} />
     </ModalShell>
   )
 }

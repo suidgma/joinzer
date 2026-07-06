@@ -128,25 +128,40 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             .select('registration_id, user_id, guest_name, status, subbing_for_registration_id')
             .eq('period_id', selectedCycle.id)
         : { data: [] as any[] }
+      // A doubles team is one entrant with two slots: a sub covering either partner
+      // resolves back to the team's box row, and each slot renders independently
+      // ("SubA/SubB" or "SubA/Eliana" when just one player is out).
+      const teamRegOf = new Map<string, string>()
+      for (const m of (mem ?? [])) {
+        const regA = m.registration_id
+        teamRegOf.set(regA, regA)
+        const partnerRid = (byRegId.get(regA) as any)?.partner_registration_id
+        if (partnerRid) teamRegOf.set(partnerRid, regA)
+      }
       const coveredRegs = new Set((att ?? []).filter((a: any) => a.status === 'has_sub' && a.registration_id).map((a: any) => a.registration_id))
-      const subRows = (att ?? []).filter((a: any) => a.subbing_for_registration_id && coveredRegs.has(a.subbing_for_registration_id))
+      const subRows = (att ?? []).filter((a: any) => {
+        const teamReg = a.subbing_for_registration_id ? teamRegOf.get(a.subbing_for_registration_id) : undefined
+        return teamReg && coveredRegs.has(teamReg)
+      })
       const subUserIds = [...new Set(subRows.map((a: any) => a.user_id).filter(Boolean))] as string[]
       const { data: subProfiles } = subUserIds.length
         ? await admin.from('profiles').select('id, name').in('id', subUserIds)
         : { data: [] as any[] }
       const subNameByUser = new Map((subProfiles ?? []).map((p: any) => [p.id, p.name]))
-      // A doubles team is one entrant, so a whole-team sub links two covering rows
-      // to the same registration — collect all and render "SubA/SubB".
-      const subNamesByCoveredReg = new Map<string, string[]>()
+      const subNameBySlotReg = new Map<string, string>()
       for (const a of subRows) {
         const nm = a.registration_id ? nameOf(a.registration_id) : (a.user_id ? (subNameByUser.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest'))
-        const arr = subNamesByCoveredReg.get(a.subbing_for_registration_id) ?? []
-        arr.push(firstName(nm) || nm)
-        subNamesByCoveredReg.set(a.subbing_for_registration_id, arr)
+        subNameBySlotReg.set(a.subbing_for_registration_id, firstName(nm) || nm)
       }
       const matchName = (regId: string | null): string => {
-        const subs = regId ? subNamesByCoveredReg.get(regId) : undefined
-        return subs && subs.length ? subs.join('/') : nameOf(regId as string)
+        if (!regId) return nameOf(regId as string)
+        if (!doubles) return subNameBySlotReg.get(regId) ?? nameOf(regId)
+        const slotName = (rid: string | null): string =>
+          rid ? (subNameBySlotReg.get(rid) ?? (firstName((byRegId.get(rid) as any)?.profile?.name) || '')) : ''
+        const partnerRegId = (byRegId.get(regId) as any)?.partner_registration_id ?? null
+        const a = slotName(regId)
+        const b = partnerRegId ? slotName(partnerRegId) : ''
+        return b ? `${a}/${b}` : (a || nameOf(regId))
       }
 
       boxViews = (bx ?? []).map((b: any) => {

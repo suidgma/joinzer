@@ -161,6 +161,16 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   }
   const boxMemberRegIds = new Set((members ?? []).map((m: any) => m.registration_id))
 
+  // Map each player's registration → their team's box-member (canonical) registration.
+  // A doubles team is one entrant, so a sub covering EITHER partner resolves back to
+  // the single box row; the empty slot stays the present partner.
+  const teamRegOf = new Map<string, string>()
+  for (const rid of boxMemberRegIds) {
+    teamRegOf.set(rid, rid)
+    const partnerRid = byRegId.get(rid)?.partner_registration_id
+    if (partnerRid) teamRegOf.set(partnerRid, rid)
+  }
+
   // Clean up leftover subs: a sub/guest that's absent and not covering anyone is no
   // longer participating, so drop the row (it also returns them to the Add Sub pool).
   const staleSubIds = (attendance ?? []).filter((a: any) =>
@@ -202,6 +212,7 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
         rowId: m.registration_id,
         attendanceId: att?.id ?? null,
         registrationId: m.registration_id,
+        partnerRegistrationId: doubles ? (byRegId.get(m.registration_id)?.partner_registration_id ?? null) : null,
         kind: 'roster',
         displayName: nameOf(m.registration_id),
         status: att?.status ?? 'not_present',
@@ -213,16 +224,21 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   for (const a of liveAttendance) {
     if (a.registration_id && boxMemberRegIds.has(a.registration_id)) continue
     const isGuest = !a.registration_id && !a.user_id && !!a.guest_name
+    // Normalize a slot-level cover (either partner's reg) to the team's box row so
+    // the grid groups both subs under the one entrant, gated on the team being subbed.
+    const slotReg = a.subbing_for_registration_id
+    const teamReg = slotReg ? teamRegOf.get(slotReg) : undefined
     attendees.push({
       rowId: a.id,
       attendanceId: a.id,
       registrationId: a.registration_id ?? null,
+      partnerRegistrationId: null,
       kind: isGuest ? 'guest' : 'sub',
       displayName: a.registration_id
         ? nameOf(a.registration_id)
         : (a.user_id ? (nameByUserId.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest')),
       status: a.status,
-      subbingForRegistrationId: (a.subbing_for_registration_id && coveredRegs.has(a.subbing_for_registration_id)) ? a.subbing_for_registration_id : null,
+      subbingForRegistrationId: (teamReg && coveredRegs.has(teamReg)) ? teamReg : null,
     })
   }
 
@@ -240,19 +256,30 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   // Show the sub's name in match assignments when a member is actually being subbed
   // (round-robin parity; the covered registration keeps the scoring credit). The
   // sub's subbingForRegistrationId is already null unless the member is 'has_sub'.
-  // A doubles team is one entrant, so a whole-team sub links two covering rows to
-  // the same registration — collect all and render "SubA/SubB".
-  const subNamesByCoveredReg = new Map<string, string[]>()
-  for (const a of attendees) {
-    if (a.kind !== 'roster' && a.subbingForRegistrationId) {
-      const arr = subNamesByCoveredReg.get(a.subbingForRegistrationId) ?? []
-      arr.push(firstName(a.displayName) || a.displayName)
-      subNamesByCoveredReg.set(a.subbingForRegistrationId, arr)
-    }
+  // Per-slot sub names keyed by the specific player registration covered — so a
+  // doubles team renders each half independently: a subbed slot shows the sub, an
+  // empty slot shows the present partner ("SubA/Eliana"). Gated on the team (its box
+  // row) being 'has_sub', so a lingering cover after un-subbing doesn't show.
+  const subNameBySlotReg = new Map<string, string>()
+  for (const a of liveAttendance) {
+    const slotReg = a.subbing_for_registration_id
+    if (!slotReg) continue
+    const teamReg = teamRegOf.get(slotReg)
+    if (!teamReg || !coveredRegs.has(teamReg)) continue
+    const nm = a.registration_id
+      ? nameOf(a.registration_id)
+      : (a.user_id ? (nameByUserId.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest'))
+    subNameBySlotReg.set(slotReg, firstName(nm) || nm)
   }
   const matchName = (regId: string | null): string => {
-    const subs = regId ? subNamesByCoveredReg.get(regId) : undefined
-    return subs && subs.length ? subs.join('/') : nameOf(regId)
+    if (!regId) return nameOf(regId)
+    if (!doubles) return subNameBySlotReg.get(regId) ?? nameOf(regId)
+    const slotName = (rid: string | null): string =>
+      rid ? (subNameBySlotReg.get(rid) ?? (firstName(byRegId.get(rid)?.profile?.name) || '')) : ''
+    const partnerRegId = byRegId.get(regId)?.partner_registration_id ?? null
+    const a = slotName(regId)
+    const b = partnerRegId ? slotName(partnerRegId) : ''
+    return b ? `${a}/${b}` : (a || nameOf(regId))
   }
 
   const fxByBox = new Map<string, any[]>()

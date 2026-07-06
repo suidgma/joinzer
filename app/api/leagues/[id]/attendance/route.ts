@@ -32,12 +32,18 @@ export async function POST(req: NextRequest, props: Params) {
   const now = new Date().toISOString()
 
   // When a covered member is marked back to present (any non-'has_sub' status),
-  // un-assign their sub so it doesn't linger and show in matches.
+  // un-assign their sub(s) so none linger and show in matches. For doubles a team
+  // is one entrant with two slots (its own reg + the partner's), so clear covers on
+  // both — otherwise a sub covering the partner slot would be orphaned.
   async function clearCoveringSubs(coveredRegId: string | null, forPeriodId: string | null) {
     if (status === 'has_sub' || !coveredRegId || !forPeriodId) return
+    const { data: reg } = await db
+      .from('league_registrations').select('partner_registration_id')
+      .eq('id', coveredRegId).maybeSingle()
+    const slotRegs = [coveredRegId, ...(reg?.partner_registration_id ? [reg.partner_registration_id] : [])]
     await db.from('league_attendance')
       .update({ subbing_for_registration_id: null, updated_at: now })
-      .eq('league_id', params.id).eq('period_id', forPeriodId).eq('subbing_for_registration_id', coveredRegId)
+      .eq('league_id', params.id).eq('period_id', forPeriodId).in('subbing_for_registration_id', slotRegs)
   }
 
   if (attendanceId) {
