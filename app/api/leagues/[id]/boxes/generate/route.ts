@@ -57,6 +57,12 @@ export async function POST(req: NextRequest, props: Params) {
       .map((a: any) => a.registration_id),
   )
 
+  // Removed/cancelled registrations must not be scheduled even if a stale
+  // attendance row still marks them present.
+  const { data: validRegs } = await db
+    .from('league_registrations').select('id').eq('league_id', params.id).eq('status', 'registered')
+  const validRegIds = new Set((validRegs ?? []).map((r: any) => r.id))
+
   const fixtureRows: any[] = []
   let matchNum = 1
   let skippedBoxes = 0
@@ -64,7 +70,7 @@ export async function POST(req: NextRequest, props: Params) {
     const memberIds = (membersByBox.get(box.id) ?? [])
       .slice().sort((a: any, b: any) => (a.seed_in_box ?? 0) - (b.seed_in_box ?? 0))
       .map((m: any) => m.registration_id)
-      .filter((id: string) => here.has(id))
+      .filter((id: string) => validRegIds.has(id) && here.has(id))
     if (memberIds.length < 2) { skippedBoxes++; continue }
     const { rows, nextMatchNum } = roundRobinMatches(memberIds, { status: 'scheduled' } as any, matchNum)
     matchNum = nextMatchNum
