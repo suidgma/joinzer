@@ -90,14 +90,20 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   useEffect(() => {
     if (nameTouched) return
     const day = startDate ? DAYS[new Date(startDate + 'T00:00:00').getDay()] : ''
+    // Skill: show a range when a max is set, "min+" when the floor is raised, and
+    // nothing for the wide-open default (2.0, no max) so open leagues stay clean.
+    const skill = skillMax
+      ? `${skillMin}-${skillMax}`
+      : (parseFloat(skillMin) > 2.0 ? `${skillMin}+` : '')
     const auto = [
       day,
+      skill,
       CATEGORY_NAME[category] ?? '',
       teamType === 'doubles' ? 'Doubles' : 'Singles',
-      formatKind === 'box' ? 'Box League' : '',
+      formatKind === 'box' ? 'Box League' : 'Round Robin',
     ].filter(Boolean).join(' ')
     setName(auto)
-  }, [nameTouched, startDate, category, teamType, formatKind])
+  }, [nameTouched, startDate, skillMin, skillMax, category, teamType, formatKind])
 
   // Auto-set deadline to 11:59pm the day before league start (PT) when startDate changes
   useEffect(() => {
