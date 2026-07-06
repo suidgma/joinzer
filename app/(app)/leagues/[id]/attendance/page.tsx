@@ -219,6 +219,18 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   const availableSubs = (profilePool ?? []).map((p: any) => ({ userId: p.id as string, name: p.name ?? 'Player' }))
 
   // ── Matches ──
+  // Show the sub's name in match assignments when a member is covered (round-robin
+  // parity — the sub plays under the covered member's registration, which still
+  // gets the scoring credit).
+  const subNameByCoveredReg = new Map<string, string>()
+  for (const a of attendees) {
+    if (a.kind !== 'roster' && a.subbingForRegistrationId) subNameByCoveredReg.set(a.subbingForRegistrationId, a.displayName)
+  }
+  const matchName = (regId: string | null): string => {
+    const sub = regId ? subNameByCoveredReg.get(regId) : undefined
+    return sub ? (firstName(sub) || sub) : nameOf(regId)
+  }
+
   const fxByBox = new Map<string, any[]>()
   for (const f of fixtures ?? []) {
     if (!fxByBox.has(f.box_id)) fxByBox.set(f.box_id, [])
@@ -230,8 +242,8 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
     matches: (fxByBox.get(b.id) ?? []).map((f: any) => ({
       id: f.id,
       round: f.round_number ?? null,
-      name1: nameOf(f.team_1_registration_id),
-      name2: nameOf(f.team_2_registration_id),
+      name1: matchName(f.team_1_registration_id),
+      name2: matchName(f.team_2_registration_id),
       status: f.status,
       score1: f.team_1_score,
       score2: f.team_2_score,
