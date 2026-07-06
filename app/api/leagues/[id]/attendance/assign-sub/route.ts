@@ -14,10 +14,13 @@ function admin() {
 // the member 'has_sub'. Fixture scores still credit the covered registration, so
 // standings / promotion-relegation stay correct. Organizer/co-admin only.
 //
-// A doubles team is one entrant, so a whole-team sub sends TWO choices in `subs`;
-// both link to the same covered registration and render as "SubA/SubB". Body:
+// A doubles team is one entrant. Whole-team out → two choices; one player out →
+// one choice with the other slot left present. Each choice carries the specific
+// player registration it covers (`forRegistrationId`) so the team renders per slot
+// ("SubA/SubB", "SubA/PresentPartner"). Body:
 //   { periodId, coveredRegistrationId, subUserId? | subAttendanceId? | subGuestName? }   (single)
-//   { periodId, coveredRegistrationId, subs: [{ subUserId? | subAttendanceId? | subGuestName? }, ...] }  (pair)
+//   { periodId, coveredRegistrationId, slotRegistrationIds: [regA, regB],
+//     subs: [{ subUserId? | subAttendanceId? | subGuestName?, forRegistrationId }, ...] } (doubles, 1-2)
 export async function POST(req: NextRequest, props: Params) {
   const params = await props.params
   const supabase = createClient()
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest, props: Params) {
     return NextResponse.json({ error: 'Missing target' }, { status: 400 })
   }
   // Normalize to a list of sub choices (single fields → one-element list).
-  const choices: Array<{ subUserId?: string; subAttendanceId?: string; subGuestName?: string }> =
+  const choices: Array<{ subUserId?: string; subAttendanceId?: string; subGuestName?: string; forRegistrationId?: string }> =
     Array.isArray(body.subs) && body.subs.length > 0
       ? body.subs
       : [{ subUserId: body.subUserId, subAttendanceId: body.subAttendanceId, subGuestName: body.subGuestName }]
@@ -52,14 +55,17 @@ export async function POST(req: NextRequest, props: Params) {
   const now = new Date().toISOString()
   const isPair = Array.isArray(body.subs)
 
-  // For a pair (re)assignment, clear any existing covers for this member first so
-  // re-picking replaces rather than accumulates. Single assignment leaves other
-  // covers alone (there's only ever one).
+  // For a doubles (re)assignment, clear existing covers on ALL of the team's slots
+  // first so re-picking replaces rather than accumulates (and reducing 2→1 drops the
+  // freed slot). Single assignment leaves other covers alone (there's only one).
   if (isPair) {
+    const clearRegs: string[] = Array.isArray(body.slotRegistrationIds) && body.slotRegistrationIds.length
+      ? body.slotRegistrationIds
+      : [coveredRegistrationId]
     await db.from('league_attendance')
       .update({ subbing_for_registration_id: null, updated_at: now })
       .eq('league_id', params.id).eq('period_id', periodId)
-      .eq('subbing_for_registration_id', coveredRegistrationId)
+      .in('subbing_for_registration_id', clearRegs)
   }
 
   // Resolve one sub choice to an attendance row id (find or create).
@@ -100,14 +106,16 @@ export async function POST(req: NextRequest, props: Params) {
     return { error: 'No sub specified' }
   }
 
-  // Resolve + link each covering row to the covered member.
+  // Resolve + link each covering row to the specific player slot it fills (defaults
+  // to the team registration for the single-sub / singles path).
   const subs: unknown[] = []
   for (const choice of choices) {
     const resolved = await resolveSubRowId(choice)
     if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 })
+    const forReg = choice.forRegistrationId ?? coveredRegistrationId
     const { data: sub, error: subErr } = await db
       .from('league_attendance')
-      .update({ subbing_for_registration_id: coveredRegistrationId, status: 'present', updated_at: now })
+      .update({ subbing_for_registration_id: forReg, status: 'present', updated_at: now })
       .eq('id', resolved.id)
       .select()
       .single()
