@@ -30,6 +30,8 @@ export async function POST(req: NextRequest, props: Params) {
 
   if (userId) {
     // A registered player subbing in — link their registration when they have one.
+    // A sub can be any profile (like round-robin) — link a registration when they
+    // happen to have one, else store the bare user_id.
     const { data: reg } = await db
       .from('league_registrations')
       .select('id')
@@ -38,22 +40,15 @@ export async function POST(req: NextRequest, props: Params) {
       .neq('status', 'cancelled')
       .maybeSingle()
 
-    // A sub must be a league registrant (or a named guest) — the table requires
-    // registration_id or guest_name. Unregistered players go through guestName.
-    if (!reg) return NextResponse.json({ error: 'Player is not registered in this league' }, { status: 400 })
-
-    // Don't double-add: if they already have a row this cycle, return it.
-    const { data: existing } = await db
-      .from('league_attendance')
-      .select('*')
-      .eq('period_id', periodId)
-      .eq('registration_id', reg.id)
-      .maybeSingle()
+    // Don't double-add: match by registration when they have one, else by user.
+    const { data: existing } = reg
+      ? await db.from('league_attendance').select('*').eq('period_id', periodId).eq('registration_id', reg.id).maybeSingle()
+      : await db.from('league_attendance').select('*').eq('period_id', periodId).eq('user_id', userId).limit(1).maybeSingle()
     if (existing) return NextResponse.json({ attendance: existing })
 
     const { data, error } = await db
       .from('league_attendance')
-      .insert({ league_id: params.id, period_id: periodId, registration_id: reg.id, user_id: userId, status: 'present' })
+      .insert({ league_id: params.id, period_id: periodId, registration_id: reg?.id ?? null, user_id: userId, status: 'present' })
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

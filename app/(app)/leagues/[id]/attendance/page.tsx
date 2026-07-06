@@ -162,6 +162,14 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   }
   const boxMemberRegIds = new Set((members ?? []).map((m: any) => m.registration_id))
 
+  // Resolve display names for sub/guest rows — subs can be any profile (like
+  // round-robin), not just league registrants, so their name comes from `profiles`.
+  const attendeeUserIds = [...new Set((attendance ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[]
+  const { data: subProfiles } = attendeeUserIds.length > 0
+    ? await supabase.from('profiles').select('id, name').in('id', attendeeUserIds)
+    : { data: [] as any[] }
+  const nameByUserId = new Map((subProfiles ?? []).map((p: any) => [p.id, p.name]))
+
   const attendees: BoxAttendee[] = []
   for (const box of boxes ?? []) {
     const boxName = (box as any).name ?? `Box ${(box as any).tier_rank}`
@@ -182,24 +190,29 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   }
   for (const a of attendance ?? []) {
     if (a.registration_id && boxMemberRegIds.has(a.registration_id)) continue
-    const isGuest = !a.registration_id && !!a.guest_name
+    const isGuest = !a.registration_id && !a.user_id && !!a.guest_name
     attendees.push({
       rowId: a.id,
       attendanceId: a.id,
       registrationId: a.registration_id ?? null,
       kind: isGuest ? 'guest' : 'sub',
-      displayName: a.registration_id ? nameOf(a.registration_id) : (a.guest_name ?? 'Guest'),
+      displayName: a.registration_id
+        ? nameOf(a.registration_id)
+        : (a.user_id ? (nameByUserId.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest')),
       status: a.status,
       subbingForRegistrationId: a.subbing_for_registration_id ?? null,
     })
   }
 
-  const attendeeUserIds = new Set((attendance ?? []).map((a: any) => a.user_id).filter(Boolean))
-  const availableSubs = registered
-    .filter((r: any) => !boxMemberRegIds.has(r.id) && !attendeeUserIds.has(r.user_id))
-    .map((r: any) => ({ userId: r.user_id as string, name: r.profile?.name ?? 'Player' }))
-    .filter((s: any) => s.userId)
-    .sort((a: any, b: any) => a.name.localeCompare(b.name))
+  // Sub pool = any profile not already playing or subbing this cycle — mirrors
+  // round-robin's Add Sub, so it's never empty just because everyone is boxed.
+  const boxMemberUserIds = (regs ?? []).filter((r: any) => boxMemberRegIds.has(r.id)).map((r: any) => r.user_id).filter(Boolean)
+  const excludeUserIds = [...new Set([...boxMemberUserIds, ...attendeeUserIds])] as string[]
+  const poolQuery = supabase.from('profiles').select('id, name').order('name')
+  const { data: profilePool } = excludeUserIds.length > 0
+    ? await poolQuery.not('id', 'in', `(${excludeUserIds.join(',')})`)
+    : await poolQuery
+  const availableSubs = (profilePool ?? []).map((p: any) => ({ userId: p.id as string, name: p.name ?? 'Player' }))
 
   // ── Matches ──
   const fxByBox = new Map<string, any[]>()
