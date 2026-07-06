@@ -154,8 +154,6 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   const initialBoxCount = Math.max(1, Math.min(defaultBoxCount, maxBoxes))
 
   // ── Attendance rows (box members grouped by box; sub/guest rows separately). ──
-  const attByReg = new Map<string, any>()
-  for (const a of attendance ?? []) if (a.registration_id) attByReg.set(a.registration_id, a)
   const membersByBox = new Map<string, any[]>()
   for (const m of members ?? []) {
     if (!membersByBox.has(m.box_id)) membersByBox.set(m.box_id, [])
@@ -163,16 +161,29 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
   }
   const boxMemberRegIds = new Set((members ?? []).map((m: any) => m.registration_id))
 
+  // Clean up leftover subs: a sub/guest that's absent and not covering anyone is no
+  // longer participating, so drop the row (it also returns them to the Add Sub pool).
+  const staleSubIds = (attendance ?? []).filter((a: any) =>
+    !a.subbing_for_registration_id &&
+    (a.status === 'not_present' || a.status === 'cannot_attend') &&
+    !(a.registration_id && boxMemberRegIds.has(a.registration_id)),
+  ).map((a: any) => a.id)
+  if (staleSubIds.length > 0) await admin.from('league_attendance').delete().in('id', staleSubIds)
+  const liveAttendance = (attendance ?? []).filter((a: any) => !staleSubIds.includes(a.id))
+
+  const attByReg = new Map<string, any>()
+  for (const a of liveAttendance) if (a.registration_id) attByReg.set(a.registration_id, a)
+
   // Members actually being subbed this cycle (status 'has_sub'). A sub assignment
   // that lingers after a member is marked back to present is ignored, so the sub
   // stops showing "for X" and stops replacing the member in match assignments.
   const coveredRegs = new Set(
-    (attendance ?? []).filter((a: any) => a.status === 'has_sub' && a.registration_id && boxMemberRegIds.has(a.registration_id)).map((a: any) => a.registration_id),
+    liveAttendance.filter((a: any) => a.status === 'has_sub' && a.registration_id && boxMemberRegIds.has(a.registration_id)).map((a: any) => a.registration_id),
   )
 
   // Resolve display names for sub/guest rows — subs can be any profile (like
   // round-robin), not just league registrants, so their name comes from `profiles`.
-  const attendeeUserIds = [...new Set((attendance ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[]
+  const attendeeUserIds = [...new Set(liveAttendance.map((a: any) => a.user_id).filter(Boolean))] as string[]
   const { data: subProfiles } = attendeeUserIds.length > 0
     ? await supabase.from('profiles').select('id, name').in('id', attendeeUserIds)
     : { data: [] as any[] }
@@ -199,7 +210,7 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
       })
     }
   }
-  for (const a of attendance ?? []) {
+  for (const a of liveAttendance) {
     if (a.registration_id && boxMemberRegIds.has(a.registration_id)) continue
     const isGuest = !a.registration_id && !a.user_id && !!a.guest_name
     attendees.push({
