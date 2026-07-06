@@ -71,8 +71,11 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       .eq('league_id', params.id).eq('period_kind', 'cycle')
       .order('period_number', { ascending: true })
     const cycles = (cyclesRaw ?? []) as any[]
-    const activeCycle = cycles.find(c => c.status === 'active') ?? cycles[cycles.length - 1]
-    const selectedCycle = cycles.find(c => c.id === searchParams.cycle) ?? activeCycle
+    // Standings reflect FINALIZED results — only completed cycles are shown. The
+    // in-progress cycle's live results live on the Run Session surface; a box cycle's
+    // standings (and its promotion/relegation) aren't meaningful until it's advanced.
+    const completedCycles = cycles.filter(c => c.status === 'completed')
+    const selectedCycle = completedCycles.find(c => c.id === searchParams.cycle) ?? completedCycles[completedCycles.length - 1]
 
     let boxViews: BoxStandingView[] = []
     if (selectedCycle) {
@@ -229,14 +232,20 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
                 Per-box — win %, then point differential.{isPast ? ' Finished cycle (▲ promoted · ▼ relegated).' : ''}
               </p>
             </div>
-            {cycles.length > 1 && selectedCycle && (
+            {completedCycles.length > 1 && selectedCycle && (
               <CycleSelector
-                cycles={cycles.map(c => ({ id: c.id, number: c.period_number, active: c.status === 'active' }))}
+                cycles={completedCycles.map(c => ({ id: c.id, number: c.period_number, active: false }))}
                 selectedId={selectedCycle.id}
               />
             )}
           </div>
-          {boxViews.length === 0 ? (
+          {!selectedCycle ? (
+            <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+              <p className="text-2xl">📊</p>
+              <p className="text-sm font-medium text-brand-dark">No completed cycles yet</p>
+              <p className="text-xs text-brand-muted">Standings appear once a cycle is completed. Run the current cycle from Run Session, then advance it.</p>
+            </div>
+          ) : boxViews.length === 0 ? (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
               <p className="text-2xl">🏓</p>
               <p className="text-sm font-medium text-brand-dark">No boxes yet</p>
