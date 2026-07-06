@@ -253,10 +253,11 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
     </div>
   )
 
-  // The seeding (choose boxes) is one-time setup — show it only until the league's
-  // first matches are generated. After that, boxes are locked and later cycles form
-  // automatically via promotion/relegation.
-  const showSeeding = !hasGeneratedMatches && boxEntrants.length > 0
+  // Seeding is one-time setup, hidden once matches are generated — EXCEPT when
+  // players were added after seeding and aren't in a box yet. Then it reappears so
+  // the organizer can re-seed to include them.
+  const unboxedCount = boxEntrants.filter((e) => !boxMemberRegIds.has(e.id)).length
+  const showSeeding = boxEntrants.length > 0 && (!hasGeneratedMatches || unboxedCount > 0)
 
   return (
     <DesktopShell header={header} sidebar={<ManageNav items={navItems} />}>
@@ -275,6 +276,11 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
           </p>
         </div>
 
+        {showSeeding && hasGeneratedMatches && unboxedCount > 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {unboxedCount} new player{unboxedCount === 1 ? '' : 's'} {unboxedCount === 1 ? 'isn’t' : 'aren’t'} in a box yet. Re-seed below and re-generate matches to include {unboxedCount === 1 ? 'them' : 'them'}.
+          </p>
+        )}
         {showSeeding && (
           <BoxSeedingSection leagueId={params.id} initialBoxCount={initialBoxCount} maxBoxes={maxBoxes} entrants={boxEntrants} initialSaved={!boxesDirty} />
         )}
