@@ -175,6 +175,9 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
     const boxName = (box as any).name ?? `Box ${(box as any).tier_rank}`
     const boxMembers = (membersByBox.get(box.id) ?? []).slice().sort((a, b) => (a.seed_in_box ?? 0) - (b.seed_in_box ?? 0))
     for (const m of boxMembers) {
+      // Skip members whose registration was removed/cancelled since the boxes were
+      // seeded — they shouldn't appear as ghost "Player" rows or be scheduled.
+      if (!byRegId.has(m.registration_id)) continue
       const att = attByReg.get(m.registration_id)
       attendees.push({
         rowId: m.registration_id,
