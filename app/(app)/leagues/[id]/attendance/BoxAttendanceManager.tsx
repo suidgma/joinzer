@@ -91,8 +91,10 @@ export default function BoxAttendanceManager({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end">
+    <div className="space-y-3">
+      {/* Attendance section header — mirrors the round-robin live view. */}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-heading text-base font-bold text-brand-dark">Attendance</h2>
         <button
           onClick={() => setShowAddSub(true)}
           className="text-xs bg-brand-soft border border-brand-border text-brand-active font-medium px-3 py-1 rounded-full hover:bg-brand-surface"

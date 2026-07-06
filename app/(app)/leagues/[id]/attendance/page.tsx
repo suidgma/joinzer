@@ -93,7 +93,14 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
         .order('match_number', { ascending: true })
     : { data: [] as any[] }
 
-  const hasCompletedMatches = (fixtures ?? []).some((f: any) => f.status === 'completed')
+  // Seeding is one-time setup: once ANY matches have been generated for this league
+  // (the first cycle), the boxes are locked in and the seeding section never shows
+  // again — later cycles form their boxes automatically via promotion/relegation.
+  const { count: totalFixtures } = await admin
+    .from('league_fixtures')
+    .select('id', { count: 'exact', head: true })
+    .eq('league_id', params.id)
+  const hasGeneratedMatches = (totalFixtures ?? 0) > 0
 
   // ── Seeding entrants — the organizer picks the number of boxes and players fill
   //    them evenly. The setup step, shown only until the cycle's matches start. ──
@@ -230,10 +237,10 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
     </div>
   )
 
-  // The seeding (re-order into boxes) is the setup step — show it until this cycle's
-  // matches start being scored. After that, order changes automatically via
-  // promotion/relegation when the cycle advances.
-  const showSeeding = !hasCompletedMatches && boxEntrants.length > 0
+  // The seeding (choose boxes) is one-time setup — show it only until the league's
+  // first matches are generated. After that, boxes are locked and later cycles form
+  // automatically via promotion/relegation.
+  const showSeeding = !hasGeneratedMatches && boxEntrants.length > 0
 
   return (
     <DesktopShell header={header} sidebar={<ManageNav items={navItems} />}>
@@ -244,9 +251,11 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
             Run Session{cycle ? ` · Cycle ${(cycle as any).period_number}` : ''}
           </h1>
           <p className="text-xs text-brand-muted">
-            {cycle
-              ? 'Seed the boxes (until play starts), take attendance, then generate and score matches.'
-              : 'Seed players into rating-tiered boxes and save to start Cycle 1.'}
+            {!cycle
+              ? 'Choose the number of boxes, seed players, and save to start Cycle 1.'
+              : showSeeding
+              ? 'Set up your boxes, mark who’s here, then generate matches (only players marked Here are scheduled).'
+              : 'Mark who’s here, then generate and score this cycle’s matches. Only players marked Here are scheduled.'}
           </p>
         </div>
 
