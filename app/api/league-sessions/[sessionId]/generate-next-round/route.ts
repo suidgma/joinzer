@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { generateNextRound, type CompletedRound, type CompletedMatch, type SessionPlayer } from '@/lib/scheduling/leagueScheduler'
+import { generateNextRound, applySubsToFixedPairs, type CompletedRound, type CompletedMatch, type SessionPlayer } from '@/lib/scheduling/leagueScheduler'
 import { isSinglesFormat, isMixedDoublesFormat } from '@/lib/taxonomy/formats'
 
 type Params = { params: Promise<{ sessionId: string }> }
@@ -173,6 +173,18 @@ export async function POST(req: NextRequest, props: Params) {
         const b = userToSessionPlayer.get(reg.partner_user_id as string)
         if (a && b) fixedPairs.set(a, b)
       }
+
+      // A sub inherits the partnership of the roster player they cover, so a fixed
+      // team stays a team when one OR both members are replaced. One out → the
+      // present partner + the sub play together; both out → the two subs play
+      // together. Without this, subs are unlinked orphans and never re-form the team.
+      const subForAbsent = new Map<string, string>() // absent session_player id → covering sub's session_player id
+      for (const p of rawPlayers ?? []) {
+        if (p.player_type === 'sub' && p.sub_for_session_player_id) {
+          subForAbsent.set(p.sub_for_session_player_id as string, p.id as string)
+        }
+      }
+      fixedPairs = applySubsToFixedPairs(fixedPairs, subForAbsent)
     }
   }
 

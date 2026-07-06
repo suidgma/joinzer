@@ -25,11 +25,14 @@ export default function BoxAttendanceManager({
   periodId,
   initialAttendees,
   availableSubs,
+  doubles = false,
 }: {
   leagueId: string
   periodId: string
   initialAttendees: BoxAttendee[]
   availableSubs: SubOption[]
+  /** Doubles: a team is one entrant, so subbing it out takes a pair (SubA/SubB). */
+  doubles?: boolean
 }) {
   const [attendees, setAttendees] = useState<BoxAttendee[]>(initialAttendees)
   const [assignFor, setAssignFor] = useState<BoxAttendee | null>(null)
@@ -131,15 +134,27 @@ export default function BoxAttendanceManager({
           leagueId={leagueId}
           periodId={periodId}
           member={assignFor}
+          doubles={doubles}
           unassignedSubs={unassignedSubs}
           availableSubs={availableSubs}
           onClose={() => setAssignFor(null)}
-          onAssigned={(sub) => {
+          onAssigned={(newSubs) => {
             setAttendees((list) => {
-              const withSub = list.some((a) => a.rowId === sub.rowId)
-                ? list.map((a) => (a.rowId === sub.rowId ? sub : a))
-                : [...list, sub]
-              return withSub.map((a) => (a.rowId === assignFor.rowId ? { ...a, status: 'has_sub' } : a))
+              const coveredRegId = assignFor.registrationId
+              const newIds = new Set(newSubs.map((s) => s.rowId))
+              // A pair (re)assignment replaces prior covers — unassign any old sub
+              // still pointing at this member that isn't part of the new set.
+              let next = list.map((a) =>
+                a.kind !== 'roster' && coveredRegId && a.subbingForRegistrationId === coveredRegId && !newIds.has(a.rowId)
+                  ? { ...a, subbingForRegistrationId: null }
+                  : a,
+              )
+              for (const s of newSubs) {
+                next = next.some((a) => a.rowId === s.rowId)
+                  ? next.map((a) => (a.rowId === s.rowId ? s : a))
+                  : [...next, s]
+              }
+              return next.map((a) => (a.rowId === assignFor.rowId ? { ...a, status: 'has_sub' as const } : a))
             })
             setAssignFor(null)
           }}
@@ -162,16 +177,19 @@ export default function BoxAttendanceManager({
 }
 
 // ── Assign Sub ────────────────────────────────────────────────────────────────
+// Doubles: a team is one entrant, so subbing it out replaces BOTH players — the
+// modal takes two picks and links both to the team's registration ("SubA/SubB").
 function AssignSubModal({
-  leagueId, periodId, member, unassignedSubs, availableSubs, onClose, onAssigned, setBusy,
+  leagueId, periodId, member, doubles, unassignedSubs, availableSubs, onClose, onAssigned, setBusy,
 }: {
   leagueId: string
   periodId: string
   member: BoxAttendee
+  doubles: boolean
   unassignedSubs: BoxAttendee[]
   availableSubs: SubOption[]
   onClose: () => void
-  onAssigned: (sub: BoxAttendee) => void
+  onAssigned: (subs: BoxAttendee[]) => void
   setBusy: (b: boolean) => void
 }) {
   // already-in-cycle unassigned subs + not-yet-added registered players
@@ -180,53 +198,82 @@ function AssignSubModal({
     ...availableSubs.map((s) => ({ value: `user:${s.userId}`, name: s.name, inCycle: false })),
   ]
   const [value, setValue] = useState('')
+  const [value2, setValue2] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  const nameOfValue = (v: string) => options.find((o) => o.value === v)?.name ?? 'Sub'
+  const toChoice = (v: string) => (v.startsWith('att:') ? { subAttendanceId: v.slice(4) } : { subUserId: v.slice(5) })
+
+  // Label each picker with the player it replaces ("A/B" → "Sub for A" / "Sub for B").
+  const parts = member.displayName.split('/')
+  const label1 = doubles ? (parts[0] ? `Sub for ${parts[0]}` : 'Replacement 1') : null
+  const label2 = doubles ? (parts[1] ? `Sub for ${parts[1]}` : 'Replacement 2') : null
+
   async function assign() {
-    if (!value) return
+    if (!value || (doubles && !value2)) return
     setSaving(true); setBusy(true); setErr(null)
-    const selected = options.find((o) => o.value === value)!
+    const values = doubles ? [value, value2] : [value]
     const body: Record<string, unknown> = { periodId, coveredRegistrationId: member.registrationId }
-    if (value.startsWith('att:')) body.subAttendanceId = value.slice(4)
-    else body.subUserId = value.slice(5)
+    if (doubles) body.subs = values.map(toChoice)
+    else Object.assign(body, toChoice(value))
 
     try {
       const res = await fetch(`/api/leagues/${leagueId}/attendance/assign-sub`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       const data = await res.json()
-      if (!res.ok || !data.sub) { setErr(data.error ?? 'Failed to assign'); setSaving(false); setBusy(false); return }
-      const row = data.sub
-      onAssigned({
+      const rows: any[] | null = doubles ? (data.subs ?? null) : (data.sub ? [data.sub] : null)
+      if (!res.ok || !rows) { setErr(data.error ?? 'Failed to assign'); setSaving(false); setBusy(false); return }
+      onAssigned(rows.map((row, i) => ({
         rowId: row.id,
         attendanceId: row.id,
         registrationId: row.registration_id ?? null,
-        kind: row.registration_id || row.user_id ? 'sub' : 'guest',
-        displayName: selected.name,
+        kind: (row.registration_id || row.user_id ? 'sub' : 'guest') as BoxAttendee['kind'],
+        displayName: nameOfValue(values[i]),
         status: row.status,
         subbingForRegistrationId: row.subbing_for_registration_id ?? member.registrationId,
-      })
+      })))
     } catch {
       setErr('Network error')
     }
     setSaving(false); setBusy(false)
   }
 
+  const optionList = (exclude?: string) =>
+    options.filter((o) => o.value !== exclude).map((o) => (
+      <option key={o.value} value={o.value}>{o.name}{o.inCycle ? ' (already here)' : ''}</option>
+    ))
+
   return (
-    <ModalShell title="Assign Sub" subtitle={`Covering for ${member.displayName}`} onClose={onClose}>
-      {options.length === 0 ? (
-        <p className="text-sm text-brand-muted">No available players to assign.</p>
+    <ModalShell title={doubles ? 'Assign Subs' : 'Assign Sub'} subtitle={`Covering for ${member.displayName}`} onClose={onClose}>
+      {options.length < (doubles ? 2 : 1) ? (
+        <p className="text-sm text-brand-muted">Not enough available players to assign{doubles ? ' a pair' : ''}.</p>
+      ) : doubles ? (
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-brand-muted">{label1}</p>
+            <select autoFocus value={value} onChange={(e) => setValue(e.target.value)} className="w-full input text-sm">
+              <option value="">— Select a sub —</option>
+              {optionList(value2)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-brand-muted">{label2}</p>
+            <select value={value2} onChange={(e) => setValue2(e.target.value)} className="w-full input text-sm">
+              <option value="">— Select a sub —</option>
+              {optionList(value)}
+            </select>
+          </div>
+        </div>
       ) : (
         <select autoFocus value={value} onChange={(e) => setValue(e.target.value)} className="w-full input text-sm">
           <option value="">— Select a sub —</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>{o.name}{o.inCycle ? ' (already here)' : ''}</option>
-          ))}
+          {optionList()}
         </select>
       )}
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <ModalButtons onClose={onClose} onConfirm={assign} confirmLabel={saving ? 'Assigning…' : 'Assign'} disabled={saving || !value} />
+      <ModalButtons onClose={onClose} onConfirm={assign} confirmLabel={saving ? 'Assigning…' : 'Assign'} disabled={saving || !value || (doubles && !value2)} />
     </ModalShell>
   )
 }

@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest'
 import {
   determineRoundFormatFixed,
   resolvePresentPairs,
+  applySubsToFixedPairs,
   generateNextRound,
   type SessionPlayer,
 } from '../leagueScheduler'
@@ -165,5 +166,50 @@ describe('generateNextRound in fixed mode', () => {
     const players = ['A','B','C','D'].map(id => player(id))
     const round   = generateNextRound(players, [], 4, 1, 50, new Map())
     expect(round).not.toBeNull()
+  })
+})
+
+describe('applySubsToFixedPairs — subs inherit the covered player\'s partnership', () => {
+  // Team (A,B) is stored bidirectionally, as the route builds it.
+  const team = new Map([['A', 'B'], ['B', 'A']])
+
+  it('no subs → pairs unchanged (new map, not the same reference)', () => {
+    const out = applySubsToFixedPairs(team, new Map())
+    expect(out).not.toBe(team)
+    expect([...out.entries()].sort()).toEqual([['A', 'B'], ['B', 'A']])
+  })
+
+  it('one member out → present partner pairs with the sub (both directions)', () => {
+    // A is absent, covered by sub SA. B is present.
+    const out = applySubsToFixedPairs(team, new Map([['A', 'SA']]))
+    expect(out.get('B')).toBe('SA') // B looks up → sub
+    expect(out.get('SA')).toBe('B') // sub looks up → B
+    expect(out.has('A')).toBe(false)
+  })
+
+  it('both members out → the two subs pair together', () => {
+    const out = applySubsToFixedPairs(team, new Map([['A', 'SA'], ['B', 'SB']]))
+    expect(out.get('SA')).toBe('SB')
+    expect(out.get('SB')).toBe('SA')
+    expect(out.has('A')).toBe(false)
+    expect(out.has('B')).toBe(false)
+  })
+
+  it('re-formed sub pair is scheduled as a doubles team, not orphans', () => {
+    // Team (A,B) both out, covered by SA/SB. Team (C,D) both present.
+    // Two whole pairs → one doubles court, nobody orphaned.
+    const pairs = new Map([['A','B'],['B','A'],['C','D'],['D','C']])
+    const subbed = applySubsToFixedPairs(pairs, new Map([['A','SA'],['B','SB']]))
+    const present = ['SA','SB','C','D'].map(id => player(id))
+    const round = generateNextRound(present, [], 2, 1, 50, subbed)
+    expect(round).not.toBeNull()
+    const doubles = round!.matches.filter(m => m.matchType === 'doubles')
+    expect(doubles.length).toBe(1)
+    // The sub pair must be on the same team (SA with SB), never split.
+    const m = doubles[0]
+    const t1 = new Set([m.team1Player1Id, m.team1Player2Id])
+    const t2 = new Set([m.team2Player1Id, m.team2Player2Id])
+    const subTeam = t1.has('SA') ? t1 : t2
+    expect(subTeam).toEqual(new Set(['SA', 'SB']))
   })
 })

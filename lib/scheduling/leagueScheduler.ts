@@ -567,6 +567,27 @@ export function resolvePresentPairs(
 }
 
 /**
+ * Remap fixed pairs so a substitute inherits the partnership of the roster player
+ * they cover. `subForAbsent` maps an absent player's id → their covering sub's id.
+ *
+ * One member out → the present partner pairs with the sub; both out → the two subs
+ * pair together. BOTH directions of each pair are remapped (resolvePresentPairs
+ * looks up either member), so the re-formed team is found from whichever side is
+ * present. Absent members with no sub are left as-is (their partner plays as an
+ * orphan). Non-mutating.
+ */
+export function applySubsToFixedPairs(
+  fixedPairs: ReadonlyMap<string, string>,
+  subForAbsent: ReadonlyMap<string, string>,
+): Map<string, string> {
+  if (subForAbsent.size === 0) return new Map(fixedPairs)
+  const withSub = (id: string) => subForAbsent.get(id) ?? id
+  const remapped = new Map<string, string>()
+  for (const [a, b] of fixedPairs) remapped.set(withSub(a), withSub(b))
+  return remapped
+}
+
+/**
  * Builds one round candidate honoring fixed pairs.
  *
  * Doubles matches always combine two whole pairs. Orphans (players whose
