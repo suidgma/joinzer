@@ -121,19 +121,22 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       }
 
       // Sub names for this cycle's results — a covered member's matches show the sub
-      // who played (round-robin parity). The member still holds the standings credit.
+      // who played (round-robin parity), but ONLY when the member was actually being
+      // subbed (status 'has_sub'). The member still holds the standings credit.
       const { data: att } = bxIds.length
         ? await admin.from('league_attendance')
-            .select('registration_id, user_id, guest_name, subbing_for_registration_id')
-            .eq('period_id', selectedCycle.id).not('subbing_for_registration_id', 'is', null)
+            .select('registration_id, user_id, guest_name, status, subbing_for_registration_id')
+            .eq('period_id', selectedCycle.id)
         : { data: [] as any[] }
-      const subUserIds = [...new Set((att ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[]
+      const coveredRegs = new Set((att ?? []).filter((a: any) => a.status === 'has_sub' && a.registration_id).map((a: any) => a.registration_id))
+      const subRows = (att ?? []).filter((a: any) => a.subbing_for_registration_id && coveredRegs.has(a.subbing_for_registration_id))
+      const subUserIds = [...new Set(subRows.map((a: any) => a.user_id).filter(Boolean))] as string[]
       const { data: subProfiles } = subUserIds.length
         ? await admin.from('profiles').select('id, name').in('id', subUserIds)
         : { data: [] as any[] }
       const subNameByUser = new Map((subProfiles ?? []).map((p: any) => [p.id, p.name]))
       const subNameByCoveredReg = new Map<string, string>()
-      for (const a of (att ?? [])) {
+      for (const a of subRows) {
         const nm = a.registration_id ? nameOf(a.registration_id) : (a.user_id ? (subNameByUser.get(a.user_id) ?? 'Sub') : (a.guest_name ?? 'Guest'))
         subNameByCoveredReg.set(a.subbing_for_registration_id, nm)
       }
