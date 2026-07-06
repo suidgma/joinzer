@@ -13,6 +13,7 @@ import BoxAttendanceManager, { type BoxAttendee } from './BoxAttendanceManager'
 import BoxSeedingSection from '../roster/BoxSeedingSection'
 import BoxFixtures, { type BoxView } from '../roster/BoxFixtures'
 import BoxCycleBar from '../roster/BoxCycleBar'
+import RefreshOnVisible from '@/components/ui/refresh-on-visible'
 
 export const dynamic = 'force-dynamic'
 
@@ -261,6 +262,7 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
 
   return (
     <DesktopShell header={header} sidebar={<ManageNav items={navItems} />}>
+      <RefreshOnVisible />
       <ManageNav items={navItems} mobileOnly />
       <div className="max-w-2xl space-y-4 pb-8">
         <div>
@@ -296,6 +298,10 @@ export default async function BoxRunSessionPage(props: { params: Promise<{ id: s
         {cycle && (
           <>
             <BoxAttendanceManager
+              // Remount when the server's box membership / statuses change (e.g. after
+              // a re-seed refresh) so the grid never shows stale rows. During normal
+              // tapping the server data is unchanged, so this key is stable.
+              key={`${cycle.id}:${attendees.map((a) => `${a.rowId}~${a.status}~${a.attendanceId ?? ''}~${a.subbingForRegistrationId ?? ''}`).join('|')}`}
               leagueId={params.id}
               periodId={cycle.id}
               initialAttendees={attendees}
