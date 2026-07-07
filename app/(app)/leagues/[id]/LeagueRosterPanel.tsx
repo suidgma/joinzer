@@ -15,6 +15,9 @@ type Profile = {
   dupr_rating: number | null
   estimated_rating: number | null
   rating_source: string | null
+  self_reported_rating: number | null
+  self_reported_scale: string | null
+  dupr_verified: boolean | null
 }
 
 type Reg = {
@@ -117,9 +120,10 @@ function PlayerRow({
       </div>
       <div className="flex-shrink-0">
         <RatingBadge
-          ratingSource={reg.profile.rating_source}
+          selfReportedRating={reg.profile.self_reported_rating}
+          selfReportedScale={reg.profile.self_reported_scale}
           duprRating={reg.profile.dupr_rating}
-          estimatedRating={reg.profile.estimated_rating}
+          duprVerified={reg.profile.dupr_verified}
         />
       </div>
     </div>
