@@ -21,6 +21,9 @@ type PlayerReg = {
     dupr_rating: number | null
     estimated_rating: number | null
     rating_source: string | null
+    self_reported_rating: number | null
+    self_reported_scale: string | null
+    dupr_verified: boolean | null
   }
 }
 
@@ -200,6 +203,9 @@ export default function LeagueRosterManager({
           dupr_rating: null,
           estimated_rating: null,
           rating_source: null,
+          self_reported_rating: null,
+          self_reported_scale: null,
+          dupr_verified: false,
         },
       }
       setRegistered((prev) => [...prev, newReg])
@@ -407,9 +413,10 @@ export default function LeagueRosterManager({
                   </div>
                   <span className="flex-1 text-sm font-medium text-brand-dark">{p.name}</span>
                   <RatingBadge
-                    ratingSource={p.rating_source}
+                    selfReportedRating={p.self_reported_rating}
+                    selfReportedScale={p.self_reported_scale}
                     duprRating={p.dupr_rating}
-                    estimatedRating={p.estimated_rating}
+                    duprVerified={p.dupr_verified}
                   />
                   {r.is_co_admin && (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand/20 text-brand-dark leading-none">

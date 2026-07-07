@@ -118,7 +118,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     // Roster panel: registrations with profiles (read-only display)
     supabase
       .from('league_registrations')
-      .select('id, user_id, status, registration_type, partner_user_id, is_co_admin, profile:profiles!user_id(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source)')
+      .select('id, user_id, status, registration_type, partner_user_id, is_co_admin, profile:profiles!user_id(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source, self_reported_rating, self_reported_scale, dupr_verified)')
       .eq('league_id', params.id)
       .neq('status', 'cancelled')
       .order('registered_at', { ascending: true }),
