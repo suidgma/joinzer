@@ -96,7 +96,7 @@ export default function SeededRoster({ items, initialGroupCount, maxGroups, grou
   return (
     <div className="border border-brand-border rounded-xl overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-brand-border bg-brand-surface">
-        <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">Seeding &amp; Boxes</p>
+        <p className="text-xs font-semibold text-brand-dark uppercase tracking-wide">{grouping ? 'Seeding & Boxes' : 'Seeding'}</p>
         <div className="flex items-center gap-3">
           {grouping && (
             <label className="flex items-center gap-1.5 text-xs text-brand-muted">
@@ -161,7 +161,7 @@ export default function SeededRoster({ items, initialGroupCount, maxGroups, grou
 
       {order.length > 1 && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-brand-muted">
-          <ArrowUp className="w-3 h-3 shrink-0" /><span>Pick the number of boxes · drag to re-order · players fill boxes top-to-bottom · Save to apply</span>
+          <ArrowUp className="w-3 h-3 shrink-0" /><span>{grouping ? 'Pick the number of boxes · drag to re-order · players fill boxes top-to-bottom · Save to apply' : 'Drag to re-order (#1 at the top) · Save to apply'}</span>
         </div>
       )}
     </div>
