@@ -27,6 +27,12 @@ export async function getRunSessionAction(
     return { label: 'Run Session', href: `/leagues/${leagueId}/attendance` }
   }
 
+  if (formatKind === 'ladder') {
+    // The ladder run hub hosts attendance, king-of-the-court rounds, and the
+    // rank-update finalize. Always available for ladder admins.
+    return { label: 'Run Session', href: `/leagues/${leagueId}/ladder` }
+  }
+
   // session_rr (default)
   const { data } = await db
     .from('league_sessions')

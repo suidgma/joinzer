@@ -13,6 +13,7 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
+import LadderPlayerCard from './LadderPlayerCard'
 
 // Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
 function fmtTime(t: string | null): string | null {
@@ -360,6 +361,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
                 <p className="text-xs text-amber-700">Paid securely via Stripe</p>
               </div>
             </div>
+          )}
+          {user && (league as any).format_kind === 'ladder' && myReg?.status === 'registered' && (
+            <LadderPlayerCard leagueId={league.id} userId={user.id} format={league.format} settings={(league as any).format_settings_json ?? null} />
           )}
           <LeagueActions
             leagueId={league.id}

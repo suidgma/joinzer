@@ -142,15 +142,24 @@ export default function EditLeagueForm({
   // League format (Phase 1) — mirrors Create. Box create is enabled unless the
   // env flag is explicitly 'false'.
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
-  const [formatKind, setFormatKind] = useState<'session_rr' | 'box'>(d.format_kind === 'box' ? 'box' : 'session_rr')
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder'>(
+    d.format_kind === 'box' ? 'box' : d.format_kind === 'ladder' ? 'ladder' : 'session_rr'
+  )
   const [cycleWeeks, setCycleWeeks] = useState((d.format_settings_json?.cycle_length_weeks ?? 1).toString())
   const [promoteCount, setPromoteCount] = useState((d.format_settings_json?.promote_count ?? 1).toString())
   const [relegateCount, setRelegateCount] = useState((d.format_settings_json?.relegate_count ?? 1).toString())
+  const [roundsPerSession, setRoundsPerSession] = useState((d.format_settings_json?.rounds_per_session ?? 6).toString())
+  const [maxMove, setMaxMove] = useState((d.format_settings_json?.max_move ?? 3).toString())
+  const [initialRanking, setInitialRanking] = useState<'manual' | 'registration' | 'rating' | 'random'>(
+    (d.format_settings_json?.initial_ranking as any) ?? 'rating'
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const pointsToWinNum = parseInt(pointsToWin) || 11
   const isBox = formatKind === 'box'
+  const isLadder = formatKind === 'ladder'
+  const usesPeriods = isBox || isLadder
   const hasRegistrants = registrantCount > 0
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
@@ -195,7 +204,7 @@ export default function EditLeagueForm({
         standings_method: standingsMethod,
         points_to_win: pointsToWinNum,
         win_by: winBy,
-        partner_mode: teamType !== 'doubles' ? 'rotating' : (isBox ? 'fixed' : partnerMode),
+        partner_mode: teamType !== 'doubles' ? 'rotating' : (usesPeriods ? 'fixed' : partnerMode),
         sub_credit_cap: parseInt(subCreditCap) || 7,
         no_play_dates: noPlayDates,
         format_kind: formatKind,
@@ -206,20 +215,27 @@ export default function EditLeagueForm({
               promote_count: parseInt(promoteCount) || 1,
               relegate_count: parseInt(relegateCount) || 1,
             }
+          : isLadder
+          ? {
+              ...(d.format_settings_json ?? {}),
+              rounds_per_session: parseInt(roundsPerSession) || 6,
+              max_move: parseInt(maxMove) || 3,
+              initial_ranking: initialRanking,
+            }
           : {},
       })
       .eq('id', leagueId)
 
     if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
-    // Generate sessions only if none exist yet — box leagues use cycles, not sessions.
-    if (!isBox && willGenerateSessions) {
-      const roundsPerSession = gamesPerSession ? parseInt(gamesPerSession) : 7
+    // Generate sessions only if none exist yet — box/ladder use league_periods.
+    if (!usesPeriods && willGenerateSessions) {
+      const roundsPlanned = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = generatedDates.map((d, i) => ({
         league_id: leagueId,
         session_date: d,
         session_number: i + 1,
-        rounds_planned: roundsPerSession,
+        rounds_planned: roundsPlanned,
       }))
       await supabase.from('league_sessions').insert(rows)
     }
@@ -248,11 +264,11 @@ export default function EditLeagueForm({
           <FormRow
             label="League format"
             helpText={formatLocked
-              ? 'Format is locked — this league already has sessions or boxes. Delete them first to switch format (box settings below stay editable).'
-              : 'Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles, with promotion & relegation.'}
+              ? 'Format is locked — this league already has sessions or boxes. Delete them first to switch format (settings below stay editable).'
+              : 'Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles. Ladder: ranked list, up/down after king-of-the-court nights.'}
           >
-            <div className="grid grid-cols-2 gap-2">
-              {([['session_rr', 'Round Robin'], ['box', 'Box League']] as const).map(([val, label]) => {
+            <div className="grid grid-cols-3 gap-2">
+              {([['session_rr', 'Round Robin'], ['box', 'Box League'], ['ladder', 'Ladder']] as const).map(([val, label]) => {
                 const active = formatKind === val
                 const disabled = formatLocked && !active
                 return (
@@ -284,14 +300,14 @@ export default function EditLeagueForm({
             ))}
           </div>
         </FormRow>
-        {teamType === 'doubles' && isBox && (
+        {teamType === 'doubles' && usesPeriods && (
           <FormRow label="Partner mode">
             <p className="text-sm text-brand-muted">
-              Box doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant for the whole cycle.
+              {isBox ? 'Box' : 'Ladder'} doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant for the whole cycle.
             </p>
           </FormRow>
         )}
-        {teamType === 'doubles' && !isBox && (
+        {teamType === 'doubles' && !usesPeriods && (
           <FormRow label="Partner mode">
             <div className="grid grid-cols-2 gap-2">
               {(['rotating', 'fixed'] as const).map((m) => (
@@ -541,6 +557,25 @@ export default function EditLeagueForm({
                 <input type="number" min="0" value={relegateCount} onChange={(e) => setRelegateCount(e.target.value)} className="w-full input" />
               </div>
             </div>
+          </FormRow>
+        </FormSection>
+      )}
+
+      {isLadder && (
+        <FormSection title="Ladder League" description="King-of-the-court settings. Set the starting order on the Roster screen." defaultOpen>
+          <FormRow label="Rounds per session" width="xs" helpText="Short king-of-the-court games per night (you can finish early).">
+            <input type="number" min="1" value={roundsPerSession} onChange={(e) => setRoundsPerSession(e.target.value)} className="w-full input" />
+          </FormRow>
+          <FormRow label="Max move per night" width="xs" helpText="Most spots a player can climb or fall in one session.">
+            <input type="number" min="1" value={maxMove} onChange={(e) => setMaxMove(e.target.value)} className="w-full input" />
+          </FormRow>
+          <FormRow label="Starting order" width="sm" helpText="Initial seeding before session 1 (you can drag to adjust on Roster).">
+            <select value={initialRanking} onChange={(e) => setInitialRanking(e.target.value as typeof initialRanking)} className="w-full input">
+              <option value="rating">By rating / skill</option>
+              <option value="registration">Registration order</option>
+              <option value="random">Random</option>
+              <option value="manual">Manual (I'll set it)</option>
+            </select>
           </FormRow>
         </FormSection>
       )}

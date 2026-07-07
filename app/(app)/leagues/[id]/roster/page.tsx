@@ -6,6 +6,8 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
+import { ladderAdmin, readLadderState } from '@/lib/leagues/ladderServer'
+import LadderRankingSection from './LadderRankingSection'
 
 export default async function LeagueRosterPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -69,6 +71,21 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   // Box leagues do their seeding + running on the Run Session surface now; the
   // roster is just registrations (the max-w wrapper keeps it readable for box).
   const isBox = (league as any).format_kind === 'box'
+  const isLadder = (league as any).format_kind === 'ladder'
+
+  // Ladder: the roster also hosts the ladder-order editor (initial seeding +
+  // manual adjustments). Read the current order (unranked entrants appended).
+  let ladderEntrants: { id: string; name: string; rating: number | null }[] = []
+  let ladderSaved = true
+  if (isLadder) {
+    const admin = ladderAdmin()
+    const { entrants, posByReg, orderedIds } = await readLadderState(
+      admin, params.id, (league as any).format, (league as any).format_settings_json ?? null,
+    )
+    ladderEntrants = entrants.map((e) => ({ id: e.registrationId, name: e.name, rating: e.rating }))
+    // "Saved" only when every entrant already has a matching stored position.
+    ladderSaved = orderedIds.length > 0 && orderedIds.every((id, i) => posByReg.get(id) === i + 1)
+  }
 
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
@@ -89,7 +106,15 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
       sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
     >
       <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
-      <div className={isBox ? 'max-w-2xl' : undefined}>
+      <div className={isBox || isLadder ? 'max-w-2xl space-y-6' : undefined}>
+        {isLadder && (
+          <LadderRankingSection
+            key={ladderEntrants.map((e) => e.id).join(',')}
+            leagueId={params.id}
+            entrants={ladderEntrants}
+            initialSaved={ladderSaved}
+          />
+        )}
         <LeagueRosterManager
           leagueId={params.id}
           leagueName={league.name}
