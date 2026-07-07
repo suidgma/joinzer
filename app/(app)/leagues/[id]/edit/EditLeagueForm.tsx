@@ -117,6 +117,8 @@ export default function EditLeagueForm({
   const [category, setCategory] = useState(initCategory)
   const [skillMin, setSkillMin] = useState(d.skill_min?.toString() ?? '2.0')
   const [skillMax, setSkillMax] = useState(d.skill_max?.toString() ?? '')
+  const [ageMin, setAgeMin] = useState(d.age_min?.toString() ?? '')
+  const [ageMax, setAgeMax] = useState(d.age_max?.toString() ?? '')
   const [locationName, setLocationName] = useState(d.location_name ?? '')
   const [startTime, setStartTime] = useState(d.start_time ?? '08:00')
   const [estimatedEndTime, setEstimatedEndTime] = useState(d.estimated_end_time ?? '17:00')
@@ -188,6 +190,8 @@ export default function EditLeagueForm({
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
+        age_min: ageMin ? parseInt(ageMin) : null,
+        age_max: ageMax ? parseInt(ageMax) : null,
         location_name: locationName.trim() || null,
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
@@ -356,6 +360,13 @@ export default function EditLeagueForm({
               <option value="">No max</option>
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
+          </div>
+        </FormRow>
+        <FormRow label="Age range" width="md" helpText="Optional. Leave blank for all ages.">
+          <div className="flex items-center gap-3">
+            <input type="number" min="0" value={ageMin} onChange={(e) => setAgeMin(e.target.value)} placeholder="Min" className="flex-1 input" />
+            <span className="text-sm text-brand-muted shrink-0">to</span>
+            <input type="number" min="0" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} placeholder="No max" className="flex-1 input" />
           </div>
         </FormRow>
         <FormRow label="Points to win" htmlFor="points-to-win" width="xs">

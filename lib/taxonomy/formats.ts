@@ -38,6 +38,14 @@ export function formatSkillRange(min: number | null, max: number | null): string
   return `Up to ${max!.toFixed(1)}`
 }
 
+// Age eligibility range, e.g. "18 – 49", "40+", "Up to 12". Null when unrestricted.
+export function formatAgeRange(min: number | null, max: number | null): string | null {
+  if (min == null && max == null) return null
+  if (min != null && max != null) return `${min} – ${max}`
+  if (min != null) return `${min}+`
+  return `Up to ${max}`
+}
+
 // Converts skill_min/max back to a skill_level key for sub request fields.
 // Uses skill_min as the anchor; if null, returns null.
 export function skillRangeToLevel(min: number | null, _max: number | null): string | null {
