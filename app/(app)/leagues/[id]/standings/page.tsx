@@ -14,6 +14,8 @@ import { getRunSessionAction } from '@/lib/leagues/runSession'
 import { readLadderState } from '@/lib/leagues/ladderServer'
 import LadderStandings, { type LadderStandingRow } from './LadderStandings'
 import StandingsShareCard from './StandingsShareCard'
+import { getBoxPositionTrend } from '@/lib/leagues/boxTrend'
+import BoxPositionTrend from './BoxPositionTrend'
 
 export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string }> }) {
   const params = await props.params;
@@ -112,6 +114,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   //    past cycle; movement (▲/▼) compares to the following cycle's boxes. ──
   if ((league as any).format_kind === 'box') {
     const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const boxTrend = await getBoxPositionTrend(admin, params.id, (league as any).format)
     const doubles = isDoublesFormat((league as any).format)
     const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
 
@@ -306,6 +309,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             )}
           </div>
           <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
+          {boxTrend.cycleNumbers.length >= 1 && <BoxPositionTrend rows={boxTrend.rows} cycleNumbers={boxTrend.cycleNumbers} />}
           {!selectedCycle ? (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
               <p className="text-2xl">📊</p>
