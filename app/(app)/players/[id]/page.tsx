@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import RatingBadge from '@/components/features/RatingBadge'
-import { joinzerRatingLabel } from '@/lib/utils/date'
+import { selfReportedLevel } from '@/lib/rating/levels'
 import { ChevronLeft } from 'lucide-react'
 
 export default async function PlayerProfilePage(
@@ -15,7 +15,7 @@ export default async function PlayerProfilePage(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender')
+    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, gender')
     .eq('id', id)
     .single()
 
@@ -24,8 +24,13 @@ export default async function PlayerProfilePage(
   const isSelf = user?.id === profile.id
 
   const displayName = (profile.display_name ?? profile.name) as string
-  const rating = (profile.joinzer_rating as number) ?? 1000
-  const ratingLabel = joinzerRatingLabel(rating)
+  const selfRating: number | null =
+    (profile.self_reported_rating as number | null) ??
+    ((profile.rating_source === 'estimated' ? profile.estimated_rating : profile.rating_source === 'dupr_known' ? profile.dupr_rating : null) as number | null)
+  const selfScale: string | null =
+    (profile.self_reported_scale as string | null) ??
+    (profile.rating_source === 'dupr_known' ? 'dupr' : profile.rating_source === 'estimated' ? 'self' : null)
+  const ratingLabel = selfReportedLevel(selfRating)
 
   return (
     <main className="max-w-lg mx-auto p-4">
@@ -60,9 +65,10 @@ export default async function PlayerProfilePage(
             <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
               <span className="text-sm text-brand-active font-medium">{ratingLabel}</span>
               <RatingBadge
-                ratingSource={profile.rating_source as string | null}
+                selfReportedRating={selfRating}
+                selfReportedScale={selfScale}
                 duprRating={profile.dupr_rating as number | null}
-                estimatedRating={profile.estimated_rating as number | null}
+                duprVerified={profile.dupr_verified as boolean | null}
                 size="sm"
               />
             </div>

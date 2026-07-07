@@ -26,13 +26,6 @@ export function formatTimestamp(isoStr: string, opts?: Intl.DateTimeFormatOption
   }).format(new Date(isoStr))
 }
 
-export function joinzerRatingLabel(rating: number): string {
-  if (rating >= 1200) return 'Advanced'
-  if (rating >= 1100) return 'Intermediate Plus'
-  if (rating >= 1000) return 'Intermediate'
-  if (rating >= 900) return 'Beginner Plus'
-  return 'Beginner'
-}
 
 export function formatDuration(minutes: number): string {
   const rounded = Math.round(minutes / 15) * 15

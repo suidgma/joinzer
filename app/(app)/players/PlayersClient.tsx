@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { joinzerRatingLabel } from '@/lib/utils/date'
+import { activityLevels, selfReportedLevel } from '@/lib/rating/levels'
 import PlayerInviteModal from '@/components/features/players/PlayerInviteModal'
 import RatingBadge from '@/components/features/RatingBadge'
 
@@ -11,12 +11,12 @@ type Player = {
   name: string
   display_name: string | null
   profile_photo_url: string | null
-  rating_source: string | null
+  self_reported_rating: number | null
+  self_reported_scale: string | null
   dupr_rating: number | null
-  estimated_rating: number | null
+  dupr_verified: boolean
   availableToday: boolean
   timeWindows: string[]
-  joinzer_rating: number
   gender: string | null
 }
 
@@ -33,15 +33,8 @@ const TIME_LABELS: Record<string, string> = {
   evening: 'Eve',
 }
 
-type SkillTier = { label: string; min: number; max: number }
-
-const SKILL_TIERS: SkillTier[] = [
-  { label: 'Beginner',          min: 0,    max: 899  },
-  { label: 'Beginner Plus',     min: 900,  max: 999  },
-  { label: 'Intermediate',      min: 1000, max: 1099 },
-  { label: 'Intermediate Plus', min: 1100, max: 1199 },
-  { label: 'Advanced',          min: 1200, max: 99999 },
-]
+// The public Joinzer Level labels (pickleball) — single source in lib/rating/levels.
+const LEVEL_LABELS = activityLevels('pickleball').map((b) => b.label)
 
 
 type Props = {
@@ -75,8 +68,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
     }
     if (genderFilter && p.gender !== genderFilter) return false
     if (activeLabels.size === 0) return true
-    const tier = SKILL_TIERS.find((t) => p.joinzer_rating >= t.min && p.joinzer_rating <= t.max)
-    return tier ? activeLabels.has(tier.label) : false
+    return activeLabels.has(selfReportedLevel(p.self_reported_rating))
   })
 
   return (
@@ -114,19 +106,19 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
 
       {/* Skill filter pills */}
       <div className="flex gap-2 flex-wrap">
-        {SKILL_TIERS.map((tier) => {
-          const active = activeLabels.has(tier.label)
+        {LEVEL_LABELS.map((label) => {
+          const active = activeLabels.has(label)
           return (
             <button
-              key={tier.label}
-              onClick={() => toggleTier(tier.label)}
+              key={label}
+              onClick={() => toggleTier(label)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 active
                   ? 'bg-brand text-brand-dark border-brand'
                   : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-active'
               }`}
             >
-              {tier.label}
+              {label}
             </button>
           )
         })}
@@ -184,12 +176,13 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                 </div>
                 <p className="w-full px-1 text-sm font-medium text-brand-dark text-center leading-tight line-clamp-1">{displayName}</p>
                 <RatingBadge
-                  ratingSource={player.rating_source}
+                  selfReportedRating={player.self_reported_rating}
+                  selfReportedScale={player.self_reported_scale}
                   duprRating={player.dupr_rating}
-                  estimatedRating={player.estimated_rating}
+                  duprVerified={player.dupr_verified}
                 />
                 <p className="text-xs text-brand-active font-medium text-center">
-                  {joinzerRatingLabel(player.joinzer_rating)}
+                  {selfReportedLevel(player.self_reported_rating)}
                 </p>
                 {canInvite && (
                   <p className="text-[10px] text-brand-active font-medium">Tap to invite</p>

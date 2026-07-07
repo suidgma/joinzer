@@ -77,6 +77,10 @@ export default function ProfileSetupPage() {
       rating_source: ratingSource,
       dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
       estimated_rating: ratingSource === 'estimated' ? numericRating : null,
+      // Consolidated self-report (Phase 0). Self-entered DUPR is NOT verified.
+      self_reported_rating: numericRating,
+      self_reported_scale: ratingSource === 'dupr_known' ? 'dupr' : ratingSource === 'estimated' ? 'self' : null,
+      dupr_verified: false,
       joinzer_rating: seedJoinzerRating(numericRating),
       gender,
       is_stub: false,  // clear stub flag when player completes setup

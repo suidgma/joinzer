@@ -83,6 +83,10 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
         rating_source: ratingSource,
         dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
         estimated_rating: ratingSource === 'estimated' ? numericRating : null,
+        // Consolidated self-report (Phase 0). Self-entered DUPR is NOT verified.
+        self_reported_rating: numericRating,
+        self_reported_scale: ratingSource === 'dupr_known' ? 'dupr' : ratingSource === 'estimated' ? 'self' : null,
+        dupr_verified: false,
         notify_new_sessions: notifyNewSessions,
         profile_photo_url: photoUrl,
         joinzer_rating: seedJoinzerRating(numericRating),
