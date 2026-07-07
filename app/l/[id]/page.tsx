@@ -5,7 +5,10 @@ import type { Metadata } from 'next'
 import LadderStandings from '@/app/(app)/leagues/[id]/standings/LadderStandings'
 import BoxStandings from '@/app/(app)/leagues/[id]/standings/BoxStandings'
 import StandingsTable from '@/app/(app)/leagues/[id]/standings/StandingsTable'
+import BoxPositionTrend from '@/app/(app)/leagues/[id]/standings/BoxPositionTrend'
+import RecentResults from '@/app/(app)/leagues/[id]/standings/RecentResults'
 import { getLadderPublicStandings, getBoxPublicStandings, getRRPublicStandings } from '@/lib/leagues/publicStandings'
+import { getBoxPositionTrend } from '@/lib/leagues/boxTrend'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,16 +65,31 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
 
   let content: React.ReactNode
   if (league.format_kind === 'ladder') {
-    const { rows, hasHistory } = await getLadderPublicStandings(db, id, league.format, settings)
-    content = <LadderStandings rows={rows} hasHistory={hasHistory} />
+    const { rows, hasHistory, trendRows, sessionNumbers, recentRows, latestSessionNumber } = await getLadderPublicStandings(db, id, league.format, settings)
+    content = (
+      <>
+        <LadderStandings rows={rows} hasHistory={hasHistory} />
+        {sessionNumbers.length >= 1 && <BoxPositionTrend rows={trendRows} periodNumbers={sessionNumbers} />}
+        {recentRows.length > 0 && <RecentResults heading={`Latest results — Session ${latestSessionNumber}`} rows={recentRows} />}
+      </>
+    )
   } else if (league.format_kind === 'box') {
     const { boxes } = await getBoxPublicStandings(db, id, league.format)
-    content = boxes.length ? <BoxStandings boxes={boxes} /> : <EmptyState msg="Standings appear once the first cycle is completed." />
+    const boxTrend = await getBoxPositionTrend(db, id, league.format)
+    content = boxes.length ? (
+      <>
+        {boxTrend.cycleNumbers.length >= 1 && <BoxPositionTrend rows={boxTrend.rows} periodNumbers={boxTrend.cycleNumbers} />}
+        <BoxStandings boxes={boxes} />
+      </>
+    ) : <EmptyState msg="Standings appear once the first cycle is completed." />
   } else {
     const rr = await getRRPublicStandings(db, id, league.sub_credit_cap ?? 7, (league.standings_method ?? 'win_loss') as any, league.partner_mode ?? null)
-    content = rr.hasResults
-      ? <StandingsTable initialStandings={rr.standings as any} sessionsWithData={rr.sessionsWithData} sessionPts={rr.sessionPts} sessionWL={rr.sessionWL} standingsMethod={rr.standingsMethod} />
-      : <EmptyState msg="No results posted yet." />
+    content = rr.hasResults ? (
+      <>
+        <StandingsTable initialStandings={rr.standings as any} sessionsWithData={rr.sessionsWithData} sessionPts={rr.sessionPts} sessionWL={rr.sessionWL} standingsMethod={rr.standingsMethod} />
+        {rr.recentRows.length > 0 && <RecentResults heading={`Latest results — Wk ${rr.latestSessionNumber}`} rows={rr.recentRows} />}
+      </>
+    ) : <EmptyState msg="No results posted yet." />
   }
 
   return (

@@ -8,6 +8,8 @@ import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
 import { readLadderState, type ladderAdmin } from '@/lib/leagues/ladderServer'
 import type { LadderStandingRow } from '@/app/(app)/leagues/[id]/standings/LadderStandings'
 import type { BoxStandingView } from '@/app/(app)/leagues/[id]/standings/BoxStandings'
+import type { BoxTrendRow } from '@/lib/leagues/boxTrend'
+import type { ResultRow } from '@/app/(app)/leagues/[id]/standings/RecentResults'
 
 type Admin = ReturnType<typeof ladderAdmin>
 const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
@@ -41,7 +43,40 @@ export async function getLadderPublicStandings(admin: Admin, leagueId: string, f
       spark: h.map((x) => -x.position_after),
     }
   })
-  return { rows, hasHistory }
+
+  // Position-by-week grid (rank per session; null = sat out that night).
+  const sessionNumbers = [...new Set(history.map((h) => h.session_number as number))].sort((a, b) => a - b)
+  const trendRows: BoxTrendRow[] = state.orderedIds.map((id, i) => {
+    const posBySession = new Map<number, number>((byReg.get(id) ?? []).map((x) => [x.session_number, x.position_after]))
+    return { regId: id, name: state.nameOf(id), positions: sessionNumbers.map((sn) => posBySession.get(sn) ?? null), current: i + 1 }
+  })
+
+  // Most recent night's court scores.
+  const { data: lastPeriod } = await admin
+    .from('league_periods').select('id, period_number')
+    .eq('league_id', leagueId).eq('period_kind', 'ladder_session').eq('status', 'completed')
+    .order('period_number', { ascending: false }).limit(1).maybeSingle()
+  let recentRows: ResultRow[] = []
+  const latestSessionNumber: number | null = lastPeriod ? (lastPeriod.period_number as number) : null
+  if (lastPeriod) {
+    const { data: fx } = await admin
+      .from('league_fixtures')
+      .select('court_number, round_number, match_stage, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id')
+      .eq('period_id', lastPeriod.id)
+    recentRows = (fx ?? [])
+      .filter((f: any) => f.match_stage === 'ladder_round' && f.team_1_score != null)
+      .sort((a: any, b: any) => (a.round_number - b.round_number) || ((a.court_number ?? 0) - (b.court_number ?? 0)))
+      .map((f: any) => ({
+        label: f.court_number != null ? `Ct ${f.court_number}` : undefined,
+        name1: state.nameOf(f.team_1_registration_id),
+        name2: state.nameOf(f.team_2_registration_id),
+        score1: f.team_1_score,
+        score2: f.team_2_score,
+        winner1: f.winner_registration_id === f.team_1_registration_id,
+      }))
+  }
+
+  return { rows, hasHistory, trendRows, sessionNumbers, recentRows, latestSessionNumber }
 }
 
 // ── Box (latest completed cycle) ─────────────────────────────────────────────
@@ -220,5 +255,26 @@ export async function getRRPublicStandings(admin: Admin, leagueId: string, subCr
 
   const sessionsWithData = (sessions ?? []).filter((s: any) => (matches ?? []).some((m: any) => m.session_id === s.id)).map((s: any) => ({ id: s.id, session_number: s.session_number }))
   const hasResults = (matches ?? []).length > 0
-  return { standings, sessionsWithData, sessionPts, sessionWL, standingsMethod, hasResults }
+
+  // Most recent week's match scores.
+  const latest = sessionsWithData[sessionsWithData.length - 1]
+  let recentRows: ResultRow[] = []
+  const latestSessionNumber: number | null = latest ? (latest.session_number as number) : null
+  if (latest) {
+    const latestMatches = (matches ?? []).filter((m: any) => m.session_id === latest.id && m.team1_score != null)
+    const pids = new Set<string>()
+    for (const m of latestMatches) for (const pid of [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id]) if (pid) pids.add(pid)
+    const { data: profs } = pids.size ? await admin.from('profiles').select('id, name').in('id', [...pids]) : { data: [] as any[] }
+    const nameById = new Map((profs ?? []).map((p: any) => [p.id, firstName(p.name) || 'Player']))
+    const nm = (id: string | null) => (id ? (nameById.get(id) ?? 'Player') : '')
+    recentRows = latestMatches.map((m: any) => ({
+      name1: [m.team1_player1_id, m.team1_player2_id].filter(Boolean).map((id: string) => nm(id)).join('/'),
+      name2: [m.team2_player1_id, m.team2_player2_id].filter(Boolean).map((id: string) => nm(id)).join('/'),
+      score1: m.team1_score,
+      score2: m.team2_score,
+      winner1: m.team1_score > m.team2_score,
+    }))
+  }
+
+  return { standings, sessionsWithData, sessionPts, sessionWL, standingsMethod, hasResults, recentRows, latestSessionNumber }
 }
