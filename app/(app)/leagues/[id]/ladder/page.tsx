@@ -9,6 +9,7 @@ import BoxAttendanceManager from '../attendance/BoxAttendanceManager'
 import { ladderAdmin, readLadderState, buildLadderAttendance, computeLadderUpdate } from '@/lib/leagues/ladderServer'
 import LadderStartButton from './LadderStartButton'
 import LadderRounds, { type RoundView } from './LadderRounds'
+import LadderRankingSection from '../roster/LadderRankingSection'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +47,17 @@ export default async function LadderRunPage(props: { params: Promise<{ id: strin
     .eq('period_kind', 'ladder_session')
     .eq('status', 'active')
     .maybeSingle()
+
+  // The ladder-order editor is a one-time setup shown before session 1 (like box
+  // seeding). Once any session has been started, the order is driven by results.
+  const { count: sessionCount } = await admin
+    .from('league_periods')
+    .select('id', { count: 'exact', head: true })
+    .eq('league_id', params.id)
+    .eq('period_kind', 'ladder_session')
+  const neverStarted = (sessionCount ?? 0) === 0
+  const ladderEntrants = state.entrants.map((e) => ({ id: e.registrationId, name: e.name, rating: e.rating }))
+  const ladderSaved = state.orderedIds.length > 0 && state.orderedIds.every((id, i) => state.posByReg.get(id) === i + 1)
 
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
@@ -114,7 +126,9 @@ export default async function LadderRunPage(props: { params: Promise<{ id: strin
           </h1>
           <p className="text-xs text-brand-muted">
             {!period
-              ? 'King-of-the-court night: start a session, mark who’s here, play the rounds, then update the ladder.'
+              ? (neverStarted
+                  ? 'Set the starting ladder order (this seeds the courts on night one), then start session 1.'
+                  : 'King-of-the-court night: start a session, mark who’s here, play the rounds, then update the ladder.')
               : 'Mark who’s here, generate rounds (winner up a court, loser down), then finish to update the ladder.'}
           </p>
         </div>
@@ -125,23 +139,32 @@ export default async function LadderRunPage(props: { params: Promise<{ id: strin
               <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
                 <p className="text-2xl">🪜</p>
                 <p className="text-sm font-medium text-brand-dark">Not enough players yet</p>
-                <p className="text-xs text-brand-muted">Add players and set the ladder order on the Roster screen.</p>
+                <p className="text-xs text-brand-muted">Add players on the Roster screen, then set the ladder order here.</p>
               </div>
             ) : (
               <>
-                <div className="rounded-xl border border-brand-border overflow-hidden">
-                  <div className="px-3 py-1.5 bg-brand-soft border-b border-brand-border text-xs font-bold text-brand-dark uppercase tracking-wide">
-                    Current ladder
+                {neverStarted ? (
+                  <LadderRankingSection
+                    key={ladderEntrants.map((e) => e.id).join(',')}
+                    leagueId={params.id}
+                    entrants={ladderEntrants}
+                    initialSaved={ladderSaved}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-brand-border overflow-hidden">
+                    <div className="px-3 py-1.5 bg-brand-soft border-b border-brand-border text-xs font-bold text-brand-dark uppercase tracking-wide">
+                      Current ladder
+                    </div>
+                    <div className="divide-y divide-brand-border">
+                      {state.entrants.map((e, i) => (
+                        <div key={e.registrationId} className="flex items-center gap-3 px-3 py-1.5 text-sm">
+                          <span className="text-brand-muted w-6 text-right">{i + 1}</span>
+                          <span className="text-brand-dark truncate">{e.name}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="divide-y divide-brand-border">
-                    {state.entrants.map((e, i) => (
-                      <div key={e.registrationId} className="flex items-center gap-3 px-3 py-1.5 text-sm">
-                        <span className="text-brand-muted w-6 text-right">{i + 1}</span>
-                        <span className="text-brand-dark truncate">{e.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                )}
                 <LadderStartButton leagueId={params.id} />
               </>
             )}
