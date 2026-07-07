@@ -115,7 +115,10 @@ Players say "Score" and "Level"; the engine's raw number is invisible.
 1. **Vocabulary convergence:** player Levels (New Player…Elite) vs competition skill
    labels (Beginner…Advanced+, DUPR 2.0–5.0). Migrate divisions/leagues to Score bands,
    keep two vocabularies, or map on the fly? (Phase 4.)
-2. **Score normalization calibration:** which internal μ maps to Score 10/30/50/70/90.
-3. **Established threshold:** fixed game count vs Glicko RD cutoff.
+2. **Score normalization calibration:** score anchors **LOCKED** (10 true beginner · 30 rec
+   beginner · 50 avg club · 70 strong competitive · 90 tournament elite — see
+   `rating-engine-phase2.md §0`); only the numeric internal-rating fit remains.
+3. **Established threshold: LOCKED** — RD below threshold AND ≥15 games AND ≥3 separate
+   events/sessions (variety, not just quantity). See `rating-engine-phase2.md §0`.
 4. **Legacy field retirement:** when to drop `estimated_rating` / `rating_source` (kept
    additive for now).

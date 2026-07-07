@@ -3,7 +3,41 @@
 > Design only. NOT built. Implements Phase 2 of `docs/phases/rating-system.md`.
 > Turns scored match results into an internal rating → the public **Joinzer Score
 > (0–100)**. Pickleball first; architecture is activity/format-aware.
+> Phase 2 product decisions **LOCKED July 7, 2026** (§0); engine still parked — no Glicko work.
 > Last revised: July 7, 2026.
+
+---
+
+## 0. Locked decisions (July 7, 2026)
+
+Final Phase 2 **product** decisions. The engine stays parked (no Glicko development yet); the
+next implementation work remains Phase 0 + Phase 1 only.
+
+**Public scale (unchanged):** 0–20 New Player · 21–40 Beginner · 41–60 Intermediate ·
+61–80 Advanced · 81–100 Elite.
+
+**Calibration anchors — what each Score *means*:**
+
+| Score | Meaning | Approx. pickleball (anchor only) |
+|---|---|---|
+| 10 | true beginner | — |
+| 30 | recreational beginner | ≈ DUPR 2.0–2.9 (band 21–40) |
+| 50 | average club player | ≈ DUPR 3.0–3.7 (band 41–60) |
+| 70 | strong competitive player | ≈ DUPR 3.8–4.5 (band 61–80) |
+| 90 | tournament elite | ≈ DUPR 4.6+ (band 81–100) |
+
+These fix the *meaning* of the scale. The remaining numeric step is fitting the normalization
+so internal ratings land on these anchors (§4). **Joinzer Score is NOT a DUPR conversion** —
+the DUPR figures are approximate intuition anchors only and are never displayed as an equivalence.
+
+**Established — all three must hold:** confidence/`RD` below threshold **AND** ≥ **15** counted
+games **AND** ≥ **3** separate events/sessions. The events floor is deliberate: the bar is
+*variety of opponents and contexts*, not raw game count. Until all three hold, the player is
+Provisional.
+
+**Reconfirmed (v1):** doubles primary · singles separate · mixed folds into doubles ·
+**league + tournament matches only** (no casual/open play) · equal league/tournament weighting ·
+no margin-of-victory.
 
 ---
 
@@ -37,6 +71,9 @@ type GameRecord = {
   format: 'doubles' | 'singles' // mixed folds into 'doubles'
   source: 'league' | 'tournament'
   competitionId: string         // league_id / tournament_id (for future weighting)
+  occasionId: string            // distinct session/cycle/tournament — powers the ≥3-events
+                                //   Established gate. league RR → session_id; box/ladder →
+                                //   period_id; tournament → tournament_id.
   sideA: string[]               // user_ids — 1 (singles) or 2 (doubles)
   sideB: string[]
   winner: 'A' | 'B'
@@ -123,9 +160,10 @@ Recommended form — clamped logistic:
 ```
 score = clamp( round( 100 / (1 + exp(-(r - r_mid) / s)) ), 0, 100 )
 ```
-with per-activity `r_mid`, `s` calibrated so anchor ratings land in-band (New Player≈10,
-Beginner≈30, Intermediate≈50, Advanced≈70, Elite≈90). **Calibration is an open item** —
-tune `r_mid`/`s` against a handful of known-DUPR players (§14). `scoreToLevel(activity, score)`
+with per-activity `r_mid`, `s`. The **score anchors are locked** (§0: 10/30/50/70/90 with their
+meanings); the only remaining step is the numeric fit — choose `r_mid`/`s` so internal ratings
+land on those anchors, sanity-checked against a few known-DUPR players. Joinzer Score is not a
+DUPR conversion. `scoreToLevel(activity, score)`
 (already shipped in `lib/rating/levels.ts`) turns the Score into the Level label.
 
 **Seeding (inverse):** initial `r` from `self_reported_rating` →
@@ -140,11 +178,12 @@ No self-report → New-Player-band `r`, `RD=350`.
 | State | Rule (tunable) | Public display |
 |---|---|---|
 | **Provisional** | `RD ≥ ~110` (Glicko scale) **or** `games_counted < ~10` | Level + "Provisional · N matches" (no Score number if you prefer, or Score shown but tagged) |
-| **Established** | `RD < ~110` **and** `games_counted ≥ ~10` | Level + **Joinzer Score** + "Established · N matches" |
+| **Established** | `RD < ~110` **and** `games_counted ≥ 15` **and** `events_counted ≥ 3` (distinct sessions/tournaments — variety, not just quantity) | Level + **Joinzer Score** + "Established · N matches" |
 | **Rusty** | Established but idle → `RD` regrown past threshold | Level + "Rusty · last played …" |
 
 Public shows a **word + match count**, never a percentage. `confidence_state` is derived from
-`RD` + `games_counted` + `last_played_at` and cached for cheap reads.
+`RD` + `games_counted` + `events_counted` (distinct `occasionId`s) + `last_played_at` and cached
+for cheap reads.
 
 ---
 
@@ -160,6 +199,7 @@ player_ratings                         -- engine source of truth
   rating_volatility numeric
   joinzer_score    integer              -- 0–100 cache
   games_counted    integer
+  events_counted   integer              -- distinct sessions/tournaments (Established gate)
   basis            text  'seed' | 'calculated'
   confidence_state text  'provisional' | 'established' | 'rusty'
   last_played_at   timestamptz
@@ -274,9 +314,9 @@ optimization; at Joinzer's scale (hundreds of players, thousands of games) full 
 ## 14. Open questions / calibration
 
 1. **Rating period length** — weekly (recommended) vs per-competition-event.
-2. **Established threshold** — RD cutoff vs game count vs both (start `RD<110 & games≥10`).
-3. **Normalization anchors** — `r_mid`, `s` per activity: calibrate against known-DUPR players so
-   Score↔skill feels right (the one thing that must be right before public launch).
+2. ~~**Established threshold**~~ — **LOCKED (§0):** `RD` below threshold AND ≥15 games AND ≥3 events.
+3. **Normalization anchors** — **score anchors LOCKED (§0):** 10/30/50/70/90 with meanings. Remaining:
+   the numeric `r_mid`/`s` fit to those anchors (sanity-check vs known-DUPR players) before launch.
 4. **Sub crediting for box/ladder** — physical sub (overlay) vs covered entrant.
 5. **Singles sparsity** — singles may rarely reach Established; is Level-only acceptable there?
 6. **League vs tournament weight** — equal for v1; revisit.
