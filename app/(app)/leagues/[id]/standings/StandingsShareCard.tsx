@@ -3,9 +3,20 @@
 import { useState } from 'react'
 import { Share2, Check, Copy } from 'lucide-react'
 
-// Organizer-only control on the Standings page: toggle a public, no-login results
-// page at /l/[id] and copy the shareable link. Off by default.
-export default function StandingsShareCard({ leagueId, initialEnabled }: { leagueId: string; initialEnabled: boolean }) {
+// Share control on the Standings page. Organizers (canToggle) get the on/off
+// switch that controls the public, no-login page at /l/[id] + the copy-link when
+// it's on. Everyone else (participants) gets ONLY the copy-link, and only once the
+// organizer has turned public results on — so anyone in the league can share the
+// standings, but only the organizer decides whether it's public at all.
+export default function StandingsShareCard({
+  leagueId,
+  initialEnabled,
+  canToggle,
+}: {
+  leagueId: string
+  initialEnabled: boolean
+  canToggle: boolean
+}) {
   const [enabled, setEnabled] = useState(initialEnabled)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -19,7 +30,7 @@ export default function StandingsShareCard({ leagueId, initialEnabled }: { leagu
       const res = await fetch(`/api/leagues/${leagueId}/public-standings`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: next }),
       })
-      if (!res.ok) setEnabled(!next) // revert on failure
+      if (!res.ok) setEnabled(!next)
     } catch {
       setEnabled(!next)
     } finally {
@@ -35,6 +46,30 @@ export default function StandingsShareCard({ leagueId, initialEnabled }: { leagu
     } catch { /* clipboard unavailable */ }
   }
 
+  const linkRow = (
+    <div className="flex items-center gap-2">
+      <input readOnly value={publicUrl} className="flex-1 min-w-0 text-xs input py-1.5 bg-white" onFocus={(e) => e.currentTarget.select()} />
+      <button onClick={copy} className="flex items-center gap-1 text-xs font-semibold bg-brand text-brand-dark px-2.5 py-1.5 rounded-lg hover:bg-brand-hover whitespace-nowrap">
+        {copied ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
+      </button>
+    </div>
+  )
+
+  // Participants: only a share link, and only when the organizer has made it public.
+  if (!canToggle) {
+    if (!enabled) return null
+    return (
+      <div className="bg-brand-soft border border-brand-border rounded-2xl p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Share2 className="w-4 h-4 text-brand-active shrink-0" />
+          <p className="text-sm font-medium text-brand-dark">Share these standings</p>
+        </div>
+        {linkRow}
+      </div>
+    )
+  }
+
+  // Organizer: the on/off switch + the link when it's on.
   return (
     <div className="bg-brand-soft border border-brand-border rounded-2xl p-3 space-y-2">
       <div className="flex items-center justify-between gap-3">
@@ -54,14 +89,7 @@ export default function StandingsShareCard({ leagueId, initialEnabled }: { leagu
           <div className={`w-4 h-4 bg-white rounded-full shadow m-0.5 transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
         </button>
       </div>
-      {enabled && (
-        <div className="flex items-center gap-2">
-          <input readOnly value={publicUrl} className="flex-1 min-w-0 text-xs input py-1.5 bg-white" onFocus={(e) => e.currentTarget.select()} />
-          <button onClick={copy} className="flex items-center gap-1 text-xs font-semibold bg-brand text-brand-dark px-2.5 py-1.5 rounded-lg hover:bg-brand-hover whitespace-nowrap">
-            {copied ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-          </button>
-        </div>
-      )}
+      {enabled && linkRow}
     </div>
   )
 }

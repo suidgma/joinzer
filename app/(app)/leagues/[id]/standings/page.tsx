@@ -100,7 +100,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             <h1 className="font-heading text-xl font-bold text-brand-dark">Ladder</h1>
             <p className="text-xs text-brand-muted">Current rank, movement since the last night (▲/▼), and trend.</p>
           </div>
-          {isManager0 && <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} />}
+          <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
           <LadderStandings rows={rows} hasHistory={hasHistory} />
         </div>
       </DesktopShell>
@@ -305,7 +305,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
               />
             )}
           </div>
-          {isManager0 && <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} />}
+          <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
           {!selectedCycle ? (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
               <p className="text-2xl">📊</p>
@@ -522,7 +522,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         </p>
       </div>
 
-      {isManager && <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} />}
+      <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager} />
 
       {!hasResults ? (
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
