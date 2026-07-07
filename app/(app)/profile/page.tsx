@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { joinzerRatingLabel } from '@/lib/utils/date'
+import { selfReportedLevel } from '@/lib/rating/levels'
 import DeleteAccountButton from '@/components/features/DeleteAccountButton'
 import RatingBadge from '@/components/features/RatingBadge'
 import PushSubscribeButton from '@/components/features/PushSubscribeButton'
@@ -20,16 +20,19 @@ export default async function ProfilePage() {
 
   if (!profile) redirect('/profile/setup')
 
-  const ratingDisplay =
-    profile.rating_source === 'dupr_known'
-      ? `DUPR ${profile.dupr_rating}`
-      : profile.rating_source === 'estimated'
-      ? `Estimated ${profile.estimated_rating}`
-      : null
+  // Player identity: Joinzer Level (provisional, from the self-report today) + honest
+  // self-reported provenance. No Joinzer Score until a calculated engine exists (Phase 2+).
+  const selfRating: number | null =
+    profile.self_reported_rating ??
+    (profile.rating_source === 'estimated' ? profile.estimated_rating : profile.rating_source === 'dupr_known' ? profile.dupr_rating : null)
+  const selfScale: string | null =
+    profile.self_reported_scale ??
+    (profile.rating_source === 'dupr_known' ? 'dupr' : profile.rating_source === 'estimated' ? 'self' : null)
+  const joinzerLevel = selfReportedLevel(selfRating)
 
   // Compute missing fields for completeness nudge
   const missing: string[] = []
-  if (!profile.rating_source || profile.rating_source === 'skipped') missing.push('skill rating')
+  if (selfRating == null) missing.push('skill rating')
   if (!profile.gender) missing.push('gender')
   if (!profile.profile_photo_url) missing.push('profile photo')
 
@@ -100,23 +103,23 @@ export default async function ProfilePage() {
         )}
 
         <div>
-          <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Rating</p>
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-brand-body">{ratingDisplay ?? 'Not set'}</p>
-            {ratingDisplay && (
-              <RatingBadge
-                ratingSource={profile.rating_source}
-                duprRating={profile.dupr_rating}
-                estimatedRating={profile.estimated_rating}
-                size="sm"
-              />
+          <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Joinzer Level</p>
+          <p className="text-base font-semibold text-brand-dark">{joinzerLevel}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <RatingBadge
+              selfReportedRating={selfRating}
+              selfReportedScale={selfScale}
+              duprRating={profile.dupr_rating}
+              duprVerified={profile.dupr_verified}
+              size="sm"
+            />
+            {selfRating == null && (
+              <Link href="/profile/edit" className="text-xs text-brand-active font-medium underline underline-offset-2">Add your skill level</Link>
             )}
           </div>
-        </div>
-
-        <div>
-          <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Joinzer Level</p>
-          <p className="text-sm text-brand-body">{joinzerRatingLabel(profile.joinzer_rating ?? 1000)}</p>
+          <p className="text-[11px] text-brand-muted mt-1.5">
+            Your Joinzer Score is calculated from match results (coming soon). Until then this reflects your self-reported skill.
+          </p>
         </div>
       </div>
 

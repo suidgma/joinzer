@@ -12,7 +12,7 @@ export default async function PlayersPage() {
   const [{ data }, { data: availabilityData }, { data: mySessions }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, joinzer_rating, gender')
+      .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, gender')
       .eq('dummy', false)
       .order('name', { ascending: true }),
     supabase
@@ -44,12 +44,16 @@ export default async function PlayersPage() {
     name: p.name as string,
     display_name: p.display_name as string | null,
     profile_photo_url: p.profile_photo_url as string | null,
-    rating_source: p.rating_source as string | null,
+    self_reported_rating:
+      (p.self_reported_rating as number | null) ??
+      ((p.rating_source === 'estimated' ? p.estimated_rating : p.rating_source === 'dupr_known' ? p.dupr_rating : null) as number | null),
+    self_reported_scale:
+      (p.self_reported_scale as string | null) ??
+      (p.rating_source === 'dupr_known' ? 'dupr' : p.rating_source === 'estimated' ? 'self' : null),
     dupr_rating: p.dupr_rating as number | null,
-    estimated_rating: p.estimated_rating as number | null,
+    dupr_verified: (p.dupr_verified as boolean | null) ?? false,
     availableToday: !!availabilityMap[p.id as string],
     timeWindows: availabilityMap[p.id as string] ?? [],
-    joinzer_rating: p.joinzer_rating as number ?? 1000,
     gender: p.gender as string | null,
   }))
 
