@@ -54,6 +54,12 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
   const db = admin()
   const settings = (league.format_settings_json ?? null) as Record<string, unknown> | null
 
+  // Round-robin renders a wide table (stats + per-week + trend columns); box/ladder
+  // are card-based and read fine narrow. Match the authenticated player view: RR
+  // gets a wider shell so the whole table fits without horizontal scrolling.
+  const isNarrow = league.format_kind === 'box' || league.format_kind === 'ladder'
+  const widthClass = isNarrow ? 'max-w-2xl' : 'max-w-5xl'
+
   let content: React.ReactNode
   if (league.format_kind === 'ladder') {
     const { rows, hasHistory } = await getLadderPublicStandings(db, id, league.format, settings)
@@ -71,14 +77,14 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
   return (
     <div className="min-h-screen bg-brand-page">
       <header className="border-b border-brand-border bg-white">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <div className={`${widthClass} mx-auto px-4 py-3 flex items-center justify-between gap-3`}>
           <Link href="/" className="font-heading font-bold text-brand-dark">🏓 Joinzer</Link>
           <Link href="/login" className="text-xs font-semibold bg-brand text-brand-dark px-3 py-1.5 rounded-lg hover:bg-brand-hover transition-colors">
             Create free account
           </Link>
         </div>
       </header>
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <main className={`${widthClass} mx-auto px-4 py-6 space-y-4`}>
         <div>
           <h1 className="font-heading text-xl font-bold text-brand-dark">{league.name}</h1>
           <p className="text-xs text-brand-muted">{league.location_name ? `${league.location_name} · ` : ''}Live standings</p>
