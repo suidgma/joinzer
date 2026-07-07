@@ -1,26 +1,37 @@
 import Sparkline from '@/components/ui/sparkline'
 import type { BoxTrendRow } from '@/lib/leagues/boxTrend'
 
-// Cross-cycle position grid for box leagues — each player's overall rank per cycle
+// Cross-period position grid — each player's overall rank per week/cycle/session
 // across the top (like round-robin's per-week columns), with movement color and a
-// trend sparkline. Lower position = better; green = moved up vs the prior cycle.
-export default function BoxPositionTrend({ rows, cycleNumbers }: { rows: BoxTrendRow[]; cycleNumbers: number[] }) {
-  if (rows.length === 0 || cycleNumbers.length === 0) return null
-  const showTrend = cycleNumbers.length >= 2
+// trend sparkline. Lower position = better; green = moved up vs the prior column.
+// Shared by box (per cycle) and ladder (per session) standings.
+export default function BoxPositionTrend({
+  rows,
+  periodNumbers,
+  unitLabel = 'Wk',
+  heading = 'Position by week',
+}: {
+  rows: BoxTrendRow[]
+  periodNumbers: number[]
+  unitLabel?: string
+  heading?: string
+}) {
+  if (rows.length === 0 || periodNumbers.length === 0) return null
+  const showTrend = periodNumbers.length >= 2
 
   return (
     <div className="space-y-2">
       <div>
-        <h2 className="font-heading text-base font-bold text-brand-dark">Position by cycle</h2>
-        <p className="text-xs text-brand-muted">Overall ladder position each cycle — lower is better.</p>
+        <h2 className="font-heading text-base font-bold text-brand-dark">{heading}</h2>
+        <p className="text-xs text-brand-muted">Overall position over time — lower is better.</p>
       </div>
       <div className="overflow-x-auto -mx-4 px-4">
         <table className="min-w-full text-sm border-separate border-spacing-0">
           <thead>
             <tr>
               <th className="sticky left-0 bg-brand-soft text-left px-3 py-2 text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-r border-brand-border whitespace-nowrap z-10">Player</th>
-              {cycleNumbers.map((n) => (
-                <th key={n} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">Cycle {n}</th>
+              {periodNumbers.map((n) => (
+                <th key={n} className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">{unitLabel} {n}</th>
               ))}
               {showTrend && <th className="px-3 py-2 text-center text-xs font-semibold text-brand-muted uppercase tracking-wide border-b border-l border-brand-border whitespace-nowrap bg-brand-soft">Trend</th>}
             </tr>
