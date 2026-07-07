@@ -13,6 +13,7 @@ import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import { readLadderState } from '@/lib/leagues/ladderServer'
 import LadderStandings, { type LadderStandingRow } from './LadderStandings'
+import StandingsShareCard from './StandingsShareCard'
 
 export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string }> }) {
   const params = await props.params;
@@ -21,7 +22,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: league }, { data: registrations }, { data: sessions }] = await Promise.all([
-    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method, partner_mode, format_kind').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, format, created_by, sub_credit_cap, standings_method, partner_mode, format_kind, public_standings').eq('id', params.id).single(),
     supabase
       .from('league_registrations')
       .select('user_id, partner_user_id, profile:profiles!user_id(id, name, profile_photo_url)')
@@ -99,6 +100,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             <h1 className="font-heading text-xl font-bold text-brand-dark">Ladder</h1>
             <p className="text-xs text-brand-muted">Current rank, movement since the last night (▲/▼), and trend.</p>
           </div>
+          {isManager0 && <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} />}
           <LadderStandings rows={rows} hasHistory={hasHistory} />
         </div>
       </DesktopShell>
@@ -303,6 +305,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
               />
             )}
           </div>
+          {isManager0 && <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} />}
           {!selectedCycle ? (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
               <p className="text-2xl">📊</p>
@@ -518,6 +521,8 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           Sorted by points scored by default. Click any column header to re-sort.
         </p>
       </div>
+
+      {isManager && <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} />}
 
       {!hasResults ? (
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
