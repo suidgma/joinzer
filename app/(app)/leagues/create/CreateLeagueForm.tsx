@@ -49,6 +49,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [category, setCategory] = useState('mixed')
   const [skillMin, setSkillMin] = useState('2.0')
   const [skillMax, setSkillMax] = useState('')
+  const [ageMin, setAgeMin] = useState('')
+  const [ageMax, setAgeMax] = useState('')
   const [partnerMode, setPartnerMode] = useState<'rotating' | 'fixed'>('rotating')
   const [locationId, setLocationId] = useState('')
   const [startTime, setStartTime] = useState('08:00')
@@ -195,6 +197,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
+        age_min: ageMin ? parseInt(ageMin) : null,
+        age_max: ageMax ? parseInt(ageMax) : null,
         partner_mode: effectivePartnerMode,
         location_name: selectedLocation?.name ?? null,
         location_id: locationId || null,
@@ -357,6 +361,13 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               <option value="">No max</option>
               {SKILL_STEPS.map(v => <option key={v} value={String(v)}>{v.toFixed(1)}</option>)}
             </select>
+          </div>
+        </FormRow>
+        <FormRow label="Age range" width="md" helpText="Optional. Leave blank for all ages.">
+          <div className="flex items-center gap-3">
+            <input type="number" min="0" value={ageMin} onChange={(e) => setAgeMin(e.target.value)} placeholder="Min" className="flex-1 input" />
+            <span className="text-sm text-brand-muted shrink-0">to</span>
+            <input type="number" min="0" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} placeholder="No max" className="flex-1 input" />
           </div>
         </FormRow>
         <FormRow label="Points to win" htmlFor="points-to-win" width="xs">

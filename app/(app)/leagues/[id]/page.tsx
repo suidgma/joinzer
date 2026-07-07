@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
-import { formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
+import { formatSkillRange, skillRangeToLevel, formatAgeRange } from '@/lib/taxonomy/formats'
 import LeagueActions from './LeagueActions'
 import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
@@ -292,6 +292,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         )}
         {formatSkillRange((league as any).skill_min, (league as any).skill_max) && (
           <Row label="Skill Level" value={formatSkillRange((league as any).skill_min, (league as any).skill_max)!} />
+        )}
+        {formatAgeRange((league as any).age_min, (league as any).age_max) && (
+          <Row label="Age" value={formatAgeRange((league as any).age_min, (league as any).age_max)!} />
         )}
         {league.location_name && <Row label="Location" value={league.location_name} />}
         {(rawStartTime || league.schedule_description) && (
