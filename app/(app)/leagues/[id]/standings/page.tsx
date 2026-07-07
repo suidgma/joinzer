@@ -14,8 +14,9 @@ import { getRunSessionAction } from '@/lib/leagues/runSession'
 import { readLadderState } from '@/lib/leagues/ladderServer'
 import LadderStandings, { type LadderStandingRow } from './LadderStandings'
 import StandingsShareCard from './StandingsShareCard'
-import { getBoxPositionTrend } from '@/lib/leagues/boxTrend'
+import { getBoxPositionTrend, type BoxTrendRow } from '@/lib/leagues/boxTrend'
 import BoxPositionTrend from './BoxPositionTrend'
+import RecentResults, { type ResultRow } from './RecentResults'
 
 export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string }> }) {
   const params = await props.params;
@@ -77,6 +78,43 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       }
     })
 
+    // Position-by-week grid: each entrant's rank after every session they played
+    // (null = sat out that night). Mirrors the box position trend.
+    const sessionNumbers = [...new Set(history.map((h) => h.session_number as number))].sort((a, b) => a - b)
+    const trendRows: BoxTrendRow[] = state.orderedIds.map((id, i) => {
+      const posBySession = new Map<number, number>((byReg.get(id) ?? []).map((x) => [x.session_number, x.position_after]))
+      return {
+        regId: id,
+        name: state.nameOf(id),
+        positions: sessionNumbers.map((sn) => posBySession.get(sn) ?? null),
+        current: i + 1,
+      }
+    })
+
+    // Most recent night's court scores.
+    const { data: lastPeriod } = await admin
+      .from('league_periods').select('id, period_number')
+      .eq('league_id', params.id).eq('period_kind', 'ladder_session').eq('status', 'completed')
+      .order('period_number', { ascending: false }).limit(1).maybeSingle()
+    let recentRows: ResultRow[] = []
+    if (lastPeriod) {
+      const { data: fx } = await admin
+        .from('league_fixtures')
+        .select('court_number, round_number, match_stage, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id')
+        .eq('period_id', lastPeriod.id)
+      recentRows = (fx ?? [])
+        .filter((f: any) => f.match_stage === 'ladder_round' && f.team_1_score != null)
+        .sort((a: any, b: any) => (a.round_number - b.round_number) || ((a.court_number ?? 0) - (b.court_number ?? 0)))
+        .map((f: any) => ({
+          label: f.court_number != null ? `Ct ${f.court_number}` : undefined,
+          name1: state.nameOf(f.team_1_registration_id),
+          name2: state.nameOf(f.team_2_registration_id),
+          score1: f.team_1_score,
+          score2: f.team_2_score,
+          winner1: f.winner_registration_id === f.team_1_registration_id,
+        }))
+    }
+
     const navItems: ManageNavItem[] = [
       { label: 'Overview', href: `/leagues/${params.id}` },
       { label: 'Standings', href: `/leagues/${params.id}/standings` },
@@ -104,6 +142,8 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           </div>
           <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
           <LadderStandings rows={rows} hasHistory={hasHistory} />
+          {sessionNumbers.length >= 1 && <BoxPositionTrend rows={trendRows} periodNumbers={sessionNumbers} />}
+          {recentRows.length > 0 && <RecentResults heading={`Latest results — Session ${lastPeriod?.period_number}`} rows={recentRows} />}
         </div>
       </DesktopShell>
     )
@@ -309,7 +349,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             )}
           </div>
           <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
-          {boxTrend.cycleNumbers.length >= 1 && <BoxPositionTrend rows={boxTrend.rows} cycleNumbers={boxTrend.cycleNumbers} />}
+          {boxTrend.cycleNumbers.length >= 1 && <BoxPositionTrend rows={boxTrend.rows} periodNumbers={boxTrend.cycleNumbers} />}
           {!selectedCycle ? (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
               <p className="text-2xl">📊</p>
@@ -496,6 +536,27 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
     (matches ?? []).some(m => m.session_id === s.id)
   )
 
+  // Most recent week's match scores (the "show the scores for the latest week" bit).
+  const latestRRSession = sessionsWithData[sessionsWithData.length - 1]
+  let recentRows: ResultRow[] = []
+  if (latestRRSession) {
+    const latestMatches = (matches ?? []).filter((m) => m.session_id === latestRRSession.id && m.team1_score != null)
+    const pids = new Set<string>()
+    for (const m of latestMatches) for (const pid of [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id]) if (pid) pids.add(pid as string)
+    const { data: profs } = pids.size
+      ? await supabase.from('profiles').select('id, name').in('id', [...pids])
+      : { data: [] as any[] }
+    const nameById = new Map((profs ?? []).map((p: any) => [p.id, (p.name || '').trim().split(/\s+/)[0] || 'Player']))
+    const nm = (id: string | null) => (id ? (nameById.get(id) ?? 'Player') : '')
+    recentRows = latestMatches.map((m) => ({
+      name1: [m.team1_player1_id, m.team1_player2_id].filter(Boolean).map((id) => nm(id as string)).join('/'),
+      name2: [m.team2_player1_id, m.team2_player2_id].filter(Boolean).map((id) => nm(id as string)).join('/'),
+      score1: m.team1_score as number,
+      score2: m.team2_score as number,
+      winner1: (m.team1_score as number) > (m.team2_score as number),
+    }))
+  }
+
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
     { label: 'Standings', href: `/leagues/${params.id}/standings` },
@@ -558,6 +619,10 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           )}
           standingsMethod={standingsMethod}
         />
+      )}
+
+      {recentRows.length > 0 && latestRRSession && (
+        <RecentResults heading={`Latest results — Wk ${latestRRSession.session_number}`} rows={recentRows} />
       )}
       </div>
     </DesktopShell>
