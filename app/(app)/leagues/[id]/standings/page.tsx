@@ -57,37 +57,27 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       .eq('league_id', params.id)
       .order('session_number', { ascending: true })
     const history = (hist ?? []) as any[]
-    const hasHistory = history.length > 0
     const latestSession = history.length ? Math.max(...history.map((h) => h.session_number ?? 0)) : 0
     const byReg = new Map<string, any[]>()
     for (const h of history) {
       if (!byReg.has(h.registration_id)) byReg.set(h.registration_id, [])
       byReg.get(h.registration_id)!.push(h)
     }
+    // One merged table: current rank + movement + each session's rank (null = sat
+    // out) + last-night W-L + trend sparkline.
+    const sessionNumbers = [...new Set(history.map((h) => h.session_number as number))].sort((a, b) => a - b)
     const rows: LadderStandingRow[] = state.orderedIds.map((id, i) => {
       const h = byReg.get(id) ?? []
       const last = h.find((x) => x.session_number === latestSession) // their record IN the latest session (if they played)
+      const posBySession = new Map<number, number>(h.map((x) => [x.session_number, x.position_after]))
       return {
         rank: i + 1,
         name: state.nameOf(id),
-        prior: last ? last.position_before : null,
         delta: last ? last.position_before - last.position_after : 0, // 0 = held rank (sat out)
         wins: last?.wins ?? 0,
         losses: last?.losses ?? 0,
-        spark: h.map((x) => -x.position_after), // negate so climbing plots upward
-      }
-    })
-
-    // Position-by-week grid: each entrant's rank after every session they played
-    // (null = sat out that night). Mirrors the box position trend.
-    const sessionNumbers = [...new Set(history.map((h) => h.session_number as number))].sort((a, b) => a - b)
-    const trendRows: BoxTrendRow[] = state.orderedIds.map((id, i) => {
-      const posBySession = new Map<number, number>((byReg.get(id) ?? []).map((x) => [x.session_number, x.position_after]))
-      return {
-        regId: id,
-        name: state.nameOf(id),
         positions: sessionNumbers.map((sn) => posBySession.get(sn) ?? null),
-        current: i + 1,
+        spark: h.map((x) => -x.position_after), // negate so climbing plots upward
       }
     })
 
@@ -141,8 +131,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
             <p className="text-xs text-brand-muted">Current rank, movement since the last night (▲/▼), and trend.</p>
           </div>
           <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
-          <LadderStandings rows={rows} hasHistory={hasHistory} />
-          {sessionNumbers.length >= 1 && <BoxPositionTrend rows={trendRows} periodNumbers={sessionNumbers} />}
+          <LadderStandings rows={rows} periodNumbers={sessionNumbers} />
           {recentRows.length > 0 && <RecentResults heading={`Latest results — Session ${lastPeriod?.period_number}`} rows={recentRows} />}
         </div>
       </DesktopShell>
@@ -426,6 +415,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   }
   const statsMap = new Map<string, Stats>()
   const sessionPts = new Map<string, Map<string, number>>()
+  const sessionPA  = new Map<string, Map<string, number>>() // points against per session (for cumulative diff)
   const sessionWL  = new Map<string, Map<string, { wins: number; losses: number }>>()
 
   for (const reg of registrations ?? []) {
@@ -459,6 +449,10 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       if (!sessionPts.has(effectivePid)) sessionPts.set(effectivePid, new Map())
       const bySession = sessionPts.get(effectivePid)!
       bySession.set(m.session_id, (bySession.get(m.session_id) ?? 0) + effectivePts)
+
+      if (!sessionPA.has(effectivePid)) sessionPA.set(effectivePid, new Map())
+      const byPA = sessionPA.get(effectivePid)!
+      byPA.set(m.session_id, (byPA.get(m.session_id) ?? 0) + against)
 
       if (!sessionWL.has(effectivePid)) sessionWL.set(effectivePid, new Map())
       const byWL = sessionWL.get(effectivePid)!
@@ -557,6 +551,39 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
     }))
   }
 
+  // Cumulative standings rank after each week — the "position by week" grid that
+  // leads the page (the full sortable table stays below for the detail). Only ranks
+  // players who have played through that week; unplayed weeks show "—".
+  const rrCum = new Map<string, { pf: number; pa: number; wins: number; losses: number }>()
+  for (const e of finalStandings) rrCum.set(e.userId, { pf: 0, pa: 0, wins: 0, losses: 0 })
+  const rrRankByUser = new Map<string, Map<string, number>>()
+  for (const s of sessionsWithData) {
+    for (const e of finalStandings) {
+      const c = rrCum.get(e.userId)!
+      c.pf += sessionPts.get(e.userId)?.get(s.id) ?? 0
+      c.pa += sessionPA.get(e.userId)?.get(s.id) ?? 0
+      const wl = sessionWL.get(e.userId)?.get(s.id)
+      if (wl) { c.wins += wl.wins; c.losses += wl.losses }
+    }
+    const ranked = finalStandings
+      .map((e) => { const c = rrCum.get(e.userId)!; const games = c.wins + c.losses; return { userId: e.userId, points: c.pf, diff: c.pf - c.pa, winPct: games > 0 ? c.wins / games : 0, games } })
+      .filter((r) => r.games > 0)
+      .sort((a, b) => standingsMethod === 'total_points'
+        ? b.points - a.points || b.diff - a.diff || b.winPct - a.winPct
+        : b.winPct - a.winPct || b.diff - a.diff || b.points - a.points)
+    ranked.forEach((r, i) => {
+      if (!rrRankByUser.has(r.userId)) rrRankByUser.set(r.userId, new Map())
+      rrRankByUser.get(r.userId)!.set(s.id, i + 1)
+    })
+  }
+  const rrWeekNumbers = sessionsWithData.map((s) => s.session_number as number)
+  const rrTrendRows: BoxTrendRow[] = finalStandings.map((e, idx) => ({
+    regId: e.userId,
+    name: e.name,
+    positions: sessionsWithData.map((s) => rrRankByUser.get(e.userId)?.get(s.id) ?? null),
+    current: idx + 1,
+  }))
+
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
     { label: 'Standings', href: `/leagues/${params.id}/standings` },
@@ -588,6 +615,10 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       </div>
 
       <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager} />
+
+      {hasResults && rrWeekNumbers.length >= 1 && (
+        <BoxPositionTrend rows={rrTrendRows} periodNumbers={rrWeekNumbers} />
+      )}
 
       {!hasResults ? (
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
