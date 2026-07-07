@@ -23,32 +23,26 @@ export async function getLadderPublicStandings(admin: Admin, leagueId: string, f
     .eq('league_id', leagueId)
     .order('session_number', { ascending: true })
   const history = (hist ?? []) as any[]
-  const hasHistory = history.length > 0
   const latestSession = history.length ? Math.max(...history.map((h) => h.session_number ?? 0)) : 0
   const byReg = new Map<string, any[]>()
   for (const h of history) {
     if (!byReg.has(h.registration_id)) byReg.set(h.registration_id, [])
     byReg.get(h.registration_id)!.push(h)
   }
+  const sessionNumbers = [...new Set(history.map((h) => h.session_number as number))].sort((a, b) => a - b)
   const rows: LadderStandingRow[] = state.orderedIds.map((id, i) => {
     const h = byReg.get(id) ?? []
     const last = h.find((x) => x.session_number === latestSession)
+    const posBySession = new Map<number, number>(h.map((x) => [x.session_number, x.position_after]))
     return {
       rank: i + 1,
       name: state.nameOf(id),
-      prior: last ? last.position_before : null,
       delta: last ? last.position_before - last.position_after : 0,
       wins: last?.wins ?? 0,
       losses: last?.losses ?? 0,
+      positions: sessionNumbers.map((sn) => posBySession.get(sn) ?? null),
       spark: h.map((x) => -x.position_after),
     }
-  })
-
-  // Position-by-week grid (rank per session; null = sat out that night).
-  const sessionNumbers = [...new Set(history.map((h) => h.session_number as number))].sort((a, b) => a - b)
-  const trendRows: BoxTrendRow[] = state.orderedIds.map((id, i) => {
-    const posBySession = new Map<number, number>((byReg.get(id) ?? []).map((x) => [x.session_number, x.position_after]))
-    return { regId: id, name: state.nameOf(id), positions: sessionNumbers.map((sn) => posBySession.get(sn) ?? null), current: i + 1 }
   })
 
   // Most recent night's court scores.
@@ -76,7 +70,7 @@ export async function getLadderPublicStandings(admin: Admin, leagueId: string, f
       }))
   }
 
-  return { rows, hasHistory, trendRows, sessionNumbers, recentRows, latestSessionNumber }
+  return { rows, sessionNumbers, recentRows, latestSessionNumber }
 }
 
 // ── Box (latest completed cycle) ─────────────────────────────────────────────
@@ -185,6 +179,7 @@ export async function getRRPublicStandings(admin: Admin, leagueId: string, subCr
   type Stats = { points: number; pointsAgainst: number; games: number; wins: number; losses: number; matchResults: { order: number; won: boolean }[] }
   const statsMap = new Map<string, Stats>()
   const sessionPts: Record<string, Record<string, number>> = {}
+  const sessionPA: Record<string, Record<string, number>> = {} // points against per session (for cumulative diff)
   const sessionWL: Record<string, Record<string, { wins: number; losses: number }>> = {}
   for (const reg of registrations ?? []) statsMap.set(reg.user_id, { points: 0, pointsAgainst: 0, games: 0, wins: 0, losses: 0, matchResults: [] })
 
@@ -208,6 +203,7 @@ export async function getRRPublicStandings(admin: Admin, leagueId: string, subCr
       s.matchResults.push({ order, won })
       statsMap.set(epid, s)
       ;(sessionPts[epid] ??= {})[m.session_id] = (sessionPts[epid][m.session_id] ?? 0) + epts
+      ;(sessionPA[epid] ??= {})[m.session_id] = (sessionPA[epid][m.session_id] ?? 0) + against
       const wl = (sessionWL[epid] ??= {})[m.session_id] ?? { wins: 0, losses: 0 }
       sessionWL[epid][m.session_id] = { wins: wl.wins + (won ? 1 : 0), losses: wl.losses + (won ? 0 : 1) }
     }
@@ -276,5 +272,36 @@ export async function getRRPublicStandings(admin: Admin, leagueId: string, subCr
     }))
   }
 
-  return { standings, sessionsWithData, sessionPts, sessionWL, standingsMethod, hasResults, recentRows, latestSessionNumber }
+  // Cumulative standings rank after each week — the "position by week" grid.
+  const cum = new Map<string, { pf: number; pa: number; wins: number; losses: number }>()
+  for (const e of standings) cum.set(e.userId, { pf: 0, pa: 0, wins: 0, losses: 0 })
+  const rankByUser = new Map<string, Map<string, number>>()
+  for (const s of sessionsWithData) {
+    for (const e of standings) {
+      const c = cum.get(e.userId)!
+      c.pf += sessionPts[e.userId]?.[s.id] ?? 0
+      c.pa += sessionPA[e.userId]?.[s.id] ?? 0
+      const wl = sessionWL[e.userId]?.[s.id]
+      if (wl) { c.wins += wl.wins; c.losses += wl.losses }
+    }
+    const ranked = standings
+      .map((e) => { const c = cum.get(e.userId)!; const games = c.wins + c.losses; return { userId: e.userId, points: c.pf, diff: c.pf - c.pa, winPct: games > 0 ? c.wins / games : 0, games } })
+      .filter((r) => r.games > 0)
+      .sort((a, b) => standingsMethod === 'total_points'
+        ? b.points - a.points || b.diff - a.diff || b.winPct - a.winPct
+        : b.winPct - a.winPct || b.diff - a.diff || b.points - a.points)
+    ranked.forEach((r, i) => {
+      if (!rankByUser.has(r.userId)) rankByUser.set(r.userId, new Map())
+      rankByUser.get(r.userId)!.set(s.id, i + 1)
+    })
+  }
+  const trendRows: BoxTrendRow[] = standings.map((e, idx) => ({
+    regId: e.userId,
+    name: e.name,
+    positions: sessionsWithData.map((s: any) => rankByUser.get(e.userId)?.get(s.id) ?? null),
+    current: idx + 1,
+  }))
+  const weekNumbers = sessionsWithData.map((s: any) => s.session_number as number)
+
+  return { standings, sessionsWithData, sessionPts, sessionWL, standingsMethod, hasResults, recentRows, latestSessionNumber, trendRows, weekNumbers }
 }

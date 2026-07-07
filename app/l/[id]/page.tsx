@@ -65,11 +65,10 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
 
   let content: React.ReactNode
   if (league.format_kind === 'ladder') {
-    const { rows, hasHistory, trendRows, sessionNumbers, recentRows, latestSessionNumber } = await getLadderPublicStandings(db, id, league.format, settings)
+    const { rows, sessionNumbers, recentRows, latestSessionNumber } = await getLadderPublicStandings(db, id, league.format, settings)
     content = (
       <>
-        <LadderStandings rows={rows} hasHistory={hasHistory} />
-        {sessionNumbers.length >= 1 && <BoxPositionTrend rows={trendRows} periodNumbers={sessionNumbers} />}
+        <LadderStandings rows={rows} periodNumbers={sessionNumbers} />
         {recentRows.length > 0 && <RecentResults heading={`Latest results — Session ${latestSessionNumber}`} rows={recentRows} />}
       </>
     )
@@ -86,6 +85,7 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
     const rr = await getRRPublicStandings(db, id, league.sub_credit_cap ?? 7, (league.standings_method ?? 'win_loss') as any, league.partner_mode ?? null)
     content = rr.hasResults ? (
       <>
+        {rr.weekNumbers.length >= 1 && <BoxPositionTrend rows={rr.trendRows} periodNumbers={rr.weekNumbers} />}
         <StandingsTable initialStandings={rr.standings as any} sessionsWithData={rr.sessionsWithData} sessionPts={rr.sessionPts} sessionWL={rr.sessionWL} standingsMethod={rr.standingsMethod} />
         {rr.recentRows.length > 0 && <RecentResults heading={`Latest results — Wk ${rr.latestSessionNumber}`} rows={rr.recentRows} />}
       </>
