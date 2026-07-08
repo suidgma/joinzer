@@ -35,6 +35,19 @@ function LoginForm() {
   // Only honour same-origin relative paths to prevent open-redirect attacks
   const rawNext = searchParams.get('next') ?? ''
   const nextPath = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/home'
+  // Organizer onboarding: carry signup intent (from the /organizers "Start free" CTA)
+  // through to profile setup so it preselects the right path.
+  const rawIntent = searchParams.get('intent')
+  const intent = rawIntent === 'organize' || rawIntent === 'play' || rawIntent === 'both' ? rawIntent : null
+
+  // Build the post-signup profile-setup URL, preserving intent + a non-default deep link.
+  function setupDest() {
+    const sp = new URLSearchParams()
+    if (intent) sp.set('intent', intent)
+    if (nextPath !== '/home') sp.set('next', nextPath)
+    const qs = sp.toString()
+    return qs ? `/profile/setup?${qs}` : '/profile/setup'
+  }
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true)
@@ -43,10 +56,10 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        // Carry `next` through OAuth so deep links (e.g. a partner-invite accept
-        // page) survive the round-trip. Without this, OAuth sign-in silently
-        // dumps the user on /home and the invite token is lost.
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        // Carry `next` (and organizer `intent`) through OAuth so deep links (e.g. a
+        // partner-invite accept page) and the onboarding path survive the round-trip.
+        // Without this, OAuth sign-in silently dumps the user on /home.
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}${intent ? `&intent=${intent}` : ''}`,
       },
     })
     if (error) {
@@ -85,9 +98,9 @@ function LoginForm() {
         return
       }
       if (data.session) {
-        // Preserve the deep link through setup so a new account created from an
-        // invite link lands on the invite after completing their profile.
-        router.push(nextPath !== '/home' ? `/profile/setup?next=${encodeURIComponent(nextPath)}` : '/profile/setup')
+        // Preserve the deep link + organizer intent through setup so a new account
+        // lands on the right place (invite, or the guided create flow) after setup.
+        router.push(setupDest())
         router.refresh()
       } else {
         setError('Check your email to confirm your account, then sign in.')

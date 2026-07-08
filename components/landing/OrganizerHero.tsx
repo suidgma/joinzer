@@ -17,7 +17,13 @@ export default function OrganizerHero() {
           Joinzer is built for the people running pickleball — from weekly leagues to tournament day. Replace spreadsheets, scattered communication, and manual coordination with one organized system.
         </p>
 
-        <div className="flex justify-center mb-4">
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-3 mb-4">
+          <a
+            href="/login?mode=signup&intent=organize"
+            className="w-full sm:w-auto bg-brand text-brand-dark font-semibold px-8 py-4 rounded-xl hover:bg-brand-hover transition-colors text-sm text-center shadow-sm"
+          >
+            Start free — create your first event
+          </a>
           <a
             href={DEMO_URL}
             className="w-full sm:w-auto bg-brand-dark text-white font-semibold px-8 py-4 rounded-xl hover:bg-brand-dark/90 transition-colors text-sm text-center shadow-sm"
@@ -27,7 +33,7 @@ export default function OrganizerHero() {
         </div>
 
         <p className="text-xs text-brand-muted">
-          Choose a time on Calendly for a quick Zoom walkthrough.
+          Free to start — set up a league or tournament in minutes. Or grab a time on Calendly for a walkthrough.
         </p>
       </div>
     </section>

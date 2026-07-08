@@ -8,6 +8,16 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type')
   const next = searchParams.get('next')
+  const intent = searchParams.get('intent')
+
+  // Stubs complete profile setup first — preserve deep link + organizer intent into it.
+  const setupUrlFor = () => {
+    const sp = new URLSearchParams()
+    if (next) sp.set('next', next)
+    if (intent) sp.set('intent', intent)
+    const qs = sp.toString()
+    return qs ? `${origin}/profile/setup?${qs}` : `${origin}/profile/setup`
+  }
 
   const cookieStorePromise = await cookies()
   const supabase = createServerClient(
@@ -60,10 +70,7 @@ export async function GET(request: NextRequest) {
 
     const isStub = !profile || profile.is_stub
     if (isStub) {
-      const setupUrl = next
-        ? `${origin}/profile/setup?next=${encodeURIComponent(next)}`
-        : `${origin}/profile/setup`
-      return NextResponse.redirect(setupUrl)
+      return NextResponse.redirect(setupUrlFor())
     }
     return NextResponse.redirect(next ? `${origin}${next}` : `${origin}/home`)
   }
@@ -86,10 +93,7 @@ export async function GET(request: NextRequest) {
 
   const isStub2 = !profile || profile.is_stub
   if (isStub2) {
-    const setupUrl = next
-      ? `${origin}/profile/setup?next=${encodeURIComponent(next)}`
-      : `${origin}/profile/setup`
-    return NextResponse.redirect(setupUrl)
+    return NextResponse.redirect(setupUrlFor())
   }
   return NextResponse.redirect(next ? `${origin}${next}` : `${origin}/home`)
 }
