@@ -21,6 +21,10 @@ export type ResumeProfile = {
   gender: string | null
   memberSinceYear: number | null
   homeCourtName: string | null
+  bio: string | null
+  dominantHand: string | null
+  preferredSide: string | null
+  preferredFormats: string[]
   // rating display inputs
   primary_joinzer_score: number | null
   primary_joinzer_level: string | null
@@ -44,7 +48,7 @@ export type PlayerResume = {
 export async function loadPlayerResume(admin: SupabaseClient, userId: string): Promise<PlayerResume | null> {
   const { data: p } = await admin
     .from('profiles')
-    .select('id, name, display_name, profile_photo_url, gender, created_at, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, primary_score_history, self_reported_rating, self_reported_scale, rating_source, estimated_rating, dupr_rating, dupr_verified, home_court:locations!home_court_id(name)')
+    .select('id, name, display_name, profile_photo_url, gender, created_at, bio, dominant_hand, preferred_side, preferred_formats, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, primary_score_history, self_reported_rating, self_reported_scale, rating_source, estimated_rating, dupr_rating, dupr_verified, home_court:locations!home_court_id(name)')
     .eq('id', userId)
     .maybeSingle()
   if (!p) return null
@@ -115,6 +119,10 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
       gender: prof.gender ?? null,
       memberSinceYear: prof.created_at ? new Date(prof.created_at).getUTCFullYear() : null,
       homeCourtName: prof.home_court?.name ?? null,
+      bio: prof.bio ?? null,
+      dominantHand: prof.dominant_hand ?? null,
+      preferredSide: prof.preferred_side ?? null,
+      preferredFormats: Array.isArray(prof.preferred_formats) ? (prof.preferred_formats as string[]) : [],
       primary_joinzer_score: prof.primary_joinzer_score ?? null,
       primary_joinzer_level: prof.primary_joinzer_level ?? null,
       primary_confidence: prof.primary_confidence ?? null,

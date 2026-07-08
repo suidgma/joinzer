@@ -23,7 +23,13 @@ type Profile = {
   home_court_id: string | null
   email_visibility: VisibilityTier
   phone_visibility: VisibilityTier
+  bio: string | null
+  dominant_hand: string | null
+  preferred_side: string | null
+  preferred_formats: string[] | null
 }
+
+const FORMAT_OPTIONS: [string, string][] = [['singles', 'Singles'], ['doubles', 'Doubles'], ['mixed', 'Mixed Doubles']]
 
 type Location = { id: string; name: string }
 
@@ -49,6 +55,12 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
   const [homeCourt, setHomeCourt] = useState<string>(profile.home_court_id ?? '')
   const [emailVisibility, setEmailVisibility] = useState<VisibilityTier>(profile.email_visibility)
   const [phoneVisibility, setPhoneVisibility] = useState<VisibilityTier>(profile.phone_visibility)
+  const [bio, setBio] = useState(profile.bio ?? '')
+  const [dominantHand, setDominantHand] = useState<string | null>(profile.dominant_hand ?? null)
+  const [preferredSide, setPreferredSide] = useState<string | null>(profile.preferred_side ?? null)
+  const [preferredFormats, setPreferredFormats] = useState<string[]>(profile.preferred_formats ?? [])
+  const toggleFormat = (f: string) =>
+    setPreferredFormats((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]))
   const [courtQuery, setCourtQuery] = useState('')
   const [courtOpen, setCourtOpen] = useState(false)
   const courtRef = useRef<HTMLDivElement>(null)
@@ -94,6 +106,10 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
         home_court_id: homeCourt || null,
         email_visibility: emailVisibility,
         phone_visibility: phoneVisibility,
+        bio: bio.trim() || null,
+        dominant_hand: dominantHand,
+        preferred_side: preferredSide,
+        preferred_formats: preferredFormats.length ? preferredFormats : null,
       })
       .eq('id', profile.id)
 
@@ -235,6 +251,78 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
           </div>
         </div>
       )}
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium">About &amp; preferred play <span className="text-gray-400 font-normal">(optional)</span></legend>
+
+        <div>
+          <label className="block text-xs text-brand-muted mb-1">Bio</label>
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value.slice(0, 280))}
+            rows={3}
+            placeholder="A line or two about your game — style, what you like to play…"
+            className="w-full input"
+          />
+          <p className="text-xs text-brand-muted mt-0.5">{bio.length}/280</p>
+        </div>
+
+        <div>
+          <label className="block text-xs text-brand-muted mb-1">Preferred formats</label>
+          <div className="flex flex-wrap gap-2">
+            {FORMAT_OPTIONS.map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => toggleFormat(val)}
+                className={`px-3 py-1.5 rounded-lg border text-sm transition-colors ${
+                  preferredFormats.includes(val)
+                    ? 'bg-brand border-brand text-brand-dark font-medium'
+                    : 'border-brand-border text-brand-muted hover:border-brand-active'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-brand-muted mb-1">Dominant hand</label>
+          <div className="flex gap-2">
+            {(['left', 'right', 'ambidextrous'] as const).map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => setDominantHand(dominantHand === h ? null : h)}
+                className={`flex-1 py-2 rounded-xl border text-sm capitalize transition-colors ${
+                  dominantHand === h ? 'bg-brand border-brand text-brand-dark font-medium' : 'border-brand-border text-brand-muted hover:border-brand-active'
+                }`}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-brand-muted mb-1">Preferred side</label>
+          <div className="flex gap-2">
+            {(['left', 'right', 'either'] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setPreferredSide(preferredSide === s ? null : s)}
+                className={`flex-1 py-2 rounded-xl border text-sm capitalize transition-colors ${
+                  preferredSide === s ? 'bg-brand border-brand text-brand-dark font-medium' : 'border-brand-border text-brand-muted hover:border-brand-active'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </fieldset>
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium">DUPR rating</legend>

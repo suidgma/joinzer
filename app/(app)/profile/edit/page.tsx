@@ -12,7 +12,7 @@ export default async function ProfileEditPage() {
   const [{ data: profile }, { data: locations }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, name, display_name, phone, gender, rating_source, dupr_rating, estimated_rating, notify_new_sessions, profile_photo_url, home_court_id, email_visibility, phone_visibility')
+      .select('id, name, display_name, phone, gender, rating_source, dupr_rating, estimated_rating, notify_new_sessions, profile_photo_url, home_court_id, email_visibility, phone_visibility, bio, dominant_hand, preferred_side, preferred_formats')
       .eq('id', user.id)
       .single(),
     supabase
