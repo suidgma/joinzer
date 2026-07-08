@@ -1,26 +1,29 @@
 'use client'
 import { useState } from 'react'
-import { CheckCircle, Circle, ChevronDown, ChevronUp } from 'lucide-react'
+import Link from 'next/link'
+import { CheckCircle, Circle, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react'
 
 type Step = {
   label: string
   done: boolean
   hint: string
+  href: string
 }
 
 type Props = {
+  tournamentId: string
   hasDivisions: boolean
   regOpen: boolean
   published: boolean
   hasMatches: boolean
 }
 
-export default function SetupChecklist({ hasDivisions, regOpen, published, hasMatches }: Props) {
+export default function SetupChecklist({ tournamentId, hasDivisions, regOpen, published, hasMatches }: Props) {
   const steps: Step[] = [
-    { label: 'Add divisions', done: hasDivisions, hint: 'Tap "+ Add Division" below' },
-    { label: 'Open registration', done: regOpen, hint: 'Edit the tournament to set Registration to Open' },
-    { label: 'Publish the tournament', done: published, hint: 'Edit the tournament and set Status to Published' },
-    { label: 'Generate the bracket / schedule', done: hasMatches, hint: 'Use "Generate Matches" once players register' },
+    { label: 'Add divisions', done: hasDivisions, hint: 'Create at least one division', href: `/tournaments/${tournamentId}#tournament-divisions` },
+    { label: 'Open registration', done: regOpen, hint: 'Set Registration to Open so players can sign up', href: `/tournaments/${tournamentId}/edit` },
+    { label: 'Publish the tournament', done: published, hint: 'Set Status to Published so it appears publicly', href: `/tournaments/${tournamentId}/edit` },
+    { label: 'Generate the bracket / schedule', done: hasMatches, hint: 'Build the schedule once players have registered', href: `/tournaments/${tournamentId}/schedule/builder` },
   ]
 
   const doneCount = steps.filter(s => s.done).length
@@ -47,22 +50,29 @@ export default function SetupChecklist({ hasDivisions, regOpen, published, hasMa
 
       {open && (
         <ul className="border-t border-blue-200 divide-y divide-blue-100">
-          {steps.map((step, i) => (
-            <li key={i} className="flex items-start gap-3 px-4 py-3">
-              {step.done
-                ? <CheckCircle size={16} className="text-green-500 mt-0.5 shrink-0" />
-                : <Circle size={16} className="text-blue-300 mt-0.5 shrink-0" />
-              }
-              <div>
-                <p className={`text-sm font-medium ${step.done ? 'text-blue-400 line-through' : 'text-blue-900'}`}>
-                  {step.label}
-                </p>
-                {!step.done && (
-                  <p className="text-xs text-blue-600 mt-0.5">{step.hint}</p>
-                )}
-              </div>
-            </li>
-          ))}
+          {steps.map((step, i) => {
+            if (step.done) {
+              return (
+                <li key={i} className="flex items-start gap-3 px-4 py-3">
+                  <CheckCircle size={16} className="text-green-500 mt-0.5 shrink-0" />
+                  <p className="text-sm font-medium text-blue-400 line-through">{step.label}</p>
+                </li>
+              )
+            }
+            // Incomplete steps are actionable — tap to go straight to where the step is done.
+            return (
+              <li key={i}>
+                <Link href={step.href} className="flex items-start gap-3 px-4 py-3 hover:bg-blue-100/60 transition-colors">
+                  <Circle size={16} className="text-blue-300 mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-blue-900">{step.label}</p>
+                    <p className="text-xs text-blue-600 mt-0.5">{step.hint}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-blue-400 mt-0.5 shrink-0" />
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

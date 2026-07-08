@@ -334,6 +334,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
 
           {/* Setup checklist — shown until all steps are done */}
           <SetupChecklist
+            tournamentId={tournament.id}
             hasDivisions={divisionsForOrg.length > 0}
             regOpen={tournament.registration_status === 'open'}
             published={tournament.status === 'published'}
@@ -367,7 +368,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             </div>
           </div>
 
-          {/* Divisions + player registration — setup tools always visible to organizer */}
+          {/* Divisions + player registration — setup tools always visible to organizer.
+              Anchor target for the setup checklist's "Add divisions" step. */}
+          <div id="tournament-divisions" className="scroll-mt-20">
           <DivisionsSection
             tournamentId={tournament.id}
             tournamentName={tournament.name}
@@ -389,6 +392,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             matchCountByDivision={matchCountByDivision}
             matchesByDivision={matchesByDivision}
           />
+          </div>
 
           {/* Discount codes */}
           <div className="bg-white border border-brand-border rounded-2xl p-4">
