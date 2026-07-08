@@ -27,6 +27,7 @@ export type AuditEntityType =
   | 'league_session'
   | 'league_match'
   | 'league_registration'
+  | 'league_team'
   | 'payment'
 
 // Action verbs are free-form text — keep them in past tense and snake_case.
