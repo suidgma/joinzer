@@ -1,12 +1,17 @@
 # Team League
 
-> Source-of-truth design + build plan for the **Team League** format. Design/planning
-> only — nothing here is implemented yet. Companion to `docs/phases/league-formats.md`
-> (§11 "Future Team League — architecture fit check", which this supersedes) and
-> `docs/architecture-target.md` (the aspirational `competition_teams` model).
+> Source-of-truth design + build plan for the **Team League** format. Companion to
+> `docs/phases/league-formats.md` (§11 "Future Team League — architecture fit check",
+> which this supersedes) and `docs/architecture-target.md` (the aspirational
+> `competition_teams` model).
 > If code and this doc ever disagree, the code wins — flag it and update this file.
 >
-> Status: **planned** (not built). Last revised: July 8, 2026.
+> Status: **Phase 1 shipped** (July 8, 2026, PRs #285–#291) — behind the
+> `NEXT_PUBLIC_ENABLE_TEAM_LEAGUES` flag (default OFF). Organizer-run regular season:
+> team CRUD/roster, round-robin schedule, lineup entry, line scoring + matchup roll-up,
+> and team standings (authed + public). **Phase 2+ (deferred):** captain self-service,
+> playoffs (bracket-engine reuse), attendance/sub integration for lineups.
+> Last revised: July 8, 2026.
 
 ---
 
