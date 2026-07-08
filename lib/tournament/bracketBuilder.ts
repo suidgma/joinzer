@@ -235,7 +235,7 @@ export function doubleEliminationBracket(
  * (whole-division) shuffles for variety; pool play uses the deterministic
  * snake-distributed pool composition as the seed.
  */
-function circleMethodPairs(teams: string[]): Array<Array<[string, string]>> {
+export function circleMethodPairs(teams: string[]): Array<Array<[string, string]>> {
   if (teams.length < 2) return []
 
   const working: (string | null)[] = [...teams]

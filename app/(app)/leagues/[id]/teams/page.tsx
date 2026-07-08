@@ -6,6 +6,7 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import TeamsManager from './TeamsManager'
+import TeamSchedule from './TeamSchedule'
 
 // Organizer team management for Team Leagues (Phase 1 Step 1). Create teams and assign
 // registered players; set a captain per team. league_teams / league_team_members are RLS
@@ -66,6 +67,32 @@ export default async function LeagueTeamsPage(props: { params: Promise<{ id: str
       })),
   }))
 
+  // Schedule: matchday periods + parent (team-vs-team) fixtures.
+  const teamNameById = new Map<string, string>(teams.map((t) => [t.id, t.name]))
+  const { data: periodsRaw } = await admin
+    .from('league_periods').select('id, period_number, name')
+    .eq('league_id', params.id).eq('period_kind', 'matchday').order('period_number', { ascending: true })
+  const periods = (periodsRaw ?? []) as any[]
+  const { data: matchupsRaw } = periods.length
+    ? await admin.from('league_fixtures')
+        .select('id, period_id, round_number, team_1_id, team_2_id, status')
+        .eq('league_id', params.id).eq('match_stage', 'team_matchup')
+        .order('round_number', { ascending: true }).order('match_number', { ascending: true })
+    : { data: [] as any[] }
+  const matchups = (matchupsRaw ?? []) as any[]
+  const scheduleView = periods.map((p) => ({
+    round: p.period_number as number,
+    name: (p.name as string) ?? `Matchday ${p.period_number}`,
+    matchups: matchups
+      .filter((m) => m.period_id === p.id)
+      .map((m) => ({
+        id: m.id as string,
+        team1: teamNameById.get(m.team_1_id) ?? 'Team',
+        team2: teamNameById.get(m.team_2_id) ?? 'Team',
+        status: m.status as string,
+      })),
+  }))
+
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
     { label: 'Standings', href: `/leagues/${params.id}/standings` },
@@ -92,6 +119,7 @@ export default async function LeagueTeamsPage(props: { params: Promise<{ id: str
           <p className="text-xs text-brand-muted">Create teams and assign registered players. Set a captain per team.</p>
         </div>
         <TeamsManager leagueId={params.id} initialTeams={teamViews} availablePlayers={availablePlayers} />
+        <TeamSchedule leagueId={params.id} schedule={scheduleView} teamCount={teams.filter((t) => t.status !== 'withdrawn').length} />
       </div>
     </DesktopShell>
   )
