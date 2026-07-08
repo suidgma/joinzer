@@ -181,6 +181,11 @@ Fixture score route: `advancement = strategy-defined` — **none** (box), **conf
 
 ## 9. Flex League — PR-sized plan (after Box)
 
+> **Superseded by `docs/phases/flex-league.md`** (canonical design + Phase 0/1/2 build
+> order; decisions locked July 8, 2026: whole-season deadline, self-report/confirm in
+> Phase 1, singles-or-fixed-doubles, whole-league standings). The sketch below is retained
+> for history.
+
 - **Fixture generation:** `roundRobinMatches` (full or partial all-play-all) → `league_fixtures`; singles or team entrants.
 - **Match windows:** stamp `window_start/window_end` per fixture (or per `league_periods` window).
 - **Self-scheduling:** entrants agree court/time within window; write `scheduled_time`/`court_number` (optional).
