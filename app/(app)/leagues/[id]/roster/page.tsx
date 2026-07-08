@@ -77,6 +77,7 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
     { label: 'Standings', href: `/leagues/${params.id}/standings` },
+    ...((league as any).format_kind === 'team' ? [{ label: 'Teams', href: `/leagues/${params.id}/teams` }] : []),
     { label: 'Roster', href: `/leagues/${params.id}/roster` },
     { label: 'Edit', href: `/leagues/${params.id}/edit` },
   ]

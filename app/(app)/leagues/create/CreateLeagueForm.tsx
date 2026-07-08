@@ -75,7 +75,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   // progress. Defaults on so no Vercel env change is needed; set
   // NEXT_PUBLIC_ENABLE_BOX_LEAGUES='false' to hide it again.
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
-  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder'>('session_rr')
+  // Team League is gated OFF by default — create is built (Phase 1 Step 2) but schedule /
+  // scoring / standings land in later steps. Set NEXT_PUBLIC_ENABLE_TEAM_LEAGUES='true' to expose it.
+  const TEAM_ENABLED = process.env.NEXT_PUBLIC_ENABLE_TEAM_LEAGUES === 'true'
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder' | 'team'>('session_rr')
   const [cycleWeeks, setCycleWeeks] = useState('1')
   const [promoteCount, setPromoteCount] = useState('1')
   const [relegateCount, setRelegateCount] = useState('1')
@@ -83,6 +86,11 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [roundsPerSession, setRoundsPerSession] = useState('6')
   const [maxMove, setMaxMove] = useState('3')
   const [initialRanking, setInitialRanking] = useState<'manual' | 'registration' | 'rating' | 'random'>('rating')
+  // Team League settings (roster-based; weekly matchups of individual lines).
+  const [teamLineCount, setTeamLineCount] = useState('3')
+  const [teamLineDiscipline, setTeamLineDiscipline] = useState<'doubles' | 'singles'>('doubles')
+  const [teamRosterMin, setTeamRosterMin] = useState('4')
+  const [teamRosterMax, setTeamRosterMax] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -90,8 +98,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const pointsToWinNum = parseInt(pointsToWin) || 11
   const isBox = formatKind === 'box'
   const isLadder = formatKind === 'ladder'
-  // Period-based formats (box cycles, ladder sessions) don't generate weekly sessions.
-  const usesPeriods = isBox || isLadder
+  const isTeam = formatKind === 'team'
+  // Period-based formats (box cycles, ladder sessions, team matchdays) don't generate
+  // weekly league_sessions.
+  const usesPeriods = isBox || isLadder || isTeam
 
   // Auto-compose the league name from the chosen settings until the organizer edits
   // it. Clearing the field resumes autofill, so the name stays in sync with day /
@@ -107,9 +117,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     const auto = [
       day,
       skill,
-      CATEGORY_NAME[category] ?? '',
-      teamType === 'doubles' ? 'Doubles' : 'Singles',
-      formatKind === 'box' ? 'Box League' : formatKind === 'ladder' ? 'Ladder' : 'Round Robin',
+      // Team leagues take their disciplines from the line config, not a league-level
+      // category / team type — so those words are omitted from the auto name.
+      ...(formatKind === 'team' ? [] : [CATEGORY_NAME[category] ?? '', teamType === 'doubles' ? 'Doubles' : 'Singles']),
+      formatKind === 'box' ? 'Box League' : formatKind === 'ladder' ? 'Ladder' : formatKind === 'team' ? 'Team League' : 'Round Robin',
     ].filter(Boolean).join(' ')
     setName(auto)
   }, [nameTouched, startDate, skillMin, skillMax, category, teamType, formatKind])
@@ -193,7 +204,9 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       .insert({
         name: name.trim(),
         ...prepareLeagueWrite({
-            format: mapDivisionFormat(category, teamType),
+            // Team leagues carry per-line disciplines in format_settings_json, so the
+            // league-level format is 'custom'.
+            format: isTeam ? 'custom' : mapDivisionFormat(category, teamType),
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
@@ -234,6 +247,23 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               max_move: parseInt(maxMove) || 3,
               initial_ranking: initialRanking,
             }
+          : isTeam
+          ? {
+              lines: Array.from({ length: Math.min(9, Math.max(1, parseInt(teamLineCount) || 3)) }, (_, i) => ({
+                key: `l${i + 1}`,
+                label: `Line ${i + 1}`,
+                discipline: teamLineDiscipline,
+                gender: 'open',
+                games_to: pointsToWinNum,
+                win_by: winBy,
+              })),
+              roster_min: parseInt(teamRosterMin) || 4,
+              roster_max: teamRosterMax ? parseInt(teamRosterMax) : null,
+              allow_multi_line: true,
+              matchup_win_rule: 'most_lines',
+              tiebreak: 'point_diff',
+              roster_lock: 'matchday_start',
+            }
           : {},
         created_by: user.id,
       })
@@ -271,12 +301,12 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             label="League format"
             helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles with promotion & relegation. Ladder: a ranked list where players move up/down after king-of-the-court nights."
           >
-            <div className="grid grid-cols-3 gap-2">
-              {([['session_rr', 'Round Robin'], ['box', 'Box League'], ['ladder', 'Ladder']] as const).map(([val, label]) => (
+            <div className={`grid ${TEAM_ENABLED ? 'grid-cols-2' : 'grid-cols-3'} gap-2`}>
+              {(([['session_rr', 'Round Robin'], ['box', 'Box League'], ['ladder', 'Ladder'], ...(TEAM_ENABLED ? [['team', 'Team League']] : [])]) as [string, string][]).map(([val, label]) => (
                 <button
                   key={val}
                   type="button"
-                  onClick={() => setFormatKind(val)}
+                  onClick={() => setFormatKind(val as typeof formatKind)}
                   className={`p-2.5 rounded-lg border text-center ${formatKind === val ? 'border-brand bg-brand-soft' : 'border-brand-border bg-white'}`}
                 >
                   <div className="text-sm font-semibold text-brand-dark">{label}</div>
@@ -285,6 +315,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             </div>
           </FormRow>
         )}
+        {!isTeam && (<>
         <FormRow label="Team type" required>
           <div className="grid grid-cols-2 gap-2">
             {(['doubles', 'singles'] as const).map((t) => (
@@ -311,7 +342,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
             ))}
           </select>
         </FormRow>
-        {teamType === 'doubles' && usesPeriods && (
+        </>)}
+        {teamType === 'doubles' && usesPeriods && !isTeam && (
           <FormRow label="Partner mode">
             <p className="text-sm text-brand-muted">
               {isBox ? 'Box' : 'Ladder'} doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant{isBox ? ' for the whole cycle' : ' and holds one ladder position'}.
@@ -576,6 +608,27 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               <option value="random">Random</option>
               <option value="manual">Manual (I'll set it)</option>
             </select>
+          </FormRow>
+        </FormSection>
+      )}
+
+      {isTeam && (
+        <FormSection title="Team League" description="Rostered teams play weekly matchups made of several individual line matches. Create teams and assign players on the Teams screen after saving." defaultOpen>
+          <FormRow label="Lines per matchup" width="xs" helpText="How many individual matches make up one team-vs-team matchup.">
+            <input type="number" min="1" max="9" value={teamLineCount} onChange={(e) => setTeamLineCount(e.target.value)} className="w-full input" />
+          </FormRow>
+          <FormRow label="Line format" width="sm" helpText="Applied to every line for now (MLP-style mixed / gender presets come later).">
+            <select value={teamLineDiscipline} onChange={(e) => setTeamLineDiscipline(e.target.value as 'doubles' | 'singles')} className="w-full input">
+              <option value="doubles">Doubles</option>
+              <option value="singles">Singles</option>
+            </select>
+          </FormRow>
+          <FormRow label="Roster size" width="md" helpText="Min / max players per team. Leave max blank for no cap.">
+            <div className="flex items-center gap-3">
+              <input type="number" min="1" value={teamRosterMin} onChange={(e) => setTeamRosterMin(e.target.value)} placeholder="Min" className="flex-1 input" />
+              <span className="text-sm text-brand-muted shrink-0">to</span>
+              <input type="number" min="1" value={teamRosterMax} onChange={(e) => setTeamRosterMax(e.target.value)} placeholder="No max" className="flex-1 input" />
+            </div>
           </FormRow>
         </FormSection>
       )}

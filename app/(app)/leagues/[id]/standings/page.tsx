@@ -47,6 +47,45 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   // cycle's attendance surface for box.
   const runSessionAction = await getRunSessionAction(params.id, isManager0, (league as any).format_kind)
 
+  // ── Team leagues: standings arrive with matchup scoring (later step). Placeholder
+  //    branch so a team league never falls through to the round-robin (session) path. ──
+  if ((league as any).format_kind === 'team') {
+    const navItems: ManageNavItem[] = [
+      { label: 'Overview', href: `/leagues/${params.id}` },
+      { label: 'Standings', href: `/leagues/${params.id}/standings` },
+      ...(isManager0 ? [
+        { label: 'Teams', href: `/leagues/${params.id}/teams` },
+        { label: 'Roster', href: `/leagues/${params.id}/roster` },
+        { label: 'Edit', href: `/leagues/${params.id}/edit` },
+      ] : []),
+    ]
+    return (
+      <DesktopShell
+        header={
+          <div className="flex items-center gap-3">
+            <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+            <span className="text-brand-muted text-sm">/</span>
+            <span className="text-sm font-medium text-brand-dark">Standings</span>
+          </div>
+        }
+        sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
+      >
+        <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
+        <div className="space-y-4 pb-8 max-w-2xl">
+          <div>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+            <p className="text-xs text-brand-muted">Team standings appear once matchups are played.</p>
+          </div>
+          <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+            <p className="text-2xl">🏓</p>
+            <p className="text-sm font-medium text-brand-dark">No matchups yet</p>
+            <p className="text-xs text-brand-muted">Create teams and generate the schedule, then standings update as matchups are scored.</p>
+          </div>
+        </div>
+      </DesktopShell>
+    )
+  }
+
   // ── Ladder leagues: the continuous ranking + movement + rank trend. ──
   if ((league as any).format_kind === 'ladder') {
     const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
