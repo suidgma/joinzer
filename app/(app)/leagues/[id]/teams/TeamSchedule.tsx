@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 type ScheduleMatchup = { id: string; team1: string; team2: string; status: string }
 type ScheduleDay = { round: number; name: string; matchups: ScheduleMatchup[] }
@@ -74,11 +75,18 @@ export default function TeamSchedule({
                   <p className="px-4 py-2 text-xs text-brand-muted">Bye round.</p>
                 ) : (
                   day.matchups.map((m) => (
-                    <div key={m.id} className="flex items-center gap-2 px-4 py-2 text-sm">
+                    <Link
+                      key={m.id}
+                      href={`/leagues/${leagueId}/teams/matchups/${m.id}`}
+                      className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-brand-soft transition-colors"
+                    >
                       <span className="flex-1 text-right text-brand-dark truncate">{m.team1}</span>
                       <span className="text-xs text-brand-muted px-1 shrink-0">vs</span>
                       <span className="flex-1 text-brand-dark truncate">{m.team2}</span>
-                    </div>
+                      <span className="text-[11px] text-brand-muted shrink-0 ml-1">
+                        {m.status === 'completed' ? 'Final' : 'Set lineup →'}
+                      </span>
+                    </Link>
                   ))
                 )}
               </div>
