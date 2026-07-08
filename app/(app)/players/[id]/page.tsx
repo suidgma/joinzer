@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import RatingBadge from '@/components/features/RatingBadge'
-import { selfReportedLevel } from '@/lib/rating/levels'
+import { ratingDisplay } from '@/lib/rating/display'
 import { ChevronLeft } from 'lucide-react'
 
 export default async function PlayerProfilePage(
@@ -15,7 +15,7 @@ export default async function PlayerProfilePage(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, gender')
+    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, gender')
     .eq('id', id)
     .single()
 
@@ -30,7 +30,7 @@ export default async function PlayerProfilePage(
   const selfScale: string | null =
     (profile.self_reported_scale as string | null) ??
     (profile.rating_source === 'dupr_known' ? 'dupr' : profile.rating_source === 'estimated' ? 'self' : null)
-  const ratingLabel = selfReportedLevel(selfRating)
+  const rd = ratingDisplay({ ...(profile as any), self_reported_rating: selfRating, self_reported_scale: selfScale })
 
   return (
     <main className="max-w-lg mx-auto p-4">
@@ -63,7 +63,7 @@ export default async function PlayerProfilePage(
           <div className="text-center">
             <h1 className="font-heading font-bold text-xl text-brand-dark">{displayName}</h1>
             <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
-              <span className="text-sm text-brand-active font-medium">{ratingLabel}</span>
+              <span className="text-sm text-brand-active font-medium">{rd.level}</span>
               <RatingBadge
                 selfReportedRating={selfRating}
                 selfReportedScale={selfScale}
@@ -72,6 +72,12 @@ export default async function PlayerProfilePage(
                 size="sm"
               />
             </div>
+            {rd.kind === 'earned' && (
+              <p className="text-sm text-brand-dark mt-1">
+                <span className="font-semibold text-brand-active">Joinzer Score {rd.score}</span>
+                <span className="text-xs text-brand-muted"> · {rd.state === 'rusty' ? 'Rusty' : 'Established'}{rd.games != null ? ` · ${rd.games} matches` : ''}</span>
+              </p>
+            )}
           </div>
         </div>
 

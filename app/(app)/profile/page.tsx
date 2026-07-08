@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { selfReportedLevel } from '@/lib/rating/levels'
+import { ratingDisplay } from '@/lib/rating/display'
 import DeleteAccountButton from '@/components/features/DeleteAccountButton'
 import RatingBadge from '@/components/features/RatingBadge'
 import PushSubscribeButton from '@/components/features/PushSubscribeButton'
@@ -28,7 +28,7 @@ export default async function ProfilePage() {
   const selfScale: string | null =
     profile.self_reported_scale ??
     (profile.rating_source === 'dupr_known' ? 'dupr' : profile.rating_source === 'estimated' ? 'self' : null)
-  const joinzerLevel = selfReportedLevel(selfRating)
+  const rd = ratingDisplay({ ...profile, self_reported_rating: selfRating, self_reported_scale: selfScale })
 
   // Compute missing fields for completeness nudge
   const missing: string[] = []
@@ -104,7 +104,13 @@ export default async function ProfilePage() {
 
         <div>
           <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Joinzer Level</p>
-          <p className="text-base font-semibold text-brand-dark">{joinzerLevel}</p>
+          <p className="text-base font-semibold text-brand-dark">{rd.level}</p>
+          {rd.kind === 'earned' && (
+            <p className="text-sm text-brand-dark mt-0.5">
+              <span className="font-semibold text-brand-active">Joinzer Score {rd.score}</span>
+              <span className="text-xs text-brand-muted"> · {rd.state === 'rusty' ? 'Rusty' : 'Established'}{rd.games != null ? ` · ${rd.games} matches` : ''}</span>
+            </p>
+          )}
           <div className="flex items-center gap-2 mt-1">
             <RatingBadge
               selfReportedRating={selfRating}
@@ -117,9 +123,11 @@ export default async function ProfilePage() {
               <Link href="/profile/edit" className="text-xs text-brand-active font-medium underline underline-offset-2">Add your skill level</Link>
             )}
           </div>
-          <p className="text-[11px] text-brand-muted mt-1.5">
-            Your Joinzer Score is calculated from match results (coming soon). Until then this reflects your self-reported skill.
-          </p>
+          {rd.kind === 'selfReported' && (
+            <p className="text-[11px] text-brand-muted mt-1.5">
+              Your Joinzer Score is calculated from match results — it appears once you&apos;ve played enough. Until then this reflects your self-reported skill.
+            </p>
+          )}
         </div>
       </div>
 
