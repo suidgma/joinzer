@@ -144,8 +144,8 @@ export default function EditLeagueForm({
   // League format (Phase 1) — mirrors Create. Box create is enabled unless the
   // env flag is explicitly 'false'.
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
-  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder' | 'team'>(
-    d.format_kind === 'box' ? 'box' : d.format_kind === 'ladder' ? 'ladder' : d.format_kind === 'team' ? 'team' : 'session_rr'
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder' | 'team' | 'flex'>(
+    d.format_kind === 'box' ? 'box' : d.format_kind === 'ladder' ? 'ladder' : d.format_kind === 'team' ? 'team' : d.format_kind === 'flex' ? 'flex' : 'session_rr'
   )
   const [cycleWeeks, setCycleWeeks] = useState((d.format_settings_json?.cycle_length_weeks ?? 1).toString())
   const [promoteCount, setPromoteCount] = useState((d.format_settings_json?.promote_count ?? 1).toString())
@@ -162,7 +162,10 @@ export default function EditLeagueForm({
   const isBox = formatKind === 'box'
   const isLadder = formatKind === 'ladder'
   const isTeam = formatKind === 'team'
+  const isFlex = formatKind === 'flex'
   const usesPeriods = isBox || isLadder || isTeam
+  const noWeeklySessions = usesPeriods || isFlex
+  const doublesFixed = usesPeriods || isFlex
   const hasRegistrants = registrantCount > 0
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
@@ -210,7 +213,7 @@ export default function EditLeagueForm({
         standings_method: standingsMethod,
         points_to_win: pointsToWinNum,
         win_by: winBy,
-        partner_mode: teamType !== 'doubles' ? 'rotating' : (usesPeriods ? 'fixed' : partnerMode),
+        partner_mode: teamType !== 'doubles' ? 'rotating' : (doublesFixed ? 'fixed' : partnerMode),
         sub_credit_cap: parseInt(subCreditCap) || 7,
         no_play_dates: noPlayDates,
         format_kind: formatKind,
@@ -230,14 +233,16 @@ export default function EditLeagueForm({
             }
           : isTeam
           ? (d.format_settings_json ?? {}) // preserve the team line config (edit UI is a later step)
+          : isFlex
+          ? (d.format_settings_json ?? {}) // preserve any flex knobs
           : {},
       })
       .eq('id', leagueId)
 
     if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
-    // Generate sessions only if none exist yet — box/ladder use league_periods.
-    if (!usesPeriods && willGenerateSessions) {
+    // Generate sessions only if none exist yet — box/ladder use league_periods, flex is deadline-based.
+    if (!noWeeklySessions && willGenerateSessions) {
       const roundsPlanned = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = generatedDates.map((d, i) => ({
         league_id: leagueId,
@@ -268,7 +273,7 @@ export default function EditLeagueForm({
             className="w-full input"
           />
         </FormRow>
-        {BOX_ENABLED && !isTeam && (
+        {BOX_ENABLED && !isTeam && !isFlex && (
           <FormRow
             label="League format"
             helpText={formatLocked
@@ -308,14 +313,14 @@ export default function EditLeagueForm({
             ))}
           </div>
         </FormRow>
-        {teamType === 'doubles' && usesPeriods && (
+        {teamType === 'doubles' && doublesFixed && !isTeam && (
           <FormRow label="Partner mode">
             <p className="text-sm text-brand-muted">
-              {isBox ? 'Box' : 'Ladder'} doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant for the whole cycle.
+              {isBox ? 'Box' : isLadder ? 'Ladder' : 'Flex'} doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant{isBox ? ' for the whole cycle' : isLadder ? ' and holds one ladder position' : ' all season'}.
             </p>
           </FormRow>
         )}
-        {teamType === 'doubles' && !usesPeriods && (
+        {teamType === 'doubles' && !noWeeklySessions && (
           <FormRow label="Partner mode">
             <div className="grid grid-cols-2 gap-2">
               {(['rotating', 'fixed'] as const).map((m) => (
@@ -546,14 +551,15 @@ export default function EditLeagueForm({
                     </p>
                   ))}
                 </div>
-                {!isBox && <p className="text-xs text-brand-active font-medium">These sessions will be created when you save.</p>}
+                {!isBox && !isFlex && <p className="text-xs text-brand-active font-medium">These sessions will be created when you save.</p>}
+                {isFlex && <p className="text-xs text-brand-muted font-medium">Flex uses this span as the season deadline — no weekly sessions are created.</p>}
               </div>
             ) : (
-              <p className="text-sm text-brand-muted">Set a start date and play days to preview the session schedule.</p>
+              <p className="text-sm text-brand-muted">Set a start date and play days to preview the season span.</p>
             )}
           </FormRow>
         )}
-        {!isBox && <SessionManager leagueId={leagueId} sessions={sessions} />}
+        {!isBox && !isFlex && <SessionManager leagueId={leagueId} sessions={sessions} />}
       </FormSection>
 
       {isBox && (
@@ -591,6 +597,16 @@ export default function EditLeagueForm({
               <option value="random">Random</option>
               <option value="manual">Manual (I'll set it)</option>
             </select>
+          </FormRow>
+        </FormSection>
+      )}
+
+      {isFlex && (
+        <FormSection title="Flex League" description="A self-scheduled round-robin. Generate the match grid from the Flex screen; players report their own scores and opponents confirm." defaultOpen>
+          <FormRow label="Season deadline">
+            <p className="text-sm text-brand-muted">
+              Matches can be played any time up to the season end (Start date + Season length above). Automatic no-show forfeits arrive in a later phase — for now unplayed matches stay open for you to resolve.
+            </p>
           </FormRow>
         </FormSection>
       )}
