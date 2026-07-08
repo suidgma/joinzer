@@ -44,7 +44,7 @@ export type PlayerResume = {
 export async function loadPlayerResume(admin: SupabaseClient, userId: string): Promise<PlayerResume | null> {
   const { data: p } = await admin
     .from('profiles')
-    .select('id, name, display_name, profile_photo_url, gender, created_at, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, primary_score_history, self_reported_rating, self_reported_scale, dupr_rating, dupr_verified, home_court:locations!home_court_id(name)')
+    .select('id, name, display_name, profile_photo_url, gender, created_at, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, primary_score_history, self_reported_rating, self_reported_scale, rating_source, estimated_rating, dupr_rating, dupr_verified, home_court:locations!home_court_id(name)')
     .eq('id', userId)
     .maybeSingle()
   if (!p) return null
@@ -99,6 +99,13 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
   }
   upcoming.sort((a, b) => (a.date ?? '') < (b.date ?? '') ? -1 : (a.date ?? '') > (b.date ?? '') ? 1 : 0)
 
+  // Legacy fallback: pre-Phase-0 rows may lack self_reported_* — derive from the old
+  // rating_source/estimated_rating/dupr_rating (mirrors the previous profile page).
+  const selfRating: number | null = prof.self_reported_rating
+    ?? (prof.rating_source === 'estimated' ? prof.estimated_rating : prof.rating_source === 'dupr_known' ? prof.dupr_rating : null)
+  const selfScale: string | null = prof.self_reported_scale
+    ?? (prof.rating_source === 'dupr_known' ? 'dupr' : prof.rating_source === 'estimated' ? 'self' : null)
+
   return {
     profile: {
       id: prof.id,
@@ -113,8 +120,8 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
       primary_confidence: prof.primary_confidence ?? null,
       primary_games: prof.primary_games ?? null,
       primary_score_history: Array.isArray(prof.primary_score_history) ? (prof.primary_score_history as number[]) : null,
-      self_reported_rating: prof.self_reported_rating ?? null,
-      self_reported_scale: prof.self_reported_scale ?? null,
+      self_reported_rating: selfRating,
+      self_reported_scale: selfScale,
       dupr_rating: prof.dupr_rating ?? null,
       dupr_verified: prof.dupr_verified ?? false,
     },
