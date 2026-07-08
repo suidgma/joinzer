@@ -68,11 +68,11 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
     events: r.events_counted ?? 0,
   }))
 
-  // Competitive career stats — reuse the tested extractor + pure aggregator.
-  // NOTE (perf): extractAllGameRecords scans all competitive results; acceptable at
-  // current volume for compute-on-read. Phase 2 moves this to the recompute cron cache.
-  const records = await extractAllGameRecords(admin)
-  const stats = computePlayerStats(records, userId)
+  // Competitive career stats — read the nightly cron cache; fall back to compute-on-read
+  // when a row is missing (new/zero-match players before the next run).
+  const { data: cached } = await admin.from('player_stats').select('stats').eq('player_id', userId).maybeSingle()
+  const stats: PlayerStats = (cached as { stats: PlayerStats } | null)?.stats
+    ?? computePlayerStats(await extractAllGameRecords(admin), userId)
 
   // Upcoming competitive events only (leagues not yet ended + future tournaments).
   const today = new Date().toISOString().slice(0, 10)
