@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import PhotoUpload from '@/components/features/PhotoUpload'
 
 type RatingSource = 'dupr_known' | 'estimated' | 'skipped'
+type SignupIntent = 'play' | 'organize' | 'both'
 
 const labelClass = 'block text-sm font-medium text-brand-dark mb-1'
 const inputClass = 'w-full input'
@@ -13,6 +14,7 @@ const inputClass = 'w-full input'
 export default function ProfileSetupPage() {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [intent, setIntent] = useState<SignupIntent | null>(null)
   const [phone, setPhone] = useState('')
   const [ratingSource, setRatingSource] = useState<RatingSource | null>(null)
   const [duprRating, setDuprRating] = useState('')
@@ -28,6 +30,10 @@ export default function ProfileSetupPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    // Preselect intent from the landing CTA (e.g. /organizers "Start free" → ?intent=organize).
+    const paramIntent = new URLSearchParams(window.location.search).get('intent')
+    if (paramIntent === 'organize' || paramIntent === 'play' || paramIntent === 'both') setIntent(paramIntent)
+
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
@@ -74,6 +80,7 @@ export default function ProfileSetupPage() {
       notify_new_sessions: notifyNewSessions,
       profile_photo_url: photoUrl,
       home_court_id: homeCourt || null,
+      signup_intent: intent,
       rating_source: ratingSource,
       dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
       estimated_rating: ratingSource === 'estimated' ? numericRating : null,
@@ -104,7 +111,7 @@ export default function ProfileSetupPage() {
     router.push(safeNext)
   }
 
-  const canSubmit = name.trim().length > 0 && ratingSource !== null && !loading
+  const canSubmit = name.trim().length > 0 && intent !== null && ratingSource !== null && !loading
 
   return (
     <main className="min-h-screen bg-brand-page flex items-center justify-center p-4">
@@ -139,6 +146,33 @@ export default function ProfileSetupPage() {
                 placeholder="Your name"
                 className={inputClass}
               />
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                What brings you to Joinzer? <span className="text-red-500">*</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {([['play', 'Play'], ['organize', 'Organize'], ['both', 'Both']] as const).map(([val, lbl]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setIntent(val)}
+                    className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
+                      intent === val
+                        ? 'bg-brand border-brand text-brand-dark'
+                        : 'border-brand-border text-brand-muted hover:border-brand-active'
+                    }`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-brand-muted mt-1">
+                {intent === 'organize' || intent === 'both'
+                  ? "We'll help you set up your first league or tournament next."
+                  : 'Find sessions, leagues, and tournaments to join.'}
+              </p>
             </div>
 
             <div>
