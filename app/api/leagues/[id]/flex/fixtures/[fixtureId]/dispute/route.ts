@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { flexAdmin, loadFlexFixtureContext } from '@/lib/leagues/flexServer'
 import { disputeResult } from '@/lib/leagues/flexFixture'
 import { logAudit } from '@/lib/audit/log'
+import { createNotification } from '@/lib/notifications/create'
 
 type Params = { params: Promise<{ id: string; fixtureId: string }> }
 
@@ -25,5 +26,20 @@ export async function PATCH(_req: NextRequest, props: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await logAudit({ actorId: user.id, entityType: 'league_match', entityId: fixtureId, action: 'flex_disputed', after: action.patch })
+
+  // Notify the organizer that a result needs resolving.
+  const { data: league } = await db.from('leagues').select('created_by').eq('id', id).single()
+  const organizer = (league as any)?.created_by
+  if (organizer && organizer !== user.id) {
+    await createNotification({
+      recipientId: organizer,
+      surface: 'league', surfaceId: id,
+      kind: 'flex_result_disputed',
+      title: 'A Flex result is disputed',
+      body: 'A player disputed a reported match. Resolve it from the Flex screen.',
+      url: `/leagues/${id}/flex`,
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }

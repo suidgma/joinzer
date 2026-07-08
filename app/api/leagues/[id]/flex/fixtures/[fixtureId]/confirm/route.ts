@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { flexAdmin, loadFlexFixtureContext } from '@/lib/leagues/flexServer'
 import { confirmResult } from '@/lib/leagues/flexFixture'
 import { logAudit } from '@/lib/audit/log'
+import { createNotification } from '@/lib/notifications/create'
 
 type Params = { params: Promise<{ id: string; fixtureId: string }> }
 
@@ -25,5 +26,19 @@ export async function PATCH(_req: NextRequest, props: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await logAudit({ actorId: user.id, entityType: 'league_match', entityId: fixtureId, action: 'flex_confirmed', after: action.patch })
+
+  // Notify the reporter that their result was confirmed.
+  const reporter = ctx.fixture.reported_by
+  if (reporter && reporter !== user.id) {
+    await createNotification({
+      recipientId: reporter,
+      surface: 'league', surfaceId: id,
+      kind: 'flex_result_confirmed',
+      title: 'Match result confirmed',
+      body: 'Your reported Flex match result was confirmed.',
+      url: `/leagues/${id}`,
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }
