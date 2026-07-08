@@ -104,6 +104,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 
 ### Not yet built
 
+- **Team League format** (`format_kind='team'`) — roster-based, captain-managed; weekly team matchups (parent `league_fixtures`) made of individual line matches (child fixtures via `parent_fixture_id`); team standings. **Designed, not built** — canonical plan + Phase 0/1 build order in `docs/phases/team-league.md`. Reuse-first (~70%): reuses `league_fixtures`/`parent_fixture_id`, `league_periods('matchday')`, `roundRobinMatches`, the standings tiebreak core, and (later) the tournament bracket engine for playoffs. New: `league_teams` + `league_team_members` + additive nullable `league_fixtures` columns (`team_1_id`/`team_2_id`/`winner_team_id`/`team_*_partner_registration_id`). Note: `leagues.format_kind` already permits `'team'` and `league_periods.period_kind` already permits `'matchday'` (scaffolded).
 - **Unified `competitions` schema** — designed in @docs/architecture-target.md, not migrated
 - **Organizer onboarding flow** — no guided path from landing page → create first league/tournament. First organizer conversion is manual.
 - **SMS** — no Twilio / equivalent
