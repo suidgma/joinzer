@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { activityLevels, selfReportedLevel } from '@/lib/rating/levels'
+import { activityLevels } from '@/lib/rating/levels'
+import { ratingDisplay } from '@/lib/rating/display'
 import PlayerInviteModal from '@/components/features/players/PlayerInviteModal'
 import RatingBadge from '@/components/features/RatingBadge'
 
@@ -15,6 +16,10 @@ type Player = {
   self_reported_scale: string | null
   dupr_rating: number | null
   dupr_verified: boolean
+  primary_joinzer_score: number | null
+  primary_joinzer_level: string | null
+  primary_confidence: string | null
+  primary_games: number | null
   availableToday: boolean
   timeWindows: string[]
   gender: string | null
@@ -68,7 +73,7 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
     }
     if (genderFilter && p.gender !== genderFilter) return false
     if (activeLabels.size === 0) return true
-    return activeLabels.has(selfReportedLevel(p.self_reported_rating))
+    return activeLabels.has(ratingDisplay(p).level)
   })
 
   return (
@@ -181,9 +186,17 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                   duprRating={player.dupr_rating}
                   duprVerified={player.dupr_verified}
                 />
-                <p className="text-xs text-brand-active font-medium text-center">
-                  {selfReportedLevel(player.self_reported_rating)}
-                </p>
+                {(() => {
+                  const disp = ratingDisplay(player)
+                  return (
+                    <p className="text-xs text-brand-active font-medium text-center leading-tight">
+                      {disp.level}
+                      {disp.kind === 'earned' && (
+                        <span className="block text-[10px] text-brand-muted font-semibold">Score {disp.score}</span>
+                      )}
+                    </p>
+                  )
+                })()}
                 {canInvite && (
                   <p className="text-[10px] text-brand-active font-medium">Tap to invite</p>
                 )}

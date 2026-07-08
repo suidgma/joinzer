@@ -12,7 +12,7 @@ export default async function PlayersPage() {
   const [{ data }, { data: availabilityData }, { data: mySessions }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, gender')
+      .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, gender')
       .eq('dummy', false)
       .order('name', { ascending: true }),
     supabase
@@ -52,6 +52,10 @@ export default async function PlayersPage() {
       (p.rating_source === 'dupr_known' ? 'dupr' : p.rating_source === 'estimated' ? 'self' : null),
     dupr_rating: p.dupr_rating as number | null,
     dupr_verified: (p.dupr_verified as boolean | null) ?? false,
+    primary_joinzer_score: p.primary_joinzer_score as number | null,
+    primary_joinzer_level: p.primary_joinzer_level as string | null,
+    primary_confidence: p.primary_confidence as string | null,
+    primary_games: p.primary_games as number | null,
     availableToday: !!availabilityMap[p.id as string],
     timeWindows: availabilityMap[p.id as string] ?? [],
     gender: p.gender as string | null,
