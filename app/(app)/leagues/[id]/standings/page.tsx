@@ -17,6 +17,8 @@ import StandingsShareCard from './StandingsShareCard'
 import { getBoxPositionTrend, type BoxTrendRow } from '@/lib/leagues/boxTrend'
 import BoxPositionTrend from './BoxPositionTrend'
 import RecentResults, { type ResultRow } from './RecentResults'
+import TeamStandings from './TeamStandings'
+import { rankEntities, type RankMatch } from '@/lib/tournament/standings'
 
 export default async function LeagueStandingsPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string }> }) {
   const params = await props.params;
@@ -47,9 +49,59 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
   // cycle's attendance surface for box.
   const runSessionAction = await getRunSessionAction(params.id, isManager0, (league as any).format_kind)
 
-  // ── Team leagues: standings arrive with matchup scoring (later step). Placeholder
-  //    branch so a team league never falls through to the round-robin (session) path. ──
+  // ── Team leagues: rank TEAM entities over completed team_matchup fixtures via the
+  //    shared rankEntities core (matchup W–L → line-win differential). ──
   if ((league as any).format_kind === 'team') {
+    const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: teamsRaw } = await admin
+      .from('league_teams').select('id, name, status').eq('league_id', params.id)
+      .neq('status', 'withdrawn').order('created_at', { ascending: true })
+    const teams = (teamsRaw ?? []) as any[]
+    const teamNameById = new Map<string, string>(teams.map((t) => [t.id, t.name]))
+    const nameOf = (id: string) => teamNameById.get(id) ?? 'Team'
+
+    const { data: matchupsRaw } = teams.length
+      ? await admin.from('league_fixtures')
+          .select('period_id, round_number, team_1_id, team_2_id, team_1_score, team_2_score, winner_team_id, status')
+          .eq('league_id', params.id).eq('match_stage', 'team_matchup')
+          .order('round_number', { ascending: true })
+      : { data: [] as any[] }
+    const matchups = (matchupsRaw ?? []) as any[]
+
+    const rankMatches: RankMatch[] = matchups
+      .filter((m) => m.status === 'completed' && m.team_1_id && m.team_2_id)
+      .map((m) => ({
+        sideAId: m.team_1_id,
+        sideBId: m.team_2_id,
+        winnerId: m.winner_team_id ?? null,
+        scoreA: m.team_1_score ?? 0,
+        scoreB: m.team_2_score ?? 0,
+      }))
+    const ranked = rankEntities(rankMatches, teams.map((t) => t.id), nameOf)
+    const rows = ranked.map((r, i) => ({
+      rank: i + 1,
+      name: nameOf(r.entityId),
+      wins: r.wins,
+      losses: r.losses,
+      winPct: r.wins + r.losses > 0 ? r.wins / (r.wins + r.losses) : 0,
+      linesFor: r.pf,
+      linesAgainst: r.pa,
+      diff: r.pf - r.pa,
+    }))
+    const hasResults = rankMatches.length > 0
+
+    // Latest matchday's matchup results (line-win tallies).
+    const latestRound = matchups.filter((m) => m.status === 'completed').reduce((mx, m) => Math.max(mx, m.round_number ?? 0), 0)
+    const recentRows: ResultRow[] = matchups
+      .filter((m) => m.status === 'completed' && (m.round_number ?? 0) === latestRound)
+      .map((m) => ({
+        name1: nameOf(m.team_1_id),
+        name2: nameOf(m.team_2_id),
+        score1: m.team_1_score ?? 0,
+        score2: m.team_2_score ?? 0,
+        winner1: m.winner_team_id === m.team_1_id,
+      }))
+
     const navItems: ManageNavItem[] = [
       { label: 'Overview', href: `/leagues/${params.id}` },
       { label: 'Standings', href: `/leagues/${params.id}/standings` },
@@ -74,13 +126,21 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         <div className="space-y-4 pb-8 max-w-2xl">
           <div>
             <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
-            <p className="text-xs text-brand-muted">Team standings appear once matchups are played.</p>
+            <p className="text-xs text-brand-muted">Matchup win % → line-win differential.</p>
           </div>
-          <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
-            <p className="text-2xl">🏓</p>
-            <p className="text-sm font-medium text-brand-dark">No matchups yet</p>
-            <p className="text-xs text-brand-muted">Create teams and generate the schedule, then standings update as matchups are scored.</p>
-          </div>
+          <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
+          {!hasResults ? (
+            <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+              <p className="text-2xl">🏓</p>
+              <p className="text-sm font-medium text-brand-dark">No matchups scored yet</p>
+              <p className="text-xs text-brand-muted">Create teams and generate the schedule, then standings update as matchups are scored.</p>
+            </div>
+          ) : (
+            <>
+              <TeamStandings rows={rows} />
+              {recentRows.length > 0 && <RecentResults heading={`Latest results — Matchday ${latestRound}`} rows={recentRows} />}
+            </>
+          )}
         </div>
       </DesktopShell>
     )

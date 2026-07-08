@@ -7,7 +7,8 @@ import BoxStandings from '@/app/(app)/leagues/[id]/standings/BoxStandings'
 import StandingsTable from '@/app/(app)/leagues/[id]/standings/StandingsTable'
 import BoxPositionTrend from '@/app/(app)/leagues/[id]/standings/BoxPositionTrend'
 import RecentResults from '@/app/(app)/leagues/[id]/standings/RecentResults'
-import { getLadderPublicStandings, getBoxPublicStandings, getRRPublicStandings } from '@/lib/leagues/publicStandings'
+import TeamStandings from '@/app/(app)/leagues/[id]/standings/TeamStandings'
+import { getLadderPublicStandings, getBoxPublicStandings, getRRPublicStandings, getTeamPublicStandings } from '@/lib/leagues/publicStandings'
 import { getBoxPositionTrend } from '@/lib/leagues/boxTrend'
 
 export const dynamic = 'force-dynamic'
@@ -60,11 +61,19 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
   // Round-robin renders a wide table (stats + per-week + trend columns); box/ladder
   // are card-based and read fine narrow. Match the authenticated player view: RR
   // gets a wider shell so the whole table fits without horizontal scrolling.
-  const isNarrow = league.format_kind === 'box' || league.format_kind === 'ladder'
+  const isNarrow = league.format_kind === 'box' || league.format_kind === 'ladder' || league.format_kind === 'team'
   const widthClass = isNarrow ? 'max-w-2xl' : 'max-w-5xl'
 
   let content: React.ReactNode
-  if (league.format_kind === 'ladder') {
+  if (league.format_kind === 'team') {
+    const { rows, hasResults, recentRows, latestRound } = await getTeamPublicStandings(db, id)
+    content = hasResults ? (
+      <>
+        <TeamStandings rows={rows} />
+        {recentRows.length > 0 && <RecentResults heading={`Latest results — Matchday ${latestRound}`} rows={recentRows} />}
+      </>
+    ) : <EmptyState msg="Standings appear once matchups are scored." />
+  } else if (league.format_kind === 'ladder') {
     const { rows, sessionNumbers, recentRows, latestSessionNumber } = await getLadderPublicStandings(db, id, league.format, settings)
     content = (
       <>
