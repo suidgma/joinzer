@@ -12,17 +12,23 @@ export default function OrganizerFinalCTA() {
           See how Joinzer fits your tournaments, leagues, or clinics. Book a quick Zoom and we&apos;ll walk you through the platform for your format.
         </p>
 
-        <div className="flex justify-center mb-4">
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-3 mb-4">
+          <a
+            href="/login?mode=signup&intent=organize"
+            className="w-full sm:w-auto bg-brand text-brand-dark font-semibold px-8 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm text-center"
+          >
+            Start free — create your first event
+          </a>
           <a
             href={DEMO_URL}
-            className="w-full sm:w-auto bg-brand text-brand-dark font-semibold px-8 py-4 rounded-xl hover:bg-brand-hover active:bg-brand-active transition-colors text-sm shadow-sm text-center"
+            className="w-full sm:w-auto bg-white/10 text-white font-semibold px-8 py-4 rounded-xl hover:bg-white/20 transition-colors text-sm text-center ring-1 ring-white/20"
           >
             Schedule a Demo
           </a>
         </div>
 
         <p className="text-white/40 text-xs">
-          Choose a time on Calendly — no commitment.
+          Free to start, no commitment — or book a Calendly walkthrough.
         </p>
       </div>
     </section>
