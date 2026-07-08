@@ -71,6 +71,17 @@ describe('computeRatings', () => {
     expect(find(stale, 'a').rd).toBeGreaterThan(find(fresh, 'a').rd)
   })
 
+  it('records one history snapshot per rating period played (for the trend)', () => {
+    const games: GameRecord[] = Array.from({ length: 3 }, (_, i) =>
+      g({ id: `m${i}`, playedAt: `2026-01-${String(1 + i * 7).padStart(2, '0')}T12:00:00Z`, occasionId: `s${i}`, sideA: ['a'], sideB: ['b'], winner: 'A' }),
+    )
+    const rows = computeRatings(games)
+    const a = find(rows, 'a')
+    expect(a.history).toHaveLength(3) // three separate weeks → three snapshots
+    expect(a.history[a.history.length - 1].games).toBe(3)
+    expect(a.history[a.history.length - 1].rating).toBeCloseTo(a.rating, 6)
+  })
+
   it('honors the seed function for a player with no games as the starting point', () => {
     const rows = computeRatings(
       [g({ id: 'm1', playedAt: '2026-01-01T00:00:00Z', sideA: ['a'], sideB: ['b'], winner: 'A' })],

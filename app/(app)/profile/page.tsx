@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ratingDisplay } from '@/lib/rating/display'
+import Sparkline from '@/components/ui/sparkline'
 import DeleteAccountButton from '@/components/features/DeleteAccountButton'
 import RatingBadge from '@/components/features/RatingBadge'
 import PushSubscribeButton from '@/components/features/PushSubscribeButton'
@@ -106,10 +107,15 @@ export default async function ProfilePage() {
           <p className="text-xs text-brand-muted uppercase tracking-wide font-medium mb-0.5">Joinzer Level</p>
           <p className="text-base font-semibold text-brand-dark">{rd.level}</p>
           {rd.kind === 'earned' && (
-            <p className="text-sm text-brand-dark mt-0.5">
-              <span className="font-semibold text-brand-active">Joinzer Score {rd.score}</span>
-              <span className="text-xs text-brand-muted"> · {rd.state === 'rusty' ? 'Rusty' : 'Established'}{rd.games != null ? ` · ${rd.games} matches` : ''}</span>
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-sm text-brand-dark">
+                <span className="font-semibold text-brand-active">Joinzer Score {rd.score}</span>
+                <span className="text-xs text-brand-muted"> · {rd.state === 'rusty' ? 'Rusty' : 'Established'}{rd.games != null ? ` · ${rd.games} matches` : ''}</span>
+              </p>
+              {Array.isArray(profile.primary_score_history) && profile.primary_score_history.length >= 2 && (
+                <Sparkline values={profile.primary_score_history as number[]} />
+              )}
+            </div>
           )}
           <div className="flex items-center gap-2 mt-1">
             <RatingBadge

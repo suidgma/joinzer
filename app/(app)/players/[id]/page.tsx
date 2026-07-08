@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import RatingBadge from '@/components/features/RatingBadge'
 import { ratingDisplay } from '@/lib/rating/display'
+import Sparkline from '@/components/ui/sparkline'
 import { ChevronLeft } from 'lucide-react'
 
 export default async function PlayerProfilePage(
@@ -15,7 +16,7 @@ export default async function PlayerProfilePage(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, gender')
+    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, primary_score_history, gender')
     .eq('id', id)
     .single()
 
@@ -73,10 +74,15 @@ export default async function PlayerProfilePage(
               />
             </div>
             {rd.kind === 'earned' && (
-              <p className="text-sm text-brand-dark mt-1">
-                <span className="font-semibold text-brand-active">Joinzer Score {rd.score}</span>
-                <span className="text-xs text-brand-muted"> · {rd.state === 'rusty' ? 'Rusty' : 'Established'}{rd.games != null ? ` · ${rd.games} matches` : ''}</span>
-              </p>
+              <div className="flex items-center justify-center gap-2 mt-1">
+                <p className="text-sm text-brand-dark">
+                  <span className="font-semibold text-brand-active">Joinzer Score {rd.score}</span>
+                  <span className="text-xs text-brand-muted"> · {rd.state === 'rusty' ? 'Rusty' : 'Established'}{rd.games != null ? ` · ${rd.games} matches` : ''}</span>
+                </p>
+                {Array.isArray((profile as any).primary_score_history) && (profile as any).primary_score_history.length >= 2 && (
+                  <Sparkline values={(profile as any).primary_score_history as number[]} />
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -88,7 +88,7 @@ export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: s
   const primary = new Map<string, PlayerRatingState>()
   for (const [pid, tracks] of byPlayer) primary.set(pid, pickPrimaryFormat(tracks))
   await admin.from('profiles')
-    .update({ primary_format: null, primary_joinzer_score: null, primary_joinzer_level: null, primary_confidence: null, primary_games: null })
+    .update({ primary_format: null, primary_joinzer_score: null, primary_joinzer_level: null, primary_confidence: null, primary_games: null, primary_score_history: null })
     .not('primary_joinzer_score', 'is', null)
   const entries = [...primary.entries()]
   for (let i = 0; i < entries.length; i += 25) {
@@ -101,6 +101,7 @@ export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: s
         primary_joinzer_level: scoreToLevel(s.activity, score),
         primary_confidence: s.confidence,
         primary_games: s.gamesCounted,
+        primary_score_history: (s.history ?? []).slice(-12).map((h) => scoreFromInternal(s.activity, h.rating)),
       }).eq('id', pid)
     }))
     for (const { error } of results) if (error) throw new Error(`profiles cache update: ${error.message}`)
