@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { teamAdmin, assertTeamLeagueOrganizer } from '@/lib/leagues/teamsServer'
 import { validateScores } from '@/lib/scoring/validateScores'
+import { rollUpMatchup, type LineChild, type ProvidedScore } from '@/lib/leagues/teamMatchup'
 import { logAudit } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string; matchupId: string }> }
@@ -34,44 +35,27 @@ export async function PATCH(req: NextRequest, props: Params) {
 
   const body = await req.json().catch(() => ({}))
   const scores = Array.isArray(body.lines) ? body.lines : []
-  const byId = new Map<string, { team_1_score: number; team_2_score: number }>()
+  const provided = new Map<string, ProvidedScore>()
   for (const s of scores) {
     if (!s || s.team_1_score == null || s.team_2_score == null) continue
     const check = validateScores(s.team_1_score, s.team_2_score)
     if (!check.ok) return NextResponse.json({ error: `Line score: ${check.error}` }, { status: 400 })
-    byId.set(s.id, { team_1_score: s.team_1_score, team_2_score: s.team_2_score })
+    provided.set(s.id, { team_1_score: s.team_1_score, team_2_score: s.team_2_score })
   }
 
-  // Apply each provided line score to its child fixture.
-  for (const child of children) {
-    const s = byId.get(child.id)
-    if (!s) continue
-    const winner_registration_id = s.team_1_score > s.team_2_score ? child.team_1_registration_id : child.team_2_registration_id
+  // Pure roll-up: line writes + parent tally (see lib/leagues/teamMatchup, unit-tested).
+  const rollup = rollUpMatchup(children as LineChild[], provided, (matchup as any).team_1_id, (matchup as any).team_2_id)
+
+  for (const u of rollup.childUpdates) {
     const { error } = await db.from('league_fixtures')
-      .update({ team_1_score: s.team_1_score, team_2_score: s.team_2_score, winner_registration_id, status: 'completed' })
-      .eq('id', child.id)
+      .update({ team_1_score: u.team_1_score, team_2_score: u.team_2_score, winner_registration_id: u.winner_registration_id, status: u.status })
+      .eq('id', u.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Roll up the parent from the fresh child state.
-  const merged = children.map((c) => {
-    const s = byId.get(c.id)
-    return s ? { ...c, ...s, status: 'completed' } : c
-  })
-  let team1Lines = 0
-  let team2Lines = 0
-  for (const c of merged) {
-    if (c.status !== 'completed' || c.team_1_score == null || c.team_2_score == null) continue
-    if (c.team_1_score > c.team_2_score) team1Lines++
-    else team2Lines++
-  }
-  const allScored = merged.every((c) => c.status === 'completed')
-  const winner_team_id = !allScored || team1Lines === team2Lines
-    ? null
-    : team1Lines > team2Lines ? (matchup as any).team_1_id : (matchup as any).team_2_id
-
+  const parentStatus = rollup.completed ? 'completed' : 'scheduled'
   const { error: parentErr } = await db.from('league_fixtures')
-    .update({ team_1_score: team1Lines, team_2_score: team2Lines, winner_team_id, status: allScored ? 'completed' : 'scheduled' })
+    .update({ team_1_score: rollup.team1Lines, team_2_score: rollup.team2Lines, winner_team_id: rollup.winnerTeamId, status: parentStatus })
     .eq('id', matchupId)
   if (parentErr) return NextResponse.json({ error: parentErr.message }, { status: 500 })
 
@@ -81,8 +65,8 @@ export async function PATCH(req: NextRequest, props: Params) {
     entityId: matchupId,
     action: 'score_updated',
     before: { team_1_score: (matchup as any).team_1_score, team_2_score: (matchup as any).team_2_score, status: (matchup as any).status },
-    after: { team_1_score: team1Lines, team_2_score: team2Lines, winner_team_id, status: allScored ? 'completed' : 'scheduled' },
+    after: { team_1_score: rollup.team1Lines, team_2_score: rollup.team2Lines, winner_team_id: rollup.winnerTeamId, status: parentStatus },
   })
 
-  return NextResponse.json({ ok: true, team1Lines, team2Lines, completed: allScored })
+  return NextResponse.json({ ok: true, team1Lines: rollup.team1Lines, team2Lines: rollup.team2Lines, completed: rollup.completed })
 }
