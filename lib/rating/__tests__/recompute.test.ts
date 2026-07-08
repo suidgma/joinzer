@@ -4,7 +4,7 @@ import type { PlayerRatingState } from '../engine'
 
 const track = (over: Partial<PlayerRatingState> & Pick<PlayerRatingState, 'format' | 'confidence' | 'gamesCounted'>): PlayerRatingState => ({
   playerId: 'p', activity: 'pickleball', rating: 1500, rd: 100, vol: 0.06,
-  eventsCounted: 3, lastPlayedAt: null, basis: 'calculated', ...over,
+  eventsCounted: 3, lastPlayedAt: null, basis: 'calculated', history: [], ...over,
 })
 
 describe('pickPrimaryFormat — prefer Established (doubles wins ties), else most-played', () => {

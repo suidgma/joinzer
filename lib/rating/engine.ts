@@ -18,6 +18,9 @@ export type SeedFn = (playerId: string) => SeedInput | null
 
 export type ConfidenceState = 'provisional' | 'established' | 'rusty'
 
+// One snapshot per rating period the player competed in (for the trend sparkline).
+export type RatingSnapshot = { at: string; rating: number; games: number }
+
 export type PlayerRatingState = {
   playerId: string
   activity: Activity
@@ -30,6 +33,7 @@ export type PlayerRatingState = {
   lastPlayedAt: string | null
   basis: 'seed' | 'calculated'
   confidence: ConfidenceState
+  history: RatingSnapshot[]
 }
 
 type Track = {
@@ -44,6 +48,7 @@ type Track = {
   games: number
   occasions: Set<string>
   basis: 'seed' | 'calculated'
+  snapshots: RatingSnapshot[]
 }
 
 const MS_PER_WEEK = 7 * 24 * 3600 * 1000
@@ -79,7 +84,7 @@ export function computeRatings(
         rating: s?.rating ?? DEFAULT_RATING,
         rd: s?.rd ?? DEFAULT_RD,
         vol: s?.vol ?? DEFAULT_VOL,
-        lastWeek: null, lastPlayedAt: null, games: 0, occasions: new Set(), basis: 'seed',
+        lastWeek: null, lastPlayedAt: null, games: 0, occasions: new Set(), basis: 'seed', snapshots: [],
       }
       tracks.set(key, t)
     }
@@ -141,6 +146,7 @@ export function computeRatings(
       for (const occ of pendingOcc.get(key)!) t.occasions.add(occ)
       t.lastPlayedAt = pendingLast.get(key)!
       t.basis = 'calculated'
+      t.snapshots.push({ at: t.lastPlayedAt, rating: t.rating, games: t.games })
     }
   }
 
@@ -156,5 +162,6 @@ export function computeRatings(
     gamesCounted: t.games, eventsCounted: t.occasions.size,
     lastPlayedAt: t.lastPlayedAt, basis: t.basis,
     confidence: confidenceState({ rd: t.rd, gamesCounted: t.games, eventsCounted: t.occasions.size }),
+    history: t.snapshots,
   }))
 }
