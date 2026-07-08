@@ -45,6 +45,7 @@ export type PlayerResume = {
   stats: PlayerStats
   badges: Badge[]
   upcoming: ResumeUpcoming[]
+  history: ResumeUpcoming[]
 }
 
 export async function loadPlayerResume(admin: SupabaseClient, userId: string): Promise<PlayerResume | null> {
@@ -96,23 +97,26 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
       .eq('user_id', userId).in('status', ['registered', 'confirmed', 'approved']),
   ])
 
+  // Partition the player's registrations into upcoming (not yet ended) vs. history (past),
+  // reusing the one fetch. Leagues bound on end_date (fallback start_date); tournaments on start_date.
   const upcoming: ResumeUpcoming[] = []
+  const history: ResumeUpcoming[] = []
   for (const row of (leagueRegs ?? []) as any[]) {
     const l = row.league
     if (!l) continue
     const boundary = l.end_date ?? l.start_date
-    if (boundary && boundary >= today) {
-      upcoming.push({ kind: 'league', id: l.id, name: l.name, date: l.start_date ?? null, location: l.location_name ?? null })
-    }
+    if (!boundary) continue
+    const item: ResumeUpcoming = { kind: 'league', id: l.id, name: l.name, date: l.start_date ?? null, location: l.location_name ?? null }
+    ;(boundary >= today ? upcoming : history).push(item)
   }
   for (const row of (tourRegs ?? []) as any[]) {
     const t = row.tournament
-    if (!t) continue
-    if (t.start_date && t.start_date >= today) {
-      upcoming.push({ kind: 'tournament', id: t.id, name: t.name, date: t.start_date, location: t.location?.name ?? null })
-    }
+    if (!t || !t.start_date) continue
+    const item: ResumeUpcoming = { kind: 'tournament', id: t.id, name: t.name, date: t.start_date, location: t.location?.name ?? null }
+    ;(t.start_date >= today ? upcoming : history).push(item)
   }
   upcoming.sort((a, b) => (a.date ?? '') < (b.date ?? '') ? -1 : (a.date ?? '') > (b.date ?? '') ? 1 : 0)
+  history.sort((a, b) => (a.date ?? '') > (b.date ?? '') ? -1 : (a.date ?? '') < (b.date ?? '') ? 1 : 0) // most recent first
 
   // Legacy fallback: pre-Phase-0 rows may lack self_reported_* — derive from the old
   // rating_source/estimated_rating/dupr_rating (mirrors the previous profile page).
@@ -148,5 +152,6 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
     stats,
     badges,
     upcoming,
+    history,
   }
 }
