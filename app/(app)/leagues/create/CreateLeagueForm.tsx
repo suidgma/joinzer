@@ -78,7 +78,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   // Team League is gated OFF by default — create is built (Phase 1 Step 2) but schedule /
   // scoring / standings land in later steps. Set NEXT_PUBLIC_ENABLE_TEAM_LEAGUES='true' to expose it.
   const TEAM_ENABLED = process.env.NEXT_PUBLIC_ENABLE_TEAM_LEAGUES === 'true'
-  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder' | 'team'>('session_rr')
+  // Flex League gated OFF by default (Phase 1). Self-scheduled round-robin: players report
+  // their own scores, opponents confirm. Set NEXT_PUBLIC_ENABLE_FLEX_LEAGUES='true' to expose it.
+  const FLEX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_FLEX_LEAGUES === 'true'
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder' | 'team' | 'flex'>('session_rr')
   const [cycleWeeks, setCycleWeeks] = useState('1')
   const [promoteCount, setPromoteCount] = useState('1')
   const [relegateCount, setRelegateCount] = useState('1')
@@ -99,9 +102,14 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const isBox = formatKind === 'box'
   const isLadder = formatKind === 'ladder'
   const isTeam = formatKind === 'team'
+  const isFlex = formatKind === 'flex'
   // Period-based formats (box cycles, ladder sessions, team matchdays) don't generate
   // weekly league_sessions.
   const usesPeriods = isBox || isLadder || isTeam
+  // Fixture-based formats (the above + Flex) skip weekly league_sessions and treat doubles
+  // as one fixed-pair entrant. Flex is whole-season self-scheduled, not period-based.
+  const noWeeklySessions = usesPeriods || isFlex
+  const doublesFixed = usesPeriods || isFlex
 
   // Auto-compose the league name from the chosen settings until the organizer edits
   // it. Clearing the field resumes autofill, so the name stays in sync with day /
@@ -120,7 +128,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       // Team leagues take their disciplines from the line config, not a league-level
       // category / team type — so those words are omitted from the auto name.
       ...(formatKind === 'team' ? [] : [CATEGORY_NAME[category] ?? '', teamType === 'doubles' ? 'Doubles' : 'Singles']),
-      formatKind === 'box' ? 'Box League' : formatKind === 'ladder' ? 'Ladder' : formatKind === 'team' ? 'Team League' : 'Round Robin',
+      formatKind === 'box' ? 'Box League' : formatKind === 'ladder' ? 'Ladder' : formatKind === 'team' ? 'Team League' : formatKind === 'flex' ? 'Flex League' : 'Round Robin',
     ].filter(Boolean).join(' ')
     setName(auto)
   }, [nameTouched, startDate, skillMin, skillMax, category, teamType, formatKind])
@@ -197,7 +205,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     // / one ladder position) for the whole season.
     const effectivePartnerMode = teamType !== 'doubles'
       ? 'rotating'
-      : usesPeriods ? 'fixed' : partnerMode
+      : doublesFixed ? 'fixed' : partnerMode
 
     const { data: league, error: leagueErr } = await supabase
       .from('leagues')
@@ -278,7 +286,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
 
     // Period-based formats (box cycles, ladder sessions) create their play
     // occasions on demand — not as pre-scheduled weekly league_sessions.
-    if (!usesPeriods && submitDates.length > 0) {
+    if (!noWeeklySessions && submitDates.length > 0) {
       const roundsPlanned = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = submitDates.map((d, i) => ({
         league_id: league.id,
@@ -299,10 +307,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         {BOX_ENABLED && (
           <FormRow
             label="League format"
-            helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles with promotion & relegation. Ladder: a ranked list where players move up/down after king-of-the-court nights."
+            helpText="Round Robin: weekly sessions with rotating play. Box: skill-tiered boxes over cycles with promotion & relegation. Ladder: a ranked list where players move up/down after king-of-the-court nights. Flex: a self-scheduled round-robin — players arrange their own matches and report scores, opponents confirm."
           >
-            <div className={`grid ${TEAM_ENABLED ? 'grid-cols-2' : 'grid-cols-3'} gap-2`}>
-              {(([['session_rr', 'Round Robin'], ['box', 'Box League'], ['ladder', 'Ladder'], ...(TEAM_ENABLED ? [['team', 'Team League']] : [])]) as [string, string][]).map(([val, label]) => (
+            <div className={`grid ${TEAM_ENABLED || FLEX_ENABLED ? 'grid-cols-2' : 'grid-cols-3'} gap-2`}>
+              {(([['session_rr', 'Round Robin'], ['box', 'Box League'], ['ladder', 'Ladder'], ...(TEAM_ENABLED ? [['team', 'Team League']] : []), ...(FLEX_ENABLED ? [['flex', 'Flex League']] : [])]) as [string, string][]).map(([val, label]) => (
                 <button
                   key={val}
                   type="button"
@@ -343,14 +351,14 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
           </select>
         </FormRow>
         </>)}
-        {teamType === 'doubles' && usesPeriods && !isTeam && (
+        {teamType === 'doubles' && doublesFixed && !isTeam && (
           <FormRow label="Partner mode">
             <p className="text-sm text-brand-muted">
-              {isBox ? 'Box' : 'Ladder'} doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant{isBox ? ' for the whole cycle' : ' and holds one ladder position'}.
+              {isBox ? 'Box' : isLadder ? 'Ladder' : 'Flex'} doubles use <span className="font-semibold text-brand-dark">fixed partners</span> — the same pair competes as one entrant{isBox ? ' for the whole cycle' : isLadder ? ' and holds one ladder position' : ' all season'}.
             </p>
           </FormRow>
         )}
-        {teamType === 'doubles' && !usesPeriods && (
+        {teamType === 'doubles' && !noWeeklySessions && (
           <FormRow
             label="Partner mode"
             helpText="Rotating: scheduler picks a new partner each round. Fixed: captain picks partner at registration; same pair plays every match."
@@ -629,6 +637,16 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               <span className="text-sm text-brand-muted shrink-0">to</span>
               <input type="number" min="1" value={teamRosterMax} onChange={(e) => setTeamRosterMax(e.target.value)} placeholder="No max" className="flex-1 input" />
             </div>
+          </FormRow>
+        </FormSection>
+      )}
+
+      {isFlex && (
+        <FormSection title="Flex League" description="A self-scheduled round-robin. After saving, generate the match grid; players arrange their own court and time with each opponent, report their score, and the opponent confirms. Standings update as matches are confirmed." defaultOpen>
+          <FormRow label="Season deadline">
+            <p className="text-sm text-brand-muted">
+              Matches can be played any time up to the season end (set by <span className="font-semibold text-brand-dark">Start date</span> + <span className="font-semibold text-brand-dark">Season length</span> above). Automatic no-show forfeits arrive in a later phase — for now, unplayed matches simply stay open for the organizer to resolve.
+            </p>
           </FormRow>
         </FormSection>
       )}
