@@ -6,6 +6,7 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import LineupEditor from './LineupEditor'
+import MatchupScorer from './MatchupScorer'
 
 // Organizer lineup entry for one team matchup: assign roster players to each line, which
 // creates the child (player-vs-player) line fixtures. Team leagues only, organizer-only.
@@ -29,7 +30,7 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
 
   const { data: matchup } = await admin
     .from('league_fixtures')
-    .select('id, period_id, round_number, team_1_id, team_2_id, status')
+    .select('id, period_id, round_number, team_1_id, team_2_id, team_1_score, team_2_score, winner_team_id, status')
     .eq('id', params.matchupId).eq('league_id', params.id).eq('match_stage', 'team_matchup').maybeSingle()
   if (!matchup) notFound()
 
@@ -54,7 +55,7 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
 
   const { data: childrenRaw } = await admin
     .from('league_fixtures')
-    .select('match_number, team_1_registration_id, team_1_partner_registration_id, team_2_registration_id, team_2_partner_registration_id')
+    .select('id, match_number, team_1_registration_id, team_1_partner_registration_id, team_2_registration_id, team_2_partner_registration_id, team_1_score, team_2_score, status')
     .eq('parent_fixture_id', params.matchupId).order('match_number', { ascending: true })
   const children = (childrenRaw ?? []) as any[]
   const initialLineup = lines.map((_, i) => {
@@ -67,8 +68,34 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
       : { team1: [] as string[], team2: [] as string[] }
   })
 
+  const namesOf = (ids: (string | null)[]) => ids.filter(Boolean).map((r) => nameByReg.get(r as string) ?? 'Player')
+  const scoreLines = lines
+    .map((line, i) => {
+      const c = children.find((ch) => ch.match_number === i + 1)
+      if (!c) return null
+      return {
+        id: c.id as string,
+        label: line.label,
+        discipline: line.discipline,
+        team1Players: namesOf([c.team_1_registration_id, c.team_1_partner_registration_id]),
+        team2Players: namesOf([c.team_2_registration_id, c.team_2_partner_registration_id]),
+        team1Score: (c.team_1_score ?? null) as number | null,
+        team2Score: (c.team_2_score ?? null) as number | null,
+        status: (c.status ?? 'scheduled') as string,
+      }
+    })
+    .filter(Boolean) as {
+      id: string; label: string; discipline: 'singles' | 'doubles'
+      team1Players: string[]; team2Players: string[]
+      team1Score: number | null; team2Score: number | null; status: string
+    }[]
+  const hasLineup = children.length > 0
+
   const t1Name = teamName.get((matchup as any).team_1_id) ?? 'Team 1'
   const t2Name = teamName.get((matchup as any).team_2_id) ?? 'Team 2'
+  const winnerName = (matchup as any).winner_team_id
+    ? teamName.get((matchup as any).winner_team_id) ?? null
+    : null
 
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
@@ -93,17 +120,44 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
       <div className="max-w-2xl space-y-5 pb-8">
         <div>
           <h1 className="font-heading text-xl font-bold text-brand-dark">{t1Name} <span className="text-brand-muted font-normal">vs</span> {t2Name}</h1>
-          <p className="text-xs text-brand-muted">Matchday {(matchup as any).round_number} · assign players to each line.</p>
+          <p className="text-xs text-brand-muted">
+            Matchday {(matchup as any).round_number}
+            {(matchup as any).status === 'completed' && (
+              <> · <span className="font-semibold text-brand-dark">{(matchup as any).team_1_score}–{(matchup as any).team_2_score}</span>{winnerName ? ` · ${winnerName} won` : ' · tie'}</>
+            )}
+          </p>
         </div>
-        <LineupEditor
-          leagueId={params.id}
-          matchupId={params.matchupId}
-          lines={lines}
-          team1={{ name: t1Name, roster: rosterOf((matchup as any).team_1_id) }}
-          team2={{ name: t2Name, roster: rosterOf((matchup as any).team_2_id) }}
-          initialLineup={initialLineup}
-          readOnly={(matchup as any).status === 'completed'}
-        />
+
+        {hasLineup && (
+          <MatchupScorer
+            leagueId={params.id}
+            matchupId={params.matchupId}
+            team1Name={t1Name}
+            team2Name={t2Name}
+            lines={scoreLines}
+          />
+        )}
+
+        <details open={!hasLineup} className="group">
+          <summary className="cursor-pointer text-sm font-semibold text-brand-dark list-none flex items-center gap-1">
+            <span className="text-brand-muted transition-transform group-open:rotate-90">▸</span>
+            {hasLineup ? 'Edit lineup' : 'Set lineup'}
+          </summary>
+          <div className="pt-3">
+            {hasLineup && (matchup as any).status !== 'completed' && (
+              <p className="text-xs text-brand-muted pb-2">Changing the lineup clears any line scores for this matchup.</p>
+            )}
+            <LineupEditor
+              leagueId={params.id}
+              matchupId={params.matchupId}
+              lines={lines}
+              team1={{ name: t1Name, roster: rosterOf((matchup as any).team_1_id) }}
+              team2={{ name: t2Name, roster: rosterOf((matchup as any).team_2_id) }}
+              initialLineup={initialLineup}
+              readOnly={(matchup as any).status === 'completed'}
+            />
+          </div>
+        </details>
       </div>
     </DesktopShell>
   )
