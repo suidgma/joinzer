@@ -146,6 +146,103 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
     )
   }
 
+  // ── Flex leagues: self-scheduled round-robin; whole-league standings over the
+  //    confirmed fixtures (same registration-entity core as Box, no box scope). ──
+  if ((league as any).format_kind === 'flex') {
+    const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const doubles = isDoublesFormat((league as any).format)
+    const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
+    const { data: regsRaw } = await admin
+      .from('league_registrations')
+      .select('id, status, partner_registration_id, profile:profiles!user_id(name)')
+      .eq('league_id', params.id).neq('status', 'cancelled')
+    const byRegId = new Map<string, any>((regsRaw ?? []).map((r: any) => [r.id, r]))
+    const nameOf = (regId: string): string => {
+      const r: any = byRegId.get(regId)
+      if (!r) return 'Player'
+      const a = firstName(r.profile?.name)
+      if (!doubles) return a || 'Player'
+      const partner: any = r.partner_registration_id ? byRegId.get(r.partner_registration_id) : null
+      const b = partner ? firstName(partner.profile?.name) : ''
+      return b ? `${a}/${b}` : (a || 'Team')
+    }
+    const regsForStandings = (regsRaw ?? []).map((r: any) => ({ id: r.id, status: r.status, partner_registration_id: r.partner_registration_id ?? null }))
+
+    const { data: fxRaw } = await admin
+      .from('league_fixtures')
+      .select('id, match_stage, round_number, match_number, status, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, box_id, period_id, updated_at')
+      .eq('league_id', params.id).eq('match_stage', 'round_robin')
+    const fixtures = (fxRaw ?? []) as any[]
+    const hasResults = fixtures.some((f) => f.status === 'completed')
+    const standingRows = computeFixtureStandings(fixtures as any, regsForStandings, {}, nameOf)
+    const rows = standingRows.map((row, i) => ({
+      rank: i + 1,
+      name: nameOf(row.regId),
+      movement: null as null,
+      wins: row.wins,
+      losses: row.losses,
+      winPct: row.wins + row.losses > 0 ? row.wins / (row.wins + row.losses) : 0,
+      pf: row.pf,
+      pa: row.pa,
+      diff: row.pf - row.pa,
+    }))
+    const boxViews: BoxStandingView[] = [{ name: 'Standings', rows }]
+
+    const recentRows: ResultRow[] = fixtures
+      .filter((f) => f.status === 'completed' && f.team_1_score != null)
+      .sort((a, b) => new Date(b.updated_at ?? 0).getTime() - new Date(a.updated_at ?? 0).getTime())
+      .slice(0, 8)
+      .map((f) => ({
+        name1: nameOf(f.team_1_registration_id),
+        name2: nameOf(f.team_2_registration_id),
+        score1: f.team_1_score,
+        score2: f.team_2_score,
+        winner1: f.winner_registration_id === f.team_1_registration_id,
+      }))
+
+    const navItems: ManageNavItem[] = [
+      { label: 'Overview', href: `/leagues/${params.id}` },
+      { label: 'Standings', href: `/leagues/${params.id}/standings` },
+      ...(isManager0 ? [
+        { label: 'Roster', href: `/leagues/${params.id}/roster` },
+        { label: 'Edit', href: `/leagues/${params.id}/edit` },
+      ] : []),
+    ]
+    return (
+      <DesktopShell
+        header={
+          <div className="flex items-center gap-3">
+            <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
+            <span className="text-brand-muted text-sm">/</span>
+            <span className="text-sm font-medium text-brand-dark">Standings</span>
+          </div>
+        }
+        sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
+      >
+        <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
+        <div className="space-y-4 pb-8 max-w-2xl">
+          <div>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+            <p className="text-xs text-brand-muted">Win % → point differential. Updates as matches are confirmed.</p>
+          </div>
+          <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
+          {!hasResults ? (
+            <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 text-center space-y-2">
+              <p className="text-2xl">🏓</p>
+              <p className="text-sm font-medium text-brand-dark">No results yet</p>
+              <p className="text-xs text-brand-muted">Standings appear as players report and confirm their matches.</p>
+            </div>
+          ) : (
+            <>
+              <BoxStandings boxes={boxViews} />
+              {recentRows.length > 0 && <RecentResults heading="Latest results" rows={recentRows} />}
+            </>
+          )}
+        </div>
+      </DesktopShell>
+    )
+  }
+
   // ── Ladder leagues: the continuous ranking + movement + rank trend. ──
   if ((league as any).format_kind === 'ladder') {
     const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)

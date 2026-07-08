@@ -143,6 +143,53 @@ export async function getBoxPublicStandings(admin: Admin, leagueId: string, form
   return { boxes, cycleNumber: cycle.period_number as number }
 }
 
+// ── Flex (whole-league self-scheduled round-robin) ───────────────────────────
+export async function getFlexPublicStandings(admin: Admin, leagueId: string, format: string | null) {
+  const doubles = isDoublesFormat(format)
+  const { data: regsRaw } = await admin
+    .from('league_registrations')
+    .select('id, status, partner_registration_id, profile:profiles!user_id(name)')
+    .eq('league_id', leagueId).neq('status', 'cancelled')
+  const byRegId = new Map<string, any>((regsRaw ?? []).map((r: any) => [r.id, r]))
+  const nameOf = (regId: string | null): string => {
+    if (!regId) return 'Player'
+    const r = byRegId.get(regId)
+    if (!r) return 'Player'
+    const a = firstName(r.profile?.name)
+    if (!doubles) return a || 'Player'
+    const partner = r.partner_registration_id ? byRegId.get(r.partner_registration_id) : null
+    const b = partner ? firstName(partner.profile?.name) : ''
+    return b ? `${a}/${b}` : a || 'Team'
+  }
+  const regsForStandings = (regsRaw ?? []).map((r: any) => ({ id: r.id, status: r.status, partner_registration_id: r.partner_registration_id ?? null }))
+
+  const { data: fxRaw } = await admin
+    .from('league_fixtures')
+    .select('id, match_stage, round_number, status, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id, box_id, period_id, updated_at')
+    .eq('league_id', leagueId).eq('match_stage', 'round_robin')
+  const fixtures = (fxRaw ?? []) as any[]
+  const hasResults = fixtures.some((f) => f.status === 'completed')
+  const rows = computeFixtureStandings(fixtures as any, regsForStandings, {}, nameOf).map((row, i) => ({
+    rank: i + 1, name: nameOf(row.regId), movement: null as null,
+    wins: row.wins, losses: row.losses,
+    winPct: row.wins + row.losses > 0 ? row.wins / (row.wins + row.losses) : 0,
+    pf: row.pf, pa: row.pa, diff: row.pf - row.pa,
+  }))
+  const boxes: BoxStandingView[] = [{ name: 'Standings', rows }]
+  const recentRows: ResultRow[] = fixtures
+    .filter((f) => f.status === 'completed' && f.team_1_score != null)
+    .sort((a, b) => new Date(b.updated_at ?? 0).getTime() - new Date(a.updated_at ?? 0).getTime())
+    .slice(0, 8)
+    .map((f) => ({
+      name1: nameOf(f.team_1_registration_id),
+      name2: nameOf(f.team_2_registration_id),
+      score1: f.team_1_score,
+      score2: f.team_2_score,
+      winner1: f.winner_registration_id === f.team_1_registration_id,
+    }))
+  return { boxes, hasResults, recentRows }
+}
+
 // ── Team league ──────────────────────────────────────────────────────────────
 // Ranks TEAM entities over completed team_matchup fixtures (matchup W–L → line-win
 // differential) via the shared rankEntities core. Team names are public (no PII).

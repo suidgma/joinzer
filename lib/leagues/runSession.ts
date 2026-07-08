@@ -39,6 +39,12 @@ export async function getRunSessionAction(
     return { label: 'Manage Teams', href: `/leagues/${leagueId}/teams` }
   }
 
+  if (formatKind === 'flex') {
+    // The Flex hub: generate the match grid, watch progress, and resolve disputes.
+    // Players self-report from their own match list; the organizer oversees here.
+    return { label: 'Manage Flex', href: `/leagues/${leagueId}/flex` }
+  }
+
   // session_rr (default)
   const { data } = await db
     .from('league_sessions')
