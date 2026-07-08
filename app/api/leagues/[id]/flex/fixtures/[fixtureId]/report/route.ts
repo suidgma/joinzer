@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { flexAdmin, loadFlexFixtureContext } from '@/lib/leagues/flexServer'
-import { reportResult } from '@/lib/leagues/flexFixture'
+import { reportResult, resolveActingSide } from '@/lib/leagues/flexFixture'
 import { logAudit } from '@/lib/audit/log'
+import { createNotifications } from '@/lib/notifications/create'
 
 type Params = { params: Promise<{ id: string; fixtureId: string }> }
 
@@ -27,5 +28,21 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await logAudit({ actorId: user.id, entityType: 'league_match', entityId: fixtureId, action: 'flex_reported', after: action.patch })
+
+  // Notify the opposing entrant to confirm (or, if the organizer reported, both sides).
+  const reporterSide = resolveActingSide(ctx.sides, user.id)
+  const opponents = reporterSide === 'team_1' ? ctx.sides.team_2
+    : reporterSide === 'team_2' ? ctx.sides.team_1
+    : new Set<string>([...ctx.sides.team_1, ...ctx.sides.team_2])
+  await createNotifications([...opponents].filter((uid) => uid !== user.id).map((uid) => ({
+    recipientId: uid,
+    surface: 'league' as const,
+    surfaceId: id,
+    kind: 'flex_result_reported',
+    title: 'Confirm your match result',
+    body: 'Your opponent reported a Flex match score. Confirm or dispute it.',
+    url: `/leagues/${id}`,
+  })))
+
   return NextResponse.json({ ok: true })
 }
