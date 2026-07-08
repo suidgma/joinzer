@@ -9,6 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { extractAllGameRecords } from '../rating/extract'
 import { computePlayerStats, type PlayerStats } from '../rating/stats'
+import { computeBadges, type Badge } from './badges'
 import type { RatingFormat } from '../rating/types'
 
 // The profile fields the hero + rating block need. Shaped to pass straight into
@@ -42,6 +43,7 @@ export type PlayerResume = {
   profile: ResumeProfile
   ratings: ResumeFormatRating[]
   stats: PlayerStats
+  badges: Badge[]
   upcoming: ResumeUpcoming[]
 }
 
@@ -73,6 +75,15 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
   const { data: cached } = await admin.from('player_stats').select('stats').eq('player_id', userId).maybeSingle()
   const stats: PlayerStats = (cached as { stats: PlayerStats } | null)?.stats
     ?? computePlayerStats(await extractAllGameRecords(admin), userId)
+
+  const badges = computeBadges({
+    createdAt: prof.created_at ?? null,
+    confidence: prof.primary_confidence ?? null,
+    matches: stats.matches,
+    leaguesPlayed: stats.leaguesPlayed,
+    tournamentsPlayed: stats.tournamentsPlayed,
+    currentStreak: stats.currentStreak,
+  })
 
   // Upcoming competitive events only (leagues not yet ended + future tournaments).
   const today = new Date().toISOString().slice(0, 10)
@@ -135,6 +146,7 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
     },
     ratings,
     stats,
+    badges,
     upcoming,
   }
 }
