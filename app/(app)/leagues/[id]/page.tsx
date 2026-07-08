@@ -17,6 +17,7 @@ import LadderPlayerCard from './LadderPlayerCard'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
 import FlexPlayerMatches from './FlexPlayerMatches'
+import LeagueSetupChecklist from './LeagueSetupChecklist'
 
 // Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
 function fmtTime(t: string | null): string | null {
@@ -262,6 +263,22 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
 
   const runSessionAction = await getRunSessionAction(params.id, isAdmin, (league as any).format_kind)
 
+  // Organizer setup checklist: open registration → add players → start play.
+  // "Start play" = any fixtures generated (box/ladder/team/flex) or a session under way (RR).
+  let checklist: { regOpen: boolean; hasPlayers: boolean; hasPlay: boolean; runHref: string; runLabel: string } | null = null
+  if (isAdmin) {
+    const cdb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { count: fixtureCount } = await cdb.from('league_fixtures').select('id', { count: 'exact', head: true }).eq('league_id', params.id)
+    const sessionsStarted = (sessions ?? []).some((s: any) => s.status === 'in_progress' || s.status === 'completed')
+    checklist = {
+      regOpen: (league as any).registration_status === 'open',
+      hasPlayers: registeredCount >= 2,
+      hasPlay: (fixtureCount ?? 0) > 0 || sessionsStarted,
+      runHref: runSessionAction?.href ?? `/leagues/${params.id}/roster`,
+      runLabel: runSessionAction?.label ?? 'Run session',
+    }
+  }
+
   // Flex: a registered player's own matches (report / confirm / dispute) on the overview.
   let flexMatches: FlexMatchView[] = []
   if ((league as any).format_kind === 'flex' && user && myReg?.status === 'registered') {
@@ -289,6 +306,17 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         <h1 className="font-heading text-xl font-bold text-brand-dark">{league.name}</h1>
         {orgName && <p className="text-sm text-brand-muted">{orgName}</p>}
       </div>
+
+      {checklist && (
+        <LeagueSetupChecklist
+          leagueId={params.id}
+          regOpen={checklist.regOpen}
+          hasPlayers={checklist.hasPlayers}
+          hasPlay={checklist.hasPlay}
+          runHref={checklist.runHref}
+          runLabel={checklist.runLabel}
+        />
+      )}
 
       {/* Details card */}
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
