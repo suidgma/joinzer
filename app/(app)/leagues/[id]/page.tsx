@@ -250,6 +250,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${params.id}` },
     { label: 'Standings', href: `/leagues/${params.id}/standings` },
+    ...(isAdmin && (league as any).format_kind === 'team' ? [{ label: 'Teams', href: `/leagues/${params.id}/teams` }] : []),
     ...(isAdmin ? [
       { label: 'Roster', href: `/leagues/${params.id}/roster` },
       { label: 'Edit', href: `/leagues/${params.id}/edit` },

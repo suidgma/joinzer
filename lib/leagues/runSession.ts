@@ -33,6 +33,12 @@ export async function getRunSessionAction(
     return { label: 'Run Session', href: `/leagues/${leagueId}/ladder` }
   }
 
+  if (formatKind === 'team') {
+    // Team management (create teams, assign rosters, set captains) is the primary
+    // organizer surface. Matchday running arrives in later Team League steps.
+    return { label: 'Manage Teams', href: `/leagues/${leagueId}/teams` }
+  }
+
   // session_rr (default)
   const { data } = await db
     .from('league_sessions')

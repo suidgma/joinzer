@@ -144,8 +144,8 @@ export default function EditLeagueForm({
   // League format (Phase 1) — mirrors Create. Box create is enabled unless the
   // env flag is explicitly 'false'.
   const BOX_ENABLED = process.env.NEXT_PUBLIC_ENABLE_BOX_LEAGUES !== 'false'
-  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder'>(
-    d.format_kind === 'box' ? 'box' : d.format_kind === 'ladder' ? 'ladder' : 'session_rr'
+  const [formatKind, setFormatKind] = useState<'session_rr' | 'box' | 'ladder' | 'team'>(
+    d.format_kind === 'box' ? 'box' : d.format_kind === 'ladder' ? 'ladder' : d.format_kind === 'team' ? 'team' : 'session_rr'
   )
   const [cycleWeeks, setCycleWeeks] = useState((d.format_settings_json?.cycle_length_weeks ?? 1).toString())
   const [promoteCount, setPromoteCount] = useState((d.format_settings_json?.promote_count ?? 1).toString())
@@ -161,7 +161,8 @@ export default function EditLeagueForm({
   const pointsToWinNum = parseInt(pointsToWin) || 11
   const isBox = formatKind === 'box'
   const isLadder = formatKind === 'ladder'
-  const usesPeriods = isBox || isLadder
+  const isTeam = formatKind === 'team'
+  const usesPeriods = isBox || isLadder || isTeam
   const hasRegistrants = registrantCount > 0
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
@@ -186,7 +187,8 @@ export default function EditLeagueForm({
       .update({
         name: name.trim(),
         ...prepareLeagueWrite({
-            format: mapDivisionFormat(category, teamType),
+            // Team leagues keep format 'custom' (per-line disciplines live in the json).
+            format: isTeam ? 'custom' : mapDivisionFormat(category, teamType),
             skill_min: skillMin ? parseFloat(skillMin) : null,
             skill_max: skillMax ? parseFloat(skillMax) : null,
           }),
@@ -226,6 +228,8 @@ export default function EditLeagueForm({
               max_move: parseInt(maxMove) || 3,
               initial_ranking: initialRanking,
             }
+          : isTeam
+          ? (d.format_settings_json ?? {}) // preserve the team line config (edit UI is a later step)
           : {},
       })
       .eq('id', leagueId)
@@ -264,7 +268,7 @@ export default function EditLeagueForm({
             className="w-full input"
           />
         </FormRow>
-        {BOX_ENABLED && (
+        {BOX_ENABLED && !isTeam && (
           <FormRow
             label="League format"
             helpText={formatLocked
