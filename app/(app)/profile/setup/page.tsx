@@ -107,8 +107,11 @@ export default function ProfileSetupPage() {
     })
 
     const rawNext = new URLSearchParams(window.location.search).get('next')
-    const safeNext = rawNext?.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/home'
-    router.push(safeNext)
+    const safeNext = rawNext?.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null
+    // Organizers with no explicit deep link go to the guided create-first-event screen;
+    // an explicit next (e.g. an invite accept page) always wins.
+    const dest = safeNext ?? (intent === 'organize' ? '/get-started' : '/home')
+    router.push(dest)
   }
 
   const canSubmit = name.trim().length > 0 && intent !== null && ratingSource !== null && !loading
