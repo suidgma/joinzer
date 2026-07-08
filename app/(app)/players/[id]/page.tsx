@@ -10,6 +10,7 @@ import PlayerRatingSummary from './PlayerRatingSummary'
 import PlayerCareerStats from './PlayerCareerStats'
 import PlayerRecentForm from './PlayerRecentForm'
 import PlayerAboutSection from './PlayerAboutSection'
+import PlayerUpcomingEvents from './PlayerUpcomingEvents'
 
 // Public player-profile résumé. Reads via the service role (rating tables are RLS
 // deny-all); the loader returns only PII-safe fields. See docs/phases/player-profile-phase1.md.
@@ -36,9 +37,8 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
       <PlayerRatingSummary profile={resume.profile} rd={rd} ratings={resume.ratings} />
       <PlayerCareerStats stats={resume.stats} />
       <PlayerRecentForm stats={resume.stats} />
+      <PlayerUpcomingEvents upcoming={resume.upcoming} />
       <PlayerAboutSection profile={resume.profile} isSelf={isSelf} />
-
-      {/* Slice 6: upcoming events */}
 
       {isSelf && (
         <Link href="/profile/edit" className="block text-center text-sm font-medium text-brand-active hover:underline">

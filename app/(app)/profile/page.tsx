@@ -41,9 +41,14 @@ export default async function ProfilePage() {
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-xl font-bold text-brand-dark">Profile</h1>
-        <Link href="/profile/edit" className="text-sm text-brand-active font-medium underline underline-offset-2">
-          Edit
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href={`/players/${user.id}`} className="text-sm text-brand-active font-medium underline underline-offset-2">
+            View public profile
+          </Link>
+          <Link href="/profile/edit" className="text-sm text-brand-active font-medium underline underline-offset-2">
+            Edit
+          </Link>
+        </div>
       </div>
 
       {missing.length > 0 && (
