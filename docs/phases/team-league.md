@@ -420,14 +420,17 @@ detailed pass surfaced beyond the strategic review:
   `league_fixtures`, mirroring `tournament_matches` rotating-doubles. Still additive, still
   reuse-first — it just makes the child-fixture model honest about ad-hoc pairings.
 
-Two genuinely **open decisions** (not blockers for Phase 0):
-- **Payments:** per-player (assumed) vs per-team.
-- **Team formation:** organizer-created + assign (MVP) vs self-join/captain-invite vs draft (later).
+Two product decisions — **RESOLVED July 8, 2026:**
+- **Payments:** **free / collected offline for the MVP** (no in-app payment; the organizer
+  collects any fee out-of-band). Per-player (reuse league checkout) and per-team billing
+  are additive later.
+- **Team formation:** **organizer creates teams and assigns already-registered players**
+  (and names captains). Captain-invite / self-join / draft are later phases.
 
 ---
 
-## Open questions to resolve before Phase 1 Step 2
-1. Payments: individual (default) or team-level?
-2. Team formation for MVP: organizer assigns registered players → confirmed default.
-3. Do children share the parent's `period_id`? Recommended **yes** (simpler queries).
-4. Public (`/l/[id]`) team standings in MVP, or authenticated-only first? Recommended: auth-only first.
+## Resolved decisions & remaining defaults
+1. **Payments — RESOLVED:** free / collected offline for the MVP (no in-app payment).
+2. **Team formation — RESOLVED:** organizer creates teams and assigns registered players (+ captains).
+3. Children share the parent's `period_id` — default **yes** (simpler queries).
+4. Team standings in MVP: **authenticated-only first**; public `/l/[id]` team standings later.
