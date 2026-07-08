@@ -26,6 +26,21 @@ const round = (n: number, dp: number) => {
   return Math.round(n * f) / f
 }
 
+// Which of a player's format tracks is featured as their public Joinzer Score.
+// Prefer a format they're Established in (doubles wins ties); otherwise their
+// most-played format (doubles wins ties). Ensures an earned rating is surfaced.
+export function pickPrimaryFormat(tracks: PlayerRatingState[]): PlayerRatingState {
+  const established = tracks.filter((t) => t.confidence === 'established')
+  if (established.length) {
+    return established.slice().sort((a, b) =>
+      a.format === b.format ? b.gamesCounted - a.gamesCounted : a.format === 'doubles' ? -1 : 1,
+    )[0]
+  }
+  return tracks.slice().sort((a, b) =>
+    (b.gamesCounted - a.gamesCounted) || (a.format === 'doubles' ? -1 : 1),
+  )[0]
+}
+
 export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: string }): Promise<RecomputeSummary> {
   const games = await extractAllGameRecords(admin)
 
@@ -63,12 +78,15 @@ export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: s
     if (error) throw new Error(`player_ratings insert: ${error.message}`)
   }
 
-  // ── Profiles cache (primary = doubles track if present, else singles) ──
-  const primary = new Map<string, PlayerRatingState>()
+  // ── Profiles cache (primary format = the player's Established format, doubles winning
+  //    ties; else their most-played format, doubles winning ties). ──
+  const byPlayer = new Map<string, PlayerRatingState[]>()
   for (const s of states) {
-    const cur = primary.get(s.playerId)
-    if (!cur || (cur.format !== 'doubles' && s.format === 'doubles')) primary.set(s.playerId, s)
+    if (!byPlayer.has(s.playerId)) byPlayer.set(s.playerId, [])
+    byPlayer.get(s.playerId)!.push(s)
   }
+  const primary = new Map<string, PlayerRatingState>()
+  for (const [pid, tracks] of byPlayer) primary.set(pid, pickPrimaryFormat(tracks))
   await admin.from('profiles')
     .update({ primary_format: null, primary_joinzer_score: null, primary_joinzer_level: null })
     .not('primary_joinzer_score', 'is', null)
