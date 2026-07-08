@@ -6,6 +6,7 @@
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
 import { readLadderState, type ladderAdmin } from '@/lib/leagues/ladderServer'
+import { rankEntities, type RankMatch } from '@/lib/tournament/standings'
 import type { LadderStandingRow } from '@/app/(app)/leagues/[id]/standings/LadderStandings'
 import type { BoxStandingView } from '@/app/(app)/leagues/[id]/standings/BoxStandings'
 import type { BoxTrendRow } from '@/lib/leagues/boxTrend'
@@ -140,6 +141,61 @@ export async function getBoxPublicStandings(admin: Admin, leagueId: string, form
     }
   })
   return { boxes, cycleNumber: cycle.period_number as number }
+}
+
+// ── Team league ──────────────────────────────────────────────────────────────
+// Ranks TEAM entities over completed team_matchup fixtures (matchup W–L → line-win
+// differential) via the shared rankEntities core. Team names are public (no PII).
+export async function getTeamPublicStandings(admin: Admin, leagueId: string) {
+  const { data: teamsRaw } = await admin
+    .from('league_teams').select('id, name, status').eq('league_id', leagueId)
+    .neq('status', 'withdrawn').order('created_at', { ascending: true })
+  const teams = (teamsRaw ?? []) as any[]
+  const nameById = new Map<string, string>(teams.map((t) => [t.id, t.name]))
+  const nameOf = (id: string) => nameById.get(id) ?? 'Team'
+
+  const { data: matchupsRaw } = teams.length
+    ? await admin.from('league_fixtures')
+        .select('round_number, team_1_id, team_2_id, team_1_score, team_2_score, winner_team_id, status')
+        .eq('league_id', leagueId).eq('match_stage', 'team_matchup')
+        .order('round_number', { ascending: true })
+    : { data: [] as any[] }
+  const matchups = (matchupsRaw ?? []) as any[]
+
+  const rankMatches: RankMatch[] = matchups
+    .filter((m) => m.status === 'completed' && m.team_1_id && m.team_2_id)
+    .map((m) => ({
+      sideAId: m.team_1_id,
+      sideBId: m.team_2_id,
+      winnerId: m.winner_team_id ?? null,
+      scoreA: m.team_1_score ?? 0,
+      scoreB: m.team_2_score ?? 0,
+    }))
+  const ranked = rankEntities(rankMatches, teams.map((t) => t.id), nameOf)
+  const rows = ranked.map((r, i) => ({
+    rank: i + 1,
+    name: nameOf(r.entityId),
+    wins: r.wins,
+    losses: r.losses,
+    winPct: r.wins + r.losses > 0 ? r.wins / (r.wins + r.losses) : 0,
+    linesFor: r.pf,
+    linesAgainst: r.pa,
+    diff: r.pf - r.pa,
+  }))
+  const hasResults = rankMatches.length > 0
+
+  const latestRound = matchups.filter((m) => m.status === 'completed').reduce((mx, m) => Math.max(mx, m.round_number ?? 0), 0)
+  const recentRows: ResultRow[] = matchups
+    .filter((m) => m.status === 'completed' && (m.round_number ?? 0) === latestRound)
+    .map((m) => ({
+      name1: nameOf(m.team_1_id),
+      name2: nameOf(m.team_2_id),
+      score1: m.team_1_score ?? 0,
+      score2: m.team_2_score ?? 0,
+      winner1: m.winner_team_id === m.team_1_id,
+    }))
+
+  return { rows, hasResults, recentRows, latestRound }
 }
 
 // ── Round-robin (session_rr) ─────────────────────────────────────────────────
