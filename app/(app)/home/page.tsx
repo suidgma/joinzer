@@ -115,7 +115,7 @@ export default async function HomePage() {
           .order('session_date', { ascending: true })
           .limit(15)
       : Promise.resolve({ data: [] }),
-    db.from('profiles').select('name, dupr_rating, estimated_rating, rating_source, gender, home_court:locations!home_court_id(lat, lng)').eq('id', user.id).single(),
+    db.from('profiles').select('name, dupr_rating, estimated_rating, rating_source, gender, signup_intent, home_court:locations!home_court_id(lat, lng)').eq('id', user.id).single(),
     db.from('event_participants')
       .select(`
         event:events!event_id (
@@ -231,6 +231,9 @@ export default async function HomePage() {
   const ratingMissing = !ratingSource || ratingSource === 'skipped'
   const homeCourtMissing = !homeCourt
   const isOrganizer = (organizedLeagues?.length ?? 0) > 0 || (organizedTournaments?.length ?? 0) > 0
+  // Declared an organize intent at signup but hasn't created anything yet → lead them
+  // to the guided create-first-event flow instead of the generic Play/Organize card.
+  const declaredOrganizer = (profile as any)?.signup_intent === 'organize' && !isOrganizer
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
@@ -397,8 +400,26 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* ── Declared organizer, nothing created yet → guided first-event CTA ── */}
+      {!hasSchedule && declaredOrganizer && (
+        <section className="bg-brand-soft border border-brand-border rounded-2xl p-5 text-center space-y-3">
+          <span className="text-2xl block">📋</span>
+          <p className="text-sm font-semibold text-brand-dark">Ready to run your first event?</p>
+          <p className="text-xs text-brand-muted max-w-xs mx-auto">Set up a league or tournament in a few minutes — we&apos;ll walk you through it.</p>
+          <Link
+            href="/get-started"
+            className="block text-center text-sm font-semibold py-2.5 rounded-xl bg-brand text-brand-dark hover:bg-brand-hover transition-colors"
+          >
+            Create your first event →
+          </Link>
+          <Link href="/play" className="inline-block text-xs text-brand-muted underline underline-offset-2">
+            Or find games to play
+          </Link>
+        </section>
+      )}
+
       {/* ── First-event onboarding — shown only on a completely empty home screen ── */}
-      {!hasSchedule && (
+      {!hasSchedule && !declaredOrganizer && (
         <section className="bg-brand-soft border border-brand-border rounded-2xl p-5 space-y-3">
           <p className="text-sm font-semibold text-brand-dark">What do you want to do?</p>
           <div className="grid grid-cols-2 gap-3">
