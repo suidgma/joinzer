@@ -14,6 +14,9 @@ import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
+import { createClient as createAdmin } from '@supabase/supabase-js'
+import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
+import FlexPlayerMatches from './FlexPlayerMatches'
 
 // Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
 function fmtTime(t: string | null): string | null {
@@ -259,6 +262,14 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
 
   const runSessionAction = await getRunSessionAction(params.id, isAdmin, (league as any).format_kind)
 
+  // Flex: a registered player's own matches (report / confirm / dispute) on the overview.
+  let flexMatches: FlexMatchView[] = []
+  if ((league as any).format_kind === 'flex' && user && myReg?.status === 'registered') {
+    const flexDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const res = await loadFlexMatches(flexDb, league.id, league.format, user.id)
+    flexMatches = res.matches.filter((m) => m.viewerSide != null)
+  }
+
   return (
     <DesktopShell
       header={
@@ -368,6 +379,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           )}
           {user && (league as any).format_kind === 'ladder' && myReg?.status === 'registered' && (
             <LadderPlayerCard leagueId={league.id} userId={user.id} format={league.format} settings={(league as any).format_settings_json ?? null} />
+          )}
+          {flexMatches.length > 0 && (
+            <FlexPlayerMatches leagueId={league.id} matches={flexMatches} />
           )}
           <LeagueActions
             leagueId={league.id}
