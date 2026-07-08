@@ -6,6 +6,7 @@ import { ChevronLeft } from 'lucide-react'
 import { ratingDisplay } from '@/lib/rating/display'
 import { loadPlayerResume } from '@/lib/profile/resume'
 import PlayerHeroCard from './PlayerHeroCard'
+import PlayerBadges from './PlayerBadges'
 import PlayerRatingSummary from './PlayerRatingSummary'
 import PlayerCareerStats from './PlayerCareerStats'
 import PlayerRecentForm from './PlayerRecentForm'
@@ -34,6 +35,7 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
       </Link>
 
       <PlayerHeroCard profile={resume.profile} rd={rd} />
+      <PlayerBadges badges={resume.badges} />
       <PlayerRatingSummary profile={resume.profile} rd={rd} ratings={resume.ratings} />
       <PlayerCareerStats stats={resume.stats} />
       <PlayerRecentForm stats={resume.stats} />
