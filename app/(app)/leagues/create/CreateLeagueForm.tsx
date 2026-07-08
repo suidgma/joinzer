@@ -297,7 +297,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
       await supabase.from('league_sessions').insert(rows)
     }
 
-    router.push(`/leagues/${league.id}`)
+    router.push(`/leagues/${league.id}?created=1`)
   }
 
   return (

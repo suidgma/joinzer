@@ -101,7 +101,7 @@ export default function CreateTournamentForm({ locations }: Props) {
       return
     }
 
-    router.push(`/tournaments/${tournament.id}`)
+    router.push(`/tournaments/${tournament.id}?created=1`)
   }
 
   return (
