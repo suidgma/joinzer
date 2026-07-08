@@ -90,17 +90,20 @@ export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: s
   await admin.from('profiles')
     .update({ primary_format: null, primary_joinzer_score: null, primary_joinzer_level: null, primary_confidence: null, primary_games: null })
     .not('primary_joinzer_score', 'is', null)
-  for (const [pid, s] of primary) {
-    const score = scoreFromInternal(s.activity, s.rating)
-    const { error } = await admin.from('profiles').update({
-      primary_activity: s.activity,
-      primary_format: s.format,
-      primary_joinzer_score: score,
-      primary_joinzer_level: scoreToLevel(s.activity, score),
-      primary_confidence: s.confidence,
-      primary_games: s.gamesCounted,
-    }).eq('id', pid)
-    if (error) throw new Error(`profiles cache update: ${error.message}`)
+  const entries = [...primary.entries()]
+  for (let i = 0; i < entries.length; i += 25) {
+    const results = await Promise.all(entries.slice(i, i + 25).map(([pid, s]) => {
+      const score = scoreFromInternal(s.activity, s.rating)
+      return admin.from('profiles').update({
+        primary_activity: s.activity,
+        primary_format: s.format,
+        primary_joinzer_score: score,
+        primary_joinzer_level: scoreToLevel(s.activity, score),
+        primary_confidence: s.confidence,
+        primary_games: s.gamesCounted,
+      }).eq('id', pid)
+    }))
+    for (const { error } of results) if (error) throw new Error(`profiles cache update: ${error.message}`)
   }
 
   return {
