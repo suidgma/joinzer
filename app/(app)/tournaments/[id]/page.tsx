@@ -11,6 +11,7 @@ import DivisionsSection from '@/components/features/tournaments/DivisionsSection
 import GroupChat from '@/components/features/GroupChat'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
+import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner'
 import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection'
 import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
@@ -46,8 +47,9 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export default async function TournamentDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function TournamentDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string }> }) {
   const params = await props.params;
+  const justCreated = (await props.searchParams)?.created === '1';
   const supabase = createClient()
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { data: { user } } = await supabase.auth.getUser()
@@ -331,6 +333,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         <ManageNav items={navItems} mobileOnly />
         <div className="space-y-4 pb-8">
           {pageHeader}
+
+          {justCreated && <OrganizerCreatedBanner kind="tournament" name={tournament.name} />}
 
           {/* Setup checklist — shown until all steps are done */}
           <SetupChecklist
