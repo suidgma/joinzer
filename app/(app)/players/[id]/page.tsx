@@ -7,6 +7,7 @@ import { ratingDisplay } from '@/lib/rating/display'
 import { loadPlayerResume } from '@/lib/profile/resume'
 import PlayerHeroCard from './PlayerHeroCard'
 import PlayerBadges from './PlayerBadges'
+import PlayerAchievements from './PlayerAchievements'
 import PlayerRatingSummary from './PlayerRatingSummary'
 import PlayerCareerStats from './PlayerCareerStats'
 import PlayerRecentForm from './PlayerRecentForm'
@@ -38,6 +39,7 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
       <PlayerHeroCard profile={resume.profile} rd={rd} />
       <PlayerBadges badges={resume.badges} />
       <PlayerRatingSummary profile={resume.profile} rd={rd} ratings={resume.ratings} />
+      <PlayerAchievements placements={resume.placements} />
       <PlayerCareerStats stats={resume.stats} />
       <PlayerRecentForm stats={resume.stats} />
       <PlayerUpcomingEvents upcoming={resume.upcoming} />
