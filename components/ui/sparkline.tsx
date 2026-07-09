@@ -2,9 +2,9 @@
 // the round-robin standings and the ladder rankings (for rank-over-time; pass
 // negated positions so climbing shows as an upward line).
 
-export default function Sparkline({ values }: { values: number[] }) {
+export default function Sparkline({ values, width = 72, height = 24 }: { values: number[]; width?: number; height?: number }) {
   if (values.length === 0) return <span className="text-xs text-brand-muted">—</span>
-  const W = 72, H = 24, pad = 3
+  const W = width, H = height, pad = 3
   if (values.length === 1) {
     return (
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>

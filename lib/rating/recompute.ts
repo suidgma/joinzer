@@ -74,6 +74,8 @@ export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: s
     basis: s.basis,
     confidence_state: s.confidence,
     last_played_at: s.lastPlayedAt,
+    // Per-format Score-over-time for the profile Rating card trendline (last 12 periods).
+    score_history: (s.history ?? []).slice(-12).map((h) => scoreFromInternal(s.activity, h.rating)),
     updated_at: opts.asOf,
   }))
   await admin.from('player_ratings').delete().not('player_id', 'is', null)
