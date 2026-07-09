@@ -49,20 +49,20 @@ export default function PlayerRatingSummary({
 
           {/* Per-format breakdown table (most-played first) with a per-format trendline */}
           {perFormat.length > 0 && (
-            <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 gap-y-1.5 text-xs">
-              <span className="text-[11px] font-medium text-brand-muted">Format</span>
-              <span className="text-[11px] font-medium text-brand-muted text-right">Games</span>
-              <span className="text-[11px] font-medium text-brand-muted text-right">Score</span>
-              <span className="text-[11px] font-medium text-brand-muted text-center">Trend</span>
+            <div className="flex-1 min-w-0 grid grid-cols-[auto_auto_auto_auto] items-center justify-end gap-x-6 gap-y-1.5 text-xs">
+              <span className="text-[11px] font-medium text-brand-muted leading-tight">Format</span>
+              <span className="text-[11px] font-medium text-brand-muted text-center leading-tight">Games<br />Played</span>
+              <span className="text-[11px] font-medium text-brand-muted text-center leading-tight">Joinzer<br />Score</span>
+              <span className="text-[11px] font-medium text-brand-muted text-center leading-tight">Trend</span>
               {perFormat.map((r) => {
                 const primary = isPrimaryFormat(r)
                 const weight = primary ? 'font-semibold' : 'font-normal'
                 return (
                   <Fragment key={r.format}>
                     <span className={`capitalize text-brand-dark ${weight}`}>{r.format}</span>
-                    <span className={`text-right tabular-nums text-brand-dark ${weight}`}>{r.games ?? '—'}</span>
-                    <span className={`text-right tabular-nums text-brand-dark ${weight}`}>{r.score}</span>
-                    <span className="flex justify-end">
+                    <span className={`text-center tabular-nums text-brand-dark ${weight}`}>{r.games ?? '—'}</span>
+                    <span className={`text-center tabular-nums text-brand-dark ${weight}`}>{r.score}</span>
+                    <span className="flex justify-center">
                       {r.history.length >= 2
                         ? <Sparkline values={r.history} />
                         : <span className="text-brand-muted text-[11px]">—</span>}
