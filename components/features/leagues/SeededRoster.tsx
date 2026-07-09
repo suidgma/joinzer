@@ -13,6 +13,9 @@ type Props = {
   maxGroups?: number
   groupLabel?: (tierRank: number) => string
   saveLabel?: string
+  // Render the save action as a full-width button below the list (matching the
+  // Start session button) instead of the compact pill in the header. Default false.
+  blockSave?: boolean
   // Start in the "unsaved" state — e.g. when the persisted boxes no longer match
   // this preview (players added/removed). Defaults to saved.
   initialSaved?: boolean
@@ -23,7 +26,7 @@ type Props = {
 // leagues the organizer chooses the number of boxes and players auto-fill evenly;
 // the saved order + count is persisted (as boxes). Format-agnostic so flex / ladder
 // / team can reuse it later. See docs/phases/league-seeded-roster.md.
-export default function SeededRoster({ items, initialGroupCount, maxGroups, groupLabel, saveLabel, initialSaved = true, onSave }: Props) {
+export default function SeededRoster({ items, initialGroupCount, maxGroups, groupLabel, saveLabel, blockSave = false, initialSaved = true, onSave }: Props) {
   const grouping = initialGroupCount != null
   const [order, setOrder] = useState<SeededItem[]>(items)
   const [groupCount, setGroupCount] = useState(initialGroupCount ?? 1)
@@ -113,7 +116,7 @@ export default function SeededRoster({ items, initialGroupCount, maxGroups, grou
           {hasRatings && (
             <button onClick={autoSeed} className="text-xs text-brand-active hover:underline">Auto-seed by rating</button>
           )}
-          {saved ? (
+          {!blockSave && (saved ? (
             <span className="text-[10px] text-green-600 font-semibold">✓ Saved</span>
           ) : (
             <button
@@ -123,7 +126,7 @@ export default function SeededRoster({ items, initialGroupCount, maxGroups, grou
             >
               {saving ? 'Saving…' : (saveLabel ?? 'Save')}
             </button>
-          )}
+          ))}
         </div>
       </div>
 
@@ -162,6 +165,22 @@ export default function SeededRoster({ items, initialGroupCount, maxGroups, grou
       {order.length > 1 && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-brand-muted">
           <ArrowUp className="w-3 h-3 shrink-0" /><span>{grouping ? 'Pick the number of boxes · drag to re-order · players fill boxes top-to-bottom · Save to apply' : 'Drag to re-order (#1 at the top) · Save to apply'}</span>
+        </div>
+      )}
+
+      {blockSave && (
+        <div className="p-3 border-t border-brand-border">
+          {saved ? (
+            <div className="w-full py-2.5 rounded-xl bg-brand-soft text-brand-muted text-sm font-semibold text-center">✓ Saved</div>
+          ) : (
+            <button
+              onClick={save}
+              disabled={saving || order.length < 2}
+              className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving…' : (saveLabel ?? 'Save')}
+            </button>
+          )}
         </div>
       )}
     </div>
