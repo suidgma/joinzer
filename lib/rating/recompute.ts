@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { extractAllGameRecords } from './extract'
 import { recomputePlayerStats } from '../profile/statsCache'
+import { recomputeAchievements } from '../profile/recomputeAchievements'
 import { computeRatings, type SeedFn, type PlayerRatingState } from './engine'
 import { scoreFromInternal, internalFromScore } from './normalize'
 import { provisionalScoreFromSelfReport, scoreToLevel } from './levels'
@@ -21,6 +22,7 @@ export type RecomputeSummary = {
   rusty: number
   provisional: number
   statsCached: number
+  achievements: number
 }
 
 const round = (n: number, dp: number) => {
@@ -111,6 +113,8 @@ export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: s
 
   // ── Player-stats cache (Phase 2): same games, per-player career stats. ──
   const statsCached = await recomputePlayerStats(admin, games, opts.asOf)
+  // ── Placement achievements (Phase 3): champion/finalist/podium per completed division. ──
+  const achievements = await recomputeAchievements(admin, opts.asOf)
 
   return {
     games: games.length,
@@ -120,5 +124,6 @@ export async function recomputeAllRatings(admin: SupabaseClient, opts: { asOf: s
     rusty: states.filter((s) => s.confidence === 'rusty').length,
     provisional: states.filter((s) => s.confidence === 'provisional').length,
     statsCached,
+    achievements,
   }
 }
