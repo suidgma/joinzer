@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
 import MatchEntryForm from './MatchEntryForm'
 import LockedRoundsScoring, { type LockedMatch } from './LockedRoundsScoring'
+import PlayerRoundScores, { type PlayerRoundMatch } from './PlayerRoundScores'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export default async function SessionResultsPage(
   if (!user) redirect('/login')
 
   const [{ data: league }, { data: session }, { data: myReg }] = await Promise.all([
-    supabase.from('leagues').select('id, name, created_by, points_to_win').eq('id', params.id).single(),
+    supabase.from('leagues').select('id, name, created_by, points_to_win, allow_player_scores').eq('id', params.id).single(),
     supabase.from('league_sessions').select('id, session_number, session_date, status, rounds_planned').eq('id', params.sessionId).single(),
     supabase.from('league_registrations').select('status, is_co_admin').eq('league_id', params.id).eq('user_id', user.id).maybeSingle(),
   ])
@@ -134,6 +135,25 @@ export default async function SessionResultsPage(
     }
   }
 
+  // Player score entry: a registered non-organizer's own matches, when the league allows it.
+  const myRoundMatches: PlayerRoundMatch[] = ((league as any).allow_player_scores && !canEdit && myReg?.status === 'registered')
+    ? lockedMatches
+        .filter((m) => m.team1.some((p) => p.userId === user.id) || m.team2.some((p) => p.userId === user.id))
+        .map((m) => {
+          const mine1 = m.team1.some((p) => p.userId === user.id)
+          const opp = mine1 ? m.team2 : m.team1
+          return {
+            roundMatchId: m.roundMatchId,
+            round: m.roundNumber,
+            court: m.courtNumber,
+            oppLabel: opp.map((p) => p.name).join(' / '),
+            mySide: (mine1 ? 1 : 2) as 1 | 2,
+            myScore: m.existingScore ? (mine1 ? m.existingScore.team1Score : m.existingScore.team2Score) : null,
+            oppScore: m.existingScore ? (mine1 ? m.existingScore.team2Score : m.existingScore.team1Score) : null,
+          }
+        })
+    : []
+
   const players = (registrations ?? []).map((r) => {
     const p = r.profile as unknown as { id: string; name: string }
     return { id: p.id, name: p.name }
@@ -168,6 +188,9 @@ export default async function SessionResultsPage(
         <h1 className="font-heading text-xl font-bold text-brand-dark">Session {session.session_number} Results</h1>
         <p className="text-sm text-brand-muted">{dateStr}</p>
       </div>
+
+      {/* Player score entry for their own matches (when the league allows it). */}
+      <PlayerRoundScores leagueId={params.id} sessionId={params.sessionId} matches={myRoundMatches} pointsToWin={league.points_to_win ?? 11} />
 
       {/* Organizer: editable scoring. Registered player: read-only schedule + scores. */}
       {canEdit ? (
