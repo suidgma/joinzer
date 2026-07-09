@@ -1,5 +1,22 @@
 import { type User } from '@supabase/supabase-js'
 
+// Fetch every auth user, paging so we never miss users beyond the first page.
+// Shared by the tournament + league CSV importers for email → account matching.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function listAllAuthUsers(service: any): Promise<User[]> {
+  const all: User[] = []
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage })
+    if (error) throw error
+    all.push(...data.users)
+    if (data.users.length < perPage) break
+    page++
+  }
+  return all
+}
+
 export function normalizeEmail(raw: string): string {
   const lower = raw.trim().toLowerCase()
   const at = lower.indexOf('@')
