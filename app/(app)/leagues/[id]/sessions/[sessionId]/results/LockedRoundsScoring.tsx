@@ -32,6 +32,16 @@ function initFromExisting(score: { team1Score: number; team2Score: number }): Sc
   return { winner: '2', loserScore: String(score.team1Score) }
 }
 
+// Winner-button label: for singles, the player's first name; for doubles, the team number.
+function sideLabel(m: LockedMatch, teamNum: 1 | 2): string {
+  const players = teamNum === 1 ? m.team1 : m.team2
+  if (m.matchType === 'singles') {
+    const first = players[0]?.name?.trim().split(/\s+/)[0]
+    return first || `Player ${teamNum}`
+  }
+  return `Team ${teamNum}`
+}
+
 export default function LockedRoundsScoring({ sessionId, leagueId, matches, roundsPlanned, pointsToWin }: Props) {
   const { confirm } = useDialog()
   const router = useRouter()
@@ -241,9 +251,9 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
                       <button
                         type="button"
                         onClick={() => setWinner(m.roundMatchId, '1')}
-                        className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors ${t1Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+                        className={`flex-1 min-w-0 py-2.5 rounded-lg text-xs font-semibold transition-colors truncate ${t1Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
                       >
-                        T1 Won
+                        {sideLabel(m, 1)} Won
                       </button>
                       <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                         <span className="text-[10px] text-brand-muted leading-none">Loser</span>
@@ -260,9 +270,9 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
                       <button
                         type="button"
                         onClick={() => setWinner(m.roundMatchId, '2')}
-                        className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors ${t2Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
+                        className={`flex-1 min-w-0 py-2.5 rounded-lg text-xs font-semibold transition-colors truncate ${t2Won ? 'bg-brand text-brand-dark' : 'bg-brand-soft text-brand-muted hover:bg-brand-border'}`}
                       >
-                        T2 Won
+                        {sideLabel(m, 2)} Won
                       </button>
                     </div>
                   )}
