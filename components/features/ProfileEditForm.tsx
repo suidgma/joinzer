@@ -27,6 +27,7 @@ type Profile = {
   dominant_hand: string | null
   preferred_side: string | null
   preferred_formats: string[] | null
+  discoverable: boolean
 }
 
 const FORMAT_OPTIONS: [string, string][] = [['singles', 'Singles'], ['doubles', 'Doubles'], ['mixed', 'Mixed Doubles']]
@@ -59,6 +60,7 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
   const [dominantHand, setDominantHand] = useState<string | null>(profile.dominant_hand ?? null)
   const [preferredSide, setPreferredSide] = useState<string | null>(profile.preferred_side ?? null)
   const [preferredFormats, setPreferredFormats] = useState<string[]>(profile.preferred_formats ?? [])
+  const [discoverable, setDiscoverable] = useState(profile.discoverable ?? true)
   const toggleFormat = (f: string) =>
     setPreferredFormats((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]))
   const [courtQuery, setCourtQuery] = useState('')
@@ -110,6 +112,7 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
         dominant_hand: dominantHand,
         preferred_side: preferredSide,
         preferred_formats: preferredFormats.length ? preferredFormats : null,
+        discoverable,
       })
       .eq('id', profile.id)
 
@@ -419,6 +422,24 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
             <option value="all">All signed-in players</option>
           </select>
         </div>
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Directory visibility</legend>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={discoverable}
+            onChange={(e) => setDiscoverable(e.target.checked)}
+            className="mt-0.5 accent-brand-active"
+          />
+          <span className="text-sm text-brand-body">
+            List me in the Players directory
+            <span className="block text-xs text-brand-muted">
+              When off, you won&apos;t appear in player search and your public profile is hidden from other players.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       <label className="flex items-start gap-3 cursor-pointer">

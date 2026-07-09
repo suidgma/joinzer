@@ -27,6 +27,9 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
   if (!resume) notFound()
 
   const isSelf = user?.id === resume.profile.id
+  // Directory privacy opt-out: a non-discoverable player's profile is visible to
+  // themselves only. Treat as not-found for everyone else.
+  if (!resume.profile.discoverable && !isSelf) notFound()
   const rd = ratingDisplay(resume.profile)
 
   return (
