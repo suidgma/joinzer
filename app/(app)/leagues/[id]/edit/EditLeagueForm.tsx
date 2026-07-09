@@ -136,6 +136,7 @@ export default function EditLeagueForm({
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>(
     (d.standings_method as 'win_loss' | 'total_points') ?? 'total_points'
   )
+  const [allowPlayerScores, setAllowPlayerScores] = useState<boolean>((d.allow_player_scores as boolean) ?? false)
   const [pointsToWin, setPointsToWin] = useState(d.points_to_win?.toString() ?? '11')
   const [winBy, setWinBy] = useState<1 | 2>((d.win_by as 1 | 2) ?? 1)
   const [subCreditCap, setSubCreditCap] = useState(d.sub_credit_cap?.toString() ?? '7')
@@ -211,6 +212,7 @@ export default function EditLeagueForm({
         description: description.trim() || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
+        allow_player_scores: allowPlayerScores,
         points_to_win: pointsToWinNum,
         win_by: winBy,
         partner_mode: teamType !== 'doubles' ? 'rotating' : (doublesFixed ? 'fixed' : partnerMode),
@@ -412,6 +414,20 @@ export default function EditLeagueForm({
               Win-Loss
             </button>
           </div>
+        </FormRow>
+        <FormRow label="Player score entry">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allowPlayerScores}
+              onChange={(e) => setAllowPlayerScores(e.target.checked)}
+              className="w-4 h-4 accent-brand"
+            />
+            <div>
+              <p className="text-sm font-medium text-brand-dark">Allow players to submit scores</p>
+              <p className="text-xs text-brand-muted">Players can enter scores for their own matches (you can still edit them).</p>
+            </div>
+          </label>
         </FormRow>
         <FormRow label="Sub credit cap" width="sm" helpText="Max points credited to an absent player when a sub plays in their place.">
           <select value={subCreditCap} onChange={(e) => setSubCreditCap(e.target.value)} className="w-full input">

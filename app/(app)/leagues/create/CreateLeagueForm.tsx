@@ -68,6 +68,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [subCreditCap, setSubCreditCap] = useState('7')
   const [costDollars, setCostDollars] = useState('')
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('total_points')
+  const [allowPlayerScores, setAllowPlayerScores] = useState(false)
   const [noPlayDates, setNoPlayDates] = useState<string[]>([])
   const [noPlayInput, setNoPlayInput] = useState('')
   // League format (Phase 1). Box create is ENABLED on prod: create + box
@@ -238,6 +239,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         sub_credit_cap: parseInt(subCreditCap) || 7,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         standings_method: standingsMethod,
+        allow_player_scores: allowPlayerScores,
         no_play_dates: finalNoPlayDates,
         // Selectable league format. session_rr (default) keeps weekly-session
         // behavior; box and ladder store their knobs in format_settings_json and
@@ -451,6 +453,20 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               <option key={n} value={String(n)}>{n}{n === 7 && pointsToWinNum >= 7 ? ' (default)' : ''}</option>
             ))}
           </select>
+        </FormRow>
+        <FormRow label="Player score entry">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allowPlayerScores}
+              onChange={(e) => setAllowPlayerScores(e.target.checked)}
+              className="w-4 h-4 accent-brand"
+            />
+            <div>
+              <p className="text-sm font-medium text-brand-dark">Allow players to submit scores</p>
+              <p className="text-xs text-brand-muted">Players can enter scores for their own matches (you can still edit them).</p>
+            </div>
+          </label>
         </FormRow>
         <FormRow label="Description" htmlFor="description">
           <textarea

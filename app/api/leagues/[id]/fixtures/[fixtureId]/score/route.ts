@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { validateScores } from '@/lib/scoring/validateScores'
+import { entrantSidesForFixture } from '@/lib/leagues/flexServer'
 import { logAudit } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string; fixtureId: string }> }
@@ -26,16 +27,8 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
 
   const db = admin()
-  const { data: league } = await db.from('leagues').select('created_by').eq('id', params.id).single()
+  const { data: league } = await db.from('leagues').select('created_by, allow_player_scores').eq('id', params.id).single()
   if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  // Organizer or co-admin may score.
-  let allowed = league.created_by === user.id
-  if (!allowed) {
-    const { data: myReg } = await db
-      .from('league_registrations').select('is_co_admin').eq('league_id', params.id).eq('user_id', user.id).maybeSingle()
-    allowed = myReg?.is_co_admin === true
-  }
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: fixture } = await db
     .from('league_fixtures')
@@ -44,6 +37,20 @@ export async function PATCH(req: NextRequest, props: Params) {
     .eq('league_id', params.id)
     .single()
   if (!fixture) return NextResponse.json({ error: 'Fixture not found' }, { status: 404 })
+
+  // Organizer or co-admin may always score. When the league allows player score entry,
+  // a participant may score their own match (saved directly; organizer can edit).
+  let allowed = league.created_by === user.id
+  if (!allowed) {
+    const { data: myReg } = await db
+      .from('league_registrations').select('is_co_admin').eq('league_id', params.id).eq('user_id', user.id).maybeSingle()
+    allowed = myReg?.is_co_admin === true
+  }
+  if (!allowed && league.allow_player_scores) {
+    const sides = await entrantSidesForFixture(db, params.id, fixture.team_1_registration_id, fixture.team_2_registration_id)
+    allowed = sides.team_1.has(user.id) || sides.team_2.has(user.id)
+  }
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const winner_registration_id = team_1_score > team_2_score
     ? fixture.team_1_registration_id

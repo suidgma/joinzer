@@ -20,6 +20,8 @@ import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
 import FlexPlayerMatches from './FlexPlayerMatches'
 import LeagueSetupChecklist from './LeagueSetupChecklist'
 import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner'
+import PlayerFixtureScores from './PlayerFixtureScores'
+import { loadPlayerScorableFixtures, type PlayerScorableFixture } from '@/lib/leagues/playerFixtures'
 
 // Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
 function fmtTime(t: string | null): string | null {
@@ -282,6 +284,15 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     }
   }
 
+  // Player score entry (box / ladder): a registered player scores their own matches when
+  // the league allows it. Flex has its own report/confirm flow; RR + team come later.
+  let playerFixtures: PlayerScorableFixture[] = []
+  if ((league as any).allow_player_scores && user && myReg?.status === 'registered' && !isAdmin
+      && ['box', 'ladder'].includes((league as any).format_kind)) {
+    const pfDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    playerFixtures = await loadPlayerScorableFixtures(pfDb, league.id, user.id)
+  }
+
   // Flex: a registered player's own matches (report / confirm / dispute) on the overview.
   let flexMatches: FlexMatchView[] = []
   if ((league as any).format_kind === 'flex' && user && myReg?.status === 'registered') {
@@ -514,6 +525,11 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           <span className="text-brand-active text-sm">→</span>
         </Link>
       </div>
+
+      {/* Player score entry — own box/ladder matches when the league allows it */}
+      {playerFixtures.length > 0 && (
+        <PlayerFixtureScores leagueId={league.id} fixtures={playerFixtures} pointsToWin={(league as any).points_to_win ?? 11} />
+      )}
 
       {/* Organizer: bulk-import players via CSV */}
       {isAdmin && (
