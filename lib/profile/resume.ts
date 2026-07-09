@@ -39,11 +39,13 @@ export type ResumeProfile = {
 }
 export type ResumeFormatRating = { format: RatingFormat; score: number | null; confidence: string | null; games: number; events: number }
 export type ResumeUpcoming = { kind: 'league' | 'tournament'; id: string; name: string; date: string | null; location: string | null }
+export type PlayerPlacement = { place: number; tournamentId: string | null; divisionName: string | null; tournamentName: string | null; earnedOn: string | null }
 export type PlayerResume = {
   profile: ResumeProfile
   ratings: ResumeFormatRating[]
   stats: PlayerStats
   badges: Badge[]
+  placements: PlayerPlacement[]
   upcoming: ResumeUpcoming[]
   history: ResumeUpcoming[]
 }
@@ -76,6 +78,21 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
   const { data: cached } = await admin.from('player_stats').select('stats').eq('player_id', userId).maybeSingle()
   const stats: PlayerStats = (cached as { stats: PlayerStats } | null)?.stats
     ?? computePlayerStats(await extractAllGameRecords(admin), userId)
+
+  // Placement achievements (Phase 3): champion / finalist / podium, best first.
+  const { data: achRaw } = await admin
+    .from('player_achievements')
+    .select('place, tournament_id, division_name, tournament_name, earned_on')
+    .eq('player_id', userId)
+    .order('place', { ascending: true })
+    .order('earned_on', { ascending: false })
+  const placements: PlayerPlacement[] = (achRaw ?? []).map((a: any) => ({
+    place: a.place,
+    tournamentId: a.tournament_id ?? null,
+    divisionName: a.division_name ?? null,
+    tournamentName: a.tournament_name ?? null,
+    earnedOn: a.earned_on ?? null,
+  }))
 
   const badges = computeBadges({
     createdAt: prof.created_at ?? null,
@@ -151,6 +168,7 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
     ratings,
     stats,
     badges,
+    placements,
     upcoming,
     history,
   }
