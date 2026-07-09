@@ -17,6 +17,7 @@ export default async function PlayersPage(props: { searchParams: Promise<{ dummi
   const profilesQuery = supabase
     .from('profiles')
     .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, gender, dummy')
+    .eq('discoverable', true)
     .order('name', { ascending: true })
   if (!showDummies) profilesQuery.eq('dummy', false)
 

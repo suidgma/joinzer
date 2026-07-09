@@ -20,6 +20,7 @@ export type ResumeProfile = {
   displayName: string | null
   photoUrl: string | null
   gender: string | null
+  discoverable: boolean
   memberSinceYear: number | null
   homeCourtName: string | null
   bio: string | null
@@ -53,7 +54,7 @@ export type PlayerResume = {
 export async function loadPlayerResume(admin: SupabaseClient, userId: string): Promise<PlayerResume | null> {
   const { data: p } = await admin
     .from('profiles')
-    .select('id, name, display_name, profile_photo_url, gender, created_at, bio, dominant_hand, preferred_side, preferred_formats, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, primary_score_history, self_reported_rating, self_reported_scale, rating_source, estimated_rating, dupr_rating, dupr_verified, home_court:locations!home_court_id(name)')
+    .select('id, name, display_name, profile_photo_url, gender, discoverable, created_at, bio, dominant_hand, preferred_side, preferred_formats, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, primary_score_history, self_reported_rating, self_reported_scale, rating_source, estimated_rating, dupr_rating, dupr_verified, home_court:locations!home_court_id(name)')
     .eq('id', userId)
     .maybeSingle()
   if (!p) return null
@@ -150,6 +151,7 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
       displayName: prof.display_name ?? null,
       photoUrl: prof.profile_photo_url ?? null,
       gender: prof.gender ?? null,
+      discoverable: prof.discoverable ?? true,
       memberSinceYear: prof.created_at ? new Date(prof.created_at).getUTCFullYear() : null,
       homeCourtName: prof.home_court?.name ?? null,
       bio: prof.bio ?? null,
