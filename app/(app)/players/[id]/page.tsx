@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, Trophy } from 'lucide-react'
 import { ratingDisplay } from '@/lib/rating/display'
 import { loadPlayerResume } from '@/lib/profile/resume'
 import PlayerHeroCard from './PlayerHeroCard'
@@ -32,6 +32,13 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
   if (!resume.profile.discoverable && !isSelf) notFound()
   const rd = ratingDisplay(resume.profile)
 
+  // Surface a link to the organizer-identity page when this player hosts anything.
+  const [{ count: tCount }, { count: lCount }] = await Promise.all([
+    admin.from('tournaments').select('id', { count: 'exact', head: true }).eq('organizer_id', id),
+    admin.from('leagues').select('id', { count: 'exact', head: true }).eq('created_by', id),
+  ])
+  const isOrganizer = (tCount ?? 0) + (lCount ?? 0) > 0
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <Link href="/players" className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-dark">
@@ -41,6 +48,18 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
 
       <PlayerHeroCard profile={resume.profile} rd={rd} />
       <PlayerBadges badges={resume.badges} />
+      {isOrganizer && (
+        <Link
+          href={`/organizers/${resume.profile.id}`}
+          className="flex items-center justify-between gap-2 bg-brand-surface border border-brand-border rounded-2xl px-5 py-3 hover:border-brand-active transition-colors"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium text-brand-dark">
+            <Trophy className="w-4 h-4 text-brand-active" />
+            Organizer
+          </span>
+          <span className="text-sm text-brand-muted">View hosted events →</span>
+        </Link>
+      )}
       <PlayerRatingSummary profile={resume.profile} rd={rd} ratings={resume.ratings} />
       <PlayerAchievements placements={resume.placements} />
       <PlayerCareerStats stats={resume.stats} />
