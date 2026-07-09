@@ -31,6 +31,7 @@ export default function FlexManager({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scores, setScores] = useState<Record<string, { a: string; b: string }>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const hasFixtures = counts.total > 0
   const disputes = matches.filter((m) => m.status === 'disputed')
@@ -67,6 +68,29 @@ export default function FlexManager({
 
   const setScore = (id: string, side: 'a' | 'b', v: string) =>
     setScores((p) => ({ ...p, [id]: { ...(p[id] ?? { a: '', b: '' }), [side]: v.replace(/[^0-9]/g, '') } }))
+
+  // Organizer edit/override — set or correct any non-disputed match's score directly.
+  function toggleEdit(m: FlexMatchView) {
+    setError(null)
+    if (editingId === m.id) { setEditingId(null); return }
+    setEditingId(m.id)
+    setScores((p) => ({ ...p, [m.id]: { a: m.team1Score?.toString() ?? '', b: m.team2Score?.toString() ?? '' } }))
+  }
+
+  async function saveEdit(m: FlexMatchView) {
+    const s = scores[m.id]
+    if (!s || s.a === '' || s.b === '') { setError('Enter both scores'); return }
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/flex/fixtures/${m.id}/organizer-score`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team_1_score: Number(s.a), team_2_score: Number(s.b) }),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? 'Failed to save'); return }
+      setEditingId(null)
+      router.refresh()
+    } catch { setError('Network error') } finally { setBusy(false) }
+  }
 
   const byRound = new Map<number | null, FlexMatchView[]>()
   for (const m of matches) { const k = m.round ?? null; if (!byRound.has(k)) byRound.set(k, []); byRound.get(k)!.push(m) }
@@ -121,16 +145,35 @@ export default function FlexManager({
               <div key={round ?? 'x'} className="border border-brand-border rounded-2xl overflow-hidden">
                 <div className="px-4 py-2 bg-brand-soft border-b border-brand-border text-xs font-bold text-brand-dark uppercase tracking-wide">Round {round ?? '—'}</div>
                 <div className="divide-y divide-brand-border">
-                  {ms.map((m) => (
-                    <div key={m.id} className="flex items-center gap-2 px-4 py-2 text-sm">
-                      <span className={`flex-1 text-right truncate ${m.winner1 === true ? 'font-semibold text-brand-dark' : 'text-brand-dark'}`}>{m.side1Name}</span>
-                      <span className="text-xs tabular-nums text-brand-muted min-w-[3rem] text-center">
-                        {m.status === 'completed' || m.status === 'in_progress' ? `${m.team1Score ?? ''}–${m.team2Score ?? ''}` : 'vs'}
-                      </span>
-                      <span className={`flex-1 truncate ${m.winner1 === false ? 'font-semibold text-brand-dark' : 'text-brand-dark'}`}>{m.side2Name}</span>
-                      <StatusBadge status={m.status} />
-                    </div>
-                  ))}
+                  {ms.map((m) => {
+                    const editing = editingId === m.id
+                    const hasScore = m.team1Score != null && m.team2Score != null
+                    return (
+                      <div key={m.id} className="px-4 py-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className={`flex-1 text-right truncate ${m.winner1 === true ? 'font-semibold text-brand-dark' : 'text-brand-dark'}`}>{m.side1Name}</span>
+                          <span className="text-xs tabular-nums text-brand-muted min-w-[3rem] text-center">
+                            {m.status === 'completed' || m.status === 'in_progress' ? `${m.team1Score ?? ''}–${m.team2Score ?? ''}` : 'vs'}
+                          </span>
+                          <span className={`flex-1 truncate ${m.winner1 === false ? 'font-semibold text-brand-dark' : 'text-brand-dark'}`}>{m.side2Name}</span>
+                          <StatusBadge status={m.status} />
+                          {m.status !== 'disputed' && (
+                            <button onClick={() => toggleEdit(m)} className="text-[11px] font-medium text-brand-active hover:underline shrink-0">
+                              {editing ? 'Cancel' : hasScore ? 'Edit' : 'Score'}
+                            </button>
+                          )}
+                        </div>
+                        {editing && (
+                          <div className="mt-2 flex items-center gap-2 justify-end">
+                            <input inputMode="numeric" value={scores[m.id]?.a ?? ''} onChange={(e) => setScore(m.id, 'a', e.target.value)} placeholder={m.side1Name} className="w-14 rounded-lg border border-brand-border px-2 py-1.5 text-sm text-center" aria-label={`${m.side1Name} score`} />
+                            <span className="text-xs text-brand-muted">–</span>
+                            <input inputMode="numeric" value={scores[m.id]?.b ?? ''} onChange={(e) => setScore(m.id, 'b', e.target.value)} placeholder={m.side2Name} className="w-14 rounded-lg border border-brand-border px-2 py-1.5 text-sm text-center" aria-label={`${m.side2Name} score`} />
+                            <button onClick={() => saveEdit(m)} disabled={busy} className="bg-brand text-brand-dark rounded-lg text-xs font-semibold px-3 py-1.5 hover:bg-brand-hover disabled:opacity-50">Save</button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}

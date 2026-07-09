@@ -128,3 +128,28 @@ export function resolveResult(fixture: FlexFixtureState, isOrganizer: boolean, t
     },
   }
 }
+
+// ── organizer edit / override ─────────────────────────────────────────────────
+// Organizer only: set or correct a match's final score at any point in its life,
+// INCLUDING re-editing an already-completed match (this is the edit affordance the
+// other league formats already have). Only forfeited/cancelled matches are locked.
+// Marks the match completed and clears the pending-confirm bookkeeping.
+const EDIT_LOCKED = new Set(['forfeited', 'cancelled'])
+export function organizerSetResult(fixture: FlexFixtureState, isOrganizer: boolean, team1Score: unknown, team2Score: unknown): FlexAction {
+  if (!isOrganizer) return { ok: false, error: 'Only the organizer can edit this score', status: 403 }
+  if (EDIT_LOCKED.has(fixture.status)) return { ok: false, error: 'This match is finalized and cannot be edited', status: 409 }
+  const check = validateScores(team1Score, team2Score)
+  if (!check.ok) return { ok: false, error: check.error, status: 400 }
+  const s1 = team1Score as number
+  const s2 = team2Score as number
+  return {
+    ok: true,
+    patch: {
+      team_1_score: s1,
+      team_2_score: s2,
+      winner_registration_id: winnerReg(fixture, s1, s2),
+      confirmed_by: null,
+      status: 'completed',
+    },
+  }
+}

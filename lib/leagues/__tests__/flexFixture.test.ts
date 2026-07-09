@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveActingSide, reportResult, confirmResult, disputeResult, resolveResult, type FlexFixtureState, type EntrantSides } from '../flexFixture'
+import { resolveActingSide, reportResult, confirmResult, disputeResult, resolveResult, organizerSetResult, type FlexFixtureState, type EntrantSides } from '../flexFixture'
 
 // Singles fixture: side 1 = reg r1 (user u1), side 2 = reg r2 (user u2).
 const sides: EntrantSides = { team_1: new Set(['u1']), team_2: new Set(['u2']) }
@@ -133,5 +133,31 @@ describe('resolveResult', () => {
 
   it('will not resolve an already-finalized match', () => {
     expect(resolveResult(base({ status: 'completed' }), true, 11, 4)).toMatchObject({ ok: false, status: 409 })
+  })
+})
+
+describe('organizerSetResult (organizer edit/override)', () => {
+  it('edits an already-completed match → new score, completed', () => {
+    const r = organizerSetResult(base({ status: 'completed' }), true, 9, 11)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.patch).toEqual({ team_1_score: 9, team_2_score: 11, winner_registration_id: 'r2', confirmed_by: null, status: 'completed' })
+  })
+
+  it('sets a score on a not-yet-played match', () => {
+    const r = organizerSetResult(base({ status: 'scheduled' }), true, 11, 6)
+    expect(r.ok && r.patch.status).toBe('completed')
+  })
+
+  it('a non-organizer cannot edit', () => {
+    expect(organizerSetResult(base({ status: 'completed' }), false, 11, 4)).toMatchObject({ ok: false, status: 403 })
+  })
+
+  it('rejects a tie', () => {
+    expect(organizerSetResult(base({ status: 'completed' }), true, 8, 8)).toMatchObject({ ok: false })
+  })
+
+  it('will not edit a forfeited or cancelled match', () => {
+    expect(organizerSetResult(base({ status: 'forfeited' }), true, 11, 4)).toMatchObject({ ok: false, status: 409 })
+    expect(organizerSetResult(base({ status: 'cancelled' }), true, 11, 4)).toMatchObject({ ok: false, status: 409 })
   })
 })
