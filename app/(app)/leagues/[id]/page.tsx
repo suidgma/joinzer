@@ -22,6 +22,8 @@ import LeagueSetupChecklist from './LeagueSetupChecklist'
 import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner'
 import PlayerFixtureScores from './PlayerFixtureScores'
 import { loadPlayerScorableFixtures, type PlayerScorableFixture } from '@/lib/leagues/playerFixtures'
+import PlayerTeamLineScores from './PlayerTeamLineScores'
+import { loadPlayerTeamLines, type PlayerTeamLine } from '@/lib/leagues/playerTeamLines'
 
 // Format a DB time string ("HH:MM:SS" or "HH:MM") to "8 AM" / "12 PM" style
 function fmtTime(t: string | null): string | null {
@@ -287,10 +289,15 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   // Player score entry (box / ladder): a registered player scores their own matches when
   // the league allows it. Flex has its own report/confirm flow; RR + team come later.
   let playerFixtures: PlayerScorableFixture[] = []
-  if ((league as any).allow_player_scores && user && myReg?.status === 'registered' && !isAdmin
-      && ['box', 'ladder'].includes((league as any).format_kind)) {
+  let playerTeamLines: PlayerTeamLine[] = []
+  if ((league as any).allow_player_scores && user && myReg?.status === 'registered' && !isAdmin) {
+    const kind = (league as any).format_kind
     const pfDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    playerFixtures = await loadPlayerScorableFixtures(pfDb, league.id, user.id)
+    if (kind === 'box' || kind === 'ladder') {
+      playerFixtures = await loadPlayerScorableFixtures(pfDb, league.id, user.id)
+    } else if (kind === 'team') {
+      playerTeamLines = await loadPlayerTeamLines(pfDb, league.id, user.id)
+    }
   }
 
   // Flex: a registered player's own matches (report / confirm / dispute) on the overview.
@@ -529,6 +536,10 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       {/* Player score entry — own box/ladder matches when the league allows it */}
       {playerFixtures.length > 0 && (
         <PlayerFixtureScores leagueId={league.id} fixtures={playerFixtures} pointsToWin={(league as any).points_to_win ?? 11} />
+      )}
+      {/* Player score entry — own team lines when the league allows it */}
+      {playerTeamLines.length > 0 && (
+        <PlayerTeamLineScores leagueId={league.id} lines={playerTeamLines} pointsToWin={(league as any).points_to_win ?? 11} />
       )}
 
       {/* Organizer: bulk-import players via CSV */}
