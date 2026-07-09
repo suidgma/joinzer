@@ -2,19 +2,26 @@ import { createClient } from '@/lib/supabase/server'
 import { Suspense } from 'react'
 import PlayersClient from './PlayersClient'
 
-export default async function PlayersPage() {
+export default async function PlayersPage(props: { searchParams: Promise<{ dummies?: string }> }) {
   const supabase = createClient()
+
+  // Opt-in test-data view: `/players?dummies=1` includes seeded dummy accounts
+  // (badged "Test") so they can be clicked through for QA. Default view is unchanged.
+  const { dummies } = await props.searchParams
+  const showDummies = dummies === '1' || dummies === 'true'
 
   const todayVegas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  const profilesQuery = supabase
+    .from('profiles')
+    .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, gender, dummy')
+    .order('name', { ascending: true })
+  if (!showDummies) profilesQuery.eq('dummy', false)
+
   const [{ data }, { data: availabilityData }, { data: mySessions }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('id, name, display_name, profile_photo_url, rating_source, dupr_rating, estimated_rating, self_reported_rating, self_reported_scale, dupr_verified, primary_joinzer_score, primary_joinzer_level, primary_confidence, primary_games, gender')
-      .eq('dummy', false)
-      .order('name', { ascending: true }),
+    profilesQuery,
     supabase
       .from('player_availability')
       .select('user_id, time_window')
@@ -59,6 +66,7 @@ export default async function PlayersPage() {
     availableToday: !!availabilityMap[p.id as string],
     timeWindows: availabilityMap[p.id as string] ?? [],
     gender: p.gender as string | null,
+    isDummy: (p.dummy as boolean | null) ?? false,
   }))
 
   const sessions = (mySessions ?? []).map((s) => ({
@@ -72,7 +80,7 @@ export default async function PlayersPage() {
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <h1 className="font-heading text-xl font-bold text-brand-dark">Players</h1>
       <Suspense>
-        <PlayersClient players={players} sessions={sessions} currentUserId={user?.id ?? null} />
+        <PlayersClient players={players} sessions={sessions} currentUserId={user?.id ?? null} showDummies={showDummies} />
       </Suspense>
     </main>
   )

@@ -23,6 +23,7 @@ type Player = {
   availableToday: boolean
   timeWindows: string[]
   gender: string | null
+  isDummy: boolean
 }
 
 type Session = {
@@ -46,9 +47,10 @@ type Props = {
   players: Player[]
   sessions: Session[]
   currentUserId: string | null
+  showDummies: boolean
 }
 
-export default function PlayersClient({ players, sessions, currentUserId }: Props) {
+export default function PlayersClient({ players, sessions, currentUserId, showDummies }: Props) {
   const [q, setQ] = useState('')
   const [activeLabels, setActiveLabels] = useState<Set<string>>(new Set())
   const [genderFilter, setGenderFilter] = useState<'male' | 'female' | null>(null)
@@ -78,6 +80,13 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
 
   return (
     <div className="space-y-3">
+      {showDummies && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <span>Showing seeded <strong>test players</strong> for QA.</span>
+          <Link href="/players" className="font-semibold underline whitespace-nowrap">Hide test players</Link>
+        </div>
+      )}
+
       {/* Name search */}
       <input
         type="search"
@@ -165,6 +174,11 @@ export default function PlayersClient({ players, sessions, currentUserId }: Prop
                     {player.timeWindows.length === 3
                       ? 'All'
                       : player.timeWindows.map((w) => TIME_LABELS[w]).join('/')}
+                  </span>
+                )}
+                {player.isDummy && (
+                  <span className="absolute top-2 left-2 bg-amber-200 text-amber-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    Test
                   </span>
                 )}
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-brand-soft border border-brand-border flex-shrink-0">
