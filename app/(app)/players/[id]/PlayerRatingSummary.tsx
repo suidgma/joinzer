@@ -17,7 +17,6 @@ export default function PlayerRatingSummary({
   rd: RatingDisplay
   ratings: ResumeFormatRating[]
 }) {
-  const history = profile.primary_score_history
   // Order the breakdown by volume: most-played format first (score-desc tiebreak).
   const perFormat = ratings
     .filter((r) => r.score != null)
@@ -34,53 +33,46 @@ export default function PlayerRatingSummary({
 
   return (
     <section className="bg-brand-surface border border-brand-border rounded-2xl p-5 space-y-3">
-      <h2 className="font-heading text-base font-bold text-brand-dark">Rating</h2>
+      <h2 className="font-heading text-lg font-bold text-brand-dark">{rd.kind === 'earned' ? 'Joinzer Score' : 'Rating'}</h2>
 
       {rd.kind === 'earned' ? (
-        <>
-          <div className="flex items-start gap-4">
-            {/* Headline: the primary-format Joinzer Score + Level + confidence */}
-            <div className="shrink-0">
-              <p className="text-4xl font-extrabold text-brand-dark leading-none">{rd.score}</p>
-              <p className="text-[11px] text-brand-muted mt-1">Joinzer Score</p>
-              <p className="text-sm font-semibold text-brand-dark mt-2">{rd.level}</p>
-              <p className="text-[11px] text-brand-muted">
-                {rd.state === 'rusty' ? 'Rusty' : 'Established'}
-                {perFormat.length === 0 && rd.games != null ? ` · ${rd.games} games` : ''}
-              </p>
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+          {/* Headline: the primary-format Joinzer Score + confidence + Level. Number and
+              labels sit side-by-side on mobile, stack under the number on wider screens. */}
+          <div className="shrink-0 flex items-center gap-3 sm:block sm:text-center">
+            <p className="text-4xl sm:text-5xl font-extrabold text-brand-dark leading-none">{rd.score}</p>
+            <div className="sm:mt-1.5">
+              <p className="text-[11px] text-brand-muted">{rd.state === 'rusty' ? 'Rusty' : 'Established'}</p>
+              <p className="text-sm font-semibold text-brand-active">{rd.level}</p>
             </div>
-
-            {/* Per-format breakdown, stacked most-played first */}
-            {perFormat.length > 0 && (
-              <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-1.5 text-xs self-center">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-muted">Format</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-muted text-right">Games</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-muted text-right">Score</span>
-                {perFormat.map((r) => {
-                  const primary = isPrimaryFormat(r)
-                  const rowColor = primary ? 'text-brand-dark font-semibold' : 'text-brand-muted'
-                  return (
-                    <Fragment key={r.format}>
-                      <span className={`capitalize flex items-center gap-1.5 ${rowColor}`}>
-                        {primary && <span className="w-1.5 h-1.5 rounded-full bg-brand-active shrink-0" aria-hidden />}
-                        {r.format}
-                      </span>
-                      <span className={`text-right tabular-nums ${rowColor}`}>{r.games ?? '—'}</span>
-                      <span className={`text-right tabular-nums ${rowColor}`}>{r.score}</span>
-                    </Fragment>
-                  )
-                })}
-              </div>
-            )}
           </div>
 
-          {Array.isArray(history) && history.length >= 2 && (
-            <div className="flex items-center justify-between border-t border-brand-border/50 pt-2">
-              <span className="text-[11px] text-brand-muted">Score trend</span>
-              <Sparkline values={history} />
+          {/* Per-format breakdown table (most-played first) with a per-format trendline */}
+          {perFormat.length > 0 && (
+            <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 gap-y-1.5 text-xs">
+              <span className="text-[11px] font-medium text-brand-muted">Format</span>
+              <span className="text-[11px] font-medium text-brand-muted text-right">Games</span>
+              <span className="text-[11px] font-medium text-brand-muted text-right">Score</span>
+              <span className="text-[11px] font-medium text-brand-muted text-center">Trend</span>
+              {perFormat.map((r) => {
+                const primary = isPrimaryFormat(r)
+                const weight = primary ? 'font-semibold' : 'font-normal'
+                return (
+                  <Fragment key={r.format}>
+                    <span className={`capitalize text-brand-dark ${weight}`}>{r.format}</span>
+                    <span className={`text-right tabular-nums text-brand-dark ${weight}`}>{r.games ?? '—'}</span>
+                    <span className={`text-right tabular-nums text-brand-dark ${weight}`}>{r.score}</span>
+                    <span className="flex justify-end">
+                      {r.history.length >= 2
+                        ? <Sparkline values={r.history} />
+                        : <span className="text-brand-muted text-[11px]">—</span>}
+                    </span>
+                  </Fragment>
+                )
+              })}
             </div>
           )}
-        </>
+        </div>
       ) : (
         <div className="space-y-1">
           <p className="text-sm font-semibold text-brand-dark">{rd.level}</p>

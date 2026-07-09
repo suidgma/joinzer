@@ -37,7 +37,7 @@ export type ResumeProfile = {
   dupr_rating: number | null
   dupr_verified: boolean
 }
-export type ResumeFormatRating = { format: RatingFormat; score: number | null; confidence: string | null; games: number; events: number }
+export type ResumeFormatRating = { format: RatingFormat; score: number | null; confidence: string | null; games: number; events: number; history: number[] }
 export type ResumeUpcoming = { kind: 'league' | 'tournament'; id: string; name: string; date: string | null; location: string | null }
 export type PlayerPlacement = { place: number; tournamentId: string | null; divisionName: string | null; tournamentName: string | null; earnedOn: string | null }
 export type PlayerResume = {
@@ -62,7 +62,7 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
   // Per-format Joinzer ratings (singles vs doubles), pickleball only for v1.
   const { data: prRows } = await admin
     .from('player_ratings')
-    .select('format, joinzer_score, confidence_state, games_counted, events_counted')
+    .select('format, joinzer_score, confidence_state, games_counted, events_counted, score_history')
     .eq('player_id', userId)
     .eq('activity', 'pickleball')
   const ratings: ResumeFormatRating[] = (prRows ?? []).map((r: any) => ({
@@ -71,6 +71,7 @@ export async function loadPlayerResume(admin: SupabaseClient, userId: string): P
     confidence: r.confidence_state ?? null,
     games: r.games_counted ?? 0,
     events: r.events_counted ?? 0,
+    history: Array.isArray(r.score_history) ? (r.score_history as number[]) : [],
   }))
 
   // Competitive career stats — read the nightly cron cache; fall back to compute-on-read
