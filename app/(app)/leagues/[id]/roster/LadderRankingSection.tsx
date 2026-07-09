@@ -41,7 +41,7 @@ export default function LadderRankingSection({
       {entrants.length === 0 ? (
         <p className="text-sm text-brand-muted">Add players below, then set their ladder order here.</p>
       ) : (
-        <SeededRoster items={entrants} saveLabel="Save ladder order" initialSaved={initialSaved} onSave={onSave} />
+        <SeededRoster items={entrants} saveLabel="Save ladder order" blockSave initialSaved={initialSaved} onSave={onSave} />
       )}
     </div>
   )
