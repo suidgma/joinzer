@@ -3,8 +3,10 @@ import type { ResumeProfile } from '@/lib/profile/resume'
 
 const scaleLabel = (scale: string | null) => (scale === 'dupr' ? 'DUPR' : scale === 'self' ? 'self-rated' : '')
 
-// Hero identity card: photo, name, Joinzer Level, primary rating line (earned Score or
-// self-reported status), and member-since / home-court meta.
+// Hero identity card: photo, name, Joinzer Level, and member-since / home-court meta.
+// For earned players the numeric Score/confidence lives in the Rating card below — the
+// hero shows only the Level to avoid repeating it. Self-reported players keep their line
+// (the only place the self-rated number appears).
 export default function PlayerHeroCard({ profile, rd }: { profile: ResumeProfile; rd: RatingDisplay }) {
   const name = profile.displayName ?? profile.name ?? 'Player'
   const meta = [
@@ -29,12 +31,7 @@ export default function PlayerHeroCard({ profile, rd }: { profile: ResumeProfile
         <div>
           <h1 className="font-heading font-bold text-xl text-brand-dark">{name}</h1>
           <p className="text-sm text-brand-active font-medium mt-0.5">{rd.level}</p>
-          {rd.kind === 'earned' ? (
-            <p className="text-sm text-brand-dark mt-1">
-              <span className="font-semibold text-brand-active">Joinzer Score {rd.score}</span>
-              <span className="text-xs text-brand-muted"> · {rd.state === 'rusty' ? 'Rusty' : 'Established'}{rd.games != null ? ` · ${rd.games} matches` : ''}</span>
-            </p>
-          ) : (
+          {rd.kind !== 'earned' && (
             <p className="text-sm text-brand-muted mt-1">
               {rd.selfRating != null
                 ? `Self-reported ${rd.selfRating}${scaleLabel(rd.selfScale) ? ` ${scaleLabel(rd.selfScale)}` : ''}`
