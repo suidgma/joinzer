@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { Upload } from 'lucide-react'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import { formatSkillRange, skillRangeToLevel, formatAgeRange } from '@/lib/taxonomy/formats'
 import LeagueActions from './LeagueActions'
@@ -513,6 +514,20 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           <span className="text-brand-active text-sm">→</span>
         </Link>
       </div>
+
+      {/* Organizer: bulk-import players via CSV */}
+      {isAdmin && (
+        <Link
+          href={`/leagues/${league.id}/import`}
+          className="flex items-center justify-between gap-2 bg-brand-surface border border-brand-border rounded-2xl px-4 py-3 hover:border-brand-active transition-colors"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-brand-dark">
+            <Upload size={16} className="text-brand-active" />
+            Import players
+          </span>
+          <span className="text-sm text-brand-muted">CSV →</span>
+        </Link>
+      )}
 
       {/* Roster panel — visible to all visitors */}
       <LeagueRosterPanel
