@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import CreateEventForm from '@/components/features/events/CreateEventForm'
 import type { LocationOption } from '@/lib/types'
 import Link from 'next/link'
@@ -24,12 +25,15 @@ export default async function CreateEventPage(
 ) {
   const searchParams = await props.searchParams;
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const [{ data: locationsData }, sourceResult] = await Promise.all([
     supabase
       .from('locations')
       .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country')
       .eq('is_active', true)
+      .or(`status.eq.approved,created_by.eq.${user.id}`) // approved venues + your own pending ones
       .order('sort_order', { ascending: true }),
     searchParams.from
       ? supabase

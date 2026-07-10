@@ -25,8 +25,20 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
-  const name = clip(body.name, 200)
-  if (!name) return NextResponse.json({ error: 'Location name is required' }, { status: 400 })
+  const raw = clip(body.name, 200)
+  if (!raw) return NextResponse.json({ error: 'Location name is required' }, { status: 400 })
+  const name = raw.replace(/\s+/g, ' ') // collapse internal whitespace
+
+  const db = admin()
+  const cols = 'id, name, court_count, access_type, subarea, address, city, state, zip_code, country'
+
+  // Dedup: reuse an existing venue with the same name (case-insensitive) rather
+  // than creating a twin. Escape LIKE metacharacters so ilike is an exact match.
+  const escaped = name.replace(/[\\%_]/g, (c) => `\\${c}`)
+  const { data: existing } = await db.from('locations').select(cols).ilike('name', escaped).limit(1)
+  if (existing && existing.length > 0) {
+    return NextResponse.json({ location: existing[0], reused: true }, { status: 200 })
+  }
 
   const row = {
     name,
@@ -36,14 +48,11 @@ export async function POST(req: NextRequest) {
     zip_code: clip(body.zip_code, 20),
     country: clip(body.country, 60) ?? 'US',
     access_type: 'public', // constrained enum; user venues default to public
+    created_by: user.id,
+    status: 'pending', // hidden from other users' pickers until approved
   }
 
-  const { data, error } = await admin()
-    .from('locations')
-    .insert(row)
-    .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country')
-    .single()
-
+  const { data, error } = await db.from('locations').insert(row).select(cols).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ location: data }, { status: 201 })
 }

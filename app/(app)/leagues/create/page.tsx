@@ -23,6 +23,7 @@ export default async function CreateLeaguePage() {
     .from('locations')
     .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country')
     .eq('is_active', true)
+    .or(`status.eq.approved,created_by.eq.${user.id}`) // approved venues + your own pending ones
     .order('sort_order', { ascending: true })
 
   const locations = (data ?? []) as LocationOption[]
