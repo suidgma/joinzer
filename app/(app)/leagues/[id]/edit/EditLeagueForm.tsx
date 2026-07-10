@@ -6,6 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 import { formatSessionDate } from '@/lib/utils/date'
 import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-helpers'
 import TimeSelect from '@/components/features/events/TimeSelect'
+import LocationAddress from '@/components/features/LocationAddress'
+import NewLocationFields from '@/components/features/NewLocationFields'
+import type { LocationOption } from '@/lib/types'
+import { createLocation, emptyLocationDraft, type NewLocationDraft } from '@/lib/locations/createLocation'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
 import SessionManager from './SessionManager'
@@ -95,6 +99,7 @@ type Props = {
   registrantCount: number
   sessions: SessionRow[]
   formatLocked: boolean
+  locations: LocationOption[]
 }
 
 export default function EditLeagueForm({
@@ -105,6 +110,7 @@ export default function EditLeagueForm({
   registrantCount,
   sessions,
   formatLocked,
+  locations,
 }: Props) {
   const router = useRouter()
 
@@ -119,7 +125,10 @@ export default function EditLeagueForm({
   const [skillMax, setSkillMax] = useState(d.skill_max?.toString() ?? '')
   const [ageMin, setAgeMin] = useState(d.age_min?.toString() ?? '')
   const [ageMax, setAgeMax] = useState(d.age_max?.toString() ?? '')
-  const [locationName, setLocationName] = useState(d.location_name ?? '')
+  const [locationId, setLocationId] = useState((d as any).location_id ?? '')
+  const [addNewLocation, setAddNewLocation] = useState(false)
+  const [newLocation, setNewLocation] = useState<NewLocationDraft>(emptyLocationDraft())
+  const selectedLocation = locations.find((l) => l.id === locationId)
   const [startTime, setStartTime] = useState(d.start_time ?? '08:00')
   const [estimatedEndTime, setEstimatedEndTime] = useState(d.estimated_end_time ?? '17:00')
   const [startDate, setStartDate] = useState(d.start_date ?? '')
@@ -182,8 +191,27 @@ export default function EditLeagueForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (addNewLocation && !newLocation.name.trim()) {
+      setError('Enter a name for the new location')
+      return
+    }
     setLoading(true)
     setError(null)
+
+    // Create the venue on the fly if it was entered manually.
+    let locId = locationId
+    let locName = locations.find((l) => l.id === locationId)?.name ?? ''
+    if (addNewLocation) {
+      try {
+        const created = await createLocation(newLocation)
+        locId = created.id
+        locName = created.name
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save the new location')
+        setLoading(false)
+        return
+      }
+    }
 
     const supabase = createClient()
     const { error: updateErr } = await supabase
@@ -198,7 +226,8 @@ export default function EditLeagueForm({
           }),
         age_min: ageMin ? parseInt(ageMin) : null,
         age_max: ageMax ? parseInt(ageMax) : null,
-        location_name: locationName.trim() || null,
+        location_name: locName || null,
+        location_id: locId || null,
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
@@ -449,12 +478,29 @@ export default function EditLeagueForm({
 
       <FormSection title="Schedule" description="Location, dates, and session cadence." defaultOpen>
         <FormRow label="Location" htmlFor="location">
-          <input
-            id="location"
-            value={locationName}
-            onChange={(e) => setLocationName(e.target.value)}
-            className="w-full input"
-          />
+          {addNewLocation ? (
+            <>
+              <NewLocationFields draft={newLocation} onChange={setNewLocation} />
+              <button type="button" onClick={() => setAddNewLocation(false)} className="mt-1 text-xs text-brand-active hover:underline">
+                ← Choose an existing location
+              </button>
+            </>
+          ) : (
+            <>
+              <select id="location" value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-full input">
+                <option value="">— Select a location —</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}{l.subarea ? ` (${l.subarea})` : ''} · {l.court_count} courts
+                  </option>
+                ))}
+              </select>
+              <LocationAddress location={selectedLocation} />
+              <button type="button" onClick={() => setAddNewLocation(true)} className="mt-1 text-xs text-brand-active hover:underline">
+                Can&apos;t find your location? Add a new one
+              </button>
+            </>
+          )}
         </FormRow>
         <FormRow
           label="Season length"
