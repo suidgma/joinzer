@@ -259,20 +259,28 @@ export async function getRRPublicStandings(admin: Admin, leagueId: string, subCr
       ? admin.from('league_matches').select('session_id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, team1_score, team2_score').in('session_id', sessionIds).not('team1_score', 'is', null)
       : Promise.resolve({ data: [] as any[] }),
     sessionIds.length
-      ? admin.from('league_session_players').select('id, user_id, session_id, sub_for_session_player_id').in('session_id', sessionIds).not('sub_for_session_player_id', 'is', null)
+      ? admin.from('league_session_players').select('id, user_id, session_id, actual_status, sub_for_session_player_id').in('session_id', sessionIds).not('sub_for_session_player_id', 'is', null)
       : Promise.resolve({ data: [] as any[] }),
   ])
 
   const absentSpIds = (subSessionPlayers ?? []).map((s: any) => s.sub_for_session_player_id).filter(Boolean)
   const { data: absentSpRows } = absentSpIds.length
-    ? await admin.from('league_session_players').select('id, user_id').in('id', absentSpIds)
+    ? await admin.from('league_session_players').select('id, user_id, actual_status').in('id', absentSpIds)
     : { data: [] as any[] }
-  const absentUserBySpId = new Map((absentSpRows ?? []).map((p: any) => [p.id, p.user_id]))
+  const absentBySpId = new Map((absentSpRows ?? []).map((p: any) => [p.id, { userId: p.user_id as string, status: p.actual_status as string }]))
 
+  // A sub assignment only redirects/caps credit when it's actually in effect: the sub
+  // showed up (played) AND the covered player did NOT. If the organizer reverted the
+  // covered player to a present status mid-session, they played their own matches, so
+  // they keep full credit even if a stale sub link still points at them.
+  const isPlaying = (status: string | null | undefined) => status === 'present' || status === 'coming' || status === 'late'
   const subInfoBySession = new Map<string, { subToAbsent: Map<string, string>; absentUserIds: Set<string> }>()
   for (const sp of subSessionPlayers ?? []) {
-    const sid = sp.session_id, subUid = sp.user_id, absentUid = absentUserBySpId.get(sp.sub_for_session_player_id)
+    const covered = absentBySpId.get(sp.sub_for_session_player_id)
+    const sid = sp.session_id, subUid = sp.user_id, absentUid = covered?.userId
     if (!subUid || !absentUid) continue
+    if (!isPlaying(sp.actual_status)) continue      // sub didn't play → nothing to transfer
+    if (isPlaying(covered?.status)) continue         // covered player played for themselves → no cap
     if (!subInfoBySession.has(sid)) subInfoBySession.set(sid, { subToAbsent: new Map(), absentUserIds: new Set() })
     const info = subInfoBySession.get(sid)!
     info.subToAbsent.set(subUid, absentUid)
