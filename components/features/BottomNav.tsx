@@ -70,7 +70,8 @@ export default function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 bg-brand-surface border-t border-brand-border pb-[env(safe-area-inset-bottom)]">
       <div className="max-w-lg mx-auto flex">
         {tabs.map((tab) => {
-          const active = pathname.startsWith(tab.href)
+          // Match the full path segment so /players doesn't also light up /play.
+          const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
           return (
             <Link
               key={tab.href}

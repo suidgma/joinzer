@@ -18,7 +18,8 @@ export default function DesktopNav() {
   return (
     <nav className="flex items-center gap-1">
       {tabs.map(tab => {
-        const active = pathname.startsWith(tab.href)
+        // Match the full path segment so /players doesn't also light up /play.
+        const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
         return (
           <Link
             key={tab.href}
