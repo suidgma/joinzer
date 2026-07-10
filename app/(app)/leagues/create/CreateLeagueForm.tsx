@@ -8,6 +8,8 @@ import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-help
 import { formatSessionDate } from '@/lib/utils/date'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import LocationAddress from '@/components/features/LocationAddress'
+import NewLocationFields from '@/components/features/NewLocationFields'
+import { createLocation, emptyLocationDraft, type NewLocationDraft } from '@/lib/locations/createLocation'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
 
@@ -54,6 +56,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [ageMax, setAgeMax] = useState('')
   const [partnerMode, setPartnerMode] = useState<'rotating' | 'fixed'>('rotating')
   const [locationId, setLocationId] = useState('')
+  const [addNewLocation, setAddNewLocation] = useState(false)
+  const [newLocation, setNewLocation] = useState<NewLocationDraft>(emptyLocationDraft())
   const [startTime, setStartTime] = useState('08:00')
   const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
   const [startDate, setStartDate] = useState('')
@@ -189,6 +193,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (addNewLocation && !newLocation.name.trim()) {
+      setError('Enter a name for the new location')
+      return
+    }
     setLoading(true)
     setError(null)
     // Commit any date sitting in the input that the organizer forgot to Add.
@@ -201,6 +209,21 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
+
+    // Create the venue on the fly if it was entered manually.
+    let locId = locationId
+    let locName = selectedLocation?.name ?? ''
+    if (addNewLocation) {
+      try {
+        const created = await createLocation(newLocation)
+        locId = created.id
+        locName = created.name
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save the new location')
+        setLoading(false)
+        return
+      }
+    }
 
     // Partner mode is only meaningful for doubles. Singles → rotating (unused).
     // Box / Ladder doubles → fixed: the pair is one stable entrant (one box member
@@ -223,8 +246,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         age_min: ageMin ? parseInt(ageMin) : null,
         age_max: ageMax ? parseInt(ageMax) : null,
         partner_mode: effectivePartnerMode,
-        location_name: selectedLocation?.name ?? null,
-        location_id: locationId || null,
+        location_name: locName || null,
+        location_id: locId || null,
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
         start_date: startDate || null,
@@ -483,15 +506,29 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
 
       <FormSection title="Schedule" description="Location, dates, and session cadence." defaultOpen>
         <FormRow label="Location" htmlFor="location">
-          <select id="location" value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-full input">
-            <option value="">— Select a location —</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}{l.subarea ? ` (${l.subarea})` : ''} · {l.court_count} courts
-              </option>
-            ))}
-          </select>
-          <LocationAddress location={selectedLocation} />
+          {addNewLocation ? (
+            <>
+              <NewLocationFields draft={newLocation} onChange={setNewLocation} />
+              <button type="button" onClick={() => setAddNewLocation(false)} className="mt-1 text-xs text-brand-active hover:underline">
+                ← Choose an existing location
+              </button>
+            </>
+          ) : (
+            <>
+              <select id="location" value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-full input">
+                <option value="">— Select a location —</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}{l.subarea ? ` (${l.subarea})` : ''} · {l.court_count} courts
+                  </option>
+                ))}
+              </select>
+              <LocationAddress location={selectedLocation} />
+              <button type="button" onClick={() => setAddNewLocation(true)} className="mt-1 text-xs text-brand-active hover:underline">
+                Can&apos;t find your location? Add a new one
+              </button>
+            </>
+          )}
         </FormRow>
         <FormRow
           label="Season length"

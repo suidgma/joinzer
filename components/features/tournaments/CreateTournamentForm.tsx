@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
+import NewLocationFields from '@/components/features/NewLocationFields'
 import TimeSelect from '@/components/features/events/TimeSelect'
+import { createLocation, emptyLocationDraft, type NewLocationDraft } from '@/lib/locations/createLocation'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
 import type { LocationOption } from '@/lib/types'
@@ -24,6 +26,8 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [locationId, setLocationId] = useState('')
+  const [addNewLocation, setAddNewLocation] = useState(false)
+  const [newLocation, setNewLocation] = useState<NewLocationDraft>(emptyLocationDraft())
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('08:00')
   const [estimatedEndTime, setEstimatedEndTime] = useState('17:00')
@@ -61,6 +65,10 @@ export default function CreateTournamentForm({ locations }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (addNewLocation && !newLocation.name.trim()) {
+      setError('Enter a name for the new location')
+      return
+    }
     setLoading(true)
     setError(null)
 
@@ -68,12 +76,25 @@ export default function CreateTournamentForm({ locations }: Props) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
+    // Create the venue on the fly if it was entered manually.
+    let locId = locationId
+    if (addNewLocation) {
+      try {
+        const created = await createLocation(newLocation)
+        locId = created.id
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save the new location')
+        setLoading(false)
+        return
+      }
+    }
+
     const { data: tournament, error: insertErr } = await supabase
       .from('tournaments')
       .insert({
         name: name.trim(),
         description: description.trim() || null,
-        location_id: locationId || null,
+        location_id: locId || null,
         start_date: startDate,
         start_time: startTime || null,
         estimated_end_time: estimatedEndTime || null,
@@ -200,8 +221,22 @@ export default function CreateTournamentForm({ locations }: Props) {
           </div>
         </FormRow>
         <FormRow label="Location" htmlFor="location">
-          <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
-          <LocationAddress location={locations.find((l) => l.id === locationId)} />
+          {addNewLocation ? (
+            <>
+              <NewLocationFields draft={newLocation} onChange={setNewLocation} />
+              <button type="button" onClick={() => setAddNewLocation(false)} className="mt-1 text-xs text-brand-active hover:underline">
+                ← Choose an existing location
+              </button>
+            </>
+          ) : (
+            <>
+              <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
+              <LocationAddress location={locations.find((l) => l.id === locationId)} />
+              <button type="button" onClick={() => setAddNewLocation(true)} className="mt-1 text-xs text-brand-active hover:underline">
+                Can&apos;t find your location? Add a new one
+              </button>
+            </>
+          )}
         </FormRow>
         <div className="px-1 pb-1">
           <p className="text-xs font-bold text-brand-dark mb-3">Day 1</p>

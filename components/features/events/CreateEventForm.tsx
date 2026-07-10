@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from './LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
+import NewLocationFields from '@/components/features/NewLocationFields'
 import TimeSelect from './TimeSelect'
 import type { LocationOption } from '@/lib/types'
+import { createLocation, emptyLocationDraft, type NewLocationDraft } from '@/lib/locations/createLocation'
 import type { EventDefaults } from '@/app/(app)/play/create/page'
 import { prepareEventWrite } from '@/lib/taxonomy/write-helpers'
 
@@ -33,6 +35,8 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
   const router = useRouter()
   const [title, setTitle] = useState(defaults?.title ?? '')
   const [locationId, setLocationId] = useState(defaults?.locationId ?? '')
+  const [addNewLocation, setAddNewLocation] = useState(false)
+  const [newLocation, setNewLocation] = useState<NewLocationDraft>(emptyLocationDraft())
   const [date, setDate] = useState('')
   const [time, setTime] = useState(defaults?.time ?? '08:00')
   const [durationMinutes, setDurationMinutes] = useState(defaults?.durationMinutes ?? 120)
@@ -69,8 +73,8 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!locationId) {
-      setError('Please select a location')
+    if (addNewLocation ? !newLocation.name.trim() : !locationId) {
+      setError(addNewLocation ? 'Enter a name for the new location' : 'Please select a location')
       return
     }
 
@@ -84,6 +88,15 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
     if (!user) {
       router.push('/login')
       return
+    }
+
+    // Resolve the venue — create it on the fly if the organizer entered it manually.
+    let locId = locationId
+    let locName = locations.find((l) => l.id === locationId)?.name ?? ''
+    if (addNewLocation) {
+      const created = await createLocation(newLocation)
+      locId = created.id
+      locName = created.name
     }
 
     const startsAt = new Date(`${date}T${time}:00`).toISOString()
@@ -104,7 +117,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
     // Insert all occurrences
     const eventRows = startTimes.map((st) => ({
       title: title.trim(),
-      location_id: locationId,
+      location_id: locId,
       creator_user_id: user.id,
       captain_user_id: user.id,
       starts_at: st,
@@ -160,7 +173,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       body: JSON.stringify({
         eventId: event.id,
         title: title.trim(),
-        locationName: locations.find((l) => l.id === locationId)?.name ?? '',
+        locationName: locName,
         startsAt,
         durationMinutes,
         maxPlayers,
@@ -175,7 +188,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       body: JSON.stringify({
         eventId: event.id,
         title: title.trim(),
-        locationName: locations.find((l) => l.id === locationId)?.name ?? '',
+        locationName: locName,
         startsAt,
         durationMinutes,
         maxPlayers,
@@ -209,12 +222,34 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
         <label className="block text-sm font-medium mb-1">
           Location <span className="text-red-500">*</span>
         </label>
-        <LocationCombobox
-          locations={locations}
-          value={locationId}
-          onChange={setLocationId}
-        />
-        <LocationAddress location={locations.find((l) => l.id === locationId)} />
+        {addNewLocation ? (
+          <>
+            <NewLocationFields draft={newLocation} onChange={setNewLocation} />
+            <button
+              type="button"
+              onClick={() => setAddNewLocation(false)}
+              className="mt-1 text-xs text-brand-active hover:underline"
+            >
+              ← Choose an existing location
+            </button>
+          </>
+        ) : (
+          <>
+            <LocationCombobox
+              locations={locations}
+              value={locationId}
+              onChange={setLocationId}
+            />
+            <LocationAddress location={locations.find((l) => l.id === locationId)} />
+            <button
+              type="button"
+              onClick={() => setAddNewLocation(true)}
+              className="mt-1 text-xs text-brand-active hover:underline"
+            >
+              Can&apos;t find your location? Add a new one
+            </button>
+          </>
+        )}
       </div>
 
       <div>
