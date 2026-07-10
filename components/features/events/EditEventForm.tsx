@@ -3,6 +3,11 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import TimeSelect from './TimeSelect'
+import LocationCombobox from './LocationCombobox'
+import LocationAddress from '@/components/features/LocationAddress'
+import NewLocationFields from '@/components/features/NewLocationFields'
+import type { LocationOption } from '@/lib/types'
+import { createLocation, emptyLocationDraft, type NewLocationDraft } from '@/lib/locations/createLocation'
 import { prepareEventWrite } from '@/lib/taxonomy/write-helpers'
 
 const skillOptions: number[] = Array.from({ length: 13 }, (_, i) => 2.0 + i * 0.5)
@@ -23,7 +28,9 @@ type Props = {
     registration_closes_at: string | null
     skill_min: number | null
     skill_max: number | null
+    location_id: string | null
   }
+  locations: LocationOption[]
 }
 
 function computeEndTime(startTime: string, durationMinutes: number): string {
@@ -57,8 +64,11 @@ function ptLocalToIso(local: string): string {
   return `${local}:00${ptOffset}`
 }
 
-export default function EditEventForm({ event }: Props) {
+export default function EditEventForm({ event, locations }: Props) {
   const [title, setTitle] = useState(event.title)
+  const [locationId, setLocationId] = useState(event.location_id ?? '')
+  const [addNewLocation, setAddNewLocation] = useState(false)
+  const [newLocation, setNewLocation] = useState<NewLocationDraft>(emptyLocationDraft())
   const [duration, setDuration] = useState(event.duration_minutes)
   const [courtCount, setCourtCount] = useState(event.court_count)
   const [playersPerCourt, setPlayersPerCourt] = useState(event.players_per_court)
@@ -107,6 +117,22 @@ export default function EditEventForm({ event }: Props) {
         return
       }
 
+      // Resolve the venue — create it on the fly if the organizer entered it manually.
+      if (addNewLocation ? !newLocation.name.trim() : !locationId) {
+        setError(addNewLocation ? 'Enter a name for the new location' : 'Please select a location')
+        return
+      }
+      let locId = locationId
+      if (addNewLocation) {
+        try {
+          const created = await createLocation(newLocation)
+          locId = created.id
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Could not save the new location')
+          return
+        }
+      }
+
       const startsAt = new Date(`${date}T${time}:00`).toISOString()
       const supabase = createClient()
 
@@ -114,6 +140,7 @@ export default function EditEventForm({ event }: Props) {
         .from('events')
         .update({
           title: title.trim(),
+          location_id: locId,
           starts_at: startsAt,
           duration_minutes: duration,
           court_count: courtCount,
@@ -153,6 +180,26 @@ export default function EditEventForm({ event }: Props) {
           onChange={(e) => setTitle(e.target.value)}
           className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Location <span className="text-red-500">*</span></label>
+        {addNewLocation ? (
+          <>
+            <NewLocationFields draft={newLocation} onChange={setNewLocation} />
+            <button type="button" onClick={() => setAddNewLocation(false)} className="mt-1 text-xs text-brand-active hover:underline">
+              ← Choose an existing location
+            </button>
+          </>
+        ) : (
+          <>
+            <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
+            <LocationAddress location={locations.find((l) => l.id === locationId)} />
+            <button type="button" onClick={() => setAddNewLocation(true)} className="mt-1 text-xs text-brand-active hover:underline">
+              Can&apos;t find your location? Add a new one
+            </button>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

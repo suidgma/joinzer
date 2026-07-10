@@ -37,8 +37,9 @@ export default async function EditTournamentPage(props: { params: Promise<{ id: 
       .single(),
     supabase
       .from('locations')
-      .select('id, name, court_count, access_type, subarea')
+      .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country')
       .eq('is_active', true)
+      .or(`status.eq.approved,created_by.eq.${user.id}`) // approved venues + your own pending ones
       .order('sort_order', { ascending: true }),
   ])
 

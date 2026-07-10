@@ -10,6 +10,7 @@ import WizardOutline from '@/components/ui/wizard-outline'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import type { WizardStep } from '@/components/ui/wizard-outline'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
+import type { LocationOption } from '@/lib/types'
 import EditLeagueForm from './EditLeagueForm'
 
 const STEPS: WizardStep[] = [
@@ -66,6 +67,14 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
     .from('league_boxes').select('id', { count: 'exact', head: true }).eq('league_id', id)
   const formatLocked = (sessionCount ?? 0) > 0 || (boxCount ?? 0) > 0
 
+  const { data: locationData } = await supabase
+    .from('locations')
+    .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country')
+    .eq('is_active', true)
+    .or(`status.eq.approved,created_by.eq.${user.id}`) // approved venues + your own pending ones
+    .order('sort_order', { ascending: true })
+  const locations = (locationData ?? []) as LocationOption[]
+
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${id}` },
     { label: 'Standings', href: `/leagues/${id}/standings` },
@@ -94,6 +103,7 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
         registrantCount={regCount ?? 0}
         sessions={(sessionRows ?? []) as any[]}
         formatLocked={formatLocked}
+        locations={locations}
       />
     </DesktopShell>
   )
