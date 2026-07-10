@@ -10,10 +10,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 export type PlayerOption = { id: string; name: string }
 
-// Only render this many rows at once — typing narrows the full list, so anyone is
-// reachable, but we never mount hundreds of DOM nodes for the unfiltered list.
-const MAX_RENDER = 50
-
 type Props = {
   options: PlayerOption[]
   value: string
@@ -49,8 +45,6 @@ export default function PlayerCombobox({
     if (!q) return options
     return options.filter((o) => o.name.toLowerCase().includes(q))
   }, [options, query])
-
-  const shown = filtered.slice(0, MAX_RENDER)
 
   // Close and reset the query when clicking outside.
   useEffect(() => {
@@ -106,14 +100,14 @@ export default function PlayerCombobox({
           if (e.key === 'ArrowDown') {
             e.preventDefault()
             setOpen(true)
-            setHighlight((h) => Math.min(h + 1, shown.length - 1))
+            setHighlight((h) => Math.min(h + 1, filtered.length - 1))
           } else if (e.key === 'ArrowUp') {
             e.preventDefault()
             setHighlight((h) => Math.max(h - 1, 0))
           } else if (e.key === 'Enter') {
-            if (open && shown[highlight]) {
+            if (open && filtered[highlight]) {
               e.preventDefault()
-              choose(shown[highlight])
+              choose(filtered[highlight])
             }
           } else if (e.key === 'Escape') {
             setOpen(false)
@@ -129,33 +123,26 @@ export default function PlayerCombobox({
         >
           {options.length === 0 ? (
             <li className="px-3 py-2 text-xs text-brand-muted">{emptyText}</li>
-          ) : shown.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <li className="px-3 py-2 text-xs text-brand-muted">No players match “{query}”</li>
           ) : (
-            <>
-              {shown.map((option, i) => (
-                <li key={option.id}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault() // select before the input's blur closes the list
-                      choose(option)
-                    }}
-                    onMouseEnter={() => setHighlight(i)}
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-brand-soft ${
-                      i === highlight ? 'bg-brand-soft' : ''
-                    } ${option.id === value ? 'font-semibold text-brand-dark' : 'text-brand-body'}`}
-                  >
-                    {option.name}
-                  </button>
-                </li>
-              ))}
-              {filtered.length > MAX_RENDER && (
-                <li className="px-3 py-2 text-[11px] text-brand-muted bg-brand-soft/50">
-                  Showing first {MAX_RENDER} of {filtered.length} — keep typing to narrow
-                </li>
-              )}
-            </>
+            filtered.map((option, i) => (
+              <li key={option.id}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault() // select before the input's blur closes the list
+                    choose(option)
+                  }}
+                  onMouseEnter={() => setHighlight(i)}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-brand-soft ${
+                    i === highlight ? 'bg-brand-soft' : ''
+                  } ${option.id === value ? 'font-semibold text-brand-dark' : 'text-brand-body'}`}
+                >
+                  {option.name}
+                </button>
+              </li>
+            ))
           )}
         </ul>
       )}
