@@ -21,7 +21,7 @@ export default async function CreateTournamentPage() {
 
   const { data: locationData } = await supabase
     .from('locations')
-    .select('id, name, court_count, access_type, subarea')
+    .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
 

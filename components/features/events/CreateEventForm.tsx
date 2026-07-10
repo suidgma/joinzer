@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from './LocationCombobox'
+import LocationAddress from '@/components/features/LocationAddress'
 import TimeSelect from './TimeSelect'
 import type { LocationOption } from '@/lib/types'
 import type { EventDefaults } from '@/app/(app)/play/create/page'
@@ -213,6 +214,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           value={locationId}
           onChange={setLocationId}
         />
+        <LocationAddress location={locations.find((l) => l.id === locationId)} />
       </div>
 
       <div>

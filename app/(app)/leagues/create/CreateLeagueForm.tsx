@@ -7,6 +7,7 @@ import type { LocationOption } from '@/lib/types'
 import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-helpers'
 import { formatSessionDate } from '@/lib/utils/date'
 import TimeSelect from '@/components/features/events/TimeSelect'
+import LocationAddress from '@/components/features/LocationAddress'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
 
@@ -490,6 +491,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               </option>
             ))}
           </select>
+          <LocationAddress location={selectedLocation} />
         </FormRow>
         <FormRow
           label="Season length"
