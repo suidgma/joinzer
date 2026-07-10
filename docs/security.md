@@ -1,6 +1,7 @@
 # Security Rules — Joinzer
 
-> Evergreen. Referenced from `/CLAUDE.md` and from `~/.claude/CLAUDE.md` (global).
+> Evergreen. Auto-loaded every session via the `@docs/security.md` import in `/CLAUDE.md`.
+> The global `~/.claude/CLAUDE.md` has its own overlapping "Security — Non-Negotiable" section; these project rules extend it.
 > Last revised: May 11, 2026.
 
 These rules apply to every session, every file, every commit on Joinzer.
