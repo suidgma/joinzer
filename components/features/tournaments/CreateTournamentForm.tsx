@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
+import LocationAddress from '@/components/features/LocationAddress'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import FormSection from '@/components/ui/form-section'
 import FormRow from '@/components/ui/form-row'
@@ -200,6 +201,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         </FormRow>
         <FormRow label="Location" htmlFor="location">
           <LocationCombobox locations={locations} value={locationId} onChange={setLocationId} />
+          <LocationAddress location={locations.find((l) => l.id === locationId)} />
         </FormRow>
         <div className="px-1 pb-1">
           <p className="text-xs font-bold text-brand-dark mb-3">Day 1</p>

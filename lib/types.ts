@@ -4,6 +4,13 @@ export type LocationOption = {
   court_count: number
   access_type: string
   subarea: string | null
+  // Postal address — optional so callers that don't select these still type-check.
+  // The create forms select them to auto-fill the Location area.
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  zip_code?: string | null
+  country?: string | null
 }
 
 export type EventParticipantItem = {
