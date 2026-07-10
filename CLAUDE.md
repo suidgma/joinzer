@@ -1,7 +1,7 @@
 # CLAUDE.md — Joinzer
 
 > Read at session start. Reality file: describes what is actually built and how we work.
-> For target architecture (aspirational), see @docs/architecture-target.md.
+> For target architecture (aspirational), see docs/architecture-target.md.
 > For security rules, see @docs/security.md.
 
 ---
@@ -112,7 +112,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 
 - **Flex League — Phase 2** — per-round windows (`league_periods` `period_kind='window'` + per-fixture `window_start/end`), a deadline/no-show **forfeit cron** with reminders, and optional self-scheduling of court/time. Phase 1 (above) is whole-season with no automatic forfeits. Plan in `docs/phases/flex-league.md`.
 - **Team League — Phase 2+** — captain self-service (lineup/roster by team captains, not just the organizer), playoffs (reuse the tournament bracket engine over final team standings), and attendance/sub integration for team lineups. Phase 1 (above) is organizer-run and regular-season only. Plan in `docs/phases/team-league.md`.
-- **Unified `competitions` schema** — designed in @docs/architecture-target.md, not migrated
+- **Unified `competitions` schema** — designed in docs/architecture-target.md, not migrated
 - **Organizer onboarding — Phase 1 shipped (July 8, 2026, PRs #302–#305)** — the funnel + guided first-event path now exists. `profiles.signup_intent` (`play|organize|both`, migration `20260708000005`) captured via a required "What brings you to Joinzer?" step in profile setup; `/organizers` gained a co-primary **"Start free — create your first event"** CTA (hybrid with the Calendly demo) that carries `intent=organize` through login + the OAuth callback into setup; after setup an organizer routes to a new **`/get-started`** (League-vs-Tournament cards + how-it-works) instead of the player-first home; and the empty `/home` leads a declared-organizer-who-hasn't-created-yet with a "Create your first event" card. **Phase 2 shipped (July 8, 2026, PRs #307–#309):** the tournament `SetupChecklist` steps are now clickable links (divisions anchor / edit / schedule builder); leagues got a parallel `LeagueSetupChecklist` (open registration → add players → start play, format-aware run link); and both create flows redirect with `?created=1` → an `OrganizerCreatedBanner` "you're live, share to get players" moment above the checklist. **Phase 3 (not built):** organizer-mode signaling, an in-app getting-started resource, leagues "+ Create" button parity with tournaments. Reality note: this is self-serve scaffolding; the #1 open decision (a real organizer conversation) is still unbooked.
 - **SMS** — no Twilio / equivalent
 - **DUPR integration** — no API connection, no per-division min/max rating
@@ -133,7 +133,7 @@ For specific schema details, check Supabase Table Editor. For specific route det
 
 These are the actual unresolved decisions blocking informed choices:
 
-- **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in @docs/architecture-target.md.
+- **Schema reconciliation.** Live DB has separate `tournaments` and `leagues` domains. A unified `competitions` schema has been designed but not built. Path A (keep separate) vs. Path B (unify) — deferred until an organizer has been spoken to. Design in docs/architecture-target.md.
 - **First committed event.** None. No organizer has seen the product yet. Product is shippable for a demo.
 - **Organizer conversation.** Not yet booked. This is the #1 blocker — it unblocks Path A vs. B, pricing, and the onboarding flow design.
 
@@ -190,7 +190,7 @@ Turbopack's file watcher goes stale on Windows (serves old compiled code → pha
 ## Quick Links
 
 - Two-form-factor refactor plan: `/docs/phases/two-form-factor.md`
-- Target architecture (aspirational): @docs/architecture-target.md
+- Target architecture (aspirational): docs/architecture-target.md
 - Security rules: @docs/security.md
 - Partner invite flow + required Supabase Auth config: `/docs/partner-invite-flow.md`
 

@@ -3,6 +3,8 @@
 > ⚠️ **This is a design proposal, not current state.**
 > Reality lives in `/CLAUDE.md` and the codebase.
 > Last revised: May 11, 2026. Treat anything older than 8 weeks as suspect until re-verified.
+>
+> **Status — demoted (July 2026):** no longer auto-loaded into sessions (the `@`-import was removed from `CLAUDE.md`); this is now reference-only. The product has been built out on the **separate `tournaments`/`leagues` domains (Path A)**, so this unified-`competitions` vision (Path B) is a path not taken so far. Revisit only if a schema unification is actually decided.
 
 This document describes the **unified competitions architecture** Joinzer may migrate to. It is not implemented. Tables, RPCs, RLS policies, and marketing pages described here do not exist unless explicitly confirmed in `/CLAUDE.md`.
 
