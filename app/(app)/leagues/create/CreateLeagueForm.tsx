@@ -8,6 +8,7 @@ import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-help
 import { formatSessionDate } from '@/lib/utils/date'
 import TimeSelect from '@/components/features/events/TimeSelect'
 import LocationAddress from '@/components/features/LocationAddress'
+import LocationMapButton from '@/components/features/LocationMapButton'
 import NewLocationFields from '@/components/features/NewLocationFields'
 import { createLocation, emptyLocationDraft, type NewLocationDraft } from '@/lib/locations/createLocation'
 import FormSection from '@/components/ui/form-section'
@@ -524,9 +525,12 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
                 ))}
               </select>
               <LocationAddress location={selectedLocation} />
-              <button type="button" onClick={() => setAddNewLocation(true)} className="mt-1 text-xs text-brand-active hover:underline">
-                Can&apos;t find your location? Add a new one
-              </button>
+              <div className="mt-1 flex items-center gap-3">
+                <LocationMapButton locations={locations} value={locationId} onSelect={setLocationId} />
+                <button type="button" onClick={() => setAddNewLocation(true)} className="text-xs text-brand-active hover:underline">
+                  Can&apos;t find your location? Add a new one
+                </button>
+              </div>
             </>
           )}
         </FormRow>

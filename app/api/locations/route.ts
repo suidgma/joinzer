@@ -13,6 +13,22 @@ function clip(v: unknown, max: number): string | null {
   return t ? t.slice(0, max) : null
 }
 
+// Best-effort forward geocode so a new venue gets map coordinates. Never throws.
+async function geocode(parts: (string | null)[]): Promise<{ lat: number; lng: number } | null> {
+  const key = process.env.GOOGLE_MAPS_API_KEY
+  const query = parts.filter(Boolean).join(', ')
+  if (!key || !query) return null
+  try {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${key}`)
+    const json = await res.json()
+    const loc = json?.results?.[0]?.geometry?.location
+    if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') return { lat: loc.lat, lng: loc.lng }
+  } catch {
+    /* venue still saves without coordinates */
+  }
+  return null
+}
+
 // POST /api/locations — add a venue that isn't in the directory yet.
 // Any authenticated user creating a league / tournament / play session may add
 // one; it becomes a normal active location (crowd-sourced). Operational fields
@@ -30,7 +46,7 @@ export async function POST(req: NextRequest) {
   const name = raw.replace(/\s+/g, ' ') // collapse internal whitespace
 
   const db = admin()
-  const cols = 'id, name, court_count, access_type, subarea, address, city, state, zip_code, country'
+  const cols = 'id, name, court_count, access_type, subarea, address, city, state, zip_code, country, lat, lng'
 
   // Dedup: reuse an existing venue with the same name (case-insensitive) rather
   // than creating a twin. Escape LIKE metacharacters so ilike is an exact match.
@@ -40,16 +56,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ location: existing[0], reused: true }, { status: 200 })
   }
 
+  const address = clip(body.address, 300)
+  const city = clip(body.city, 120)
+  const state = clip(body.state, 60)
+  const zip_code = clip(body.zip_code, 20)
+
+  // Geocode the entered address so the venue shows up on the map picker.
+  const coords = await geocode([name, address, city, state, zip_code])
+
   const row = {
     name,
-    address: clip(body.address, 300),
-    city: clip(body.city, 120),
-    state: clip(body.state, 60),
-    zip_code: clip(body.zip_code, 20),
+    address,
+    city,
+    state,
+    zip_code,
     country: clip(body.country, 60) ?? 'US',
     access_type: 'public', // constrained enum; user venues default to public
     created_by: user.id,
     status: 'pending', // hidden from other users' pickers until approved
+    ...(coords ?? {}),
   }
 
   const { data, error } = await db.from('locations').insert(row).select(cols).single()
