@@ -52,11 +52,6 @@ export default function ProfileSetupPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!ratingSource) {
-      setError('Please answer the rating question')
-      return
-    }
-
     setLoading(true)
     setError(null)
 
@@ -81,7 +76,7 @@ export default function ProfileSetupPage() {
       profile_photo_url: photoUrl,
       home_court_id: homeCourt || null,
       signup_intent: intent,
-      rating_source: ratingSource,
+      rating_source: ratingSource ?? 'skipped',
       dupr_rating: ratingSource === 'dupr_known' ? numericRating : null,
       estimated_rating: ratingSource === 'estimated' ? numericRating : null,
       // Consolidated self-report (Phase 0). Self-entered DUPR is NOT verified.
@@ -114,7 +109,7 @@ export default function ProfileSetupPage() {
     router.push(dest)
   }
 
-  const canSubmit = name.trim().length > 0 && intent !== null && ratingSource !== null && !loading
+  const canSubmit = name.trim().length > 0 && intent !== null && !loading
 
   return (
     <main className="min-h-screen bg-brand-page flex items-center justify-center p-4">
@@ -252,7 +247,8 @@ export default function ProfileSetupPage() {
 
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium text-brand-dark">
-                Do you know your DUPR rating?
+                Do you know your DUPR rating?{' '}
+                <span className="text-brand-muted font-normal">(optional)</span>
               </legend>
 
               <label className="flex items-center gap-2 cursor-pointer">
@@ -302,17 +298,6 @@ export default function ProfileSetupPage() {
                   className="w-full input ml-6"
                 />
               )}
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="ratingSource"
-                  value="skipped"
-                  onChange={() => setRatingSource('skipped')}
-                  className="accent-brand-active"
-                />
-                <span className="text-sm text-brand-body">Skip for now</span>
-              </label>
             </fieldset>
 
             <label className="flex items-start gap-3 cursor-pointer">
