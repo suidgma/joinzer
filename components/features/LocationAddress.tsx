@@ -13,9 +13,6 @@ export default function LocationAddress({ location }: { location?: LocationOptio
 
   return (
     <div className="mt-2 rounded-xl border border-brand-border bg-brand-soft/40 p-3 space-y-2">
-      <p className="text-[11px] font-semibold text-brand-muted uppercase tracking-wide">
-        Address — auto-filled from location
-      </p>
       <div>
         <label className={lbl}>Street address</label>
         <div className={cell}>{val(location.address)}</div>
