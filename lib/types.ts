@@ -11,6 +11,8 @@ export type LocationOption = {
   state?: string | null
   zip_code?: string | null
   country?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 export type EventParticipantItem = {

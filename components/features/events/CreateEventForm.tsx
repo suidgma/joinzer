@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LocationCombobox from './LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
+import LocationMapButton from '@/components/features/LocationMapButton'
 import NewLocationFields from '@/components/features/NewLocationFields'
 import TimeSelect from './TimeSelect'
 import type { LocationOption } from '@/lib/types'
@@ -241,13 +242,16 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
               onChange={setLocationId}
             />
             <LocationAddress location={locations.find((l) => l.id === locationId)} />
-            <button
-              type="button"
-              onClick={() => setAddNewLocation(true)}
-              className="mt-1 text-xs text-brand-active hover:underline"
-            >
-              Can&apos;t find your location? Add a new one
-            </button>
+            <div className="mt-1 flex items-center gap-3">
+              <LocationMapButton locations={locations} value={locationId} onSelect={setLocationId} />
+              <button
+                type="button"
+                onClick={() => setAddNewLocation(true)}
+                className="text-xs text-brand-active hover:underline"
+              >
+                Can&apos;t find your location? Add a new one
+              </button>
+            </div>
           </>
         )}
       </div>
