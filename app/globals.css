@@ -27,3 +27,19 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+/* Compact always-visible venue code chip on the location map (Leaflet permanent tooltip). */
+.venue-code-label {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #cbd5c0;
+  border-radius: 4px;
+  padding: 0 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #1f2a1c;
+  box-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.venue-code-label::before { display: none; } /* hide the tooltip arrow */
