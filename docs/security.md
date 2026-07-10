@@ -2,38 +2,54 @@
 
 > Evergreen. Auto-loaded every session via the `@docs/security.md` import in `/CLAUDE.md`.
 > The global `~/.claude/CLAUDE.md` has its own overlapping "Security — Non-Negotiable" section; these project rules extend it.
-> Last revised: May 11, 2026.
+> Last revised: July 10, 2026.
 
 These rules apply to every session, every file, every commit on Joinzer.
 
 ## Secrets
 
-- Never put API keys, passwords, tokens, or secrets in code files.
-- Use environment variables for all sensitive data.
-- `.env` and `.env.local` must be in `.gitignore`.
-- If you encounter exposed secrets, stop and flag immediately.
+- Never put API keys, passwords, tokens, or secrets in code files. Use environment variables.
+- `.env` / `.env.local` must be in `.gitignore`; never commit them.
+- **Server-only** secrets — never in client code, never prefixed `NEXT_PUBLIC_`, never committed: `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CRON_SECRET`, `RESEND_API_KEY`, `VAPID_PRIVATE_KEY`.
+- If you encounter an exposed secret, stop and flag immediately.
 
 ## Supabase keys
 
-- `service_role` key is **server-side only**. Never expose. Never commit.
-- `anon` key is fine on the frontend; rely on RLS for access control.
-- All sensitive writes (state transitions, scoring, payments) go through RPC, not direct table updates.
+- The `service_role` key is **server-side only** — never in client code, never `NEXT_PUBLIC_*`, never committed. It **bypasses RLS**.
+- The `anon` key is fine on the frontend; rely on RLS for what it can read/write.
+
+## Server writes & authorization (the real model)
+
+- Most sensitive writes are **direct service-role table writes inside API routes**, not database RPCs. Only a few flows use `SECURITY DEFINER` RPCs (registration, checkout, event join/leave, the Stripe webhook).
+- Because service-role bypasses RLS, **the API route is the security boundary.** Every mutating route (and every RPC) must, *before* it writes:
+  1. authenticate the caller (`supabase.auth.getUser()`), and
+  2. authorize them for that *specific* action — organizer / co-admin / participant / self. Never trust a client-supplied user id, role, or ownership claim; re-derive it server-side.
+- Validate and normalize inputs server-side (scores, emails, gender, etc.). Never persist client-computed authority.
 
 ## RLS
 
-- Enable RLS on every table without exception.
-- Public/anon access only for explicitly marked, PII-masked views.
-- Test policies with the Supabase SQL editor before assuming they work.
+- Enable RLS on **every** table. Many tables are intentionally **deny-all** (RLS on, no policy) and touched only by server code via the service role — the default for anything not meant for direct client reads (ratings, stats, achievements, fixtures, attendance, ladder/box/team, audit_log, …). A Supabase "RLS enabled, no policy" advisory on these is expected, not a bug.
+- Where a table **is** client-readable, its RLS policy is the guard — keep policies least-privilege. Avoid `USING (true)` / `WITH CHECK (true)` for INSERT/UPDATE/DELETE (a service-role write doesn't need a permissive public policy).
+- Verify policies before assuming they work.
 
 ## Player PII
 
-- PII = full name, phone, email beyond display, payment info, exact home location.
-- Player PII is **never** returned by public/anon APIs.
-- Public browse pages mask PII: first names only, no contact info, no exact home location.
-- Players-directory APIs honor `profiles.discoverable=false` to opt out.
+- PII = full name, phone, email, payment info, exact home location.
+- Player PII is **never** returned by public/anon APIs. Public-browse and profile/résumé loaders select only PII-safe columns — never email/phone.
+- Public/browse surfaces mask to first names; no contact info; no exact home location.
+- Honor the player's own visibility settings: `profiles.discoverable` (directory + public-profile opt-out) and the `email_visibility` / `phone_visibility` tiers. Exclude `dummy` accounts from public directories.
 
-## Payments (when implemented)
+## Payments (live — Stripe)
 
-- Stripe secret key is server-side only.
-- Stripe publishable key is fine on frontend.
-- Payment state transitions go through server-side RPC + audit log.
+- Stripe **secret** key is server-side only; the publishable key is fine on the frontend.
+- The Stripe **webhook must verify the signature** (`STRIPE_WEBHOOK_SECRET`) before trusting any event — treat unsigned/invalid as untrusted.
+- Payment and refund state changes happen server-side (route/webhook) and are audit-logged.
+
+## Webhooks & cron
+
+- Webhook handlers verify their signature/secret before acting on the payload.
+- Cron endpoints (e.g. nightly rating/stats/achievements recompute) are guarded by `CRON_SECRET` — reject any request without it.
+
+## Audit
+
+- Log sensitive state changes (scoring, registration cancel/withdraw/refund, sub claim/approve, etc.) via `lib/audit/log.ts`. Audit writes are best-effort and must never block the user path.
