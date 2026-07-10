@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
 import AttendanceGrid, { type AttendeeRow } from '@/components/features/leagues/AttendanceGrid'
+import PlayerCombobox from '@/components/ui/PlayerCombobox'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -390,17 +391,13 @@ function AddSubModal({
         {availableSubs.length === 0 ? (
           <p className="text-sm text-brand-muted">No available players to add.</p>
         ) : (
-          <select
+          <PlayerCombobox
             autoFocus
+            options={availableSubs}
             value={selectedId}
-            onChange={e => setSelectedId(e.target.value)}
-            className="w-full input text-sm"
-          >
-            <option value="">— Select a player —</option>
-            {availableSubs.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            onChange={setSelectedId}
+            placeholder="Type a player's name…"
+          />
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-3">
@@ -471,17 +468,13 @@ function AssignSubModal({
         {options.length === 0 ? (
           <p className="text-sm text-brand-muted">No available players. Use &quot;+ Add Sub&quot; to add someone first.</p>
         ) : (
-          <select
+          <PlayerCombobox
             autoFocus
+            options={options.map(p => ({ id: p.id, name: p.inSession ? `${p.name} (already here)` : p.name }))}
             value={selectedUserId}
-            onChange={e => setSelectedUserId(e.target.value)}
-            className="w-full input text-sm"
-          >
-            <option value="">— Select a sub —</option>
-            {options.map(p => (
-              <option key={p.id} value={p.id}>{p.name}{p.inSession ? ' (already here)' : ''}</option>
-            ))}
-          </select>
+            onChange={setSelectedUserId}
+            placeholder="Type a player's name…"
+          />
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-3">

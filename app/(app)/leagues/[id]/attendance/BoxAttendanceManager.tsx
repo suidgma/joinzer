@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import AttendanceGrid from '@/components/features/leagues/AttendanceGrid'
+import PlayerCombobox from '@/components/ui/PlayerCombobox'
 import { buildAttendeeRows, type AttendeeInput } from '@/lib/leagues/attendance'
 import type { LeagueAttendanceStatus } from '@/lib/types'
 
@@ -292,10 +293,14 @@ function AssignSubModal({
           </div>
         </div>
       ) : (
-        <select autoFocus value={value} onChange={(e) => setValue(e.target.value)} className="w-full input text-sm">
-          <option value="">— Select a sub —</option>
-          {optionList()}
-        </select>
+        <PlayerCombobox
+          autoFocus
+          options={options.map((o) => ({ id: o.value, name: o.inCycle ? `${o.name} (already here)` : o.name }))}
+          value={value}
+          onChange={setValue}
+          placeholder="Type a player's name…"
+          emptyText="No available players"
+        />
       )}
       {err && <p className="text-sm text-red-600">{err}</p>}
       <ModalButtons onClose={onClose} onConfirm={assign} confirmLabel={saving ? 'Assigning…' : 'Assign'} disabled={saving || !canSubmit} />
@@ -349,10 +354,13 @@ function AddSubModal({
       {availableSubs.length === 0 ? (
         <p className="text-sm text-brand-muted">No available players to add.</p>
       ) : (
-        <select autoFocus value={userId} onChange={(e) => setUserId(e.target.value)} className="w-full input text-sm">
-          <option value="">— Select a player —</option>
-          {availableSubs.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
-        </select>
+        <PlayerCombobox
+          autoFocus
+          options={availableSubs.map((s) => ({ id: s.userId, name: s.name }))}
+          value={userId}
+          onChange={setUserId}
+          placeholder="Type a player's name…"
+        />
       )}
       {err && <p className="text-sm text-red-600">{err}</p>}
       <ModalButtons onClose={onClose} onConfirm={add} confirmLabel={saving ? 'Adding…' : 'Add Sub'} disabled={saving || !userId} />

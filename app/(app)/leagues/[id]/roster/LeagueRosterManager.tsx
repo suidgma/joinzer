@@ -5,6 +5,7 @@ import { useDialog } from '@/components/ui/DialogProvider'
 import Link from 'next/link'
 import { GripVertical, ArrowUp } from 'lucide-react'
 import RatingBadge from '@/components/features/RatingBadge'
+import PlayerCombobox from '@/components/ui/PlayerCombobox'
 
 type PlayerReg = {
   id: string
@@ -461,18 +462,15 @@ export default function LeagueRosterManager({
         {availablePlayers.length > 0 && (
           <div className="pt-2 space-y-2">
             <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Add Player</p>
-            <div className="flex gap-2">
-              <select
+            <div className="flex gap-2 items-start">
+              <PlayerCombobox
+                options={availablePlayers}
                 value={selectedPlayerId}
-                onChange={(e) => { setSelectedPlayerId(e.target.value); setFullError(false) }}
-                className="flex-1 input text-sm"
+                onChange={(id) => { setSelectedPlayerId(id); setFullError(false) }}
+                placeholder="Type a player's name…"
                 disabled={isFull}
-              >
-                <option value="">— Select a player —</option>
-                {availablePlayers.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                className="flex-1"
+              />
               <button
                 onClick={handleAdd}
                 disabled={!selectedPlayerId || !!addingId || isFull}
