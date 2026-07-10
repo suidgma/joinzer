@@ -51,6 +51,35 @@ export default function LadderRounds({
     }
   }
 
+  // Rebuild the current (latest) round — round 1 re-seeds from who's Here now, later
+  // rounds re-derive from the previous round's results (handy after fixing attendance or
+  // correcting an earlier score). Discards the round's matches and any scores entered.
+  async function regenerate() {
+    const n = roundsPlayed
+    const hasScores = !!latest?.courts.some((c) => c.status === 'completed')
+    const from = n === 1 ? "from who's marked Here now" : "from the previous round's results"
+    const ok = await confirm({
+      title: `Regenerate round ${n}?`,
+      body: hasScores
+        ? `This deletes round ${n}'s matches and any scores entered, then rebuilds it ${from}.`
+        : `Rebuild round ${n}'s matches ${from}.`,
+      confirmLabel: 'Regenerate',
+      danger: hasScores,
+    })
+    if (!ok) return
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/ladder/round`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate: true }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error ?? 'Failed to regenerate round'); return }
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function openScore(m: CourtMatch) {
     setScoringId(m.id); setError(null)
     if (m.status === 'completed' && m.score1 != null && m.score2 != null) {
@@ -185,6 +214,16 @@ export default function LadderRounds({
       )}
       {roundsPlayed > 0 && !latestScored && (
         <p className="text-xs text-brand-muted text-center">Score every court to generate the next round.</p>
+      )}
+
+      {roundsPlayed > 0 && (
+        <button
+          onClick={regenerate}
+          disabled={busy}
+          className="w-full py-2 rounded-xl border border-brand-border text-sm font-medium text-brand-muted hover:border-brand-active hover:text-brand-dark disabled:opacity-50 transition-colors"
+        >
+          Regenerate round {roundsPlayed}
+        </button>
       )}
 
       {preview && roundsPlayed > 0 && (
