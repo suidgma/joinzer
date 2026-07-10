@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { authorizeOrganizer } from '@/lib/leagues/attendanceWrite'
 import { ladderAdmin, readLadderState } from '@/lib/leagues/ladderServer'
 import { seedKotcRound, nextKotcRound, type CourtAssignment, type CourtResult } from '@/lib/leagues/ladder'
+import { orderByServe, tallyFrom, type ServeTally } from '@/lib/scheduling/serveBalance'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -105,17 +106,33 @@ export async function POST(req: NextRequest, props: Params) {
   const baseFx = regenerate ? fx.filter((f) => f.round_number !== targetRound) : fx
   let nextMatchNum = baseFx.length ? Math.max(...baseFx.map((f) => f.match_number ?? 0)) + 1 : 1
 
-  const rows = assignment.courts.map((c) => ({
-    league_id: params.id,
-    period_id: period.id,
-    round_number: targetRound,
-    court_number: c.court,
-    match_number: nextMatchNum++,
-    match_stage: 'ladder_round',
-    team_1_registration_id: c.a,
-    team_2_registration_id: c.b,
-    status: 'scheduled',
-  }))
+  // Balance serve-first: team_1 is listed first and serves first. Seed a season-long
+  // tally from prior ladder rounds (across sessions) so each entrant is listed first
+  // ~half the time. Safe because next-round movement is driven by winner/loser, not
+  // by which slot an entrant occupied.
+  const { data: priorLadderFx } = await db
+    .from('league_fixtures')
+    .select('team_1_registration_id')
+    .eq('league_id', params.id)
+    .eq('match_stage', 'ladder_round')
+  const serveTally: ServeTally = tallyFrom(priorLadderFx ?? [], (f: Record<string, unknown>) =>
+    f.team_1_registration_id ? [f.team_1_registration_id as string] : [],
+  )
+
+  const rows = assignment.courts.map((c) => {
+    const [first, second] = orderByServe(c.a, c.b, (x) => [x], serveTally)
+    return {
+      league_id: params.id,
+      period_id: period.id,
+      round_number: targetRound,
+      court_number: c.court,
+      match_number: nextMatchNum++,
+      match_stage: 'ladder_round',
+      team_1_registration_id: first,
+      team_2_registration_id: second,
+      status: 'scheduled',
+    }
+  })
   if (assignment.bye) {
     rows.push({
       league_id: params.id,

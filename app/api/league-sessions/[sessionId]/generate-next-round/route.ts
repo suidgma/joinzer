@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { generateNextRound, applySubsToFixedPairs, type CompletedRound, type CompletedMatch, type SessionPlayer } from '@/lib/scheduling/leagueScheduler'
 import { isSinglesFormat, isMixedDoublesFormat } from '@/lib/taxonomy/formats'
+import { orderByServe, tallyFrom, type ServeTally } from '@/lib/scheduling/serveBalance'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -192,6 +193,36 @@ export async function POST(req: NextRequest, props: Params) {
   const result = generateNextRound(players, completedRounds, courts, nextRoundNumber, 1000, fixedPairs, singlesOnly, isMixedDoubles)
   if (!result) {
     return NextResponse.json({ error: 'Could not generate a valid schedule. Check player count.' }, { status: 422 })
+  }
+
+  // --- Balance serve-first across the season ---
+  // Team 1 is listed first and therefore serves first. Partners rotate each round,
+  // so we balance per individual player: seed a tally from every match already
+  // generated in this league, then list first whichever side has served first less.
+  const { data: leagueSessionRows } = await db
+    .from('league_sessions').select('id').eq('league_id', session.league_id)
+  const leagueSessionIds = (leagueSessionRows ?? []).map((s: Record<string, unknown>) => s.id as string)
+  const { data: priorMatches } = leagueSessionIds.length > 0
+    ? await db.from('league_round_matches')
+        .select('team1_player1_id, team1_player2_id, singles_player1_id')
+        .in('session_id', leagueSessionIds)
+    : { data: [] as Record<string, unknown>[] }
+  const serveTally: ServeTally = tallyFrom(priorMatches ?? [], (m) =>
+    [m.team1_player1_id, m.team1_player2_id, m.singles_player1_id].filter(Boolean) as string[],
+  )
+  for (const m of result.matches) {
+    if (m.matchType === 'bye') continue
+    const isSingles = m.matchType === 'singles'
+    const sideA = (isSingles ? [m.singlesPlayer1Id] : [m.team1Player1Id, m.team1Player2Id]).filter(Boolean) as string[]
+    const sideB = (isSingles ? [m.singlesPlayer2Id] : [m.team2Player1Id, m.team2Player2Id]).filter(Boolean) as string[]
+    const [first] = orderByServe(sideA, sideB, (s) => s, serveTally)
+    if (first !== sideB) continue // sideA already listed first
+    if (isSingles) {
+      ;[m.singlesPlayer1Id, m.singlesPlayer2Id] = [m.singlesPlayer2Id, m.singlesPlayer1Id]
+    } else {
+      ;[m.team1Player1Id, m.team1Player2Id, m.team2Player1Id, m.team2Player2Id] =
+        [m.team2Player1Id, m.team2Player2Id, m.team1Player1Id, m.team1Player2Id]
+    }
   }
 
   // --- Persist round ---

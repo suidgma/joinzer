@@ -1,6 +1,8 @@
 // Pure bracket-building functions — no DB dependencies.
 // All functions return plain match row objects ready for insert.
 
+import { balanceServeOrder, orderByServe, type ServeTally } from '../scheduling/serveBalance'
+
 type BaseMatch = Record<string, unknown>
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -264,7 +266,9 @@ export function circleMethodPairs(teams: string[]): Array<Array<[string, string]
     slots.splice(1, 0, last)
   }
 
-  return out
+  // The circle method always lists position 0 first (it serves first every round);
+  // balance the listed order so serve-first spreads ~50/50 across the round-robin.
+  return balanceServeOrder(out)
 }
 
 /**
@@ -360,6 +364,8 @@ export function rotatingDoublesMatches(
 
   const rows: BaseMatch[] = []
   let matchNum = startMatchNum
+  // Partners rotate every round, so balance serve-first per individual player.
+  const served: ServeTally = new Map()
 
   for (let round = 1; round <= totalRounds; round++) {
     // Try a handful of shuffles and pick the one with the fewest repeat partnerships.
@@ -385,12 +391,19 @@ export function rotatingDoublesMatches(
 
     for (let i = 0; i < actualMatchesPerRound; i++) {
       const [p1, p2, p3, p4] = chosen.slice(i * 4, i * 4 + 4)
+      // Balance which pair is listed first (serves first) by per-player serve load.
+      const [first, second] = orderByServe(
+        [p1, p2] as [string, string],
+        [p3, p4] as [string, string],
+        (side) => side,
+        served,
+      )
       rows.push({
         ...base,
-        team_1_registration_id:         p1,
-        team_1_partner_registration_id: p2,
-        team_2_registration_id:         p3,
-        team_2_partner_registration_id: p4,
+        team_1_registration_id:         first[0],
+        team_1_partner_registration_id: first[1],
+        team_2_registration_id:         second[0],
+        team_2_partner_registration_id: second[1],
         match_stage: 'round_robin',
         round_number: round,
         match_number: matchNum++,
