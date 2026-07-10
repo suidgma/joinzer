@@ -83,11 +83,11 @@ export default function LadderRounds({
 
   async function finalize() {
     const ok = await confirm({
-      title: 'Finish session & update ladder?',
+      title: 'End the day?',
       body: unscored > 0
-        ? `${unscored} court${unscored === 1 ? '' : 's'} still unscored. Finish anyway using the scores entered so far?`
+        ? `${unscored} court${unscored === 1 ? '' : 's'} still unscored. End the day using the scores entered so far?`
         : 'Apply tonight’s results to the ladder. Players move up or down (capped), absent players hold their rank.',
-      confirmLabel: 'Finish & update',
+      confirmLabel: 'End the day',
     })
     if (!ok) return
     setBusy(true); setError(null)
@@ -207,7 +207,7 @@ export default function LadderRounds({
           </div>
           <div className="p-3 border-t border-brand-border">
             <button onClick={finalize} disabled={busy} className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50">
-              {busy ? 'Updating…' : 'Finish & update ladder'}
+              {busy ? 'Updating…' : 'End the day'}
             </button>
           </div>
         </div>
