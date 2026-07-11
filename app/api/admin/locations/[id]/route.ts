@@ -28,3 +28,23 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
   return NextResponse.json({ ok: true })
 }
+
+// PATCH /api/admin/locations/[id] — set (or clear) the venue's manual map-pin
+// short code. Empty/blank clears it, so the map falls back to the auto code.
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isPlatformAdmin(user.email)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json().catch(() => ({}))
+  const raw = typeof body.short_code === 'string' ? body.short_code.trim().slice(0, 12) : ''
+  const short_code = raw || null
+
+  const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { error } = await db.from('locations').update({ short_code }).eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true, short_code })
+}

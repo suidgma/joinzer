@@ -13,6 +13,7 @@ export type LocationOption = {
   country?: string | null
   lat?: number | null
   lng?: number | null
+  short_code?: string | null
 }
 
 export type EventParticipantItem = {
