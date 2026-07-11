@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { redirect, notFound } from 'next/navigation'
+import Link from 'next/link'
 import { isPlatformAdmin } from '@/lib/auth/admin'
 import PendingLocationsList, { type PendingLocation } from './PendingLocationsList'
 
@@ -34,7 +35,10 @@ export default async function AdminPendingLocationsPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-4 space-y-4">
-      <h1 className="font-heading text-xl font-bold text-brand-dark">Pending venues</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-heading text-xl font-bold text-brand-dark">Pending venues</h1>
+        <Link href="/admin/venues" className="text-xs text-brand-active hover:underline whitespace-nowrap">Venue map codes →</Link>
+      </div>
       <p className="text-sm text-brand-muted">
         Venues organizers added because they weren&apos;t in the directory. They only show in
         their creator&apos;s own picker until you <strong>approve</strong> them for everyone.

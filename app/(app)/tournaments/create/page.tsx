@@ -21,7 +21,7 @@ export default async function CreateTournamentPage() {
 
   const { data: locationData } = await supabase
     .from('locations')
-    .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country, lat, lng')
+    .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country, lat, lng, short_code')
     .eq('is_active', true)
     .or(`status.eq.approved,created_by.eq.${user.id}`) // approved venues + your own pending ones
     .order('sort_order', { ascending: true })

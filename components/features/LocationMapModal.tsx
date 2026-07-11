@@ -5,21 +5,9 @@ import { useEffect } from 'react'
 import L from 'leaflet'
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet'
 import type { LocationOption } from '@/lib/types'
+import { venueCode } from '@/lib/locations/venueCode'
 
 const VEGAS_CENTER: [number, number] = [36.1699, -115.1398]
-
-// Short always-visible code for a pin — initials of the significant words, e.g.
-// "Sunset Park Pickleball Complex" → "SPPC". Falls back to the first letters.
-const FILLER = new Set(['of', 'the', 'and', 'at', 'a', 'an', '&', 'de', 'la', 'el'])
-function venueCode(name: string): string {
-  const words = name
-    .replace(/[^\w\s&-]/g, ' ')
-    .split(/[\s-]+/)
-    .filter(Boolean)
-    .filter((w) => !FILLER.has(w.toLowerCase()))
-  const initials = words.map((w) => w[0].toUpperCase()).join('')
-  return (initials || name.replace(/\s+/g, '').toUpperCase()).slice(0, 4)
-}
 
 // Fit the view to all the pins once the map mounts. The setTimeout lets the modal
 // finish laying out first — invalidateSize avoids gray tiles when a map mounts
@@ -88,7 +76,7 @@ export default function LocationMapModal({
                   }}
                 >
                   <Tooltip permanent direction="right" offset={[6, 0]} className="venue-code-label">
-                    {venueCode(l.name)}
+                    {venueCode(l.name, l.short_code)}
                   </Tooltip>
                   <Popup>
                     <div className="space-y-1">
