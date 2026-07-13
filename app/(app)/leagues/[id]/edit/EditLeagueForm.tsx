@@ -136,7 +136,6 @@ export default function EditLeagueForm({
     d.registration_closes_at ? isoToPtLocal(d.registration_closes_at) : ''
   )
   const [playDays, setPlayDays] = useState(d.play_days?.toString() ?? '')
-  const [gamesPerSession, setGamesPerSession] = useState(d.games_per_session?.toString() ?? '')
   const [maxPlayers, setMaxPlayers] = useState(d.max_players?.toString() ?? '')
   const [registrationStatus, setRegistrationStatus] = useState(d.registration_status ?? 'upcoming')
   const [status, setStatus] = useState(d.status ?? 'active')
@@ -233,7 +232,6 @@ export default function EditLeagueForm({
         start_date: startDate || null,
         end_date: lastDate || null,
         play_days: playDays ? parseInt(playDays) : null,
-        games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
@@ -274,12 +272,10 @@ export default function EditLeagueForm({
 
     // Generate sessions only if none exist yet — box/ladder use league_periods, flex is deadline-based.
     if (!noWeeklySessions && willGenerateSessions) {
-      const roundsPlanned = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = generatedDates.map((d, i) => ({
         league_id: leagueId,
         session_date: d,
         session_number: i + 1,
-        rounds_planned: roundsPlanned,
       }))
       await supabase.from('league_sessions').insert(rows)
     }
@@ -503,20 +499,11 @@ export default function EditLeagueForm({
           )}
         </FormRow>
         <FormRow
-          label="Season length"
-          width="md"
-          helpText="Play days = number of weekly sessions. Games per session controls rounds generated each night."
+          label="Play days"
+          width="sm"
+          helpText="Number of weekly sessions in the season. Each night you generate rounds as needed and end the day whenever you're done."
         >
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-brand-muted mb-1">Play days</label>
-              <input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} className="w-full input" />
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-brand-muted mb-1">Games / session</label>
-              <input type="number" min="1" value={gamesPerSession} onChange={(e) => setGamesPerSession(e.target.value)} className="w-full input" />
-            </div>
-          </div>
+          <input type="number" min="1" value={playDays} onChange={(e) => setPlayDays(e.target.value)} className="w-full input" />
         </FormRow>
         <FormRow label="Times" width="md">
           <div className="space-y-3">

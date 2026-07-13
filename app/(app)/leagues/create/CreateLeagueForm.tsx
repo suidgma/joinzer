@@ -65,7 +65,6 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [deadlineTouched, setDeadlineTouched] = useState(false)
   const [playDays, setPlayDays] = useState('7')
-  const [gamesPerSession, setGamesPerSession] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
   const [registrationStatus, setRegistrationStatus] = useState('upcoming')
   const [description, setDescription] = useState('')
@@ -254,7 +253,6 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         start_date: startDate || null,
         end_date: submitDates[submitDates.length - 1] ?? lastDate ?? null,
         play_days: playDays ? parseInt(playDays) : null,
-        games_per_session: gamesPerSession ? parseInt(gamesPerSession) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
@@ -314,12 +312,10 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
     // Period-based formats (box cycles, ladder sessions) create their play
     // occasions on demand — not as pre-scheduled weekly league_sessions.
     if (!noWeeklySessions && submitDates.length > 0) {
-      const roundsPlanned = gamesPerSession ? parseInt(gamesPerSession) : 7
       const rows = submitDates.map((d, i) => ({
         league_id: league.id,
         session_date: d,
         session_number: i + 1,
-        rounds_planned: roundsPlanned,
       }))
       await supabase.from('league_sessions').insert(rows)
     }
@@ -535,34 +531,18 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
           )}
         </FormRow>
         <FormRow
-          label="Season length"
-          width="md"
-          helpText="Play days = number of weekly sessions. Games per session controls rounds generated each night."
+          label="Play days"
+          width="sm"
+          helpText="Number of weekly sessions in the season. Each night you generate rounds as needed and end the day whenever you're done."
         >
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-brand-muted mb-1">Play days</label>
-              <input
-                type="number"
-                min="1"
-                value={playDays}
-                onChange={(e) => setPlayDays(e.target.value)}
-                placeholder="8"
-                className="w-full input"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-brand-muted mb-1">Games / session</label>
-              <input
-                type="number"
-                min="1"
-                value={gamesPerSession}
-                onChange={(e) => setGamesPerSession(e.target.value)}
-                placeholder="7"
-                className="w-full input"
-              />
-            </div>
-          </div>
+          <input
+            type="number"
+            min="1"
+            value={playDays}
+            onChange={(e) => setPlayDays(e.target.value)}
+            placeholder="8"
+            className="w-full input"
+          />
         </FormRow>
         <FormRow label="Times" width="md">
           <div className="space-y-3">

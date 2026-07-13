@@ -366,7 +366,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           />
         )}
         {league.play_days != null && <Row label="Play Days" value={`${league.play_days}`} />}
-        {league.games_per_session != null && <Row label="Games/Play" value={`${league.games_per_session}`} />}
         <Row
           label="Players"
           value={league.max_players != null

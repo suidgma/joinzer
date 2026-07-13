@@ -76,7 +76,6 @@ type Props = {
   initialPlayers: Player[]
   initialRounds: Round[]
   numberOfCourts: number
-  roundsPlanned: number
   initialScoredRounds: number[]
   initialMatchScores: MatchScoreData[]
   availableSubs: { id: string; name: string }[]
@@ -502,7 +501,6 @@ export default function LiveSessionManager({
   initialPlayers,
   initialRounds,
   numberOfCourts,
-  roundsPlanned,
   initialScoredRounds,
   initialMatchScores,
   availableSubs,
@@ -1008,15 +1006,9 @@ export default function LiveSessionManager({
           </div>
         )}
 
-        {!draftRound && nextRoundNumber > roundsPlanned && !pendingScores && (
-          <div className="bg-brand-soft border border-brand-border rounded-xl p-3 text-sm text-brand-muted text-center">
-            All {roundsPlanned} rounds completed. Enter scores and end the day.
-          </div>
-        )}
-
         <button
           onClick={() => handleGenerate(false)}
-          disabled={generating || eligibleCount < 2 || !!draftRound || pendingScores || nextRoundNumber > roundsPlanned}
+          disabled={generating || eligibleCount < 2 || !!draftRound || pendingScores}
           className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-40 transition-colors"
         >
           {generating ? 'Generating…' : draftRound ? `Round ${draftRound.round_number} draft ready` : `Generate Round ${nextRoundNumber}`}
@@ -1094,10 +1086,10 @@ export default function LiveSessionManager({
       )}
 
       {/* ── End the Day ───────────────────────────────────────── */}
-      {completedCount >= roundsPlanned && !activeRound && (
+      {completedCount >= 1 && !activeRound && (
         <section className="pt-2 border-t border-brand-border">
           <p className="text-xs text-brand-muted text-center mb-3">
-            All {roundsPlanned} rounds complete. Ready to wrap up?
+            {completedCount} round{completedCount !== 1 ? 's' : ''} played. Generate more above, or wrap up when you&apos;re done.
           </p>
           <button
             onClick={handleEndDay}

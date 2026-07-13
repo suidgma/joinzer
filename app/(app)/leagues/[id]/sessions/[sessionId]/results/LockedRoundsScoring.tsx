@@ -19,7 +19,6 @@ type Props = {
   sessionId: string
   leagueId: string
   matches: LockedMatch[]
-  roundsPlanned: number
   pointsToWin: number
 }
 
@@ -42,7 +41,7 @@ function sideLabel(m: LockedMatch, teamNum: 1 | 2): string {
   return `Team ${teamNum}`
 }
 
-export default function LockedRoundsScoring({ sessionId, leagueId, matches, roundsPlanned, pointsToWin }: Props) {
+export default function LockedRoundsScoring({ sessionId, leagueId, matches, pointsToWin }: Props) {
   const { confirm } = useDialog()
   const router = useRouter()
   const supabase = createClient()
@@ -188,8 +187,6 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
   }
 
   const rounds = Array.from(new Set(matches.map((m) => m.roundNumber))).sort((a, b) => a - b)
-  const maxRoundNumber = rounds.length > 0 ? Math.max(...rounds) : 0
-  const isLastRound = maxRoundNumber >= roundsPlanned
 
   if (matches.length === 0) return null
 
@@ -294,23 +291,20 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, roun
         <div className="space-y-2">
           <p className="text-sm text-center text-green-600 font-medium">✓ All scores saved</p>
           {generateError && <p className="text-sm text-red-600 text-center">{generateError}</p>}
-          {isLastRound ? (
-            <button
-              onClick={endDay}
-              disabled={generating}
-              className="w-full py-3 rounded-xl bg-brand-dark text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
-              {generating ? 'Ending…' : '🏁 End the Day'}
-            </button>
-          ) : (
-            <button
-              onClick={() => generateNext()}
-              disabled={generating}
-              className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-            >
-              {generating ? 'Generating…' : 'Generate Next Round →'}
-            </button>
-          )}
+          <button
+            onClick={() => generateNext()}
+            disabled={generating}
+            className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+          >
+            {generating ? 'Generating…' : 'Generate Next Round →'}
+          </button>
+          <button
+            onClick={endDay}
+            disabled={generating}
+            className="w-full py-3 rounded-xl bg-brand-dark text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {generating ? 'Ending…' : '🏁 End the Day'}
+          </button>
         </div>
       ) : (
         <button
