@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Upload } from 'lucide-react'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
-import { formatSkillRange, skillRangeToLevel, formatAgeRange } from '@/lib/taxonomy/formats'
+import { formatSkillRange, skillRangeToLevel, formatAgeRange, isSinglesFormat, isDoublesFormat } from '@/lib/taxonomy/formats'
 import LeagueActions from './LeagueActions'
 import DeleteLeagueButton from './DeleteLeagueButton'
 import SessionScheduleManager from './SessionScheduleManager'
@@ -35,18 +35,32 @@ function fmtTime(t: string | null): string | null {
   return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
-const FORMAT_LABELS: Record<string, string> = {
-  individual_round_robin: 'Individual Round Robin',
-  mens_doubles:   "Men's Doubles",
-  womens_doubles: "Women's Doubles",
-  mixed_doubles:  'Mixed Doubles',
-  coed_doubles:   'Coed Doubles',
-  open_doubles:   'Open Doubles',
-  mens_singles:   "Men's Singles",
-  womens_singles: "Women's Singles",
-  open_singles:   'Open Singles',
-  singles:        'Singles',
-  custom:         'Custom',
+// League format (round-robin / box / ladder / team / flex), matching the terms
+// used on the create form rather than the packed `format` string.
+const FORMAT_KIND_LABELS: Record<string, string> = {
+  session_rr: 'Round Robin',
+  box:        'Box League',
+  ladder:     'Ladder',
+  team:       'Team League',
+  flex:       'Flex League',
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  mens:   'Men',
+  womens: 'Women',
+  mixed:  'Mixed',
+  coed:   'Coed',
+  open:   'Open',
+}
+
+// Split the packed `format` (e.g. "mixed_doubles") into its display parts.
+function teamTypeLabel(format: string): string | null {
+  if (isSinglesFormat(format)) return 'Singles'
+  if (isDoublesFormat(format)) return 'Doubles'
+  return null // team leagues (custom) have no single team type
+}
+function categoryLabel(format: string): string | null {
+  return CATEGORY_LABELS[format.replace(/_(singles|doubles)$/, '')] ?? null
 }
 
 
@@ -346,20 +360,22 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       {/* Details card */}
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
         {(league as any).creator?.name && <Row label="Organizer" value={(league as any).creator.name} />}
-        <Row label="Format" value={FORMAT_LABELS[league.format]} />
+        <Row label="League Format" value={FORMAT_KIND_LABELS[(league as any).format_kind ?? 'session_rr'] ?? 'Round Robin'} />
+        {teamTypeLabel(league.format) && <Row label="Team Type" value={teamTypeLabel(league.format)!} />}
+        {categoryLabel(league.format) && <Row label="Category" value={categoryLabel(league.format)!} />}
         {isDoublesLeague && (
           <Row
-            label="Partners"
+            label="Partner Mode"
             value={(league as { partner_mode?: string }).partner_mode === 'fixed'
               ? 'Fixed all season'
-              : 'Rotating each match'}
+              : 'Rotating each round'}
           />
         )}
         {formatSkillRange((league as any).skill_min, (league as any).skill_max) && (
-          <Row label="Skill Level" value={formatSkillRange((league as any).skill_min, (league as any).skill_max)!} />
+          <Row label="Skill Range" value={formatSkillRange((league as any).skill_min, (league as any).skill_max)!} />
         )}
         {formatAgeRange((league as any).age_min, (league as any).age_max) && (
-          <Row label="Age" value={formatAgeRange((league as any).age_min, (league as any).age_max)!} />
+          <Row label="Age Range" value={formatAgeRange((league as any).age_min, (league as any).age_max)!} />
         )}
         {league.location_name && <Row label="Location" value={league.location_name} />}
         {(rawStartTime || league.schedule_description) && (
