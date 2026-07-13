@@ -9,8 +9,9 @@ import { createNotifications } from '@/lib/notifications/create'
 import { validateScores } from '@/lib/scoring/validateScores'
 
 // POST /api/tournaments/[id]/matches/[matchId]/score
-// Organizer-only score write path for the tournament day view.
-// Service-role backed — never uses anon key for writes.
+// Score write path for the tournament day view. Organizer always; a match participant
+// may score their own match when the tournament has allow_player_scores on (organizer
+// can still edit). Service-role backed — never uses anon key for writes.
 export async function POST(
   req: NextRequest,
   props: { params: Promise<{ id: string; matchId: string }> }
@@ -35,14 +36,13 @@ export async function POST(
 
   const { data: tournament } = await service
     .from('tournaments')
-    .select('organizer_id')
+    .select('organizer_id, allow_player_scores')
     .eq('id', params.id)
     .single()
-  if (!tournament || tournament.organizer_id !== user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
-  // Pull the pre-update state for the audit "before" snapshot.
+  // Pull the pre-update state for the audit "before" snapshot (also used for the
+  // participant authorization check below).
   const { data: match } = await service
     .from('tournament_matches')
     .select('id, team_1_registration_id, team_2_registration_id, tournament_id, division_id, match_stage, round_number, match_number, court_number, scheduled_time, scheduled_end_time, team_1_score, team_2_score, winner_registration_id, status')
@@ -50,6 +50,20 @@ export async function POST(
     .eq('tournament_id', params.id)
     .single()
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+
+  // Organizer always; a match participant may score when the tournament allows it.
+  let allowed = tournament.organizer_id === user.id
+  if (!allowed && (tournament as { allow_player_scores?: boolean }).allow_player_scores) {
+    const partRegIds = [match.team_1_registration_id, match.team_2_registration_id].filter(Boolean) as string[]
+    if (partRegIds.length > 0) {
+      const { data: partRegs } = await service
+        .from('tournament_registrations')
+        .select('user_id, partner_user_id')
+        .in('id', partRegIds)
+      allowed = (partRegs ?? []).some((r: any) => r.user_id === user.id || r.partner_user_id === user.id)
+    }
+  }
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const winner_registration_id = team_1_score > team_2_score
     ? match.team_1_registration_id
