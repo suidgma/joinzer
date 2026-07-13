@@ -65,8 +65,17 @@ export default function PlayerTeamLineScores({
                   <p className="text-brand-dark truncate">vs {l.oppLabel}</p>
                 </div>
                 {done && !isOpen && <span className="font-bold text-brand-dark tabular-nums shrink-0">{l.myScore}–{l.oppScore}</span>}
-                <button onClick={() => toggle(l)} className="text-xs font-medium text-brand-active shrink-0">
-                  {isOpen ? 'Cancel' : done ? 'Edit' : 'Enter score'}
+                <button
+                  onClick={() => toggle(l)}
+                  className={`shrink-0 rounded-xl text-sm font-semibold px-4 py-2 transition-colors ${
+                    isOpen
+                      ? 'text-brand-muted'
+                      : done
+                        ? 'border border-brand-border text-brand-dark hover:bg-brand-soft'
+                        : 'bg-brand text-brand-dark hover:bg-brand-hover'
+                  }`}
+                >
+                  {isOpen ? 'Cancel' : done ? 'Edit' : 'Enter my score'}
                 </button>
               </div>
               {isOpen && (
