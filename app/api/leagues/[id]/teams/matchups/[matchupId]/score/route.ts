@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { teamAdmin, assertTeamLeagueOrganizer } from '@/lib/leagues/teamsServer'
+import { teamAdmin, teamMatchupRole } from '@/lib/leagues/teamsServer'
 import { validateScores } from '@/lib/scoring/validateScores'
 import { rollUpMatchup, type LineChild, type ProvidedScore } from '@/lib/leagues/teamMatchup'
 import { logAudit } from '@/lib/audit/log'
@@ -19,13 +19,17 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = teamAdmin()
-  const gate = await assertTeamLeagueOrganizer(db, id, user.id)
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { data: matchup } = await db.from('league_fixtures')
     .select('id, team_1_id, team_2_id, team_1_score, team_2_score, winner_team_id, status')
     .eq('id', matchupId).eq('league_id', id).eq('match_stage', 'team_matchup').maybeSingle()
   if (!matchup) return NextResponse.json({ error: 'Matchup not found' }, { status: 404 })
+
+  // Organizer or a captain of either participating team may score.
+  const role = await teamMatchupRole(db, id, user.id, (matchup as any).team_1_id, (matchup as any).team_2_id)
+  if (!role.isOrganizer && role.captainSide === null) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { data: childrenRaw } = await db.from('league_fixtures')
     .select('id, match_number, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, status')
