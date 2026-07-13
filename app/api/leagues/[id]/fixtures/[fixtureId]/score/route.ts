@@ -27,8 +27,12 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
 
   const db = admin()
-  const { data: league } = await db.from('leagues').select('created_by, allow_player_scores').eq('id', params.id).single()
+  const { data: league } = await db.from('leagues').select('created_by, allow_player_scores, format_kind').eq('id', params.id).single()
   if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Box/ladder are player-scorable by default (player-run); other formats gate on the
+  // allow_player_scores setting.
+  const playerScorable = league.allow_player_scores === true || league.format_kind === 'box' || league.format_kind === 'ladder'
 
   const { data: fixture } = await db
     .from('league_fixtures')
@@ -46,7 +50,7 @@ export async function PATCH(req: NextRequest, props: Params) {
       .from('league_registrations').select('is_co_admin').eq('league_id', params.id).eq('user_id', user.id).maybeSingle()
     allowed = myReg?.is_co_admin === true
   }
-  if (!allowed && league.allow_player_scores) {
+  if (!allowed && playerScorable) {
     const sides = await entrantSidesForFixture(db, params.id, fixture.team_1_registration_id, fixture.team_2_registration_id)
     allowed = sides.team_1.has(user.id) || sides.team_2.has(user.id)
   }

@@ -277,16 +277,17 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     }
   }
 
-  // Player score entry (box / ladder): a registered player scores their own matches when
-  // the league allows it. Flex has its own report/confirm flow; RR + team come later.
+  // Player score entry: a registered player scores their own matches. Box/ladder are
+  // player-scorable BY DEFAULT (player-run) — no toggle needed; team still respects the
+  // allow_player_scores setting. Flex has its own report/confirm flow; RR via results page.
   let playerFixtures: PlayerScorableFixture[] = []
   let playerTeamLines: PlayerTeamLine[] = []
-  if ((league as any).allow_player_scores && user && myReg?.status === 'registered' && !isAdmin) {
+  if (user && myReg?.status === 'registered' && !isAdmin) {
     const kind = (league as any).format_kind
     const pfDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     if (kind === 'box' || kind === 'ladder') {
       playerFixtures = await loadPlayerScorableFixtures(pfDb, league.id, user.id)
-    } else if (kind === 'team') {
+    } else if (kind === 'team' && (league as any).allow_player_scores) {
       playerTeamLines = await loadPlayerTeamLines(pfDb, league.id, user.id)
     }
   }
@@ -546,6 +547,11 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         </section>
       )}
 
+      {/* Your matches to score — box/ladder player self-scoring, surfaced up top */}
+      {playerFixtures.length > 0 && (
+        <PlayerFixtureScores leagueId={league.id} fixtures={playerFixtures} pointsToWin={(league as any).points_to_win ?? 11} />
+      )}
+
       {/* Standings quick link */}
       <Link
         href={`/leagues/${league.id}/standings`}
@@ -569,10 +575,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         />
       )}
 
-      {/* Player score entry — own box/ladder matches when the league allows it */}
-      {playerFixtures.length > 0 && (
-        <PlayerFixtureScores leagueId={league.id} fixtures={playerFixtures} pointsToWin={(league as any).points_to_win ?? 11} />
-      )}
       {/* Player score entry — own team lines when the league allows it */}
       {playerTeamLines.length > 0 && (
         <PlayerTeamLineScores leagueId={league.id} lines={playerTeamLines} pointsToWin={(league as any).points_to_win ?? 11} />
