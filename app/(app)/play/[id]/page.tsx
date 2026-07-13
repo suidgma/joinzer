@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatEventDate, formatEventTime, formatDuration, formatTimestamp } from '@/lib/utils/date'
@@ -7,7 +6,6 @@ import JoinLeaveButton from '@/components/features/events/JoinLeaveButton'
 import AssignCaptainButton from '@/components/features/events/AssignCaptainButton'
 import InvitePlayers from '@/components/features/events/InvitePlayers'
 import AddSubForMe from '@/components/features/subs/AddSubForMe'
-import SubNominationsInbox, { type PendingNomination } from '@/components/features/subs/SubNominationsInbox'
 import ChatPanel from '@/components/features/ChatPanel'
 import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
@@ -131,33 +129,15 @@ export default async function EventDetailPage(
 
   const sessionHasStarted = Date.now() >= new Date(event.starts_at).getTime()
 
-  // Sub nominations (deny-all table → service-role read). A joined player can nominate
-  // their own sub (pending until the captain approves); the captain sees the inbox.
-  let myPendingNomination: { id: string; nomineeName: string } | null = null
-  let captainNominations: PendingNomination[] = []
-  if (currentUserId && isActive && !sessionHasStarted) {
-    const adminDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: noms } = await adminDb
-      .from('sub_nominations')
-      .select('id, requesting_user_id, nominated_user_id, note')
-      .eq('surface', 'play')
-      .eq('event_id', event.id)
-      .eq('status', 'pending')
-    if (noms && noms.length > 0) {
-      const ids = [...new Set(noms.flatMap((n) => [n.requesting_user_id, n.nominated_user_id]))]
-      const { data: profs } = await adminDb.from('profiles').select('id, name').in('id', ids)
-      const nameOf = (uid: string) => (profs ?? []).find((p) => p.id === uid)?.name ?? 'Player'
-      const mine = noms.find((n) => n.requesting_user_id === currentUserId)
-      if (mine) myPendingNomination = { id: mine.id, nomineeName: nameOf(mine.nominated_user_id) }
-      if (isCaptain) {
-        captainNominations = noms.map((n) => ({
-          id: n.id,
-          requesterName: nameOf(n.requesting_user_id),
-          nomineeName: nameOf(n.nominated_user_id),
-          note: n.note,
-        }))
-      }
-    }
+  // "Add a sub for me" is available to a joined, non-captain player before the session
+  // starts. Load the pickable Joinzer users (everyone not already in the session).
+  const canAddSub = isActive && isJoined && !isCaptain && !sessionHasStarted
+  let subCandidates: { id: string; name: string }[] = []
+  if (canAddSub) {
+    const { data: profs } = await supabase.from('profiles').select('id, name').order('name').limit(1000)
+    const inSession = new Set(participantUserIds)
+    subCandidates = ((profs ?? []) as { id: string; name: string }[])
+      .filter((p) => p.id !== currentUserId && !inSession.has(p.id))
   }
 
   const statusColors: Record<string, string> = {
@@ -266,19 +246,14 @@ export default async function EventDetailPage(
         />
       )}
 
-      {/* Player: nominate my own sub (before the session starts) */}
-      {isActive && isJoined && !isCaptain && !sessionHasStarted && (
+      {/* Player: pick my own sub (before the session starts, takes effect immediately) */}
+      {canAddSub && (
         <AddSubForMe
           surface="play"
           scope={{ eventId: event.id }}
-          pending={myPendingNomination}
-          caption="Your sub takes your spot once the captain approves."
+          candidates={subCandidates}
+          caption="Your sub takes your spot right away — no approval needed."
         />
-      )}
-
-      {/* Captain: approve/decline players' sub requests */}
-      {isCaptain && isActive && !sessionHasStarted && (
-        <SubNominationsInbox nominations={captainNominations} />
       )}
 
       {/* Captain: invite players */}
