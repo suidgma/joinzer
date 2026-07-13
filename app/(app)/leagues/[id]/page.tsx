@@ -16,7 +16,8 @@ import RefreshButton from '@/components/ui/RefreshButton'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import BoxLadderCheckIn from '@/components/features/leagues/BoxLadderCheckIn'
-import { captainTeamIds } from '@/lib/leagues/teamsServer'
+import CaptainRoster from '@/components/features/leagues/CaptainRoster'
+import { captainTeamIds, rosteredRegistrationIds } from '@/lib/leagues/teamsServer'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
 import FlexPlayerMatches from './FlexPlayerMatches'
@@ -344,9 +345,15 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     }
   }
 
-  // Team leagues: a team captain gets their team's matchups (set lineup + score) right
-  // on the overview — the captain-run entry point.
+  // Team leagues: a team captain gets their team's matchups (lineup + score) and roster
+  // self-management right on the overview — the captain-run entry point.
   let captainMatchups: { id: string; oppName: string; status: string; matchday: number | null }[] = []
+  let captainTeam: {
+    teamId: string
+    teamName: string
+    members: { id: string; registrationId: string; name: string; isCaptain: boolean }[]
+    available: { registrationId: string; name: string }[]
+  } | null = null
   if ((league as any).format_kind === 'team' && user && myReg?.status === 'registered' && !isAdmin) {
     const tDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const caps = await captainTeamIds(tDb, league.id, user.id)
@@ -359,13 +366,33 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         .eq('match_stage', 'team_matchup')
         .or(`team_1_id.in.(${capArr.join(',')}),team_2_id.in.(${capArr.join(',')})`)
         .order('round_number', { ascending: true })
-      const teamIds = [...new Set((fixtures ?? []).flatMap((f: any) => [f.team_1_id, f.team_2_id]).filter(Boolean))]
-      const { data: teams } = teamIds.length ? await tDb.from('league_teams').select('id, name').in('id', teamIds) : { data: [] as any[] }
-      const teamName = new Map<string, string>((teams ?? []).map((t: any) => [t.id, t.name]))
+      const fxTeamIds = [...new Set((fixtures ?? []).flatMap((f: any) => [f.team_1_id, f.team_2_id]).filter(Boolean))]
+      const { data: fxTeams } = fxTeamIds.length ? await tDb.from('league_teams').select('id, name').in('id', fxTeamIds) : { data: [] as any[] }
+      const fxTeamName = new Map<string, string>((fxTeams ?? []).map((t: any) => [t.id, t.name]))
       captainMatchups = (fixtures ?? []).map((f: any) => {
         const oppTeam = caps.has(f.team_1_id) ? f.team_2_id : f.team_1_id
-        return { id: f.id, oppName: teamName.get(oppTeam) ?? 'TBD', status: f.status, matchday: f.round_number ?? null }
+        return { id: f.id, oppName: fxTeamName.get(oppTeam) ?? 'TBD', status: f.status, matchday: f.round_number ?? null }
       })
+
+      // Roster self-management for the captain's team.
+      const teamId = capArr[0]
+      const [{ data: team }, { data: memberRows }, { data: regRows }] = await Promise.all([
+        tDb.from('league_teams').select('id, name, captain_registration_id').eq('id', teamId).maybeSingle(),
+        tDb.from('league_team_members').select('id, registration_id').eq('team_id', teamId),
+        tDb.from('league_registrations').select('id, user_id').eq('league_id', league.id).eq('status', 'registered'),
+      ])
+      if (team) {
+        const rostered = await rosteredRegistrationIds(tDb, league.id)
+        const regUserId = new Map<string, string>((regRows ?? []).map((r: any) => [r.id, r.user_id]))
+        const userIds = [...new Set((regRows ?? []).map((r: any) => r.user_id).filter(Boolean))] as string[]
+        const { data: profs } = userIds.length ? await tDb.from('profiles').select('id, name').in('id', userIds) : { data: [] as any[] }
+        const nameByUser = new Map<string, string>((profs ?? []).map((p: any) => [p.id, p.name]))
+        const nameOfReg = (regId: string) => nameByUser.get(regUserId.get(regId) ?? '') ?? 'Player'
+        const capReg = (team as any).captain_registration_id
+        const members = (memberRows ?? []).map((m: any) => ({ id: m.id, registrationId: m.registration_id, name: nameOfReg(m.registration_id), isCaptain: m.registration_id === capReg }))
+        const available = (regRows ?? []).filter((r: any) => !rostered.has(r.id)).map((r: any) => ({ registrationId: r.id, name: nameOfReg(r.id) }))
+        captainTeam = { teamId, teamName: (team as any).name, members, available }
+      }
     }
   }
 
@@ -528,6 +555,15 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
                 ))}
               </div>
             </div>
+          )}
+          {captainTeam && (
+            <CaptainRoster
+              leagueId={league.id}
+              teamId={captainTeam.teamId}
+              teamName={captainTeam.teamName}
+              members={captainTeam.members}
+              available={captainTeam.available}
+            />
           )}
           {user && (league as any).format_kind === 'ladder' && myReg?.status === 'registered' && (
             <LadderPlayerCard leagueId={league.id} userId={user.id} format={league.format} settings={(league as any).format_settings_json ?? null} />

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { teamAdmin, assertTeamLeagueOrganizer } from '@/lib/leagues/teamsServer'
+import { teamAdmin, assertTeamRosterAccess } from '@/lib/leagues/teamsServer'
 import { logAudit } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string; teamId: string; memberId: string }> }
@@ -13,7 +13,7 @@ export async function DELETE(_req: NextRequest, props: Params) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = teamAdmin()
-  const gate = await assertTeamLeagueOrganizer(db, id, user.id)
+  const gate = await assertTeamRosterAccess(db, id, user.id, teamId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { data: team } = await db.from('league_teams').select('id').eq('id', teamId).eq('league_id', id).maybeSingle()
