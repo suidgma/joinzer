@@ -59,6 +59,22 @@ export default function CaptainRoster({
     }
   }
 
+  async function makeCaptain(registrationId: string) {
+    setBusy(true)
+    setError(null)
+    const res = await fetch(`/api/leagues/${leagueId}/teams/${teamId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ captain_registration_id: registrationId }),
+    })
+    setBusy(false)
+    if (res.ok) router.refresh()
+    else {
+      const j = await res.json().catch(() => ({}))
+      setError(j.error ?? 'Could not transfer captaincy')
+    }
+  }
+
   return (
     <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
       <div>
@@ -75,14 +91,23 @@ export default function CaptainRoster({
               {m.isCaptain && <span className="ml-1 text-[10px] font-bold text-brand-active uppercase">Captain</span>}
             </span>
             {!m.isCaptain && (
-              <button
-                onClick={() => remove(m.id)}
-                disabled={busy}
-                className="text-brand-muted hover:text-red-600 shrink-0 disabled:opacity-50"
-                aria-label={`Remove ${m.name}`}
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => makeCaptain(m.registrationId)}
+                  disabled={busy}
+                  className="text-[11px] font-medium text-brand-active hover:underline disabled:opacity-50"
+                >
+                  Make captain
+                </button>
+                <button
+                  onClick={() => remove(m.id)}
+                  disabled={busy}
+                  className="text-brand-muted hover:text-red-600 disabled:opacity-50"
+                  aria-label={`Remove ${m.name}`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </li>
         ))}
