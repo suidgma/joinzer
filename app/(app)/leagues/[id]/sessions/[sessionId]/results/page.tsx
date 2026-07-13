@@ -179,6 +179,15 @@ export default async function SessionResultsPage(
   }
   const roundEntries = [...roundsGrouped.entries()].sort(([a], [b]) => a - b)
 
+  // Signature of the server-saved scores. Used as the scoring component's key so
+  // a manual Refresh (router.refresh) that brings changed data remounts it and
+  // re-reads the fresh props — its display state is seeded from props once, so
+  // without this the organizer's Refresh would appear to do nothing. Unchanged
+  // data keeps the same key (no remount), preserving any in-progress entry.
+  const lockedScoreSig = lockedMatches
+    .map((m) => `${m.roundMatchId}:${m.existingScore ? `${m.existingScore.team1Score}-${m.existingScore.team2Score}` : '_'}`)
+    .join('|')
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
       <div className="flex items-center justify-between gap-2">
@@ -196,7 +205,7 @@ export default async function SessionResultsPage(
 
       {/* Organizer: editable scoring. Registered player: read-only schedule + scores. */}
       {canEdit ? (
-        <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} pointsToWin={league.points_to_win ?? 11} />
+        <LockedRoundsScoring key={lockedScoreSig} sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} pointsToWin={league.points_to_win ?? 11} />
       ) : roundEntries.length > 0 ? (
         <div className="space-y-4">
           {roundEntries.map(([round, matches]) => (
