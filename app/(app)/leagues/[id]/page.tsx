@@ -279,17 +279,17 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     }
   }
 
-  // Player score entry: a registered player scores their own matches. Box/ladder are
-  // player-scorable BY DEFAULT (player-run) — no toggle needed; team still respects the
-  // allow_player_scores setting. Flex has its own report/confirm flow; RR via results page.
+  // Player score entry: a registered player scores their own matches when the league
+  // allows it (box/ladder default the toggle on at create; organizers can turn it off).
+  // Flex has its own report/confirm flow; RR via the results page.
   let playerFixtures: PlayerScorableFixture[] = []
   let playerTeamLines: PlayerTeamLine[] = []
-  if (user && myReg?.status === 'registered' && !isAdmin) {
+  if ((league as any).allow_player_scores && user && myReg?.status === 'registered' && !isAdmin) {
     const kind = (league as any).format_kind
     const pfDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     if (kind === 'box' || kind === 'ladder') {
       playerFixtures = await loadPlayerScorableFixtures(pfDb, league.id, user.id)
-    } else if (kind === 'team' && (league as any).allow_player_scores) {
+    } else if (kind === 'team') {
       playerTeamLines = await loadPlayerTeamLines(pfDb, league.id, user.id)
     }
   }

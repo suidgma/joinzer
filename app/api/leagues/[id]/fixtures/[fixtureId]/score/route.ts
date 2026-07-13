@@ -27,12 +27,12 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
 
   const db = admin()
-  const { data: league } = await db.from('leagues').select('created_by, allow_player_scores, format_kind').eq('id', params.id).single()
+  const { data: league } = await db.from('leagues').select('created_by, allow_player_scores').eq('id', params.id).single()
   if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Box/ladder are player-scorable by default (player-run); other formats gate on the
-  // allow_player_scores setting.
-  const playerScorable = league.allow_player_scores === true || league.format_kind === 'box' || league.format_kind === 'ladder'
+  // Player self-scoring is governed by the allow_player_scores toggle (box/ladder
+  // default it on at create time; organizers can turn it off).
+  const playerScorable = league.allow_player_scores === true
 
   const { data: fixture } = await db
     .from('league_fixtures')
