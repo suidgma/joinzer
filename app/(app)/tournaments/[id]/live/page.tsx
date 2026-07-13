@@ -1,6 +1,7 @@
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Link from 'next/link'
 import LiveScoreboard from './LiveScoreboard'
+import RefreshButton from '@/components/ui/RefreshButton'
 
 export const revalidate = 0
 
@@ -68,12 +69,15 @@ export default async function PublicLiveScoreboardPage(
               weekday: 'long', month: 'long', day: 'numeric',
             })}
           </p>
-          <Link
-            href={`/tournaments/${params.id}`}
-            className="inline-flex items-center gap-1 rounded-full border border-brand-active/30 bg-brand-active/10 px-4 py-1.5 text-xs font-semibold text-brand-active hover:bg-brand-active/20 transition-colors"
-          >
-            View full tournament →
-          </Link>
+          <div className="flex items-center justify-center gap-3">
+            <Link
+              href={`/tournaments/${params.id}`}
+              className="inline-flex items-center gap-1 rounded-full border border-brand-active/30 bg-brand-active/10 px-4 py-1.5 text-xs font-semibold text-brand-active hover:bg-brand-active/20 transition-colors"
+            >
+              View full tournament →
+            </Link>
+            <RefreshButton />
+          </div>
         </div>
 
         <LiveScoreboard

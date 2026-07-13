@@ -15,6 +15,7 @@ import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner
 import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection'
 import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
+import RefreshButton from '@/components/ui/RefreshButton'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
 import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
 import DesktopShell from '@/components/ui/desktop-shell'
@@ -163,10 +164,13 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     <>
       <div className="flex items-center justify-between">
         <Link href="/tournaments" className="text-brand-muted text-sm">← Back</Link>
-        <ShareButton
-          title={tournament.name}
-          url={`${getSiteUrl()}/tournaments/${tournament.id}`}
-        />
+        <div className="flex items-center gap-3">
+          <RefreshButton />
+          <ShareButton
+            title={tournament.name}
+            url={`${getSiteUrl()}/tournaments/${tournament.id}`}
+          />
+        </div>
       </div>
 
       <div className="space-y-2">
