@@ -5,7 +5,7 @@ import { formatEventDate, formatEventTime, formatDuration, formatTimestamp } fro
 import JoinLeaveButton from '@/components/features/events/JoinLeaveButton'
 import AssignCaptainButton from '@/components/features/events/AssignCaptainButton'
 import InvitePlayers from '@/components/features/events/InvitePlayers'
-import EventChat from '@/components/features/events/EventChat'
+import ChatPanel from '@/components/features/ChatPanel'
 import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
 import ShareButton from '@/components/features/ShareButton'
@@ -291,11 +291,14 @@ export default async function EventDetailPage(
 
       {/* Realtime chat */}
       {currentUserId && (
-        <EventChat
-          eventId={event.id}
+        <ChatPanel
+          table="event_messages"
+          entityField="event_id"
+          entityId={event.id}
           initialMessages={initialMessages}
           currentUserId={currentUserId}
-          isJoined={isJoined}
+          canChat={isJoined}
+          joinHint="Join the session to chat"
         />
       )}
     </main>

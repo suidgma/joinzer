@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import type { TournamentDetail } from '@/lib/types'
 import DivisionsSection from '@/components/features/tournaments/DivisionsSection'
-import GroupChat from '@/components/features/GroupChat'
+import ChatPanel from '@/components/features/ChatPanel'
 import DeleteTournamentButton from '@/components/features/tournaments/DeleteTournamentButton'
 import SetupChecklist from '@/components/features/tournaments/SetupChecklist'
 import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner'
@@ -494,17 +494,16 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
         )}
 
         {user && (
-          <section className="space-y-2">
-            <h2 className="font-heading text-base font-bold text-brand-dark">Tournament Chat</h2>
-            <GroupChat
-              table="tournament_messages"
-              entityId={tournament.id}
-              entityField="tournament_id"
-              initialMessages={(tournamentMessages ?? []) as any[]}
-              currentUserId={user.id}
-              canChat={isRegistered}
-            />
-          </section>
+          <ChatPanel
+            table="tournament_messages"
+            entityField="tournament_id"
+            entityId={tournament.id}
+            initialMessages={(tournamentMessages ?? []) as any[]}
+            currentUserId={user.id}
+            canChat={isRegistered}
+            title="Tournament Chat"
+            joinHint="Register to chat"
+          />
         )}
       </div>
     </DesktopShell>
