@@ -5,6 +5,7 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import RefreshOnVisible from '@/components/ui/refresh-on-visible'
+import RefreshButton from '@/components/ui/RefreshButton'
 import BoxAttendanceManager from '../attendance/BoxAttendanceManager'
 import { ladderAdmin, readLadderState, buildLadderAttendance, computeLadderUpdate } from '@/lib/leagues/ladderServer'
 import LadderStartButton from './LadderStartButton'
@@ -121,9 +122,12 @@ export default async function LadderRunPage(props: { params: Promise<{ id: strin
       <ManageNav items={navItems} mobileOnly />
       <div className="max-w-2xl space-y-5 pb-8">
         <div>
-          <h1 className="font-heading text-xl font-bold text-brand-dark">
-            Run Session{period ? ` · Session ${period.period_number}` : ''}
-          </h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="font-heading text-xl font-bold text-brand-dark">
+              Run Session{period ? ` · Session ${period.period_number}` : ''}
+            </h1>
+            <RefreshButton className="mt-1 shrink-0" />
+          </div>
           <p className="text-xs text-brand-muted">
             {!period
               ? (neverStarted

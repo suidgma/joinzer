@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
+import RefreshButton from '@/components/ui/RefreshButton'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import TeamsManager from './TeamsManager'
 import TeamSchedule from './TeamSchedule'
@@ -115,7 +116,10 @@ export default async function LeagueTeamsPage(props: { params: Promise<{ id: str
       <ManageNav items={navItems} mobileOnly />
       <div className="max-w-2xl space-y-5 pb-8">
         <div>
-          <h1 className="font-heading text-xl font-bold text-brand-dark">Teams</h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Teams</h1>
+            <RefreshButton className="mt-1 shrink-0" />
+          </div>
           <p className="text-xs text-brand-muted">Create teams and assign registered players. Set a captain per team.</p>
         </div>
         <TeamsManager leagueId={params.id} initialTeams={teamViews} availablePlayers={availablePlayers} />
