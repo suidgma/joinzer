@@ -8,6 +8,7 @@ import { skillRangeToLevel } from '@/lib/taxonomy/formats'
 import PlayerSchedule from '../PlayerSchedule'
 import WhoIsComing from '../WhoIsComing'
 import AutoRefresh from '@/components/ui/AutoRefresh'
+import RefreshButton from '@/components/ui/RefreshButton'
 import { formatSessionDate } from '@/lib/utils/date'
 
 export const dynamic = 'force-dynamic'
@@ -85,7 +86,10 @@ export default async function LeagueSchedulePage(props: { params: Promise<{ id: 
       <ManageNav items={navItems} mobileOnly />
       <AutoRefresh intervalMs={imminentSession ? 20000 : 0} />
       <div className="space-y-4 pb-8 max-w-2xl">
-        <h1 className="font-heading text-xl font-bold text-brand-dark">Schedule</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="font-heading text-xl font-bold text-brand-dark">Schedule</h1>
+          <RefreshButton className="shrink-0" />
+        </div>
         <PlayerSchedule
           leagueId={id}
           sessions={(sessions ?? []) as any}

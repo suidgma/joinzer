@@ -12,6 +12,7 @@ import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import { leagueNavItems } from '@/lib/leagues/leagueNav'
 import AutoRefresh from '@/components/ui/AutoRefresh'
+import RefreshButton from '@/components/ui/RefreshButton'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import { createClient as createAdmin } from '@supabase/supabase-js'
@@ -312,9 +313,12 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       <div className="space-y-4 pb-8">
 
       {/* Header */}
-      <div>
-        <h1 className="font-heading text-xl font-bold text-brand-dark">{league.name}</h1>
-        {orgName && <p className="text-sm text-brand-muted">{orgName}</p>}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-xl font-bold text-brand-dark">{league.name}</h1>
+          {orgName && <p className="text-sm text-brand-muted">{orgName}</p>}
+        </div>
+        <RefreshButton className="mt-1 shrink-0" />
       </div>
 
       {checklist && justCreated && (
