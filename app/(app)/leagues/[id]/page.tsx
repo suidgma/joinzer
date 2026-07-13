@@ -11,6 +11,7 @@ import SubRequestsSection from '@/components/features/leagues/SubRequestsSection
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
 import { leagueNavItems } from '@/lib/leagues/leagueNav'
+import AutoRefresh from '@/components/ui/AutoRefresh'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import { createClient as createAdmin } from '@supabase/supabase-js'
@@ -248,6 +249,13 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
 
   const navItems = leagueNavItems(params.id, { canManage: isAdmin, formatKind: (league as any).format_kind })
 
+  // Poll the page fresh when a session is imminent (today or under way) so
+  // attendance, chat, and status stay live in the pre-session window.
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+  const imminentSession = (sessions ?? []).some(
+    (s) => (s.session_date as string) === todayStr || s.status === 'in_progress',
+  )
+
   const runSessionAction = await getRunSessionAction(params.id, isAdmin, (league as any).format_kind)
 
   // Organizer setup checklist: open registration → add players → start play.
@@ -300,6 +308,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
     >
       <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
+      <AutoRefresh intervalMs={imminentSession ? 20000 : 0} />
       <div className="space-y-4 pb-8">
 
       {/* Header */}
