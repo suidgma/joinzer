@@ -328,18 +328,43 @@ async function undoLeaguePeriod(
     return NextResponse.json({ error: 'Matches are already set — ask your organizer' }, { status: 400 })
   }
 
-  // Remove the sub row placed for this cover, then reset the player's own row.
-  await db
-    .from('league_attendance')
-    .delete()
-    .eq('period_id', period.id)
-    .eq('subbing_for_registration_id', nom.covered_registration_id!)
+  // The sub was linked to the caller's own slot reg (their reg — a doubles partner's,
+  // for a team); the entrant (covered_registration_id) carries 'has_sub'. Re-derive the
+  // slot to delete the right sub, then clear 'has_sub' only if no cover remains for the
+  // team (the partner could still have an organizer-placed sub in the other slot).
+  const { data: callerReg } = await db
+    .from('league_registrations')
+    .select('id')
+    .eq('league_id', period.league_id)
+    .eq('user_id', nom.requesting_user_id)
+    .maybeSingle()
+  const slotRegId = (callerReg as { id?: string } | null)?.id ?? nom.covered_registration_id
+  if (slotRegId) {
+    await db.from('league_attendance').delete().eq('period_id', period.id).eq('subbing_for_registration_id', slotRegId)
+  }
+
   if (nom.covered_registration_id) {
-    await db
+    const { data: entrantReg } = await db
+      .from('league_registrations')
+      .select('partner_registration_id')
+      .eq('id', nom.covered_registration_id)
+      .maybeSingle()
+    const teamRegs = [nom.covered_registration_id]
+    const partnerRid = (entrantReg as { partner_registration_id?: string | null } | null)?.partner_registration_id
+    if (partnerRid) teamRegs.push(partnerRid)
+    const { data: remaining } = await db
       .from('league_attendance')
-      .update({ status: 'cannot_attend', updated_at: now })
+      .select('id')
       .eq('period_id', period.id)
-      .eq('registration_id', nom.covered_registration_id)
+      .in('subbing_for_registration_id', teamRegs)
+      .limit(1)
+    if (!remaining || remaining.length === 0) {
+      await db
+        .from('league_attendance')
+        .update({ status: 'not_present', updated_at: now })
+        .eq('period_id', period.id)
+        .eq('registration_id', nom.covered_registration_id)
+    }
   }
 
   await db.from('sub_nominations').update({ status: 'cancelled', resolved_by: actorId, resolved_at: now }).eq('id', nom.id)
