@@ -6,13 +6,11 @@ import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import { formatSkillRange, skillRangeToLevel, formatAgeRange, isSinglesFormat, isDoublesFormat } from '@/lib/taxonomy/formats'
 import LeagueActions from './LeagueActions'
 import DeleteLeagueButton from './DeleteLeagueButton'
-import SessionScheduleManager from './SessionScheduleManager'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
-import LeagueRosterPanel from './LeagueRosterPanel'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
-import type { ManageNavItem } from '@/components/ui/manage-nav'
+import { leagueNavItems } from '@/lib/leagues/leagueNav'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import { createClient as createAdmin } from '@supabase/supabase-js'
@@ -70,7 +68,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }, { data: waitlistRows }, { data: rosterRegs }, { data: allSubInterest }] = await Promise.all([
+  const [{ data: league }, { data: sessions }, { data: myReg }, { data: mySubInterest }, { data: regCounts }, { data: mySessionSubs }, { data: myProfile }, { data: myAttendance }, { data: mySubAssignments }, { data: openSubRequests }, { data: leagueMessages }, { data: waitlistRows }] = await Promise.all([
     supabase
       .from('leagues')
       .select('*, cost_cents, organization:organizations(name), creator:profiles!created_by (name)')
@@ -140,18 +138,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       .eq('status', 'waitlist')
       .order('registered_at', { ascending: true })
       .order('id', { ascending: true }),
-    // Roster panel: registrations with profiles (read-only display)
-    supabase
-      .from('league_registrations')
-      .select('id, user_id, status, registration_type, partner_user_id, is_co_admin, profile:profiles!user_id(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source, self_reported_rating, self_reported_scale, dupr_verified)')
-      .eq('league_id', params.id)
-      .neq('status', 'cancelled')
-      .order('registered_at', { ascending: true }),
-    // Roster panel: all sub interest for this league
-    supabase
-      .from('league_sub_interest')
-      .select('user_id')
-      .eq('league_id', params.id),
   ])
 
   if (!league) notFound()
@@ -161,7 +147,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   const idx = user ? waitlist.findIndex(r => r.user_id === user.id) : -1
   const waitlistPosition = idx >= 0 ? idx + 1 : null
 
-  const subInterestUserIds = new Set((allSubInterest ?? []).map(s => s.user_id as string))
 
   // Fetch partner name if user is a matched solo
   const partnerUserId = (myReg as any)?.partner_user_id ?? null
@@ -182,17 +167,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   // Sessions where the user is an assigned sub (from league_session_players)
   const sessionIdSet = new Set((sessions ?? []).map((s) => s.id))
 
-  // Sessions whose schedule players may view: a round has been locked (or
-  // completed). Locking a round doesn't flip the session to 'in_progress', so the
-  // player "Schedule & scores" link is gated on this, not the session's own status.
-  const { data: viewableRounds } = !isAdmin && user && sessionIdSet.size > 0
-    ? await supabase
-        .from('league_rounds')
-        .select('session_id')
-        .in('session_id', [...sessionIdSet])
-        .in('status', ['locked', 'completed'])
-    : { data: [] as { session_id: string }[] }
-  const sessionsWithSchedule = new Set((viewableRounds ?? []).map((r) => r.session_id as string))
   const assignedSubSessions = (mySubAssignments ?? [])
     .filter((sp) => sessionIdSet.has(sp.session_id as string))
     .map((sp) => (sessions ?? []).find((s) => s.id === sp.session_id))
@@ -272,15 +246,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     ? `${calStartDate}T${rawEndTime.slice(0, 5)}:00`
     : undefined
 
-  const navItems: ManageNavItem[] = [
-    { label: 'Overview', href: `/leagues/${params.id}` },
-    { label: 'Standings', href: `/leagues/${params.id}/standings` },
-    ...(isAdmin && (league as any).format_kind === 'team' ? [{ label: 'Teams', href: `/leagues/${params.id}/teams` }] : []),
-    ...(isAdmin ? [
-      { label: 'Roster', href: `/leagues/${params.id}/roster` },
-      { label: 'Edit', href: `/leagues/${params.id}/edit` },
-    ] : []),
-  ]
+  const navItems = leagueNavItems(params.id, { canManage: isAdmin, formatKind: (league as any).format_kind })
 
   const runSessionAction = await getRunSessionAction(params.id, isAdmin, (league as any).format_kind)
 
@@ -570,95 +536,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           </span>
           <span className="text-sm text-brand-muted">CSV →</span>
         </Link>
-      )}
-
-      {/* Roster panel — visible to all visitors */}
-      <LeagueRosterPanel
-        leagueId={league.id}
-        format={league.format}
-        partnerMode={(league as any).partner_mode ?? null}
-        maxPlayers={league.max_players ?? null}
-        organizerUserId={league.created_by}
-        registrations={(rosterRegs ?? []) as any}
-        subInterestUserIds={subInterestUserIds}
-      />
-
-      {/* Sessions list — hidden for admins who use the Manage League page instead */}
-      {!isAdmin && sessions && sessions.length > 0 && (
-        isManager ? (
-          <section className="space-y-2">
-            <h2 className="font-heading text-base font-bold text-brand-dark">Schedule</h2>
-            <SessionScheduleManager leagueId={league.id} sessions={sessions} />
-          </section>
-        ) : (
-          (() => {
-            // Group the player's schedule into the current session and future ones.
-            // Current = the latest session whose date has arrived (stays "current"
-            // until the next one starts); if none has started yet, the first upcoming.
-            const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
-            const ordered = [...sessions].sort((a, b) =>
-              (a.session_date as string) < (b.session_date as string) ? -1 : (a.session_date as string) > (b.session_date as string) ? 1 : 0,
-            )
-            let idx = -1
-            for (let i = 0; i < ordered.length; i++) if ((ordered[i].session_date as string) <= todayStr) idx = i
-            if (idx === -1) idx = 0
-            const currentSession = ordered[idx]
-            const futureSessions = ordered.slice(idx + 1)
-
-            const card = (s: (typeof ordered)[number]) => {
-              const myStatus = (attendanceMap[s.id] ?? 'not_responded') as
-                'planning_to_attend' | 'cannot_attend' | 'checked_in_present' | 'running_late' | 'not_responded'
-              const canCheckIn = myReg?.status === 'registered' && s.status === 'scheduled'
-              return (
-                <div key={s.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 space-y-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-dark">
-                        Session {s.session_number} — {formatSessionDate(s.session_date)}
-                      </p>
-                      {s.notes && <p className="text-xs text-brand-muted">{s.notes}</p>}
-                      {(s.status === 'completed' || s.status === 'in_progress' || sessionsWithSchedule.has(s.id)) && (
-                        <Link href={`/leagues/${league.id}/sessions/${s.id}/results`} className="text-xs text-brand-active underline underline-offset-2 mt-1 block">
-                          Schedule &amp; scores →
-                        </Link>
-                      )}
-                    </div>
-                    <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                      s.status === 'completed' ? 'bg-brand-soft text-brand-muted' :
-                      s.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                      s.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                      'bg-brand text-brand-dark'
-                    }`}>{s.status.replace('_', ' ')}</span>
-                  </div>
-
-                  {canCheckIn && (
-                    <PlayerCheckIn
-                      sessionId={s.id}
-                      leagueId={league.id}
-                      initialStatus={myStatus}
-                      leagueSkillLevel={skillRangeToLevel((league as any).skill_min, (league as any).skill_max)}
-                    />
-                  )}
-                </div>
-              )
-            }
-
-            return (
-              <section className="space-y-4">
-                <div className="space-y-2">
-                  <h2 className="font-heading text-base font-bold text-brand-dark">Current Session</h2>
-                  {currentSession && card(currentSession)}
-                </div>
-                {futureSessions.length > 0 && (
-                  <div className="space-y-2">
-                    <h2 className="font-heading text-base font-bold text-brand-dark">Future Sessions</h2>
-                    <div className="space-y-2">{futureSessions.map(card)}</div>
-                  </div>
-                )}
-              </section>
-            )
-          })()
-        )
       )}
 
       {/* Open sub requests for registered players */}

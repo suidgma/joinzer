@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import DesktopShell from '@/components/ui/desktop-shell'
 import ManageNav from '@/components/ui/manage-nav'
-import type { ManageNavItem } from '@/components/ui/manage-nav'
+import { leagueNavItems } from '@/lib/leagues/leagueNav'
 import StandingsTable from './StandingsTable'
 import BoxStandings, { type BoxStandingView } from './BoxStandings'
 import CycleSelector from './CycleSelector'
@@ -102,15 +102,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         winner1: m.winner_team_id === m.team_1_id,
       }))
 
-    const navItems: ManageNavItem[] = [
-      { label: 'Overview', href: `/leagues/${params.id}` },
-      { label: 'Standings', href: `/leagues/${params.id}/standings` },
-      ...(isManager0 ? [
-        { label: 'Teams', href: `/leagues/${params.id}/teams` },
-        { label: 'Roster', href: `/leagues/${params.id}/roster` },
-        { label: 'Edit', href: `/leagues/${params.id}/edit` },
-      ] : []),
-    ]
+    const navItems = leagueNavItems(params.id, { canManage: isManager0, formatKind: (league as any).format_kind })
     return (
       <DesktopShell
         header={
@@ -200,14 +192,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         winner1: f.winner_registration_id === f.team_1_registration_id,
       }))
 
-    const navItems: ManageNavItem[] = [
-      { label: 'Overview', href: `/leagues/${params.id}` },
-      { label: 'Standings', href: `/leagues/${params.id}/standings` },
-      ...(isManager0 ? [
-        { label: 'Roster', href: `/leagues/${params.id}/roster` },
-        { label: 'Edit', href: `/leagues/${params.id}/edit` },
-      ] : []),
-    ]
+    const navItems = leagueNavItems(params.id, { canManage: isManager0, formatKind: (league as any).format_kind })
     return (
       <DesktopShell
         header={
@@ -301,14 +286,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         }))
     }
 
-    const navItems: ManageNavItem[] = [
-      { label: 'Overview', href: `/leagues/${params.id}` },
-      { label: 'Standings', href: `/leagues/${params.id}/standings` },
-      ...(isManager0 ? [
-        { label: 'Roster', href: `/leagues/${params.id}/roster` },
-        { label: 'Edit', href: `/leagues/${params.id}/edit` },
-      ] : []),
-    ]
+    const navItems = leagueNavItems(params.id, { canManage: isManager0, formatKind: (league as any).format_kind })
     return (
       <DesktopShell
         header={
@@ -496,14 +474,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       })
     }
 
-    const navItems: ManageNavItem[] = [
-      { label: 'Overview', href: `/leagues/${params.id}` },
-      { label: 'Standings', href: `/leagues/${params.id}/standings` },
-      ...(isManager0 ? [
-        { label: 'Roster', href: `/leagues/${params.id}/roster` },
-        { label: 'Edit', href: `/leagues/${params.id}/edit` },
-      ] : []),
-    ]
+    const navItems = leagueNavItems(params.id, { canManage: isManager0, formatKind: (league as any).format_kind })
     const isPast = selectedCycle && selectedCycle.status !== 'active'
 
     return (
@@ -788,14 +759,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
     current: idx + 1,
   }))
 
-  const navItems: ManageNavItem[] = [
-    { label: 'Overview', href: `/leagues/${params.id}` },
-    { label: 'Standings', href: `/leagues/${params.id}/standings` },
-    ...(isManager ? [
-      { label: 'Roster', href: `/leagues/${params.id}/roster` },
-      { label: 'Edit', href: `/leagues/${params.id}/edit` },
-    ] : []),
-  ]
+  const navItems = leagueNavItems(params.id, { canManage: isManager, formatKind: (league as any).format_kind })
 
   return (
     <DesktopShell
