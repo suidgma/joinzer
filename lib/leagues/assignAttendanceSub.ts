@@ -15,15 +15,22 @@ export async function assignAttendanceSub(
     coveredRegistrationId,
     coveredUserId,
     subUserId,
+    forRegistrationId,
   }: {
     leagueId: string
     periodId: string
+    // The TEAM entrant (canonical) registration — gets 'has_sub'.
     coveredRegistrationId: string
     coveredUserId?: string | null
     subUserId: string
+    // The specific slot the sub fills (a doubles partner's own reg). Defaults to the
+    // entrant for singles. The attendance grid normalizes a slot cover back to the
+    // entrant, so both partners' subs group under the one team row.
+    forRegistrationId?: string
   }
 ): Promise<AttendanceSubResult> {
   const now = new Date().toISOString()
+  const slotRegistrationId = forRegistrationId ?? coveredRegistrationId
 
   // Resolve the sub's attendance row — link their registration if they have one,
   // else store the bare user_id.
@@ -53,7 +60,7 @@ export async function assignAttendanceSub(
 
   const { error: linkErr } = await db
     .from('league_attendance')
-    .update({ subbing_for_registration_id: coveredRegistrationId, status: 'present', updated_at: now })
+    .update({ subbing_for_registration_id: slotRegistrationId, status: 'present', updated_at: now })
     .eq('id', subRowId)
   if (linkErr) return { ok: false, error: linkErr.message, status: 500 }
 

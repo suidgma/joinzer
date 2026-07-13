@@ -92,13 +92,19 @@ async function createLeaguePeriodNomination(
 
   const { data: reg } = await db
     .from('league_registrations')
-    .select('id, status')
+    .select('id, status, partner_registration_id')
     .eq('league_id', leagueId)
     .eq('user_id', userId)
     .maybeSingle()
   if (!reg || reg.status !== 'registered') {
     return NextResponse.json({ error: 'Only a registered player can add a sub' }, { status: 403 })
   }
+
+  // The covered ENTRANT is the team's canonical registration (lexicographically-smaller
+  // of a doubles pair — the same rule boxes/ladder use); the sub fills the caller's own
+  // slot. For singles both are the caller's reg.
+  const partnerRegId = (reg as { partner_registration_id?: string | null }).partner_registration_id ?? null
+  const entrantRegId = partnerRegId ? (reg.id < partnerRegId ? reg.id : partnerRegId) : reg.id
 
   // Guard: only before the period's matches are generated.
   const { data: fx } = await db.from('league_fixtures').select('id').eq('period_id', periodId).limit(1)
@@ -119,9 +125,10 @@ async function createLeaguePeriodNomination(
   const result = await assignAttendanceSub(db, {
     leagueId,
     periodId,
-    coveredRegistrationId: reg.id,
+    coveredRegistrationId: entrantRegId,
     coveredUserId: userId,
     subUserId: nominee.id,
+    forRegistrationId: reg.id,
   })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
 
@@ -132,7 +139,7 @@ async function createLeaguePeriodNomination(
       surface: 'league',
       league_id: leagueId,
       league_period_id: periodId,
-      covered_registration_id: reg.id,
+      covered_registration_id: entrantRegId,
       requesting_user_id: userId,
       nominated_user_id: nominee.id,
       note,
