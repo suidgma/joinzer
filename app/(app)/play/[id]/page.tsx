@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatEventDate, formatEventTime, formatDuration, formatTimestamp } from '@/lib/utils/date'
@@ -6,6 +7,7 @@ import JoinLeaveButton from '@/components/features/events/JoinLeaveButton'
 import AssignCaptainButton from '@/components/features/events/AssignCaptainButton'
 import InvitePlayers from '@/components/features/events/InvitePlayers'
 import AddSubForMe from '@/components/features/subs/AddSubForMe'
+import UndoSubButton from '@/components/features/subs/UndoSubButton'
 import ChatPanel from '@/components/features/ChatPanel'
 import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
@@ -140,6 +142,28 @@ export default async function EventDetailPage(
       .filter((p) => p.id !== currentUserId && !inSession.has(p.id))
   }
 
+  // If the current user subbed themselves out (and the swap is still intact before
+  // start), offer a one-tap undo to take their spot back. sub_nominations is deny-all
+  // → read via the service role.
+  let myUndoableSub: { id: string; nomineeName: string } | null = null
+  if (currentUserId && isActive && !sessionHasStarted && !isJoined) {
+    const adminDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: rows } = await adminDb
+      .from('sub_nominations')
+      .select('id, nominated_user_id')
+      .eq('surface', 'play')
+      .eq('event_id', event.id)
+      .eq('requesting_user_id', currentUserId)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const row = rows?.[0]
+    if (row && joinedParticipants.some((p) => p.user_id === row.nominated_user_id)) {
+      const { data: prof } = await adminDb.from('profiles').select('name').eq('id', row.nominated_user_id).maybeSingle()
+      myUndoableSub = { id: row.id, nomineeName: prof?.name ?? 'Your sub' }
+    }
+  }
+
   const statusColors: Record<string, string> = {
     open: 'bg-brand-soft text-brand-active',
     full: 'bg-red-100 text-red-700',
@@ -244,6 +268,11 @@ export default async function EventDetailPage(
           calendarEnd={new Date(new Date(event.starts_at).getTime() + event.duration_minutes * 60_000).toISOString()}
           calendarLocation={(event.location as any)?.name}
         />
+      )}
+
+      {/* Player: undo a sub I added (take my spot back) */}
+      {myUndoableSub && (
+        <UndoSubButton nominationId={myUndoableSub.id} nomineeName={myUndoableSub.nomineeName} />
       )}
 
       {/* Player: pick my own sub (before the session starts, takes effect immediately) */}

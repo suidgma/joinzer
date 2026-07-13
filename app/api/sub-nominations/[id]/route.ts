@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
   const body = await req.json().catch(() => ({}))
   const action = body.action as string
-  if (!['approve', 'decline', 'cancel'].includes(action)) {
+  if (!['approve', 'decline', 'cancel', 'undo'].includes(action)) {
     return NextResponse.json({ error: 'Bad action' }, { status: 400 })
   }
 
@@ -42,11 +42,26 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     .eq('id', id)
     .single<Nomination>()
   if (!nom) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const now = new Date().toISOString()
+
+  // Undo — the player who added the sub reverses an already-applied swap.
+  if (action === 'undo') {
+    if (nom.requesting_user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    if (nom.status !== 'approved') {
+      return NextResponse.json({ error: 'Nothing to undo' }, { status: 409 })
+    }
+    if (nom.surface === 'play') {
+      return undoPlay(db, { nom, actorId: user.id, now })
+    }
+    return NextResponse.json({ error: 'Unsupported surface' }, { status: 400 })
+  }
+
   if (nom.status !== 'pending') {
     return NextResponse.json({ error: 'This request was already resolved' }, { status: 409 })
   }
-
-  const now = new Date().toISOString()
 
   // Cancel — only the player who made the request.
   if (action === 'cancel') {
@@ -157,6 +172,72 @@ async function resolvePlay(
       url: `/play/${event.id}`,
     }),
   ])
+
+  return NextResponse.json({ ok: true })
+}
+
+// Undo a play sub swap: the requester takes their spot back and the sub is removed.
+// Only before the session starts, and only while the swap is still intact.
+async function undoPlay(
+  db: ReturnType<typeof admin>,
+  { nom, actorId, now }: { nom: Nomination; actorId: string; now: string }
+) {
+  const { data: event } = await db
+    .from('events')
+    .select('id, title, starts_at, status, price_cents, captain_user_id')
+    .eq('id', nom.event_id!)
+    .single()
+  if (!event) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  if (event.status === 'cancelled' || event.status === 'completed') {
+    return NextResponse.json({ error: 'This session is closed' }, { status: 400 })
+  }
+  if (new Date(event.starts_at).getTime() <= Date.now()) {
+    return NextResponse.json({ error: 'This session has already started' }, { status: 400 })
+  }
+
+  const { data: parts } = await db
+    .from('event_participants')
+    .select('user_id, participant_status')
+    .eq('event_id', event.id)
+  const active = (parts ?? []).filter((p) => p.participant_status !== 'left')
+  // The swap must still be intact: the sub is in, the requester is out.
+  if (active.some((p) => p.user_id === actorId)) {
+    return NextResponse.json({ error: "You're already back in this session" }, { status: 400 })
+  }
+  if (!active.some((p) => p.user_id === nom.nominated_user_id)) {
+    return NextResponse.json({ error: 'Your sub already left — rejoin the session instead' }, { status: 400 })
+  }
+
+  const paid = (event.price_cents ?? 0) > 0
+  // Reverse the swap: sub → left, requester → joined (1:1, capacity preserved).
+  await db.from('event_participants')
+    .update({ participant_status: 'left' })
+    .eq('event_id', event.id)
+    .eq('user_id', nom.nominated_user_id)
+  const { error: upErr } = await db.from('event_participants').upsert(
+    {
+      event_id: event.id,
+      user_id: actorId,
+      participant_status: 'joined',
+      payment_status: paid ? 'unpaid' : 'free',
+    },
+    { onConflict: 'event_id,user_id' }
+  )
+  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
+
+  await db.from('sub_nominations').update({ status: 'cancelled', resolved_by: actorId, resolved_at: now }).eq('id', nom.id)
+
+  // Let the removed sub know.
+  const { data: reqP } = await db.from('profiles').select('name').eq('id', actorId).maybeSingle()
+  await createNotification({
+    recipientId: nom.nominated_user_id,
+    surface: 'event',
+    surfaceId: event.id,
+    kind: 'sub_removed',
+    title: `Sub cancelled: ${event.title}`,
+    body: `${reqP?.name ?? 'The player'} took their spot back`,
+    url: `/play/${event.id}`,
+  })
 
   return NextResponse.json({ ok: true })
 }
