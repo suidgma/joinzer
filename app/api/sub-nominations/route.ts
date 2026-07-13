@@ -46,8 +46,117 @@ export async function POST(req: NextRequest) {
       note,
     })
   }
-  // Tournaments are wired in a later phase.
+  if (body.surface === 'tournament') {
+    return createTournamentNomination(db, {
+      userId: user.id,
+      tournamentId: body.tournamentId,
+      registrationId: body.registrationId,
+      nominee,
+      note,
+    })
+  }
   return NextResponse.json({ error: 'Unsupported surface' }, { status: 400 })
+}
+
+// Tournament self-sub: transfer your spot to the chosen player (swap the
+// registration's user), immediate and only before the division's bracket is
+// generated. Mirrors the organizer replace-player operation.
+async function createTournamentNomination(
+  db: ReturnType<typeof admin>,
+  {
+    userId,
+    tournamentId,
+    registrationId,
+    nominee,
+    note,
+  }: { userId: string; tournamentId?: string; registrationId?: string; nominee: { id: string; name: string }; note: string | null }
+) {
+  if (!tournamentId || !registrationId) {
+    return NextResponse.json({ error: 'Missing tournament or registration' }, { status: 400 })
+  }
+
+  const { data: tournament } = await db.from('tournaments').select('id, name, organizer_id').eq('id', tournamentId).single()
+  if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+
+  const { data: reg } = await db
+    .from('tournament_registrations')
+    .select('id, tournament_id, division_id, user_id, status')
+    .eq('id', registrationId)
+    .single()
+  if (!reg || reg.tournament_id !== tournamentId) {
+    return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
+  }
+  if (reg.user_id !== userId) return NextResponse.json({ error: 'Not your registration' }, { status: 403 })
+  if (reg.status !== 'registered') return NextResponse.json({ error: 'Registration is not active' }, { status: 400 })
+
+  // Guard: only before the division's bracket is generated.
+  const { data: divMatches } = await db
+    .from('tournament_matches')
+    .select('id')
+    .eq('division_id', reg.division_id)
+    .eq('is_draft', false)
+    .limit(1)
+  if (divMatches && divMatches.length > 0) {
+    return NextResponse.json({ error: 'The bracket is already generated — ask your organizer to swap you out' }, { status: 400 })
+  }
+
+  // Nominee must not already hold a registration in the same division.
+  const { data: dupe } = await db
+    .from('tournament_registrations')
+    .select('id')
+    .eq('tournament_id', tournamentId)
+    .eq('division_id', reg.division_id)
+    .eq('user_id', nominee.id)
+    .neq('status', 'cancelled')
+    .maybeSingle()
+  if (dupe) {
+    return NextResponse.json({ error: `${nominee.name} is already registered in this division` }, { status: 400 })
+  }
+
+  // Transfer the spot — the sub inherits the seed / payment slot 1:1.
+  const { error: upErr } = await db.from('tournament_registrations').update({ user_id: nominee.id }).eq('id', registrationId)
+  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
+
+  const nowIso = new Date().toISOString()
+  const { data: nom } = await db
+    .from('sub_nominations')
+    .insert({
+      surface: 'tournament',
+      tournament_id: tournamentId,
+      tournament_registration_id: registrationId,
+      requesting_user_id: userId,
+      nominated_user_id: nominee.id,
+      note,
+      status: 'approved',
+      resolved_by: userId,
+      resolved_at: nowIso,
+    })
+    .select('id')
+    .single()
+
+  const { data: reqProfile } = await db.from('profiles').select('name').eq('id', userId).maybeSingle()
+  await Promise.all([
+    createNotification({
+      recipientId: tournament.organizer_id,
+      surface: 'tournament',
+      surfaceId: tournamentId,
+      kind: 'sub_added',
+      title: `Sub added: ${tournament.name}`,
+      body: `${reqProfile?.name ?? 'A player'} handed their spot to ${nominee.name}`,
+      url: `/tournaments/${tournamentId}`,
+    }),
+    createNotification({
+      recipientId: nominee.id,
+      surface: 'tournament',
+      surfaceId: tournamentId,
+      kind: 'sub_added',
+      title: `You're in: ${tournament.name}`,
+      body: `You've taken ${reqProfile?.name ?? 'a player'}'s spot`,
+      url: `/tournaments/${tournamentId}`,
+    }),
+  ])
+
+  return NextResponse.json({ ok: true, id: nom?.id })
 }
 
 // Round-robin league self-sub: the player picks their sub and it's applied

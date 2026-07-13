@@ -23,6 +23,7 @@ type Nomination = {
   event_id: string | null
   league_session_id: string | null
   covered_registration_id: string | null
+  tournament_registration_id: string | null
 }
 
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -40,7 +41,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const db = admin()
   const { data: nom } = await db
     .from('sub_nominations')
-    .select('id, surface, status, requesting_user_id, nominated_user_id, event_id, league_session_id, covered_registration_id')
+    .select('id, surface, status, requesting_user_id, nominated_user_id, event_id, league_session_id, covered_registration_id, tournament_registration_id')
     .eq('id', id)
     .single<Nomination>()
   if (!nom) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -60,6 +61,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
     if (nom.surface === 'league') {
       return undoLeague(db, { nom, actorId: user.id, now })
+    }
+    if (nom.surface === 'tournament') {
+      return undoTournament(db, { nom, actorId: user.id, now })
     }
     return NextResponse.json({ error: 'Unsupported surface' }, { status: 400 })
   }
@@ -296,6 +300,55 @@ async function undoLeague(
     title: `Sub cancelled: ${league?.name ?? 'League'}`,
     body: `${reqP?.name ?? 'The player'} took their spot back`,
     url: `/leagues/${session.league_id}`,
+  })
+
+  return NextResponse.json({ ok: true })
+}
+
+// Undo a tournament spot-transfer: give the registration back to the original
+// player. Only before the division's bracket is generated and while the transfer
+// is still intact (the sub currently holds the registration).
+async function undoTournament(
+  db: ReturnType<typeof admin>,
+  { nom, actorId, now }: { nom: Nomination; actorId: string; now: string }
+) {
+  const { data: reg } = await db
+    .from('tournament_registrations')
+    .select('id, tournament_id, division_id, user_id')
+    .eq('id', nom.tournament_registration_id!)
+    .single()
+  if (!reg) return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
+  if (reg.user_id !== nom.nominated_user_id) {
+    return NextResponse.json({ error: 'This can no longer be undone' }, { status: 400 })
+  }
+
+  const { data: divMatches } = await db
+    .from('tournament_matches')
+    .select('id')
+    .eq('division_id', reg.division_id)
+    .eq('is_draft', false)
+    .limit(1)
+  if (divMatches && divMatches.length > 0) {
+    return NextResponse.json({ error: 'The bracket is already generated — ask your organizer' }, { status: 400 })
+  }
+
+  const { error } = await db.from('tournament_registrations').update({ user_id: actorId }).eq('id', reg.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await db.from('sub_nominations').update({ status: 'cancelled', resolved_by: actorId, resolved_at: now }).eq('id', nom.id)
+
+  const [{ data: tournament }, { data: reqP }] = await Promise.all([
+    db.from('tournaments').select('name').eq('id', reg.tournament_id).maybeSingle(),
+    db.from('profiles').select('name').eq('id', actorId).maybeSingle(),
+  ])
+  await createNotification({
+    recipientId: nom.nominated_user_id,
+    surface: 'tournament',
+    surfaceId: reg.tournament_id,
+    kind: 'sub_removed',
+    title: `Spot reclaimed: ${tournament?.name ?? 'Tournament'}`,
+    body: `${reqP?.name ?? 'The player'} took their spot back`,
+    url: `/tournaments/${reg.tournament_id}`,
   })
 
   return NextResponse.json({ ok: true })
