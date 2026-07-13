@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { formatEventDate, formatEventTime, formatDuration, formatTimestamp } from '@/lib/utils/date'
 import JoinLeaveButton from '@/components/features/events/JoinLeaveButton'
 import AssignCaptainButton from '@/components/features/events/AssignCaptainButton'
+import InvitePlayers from '@/components/features/events/InvitePlayers'
 import EventChat from '@/components/features/events/EventChat'
 import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
@@ -107,6 +108,10 @@ export default async function EventDetailPage(
   const myParticipation = event.event_participants.find(
     (p) => p.user_id === currentUserId && p.participant_status !== 'left'
   )
+  // Already in the session (joined or waitlist) — excluded from the invite picker.
+  const participantUserIds = event.event_participants
+    .filter((p) => p.participant_status !== 'left')
+    .map((p) => p.user_id)
 
   const isCaptain = currentUserId === event.captain_user_id
   const isJoined = myParticipation?.participant_status === 'joined'
@@ -225,6 +230,11 @@ export default async function EventDetailPage(
           calendarEnd={new Date(new Date(event.starts_at).getTime() + event.duration_minutes * 60_000).toISOString()}
           calendarLocation={(event.location as any)?.name}
         />
+      )}
+
+      {/* Captain: invite players */}
+      {isCaptain && isActive && currentUserId && (
+        <InvitePlayers eventId={event.id} existingUserIds={participantUserIds} />
       )}
 
       {/* Captain: reassign */}
