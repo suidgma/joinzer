@@ -3,6 +3,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LiveSessionManager from './LiveSessionManager'
+import RefreshButton from '@/components/ui/RefreshButton'
 import { formatSessionDate } from '@/lib/utils/date'
 
 export default async function LiveSessionPage(
@@ -218,8 +219,9 @@ export default async function LiveSessionPage(
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Link href={`/leagues/${params.id}/roster`} className="text-brand-muted text-sm">← Back</Link>
+        <RefreshButton />
       </div>
 
       <div>
