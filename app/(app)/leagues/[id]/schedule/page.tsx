@@ -6,6 +6,7 @@ import ManageNav from '@/components/ui/manage-nav'
 import { leagueNavItems } from '@/lib/leagues/leagueNav'
 import { skillRangeToLevel } from '@/lib/taxonomy/formats'
 import PlayerSchedule from '../PlayerSchedule'
+import AutoRefresh from '@/components/ui/AutoRefresh'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,9 @@ export default async function LeagueSchedulePage(props: { params: Promise<{ id: 
   const sessionsWithSchedule = [...new Set(((viewableRounds ?? []) as { session_id: string }[]).map((r) => r.session_id))]
 
   const navItems = leagueNavItems(id, { canManage: false, formatKind: league.format_kind })
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+  const imminentSession = ((sessions ?? []) as { session_date: string; status: string }[])
+    .some((s) => s.session_date === todayStr || s.status === 'in_progress')
 
   return (
     <DesktopShell
@@ -56,6 +60,7 @@ export default async function LeagueSchedulePage(props: { params: Promise<{ id: 
       sidebar={<ManageNav items={navItems} />}
     >
       <ManageNav items={navItems} mobileOnly />
+      <AutoRefresh intervalMs={imminentSession ? 20000 : 0} />
       <div className="space-y-4 pb-8 max-w-2xl">
         <h1 className="font-heading text-xl font-bold text-brand-dark">Schedule</h1>
         <PlayerSchedule
