@@ -16,6 +16,8 @@ import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection
 import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
 import RefreshButton from '@/components/ui/RefreshButton'
+import AddSubForMe from '@/components/features/subs/AddSubForMe'
+import UndoSubButton from '@/components/features/subs/UndoSubButton'
 import TournamentOrganizerView from './organizer/_components/TournamentOrganizerView'
 import type { OrgRegistration, OrgDivision, OrgMatch } from './organizer/_components/types'
 import DesktopShell from '@/components/ui/desktop-shell'
@@ -457,11 +459,71 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       )
     : false
 
+  // Player self-sub: hand your spot to a chosen player, only before the division's
+  // bracket is generated. `matches` is already is_draft=false, so a division with any
+  // match has a generated bracket. sub_nominations is deny-all → read via `db`.
+  const generatedDivisions = new Set(matches.map((m: any) => m.division_id))
+  const divisionNameById = new Map<string, string>((divisionsRaw ?? []).map((d: any) => [d.id, d.name]))
+  const mySubSlots = user
+    ? settledRegs
+        .filter((r: any) => r.user_id === user.id && r.status === 'registered' && !generatedDivisions.has(r.division_id))
+        .map((r: any) => ({ registrationId: r.id as string, divisionName: divisionNameById.get(r.division_id) ?? 'Division' }))
+    : []
+
+  let myTournamentTransfers: { id: string; nomineeName: string; divisionName: string }[] = []
+  if (user) {
+    const { data: noms } = await db
+      .from('sub_nominations')
+      .select('id, nominated_user_id, tournament_registration_id')
+      .eq('surface', 'tournament')
+      .eq('tournament_id', tournament.id)
+      .eq('requesting_user_id', user.id)
+      .eq('status', 'approved')
+    if (noms && noms.length > 0) {
+      const regById = new Map((regsRaw ?? []).map((r: any) => [r.id, r]))
+      const nomineeIds = [...new Set(noms.map((n: any) => n.nominated_user_id))]
+      const { data: nomineeProfiles } = await db.from('profiles').select('id, name').in('id', nomineeIds)
+      const nomineeName = (uid: string) => (nomineeProfiles ?? []).find((p: any) => p.id === uid)?.name ?? 'Your sub'
+      for (const n of noms as any[]) {
+        const reg = regById.get(n.tournament_registration_id) as any
+        if (!reg || reg.user_id !== n.nominated_user_id) continue // transfer no longer intact
+        if (generatedDivisions.has(reg.division_id)) continue // bracket generated
+        myTournamentTransfers.push({
+          id: n.id,
+          nomineeName: nomineeName(n.nominated_user_id),
+          divisionName: divisionNameById.get(reg.division_id) ?? 'Division',
+        })
+      }
+    }
+  }
+
   return (
     <DesktopShell sidebar={<ManageNav items={navItems} />}>
       <ManageNav items={navItems} mobileOnly />
       <div className="space-y-4">
         {pageHeader}
+
+        {(myTournamentTransfers.length > 0 || mySubSlots.length > 0) && (
+          <div className="space-y-2">
+            {myTournamentTransfers.map((t) => (
+              <div key={t.id} className="space-y-1">
+                <p className="text-xs font-semibold text-brand-muted">{t.divisionName}</p>
+                <UndoSubButton nominationId={t.id} nomineeName={t.nomineeName} />
+              </div>
+            ))}
+            {mySubSlots.map((slot) => (
+              <div key={slot.registrationId} className="space-y-1">
+                <p className="text-xs font-semibold text-brand-muted">{slot.divisionName}</p>
+                <AddSubForMe
+                  surface="tournament"
+                  scope={{ tournamentId: tournament.id, registrationId: slot.registrationId }}
+                  currentUserId={user!.id}
+                  caption="Your sub takes your place in the bracket — only before it's generated."
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {divisions.length > 0 && (
           <DivisionsSection
