@@ -2,112 +2,58 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import PlayerCombobox, { type PlayerOption } from '@/components/ui/PlayerCombobox'
 import { UserPlus, X } from 'lucide-react'
 
 type Surface = 'play' | 'league' | 'tournament'
 
 type Props = {
   surface: Surface
-  // Scope identifiers merged into the create-nomination request body, e.g.
-  // { eventId } for play, { tournamentId, registrationId } for tournaments.
+  // Scope identifiers merged into the request body, e.g. { eventId } for play.
   scope: Record<string, string>
-  // A pending nomination by the current player, if one already exists.
-  pending?: { id: string; nomineeName: string } | null
+  // Existing Joinzer users the player can pick from (already excludes self + anyone
+  // in the session), shown in a searchable "Pick your sub" dropdown.
+  candidates: PlayerOption[]
   label?: string
   caption?: string
 }
 
-// Shared player-facing "nominate my own substitute" control across Play / Leagues /
-// Tournaments. Searches Joinzer players by name and posts a pending nomination the
-// organizer must approve. When a pending nomination exists, shows its status + cancel.
+// Shared player-facing "pick my own substitute" control across Play / Leagues /
+// Tournaments. The player picks an existing Joinzer user from a dropdown and the
+// sub takes effect immediately — no organizer approval required.
 export default function AddSubForMe({
   surface,
   scope,
-  pending = null,
+  candidates,
   label = 'Add a sub for me',
-  caption = 'Your sub takes your spot once the organizer approves.',
+  caption = 'Your sub takes your spot right away — no approval needed.',
 }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<{ id: string; name: string }[]>([])
-  const [searching, setSearching] = useState(false)
+  const [selectedId, setSelectedId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function search(q: string) {
-    setQuery(q)
-    setError(null)
-    if (!q.trim()) {
-      setResults([])
-      return
-    }
-    setSearching(true)
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, name')
-      .ilike('name', `%${q.trim()}%`)
-      .order('name')
-      .limit(15)
-    setResults((data ?? []) as { id: string; name: string }[])
-    setSearching(false)
-  }
+  const selectedName = candidates.find((c) => c.id === selectedId)?.name ?? ''
 
-  async function nominate(userId: string) {
+  async function submit() {
+    if (!selectedId) return
     setBusy(true)
     setError(null)
     const res = await fetch('/api/sub-nominations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ surface, nominatedUserId: userId, ...scope }),
+      body: JSON.stringify({ surface, nominatedUserId: selectedId, ...scope }),
     })
     const json = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) {
-      setError(json.error ?? 'Could not send the request')
+      setError(json.error ?? 'Could not add your sub')
       return
     }
     setOpen(false)
-    setQuery('')
-    setResults([])
+    setSelectedId('')
     router.refresh()
-  }
-
-  async function cancel() {
-    if (!pending) return
-    setBusy(true)
-    setError(null)
-    const res = await fetch(`/api/sub-nominations/${pending.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel' }),
-    })
-    setBusy(false)
-    if (res.ok) router.refresh()
-    else setError('Could not cancel')
-  }
-
-  if (pending) {
-    return (
-      <div className="bg-brand-surface border border-brand-border rounded-2xl p-3 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm text-brand-dark">
-            Sub requested: <span className="font-semibold">{pending.nomineeName}</span>
-          </p>
-          <p className="text-xs text-brand-muted">Waiting for the organizer to approve.</p>
-          {error && <p className="text-xs text-red-600">{error}</p>}
-        </div>
-        <button
-          onClick={cancel}
-          disabled={busy}
-          className="text-xs font-medium text-brand-muted hover:text-red-600 shrink-0 disabled:opacity-50"
-        >
-          Cancel
-        </button>
-      </div>
-    )
   }
 
   if (!open) {
@@ -128,8 +74,7 @@ export default function AddSubForMe({
         <button
           onClick={() => {
             setOpen(false)
-            setQuery('')
-            setResults([])
+            setSelectedId('')
             setError(null)
           }}
           className="text-brand-muted hover:text-brand-dark"
@@ -138,35 +83,28 @@ export default function AddSubForMe({
           <X className="w-4 h-4" />
         </button>
       </div>
-      <input
-        autoFocus
-        value={query}
-        onChange={(e) => search(e.target.value)}
-        placeholder="Search players by name…"
-        className="w-full text-sm px-3 py-2 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand bg-white"
+
+      <PlayerCombobox
+        options={candidates}
+        value={selectedId}
+        onChange={(id) => {
+          setSelectedId(id)
+          setError(null)
+        }}
+        placeholder="Pick your sub…"
+        emptyText="No players available to sub"
       />
+
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="max-h-56 overflow-y-auto divide-y divide-brand-border">
-        {searching ? (
-          <p className="text-xs text-brand-muted py-2">Searching…</p>
-        ) : results.length === 0 ? (
-          <p className="text-xs text-brand-muted py-2">
-            {query ? 'No players found' : 'Type a name to search Joinzer players.'}
-          </p>
-        ) : (
-          results.map((r) => (
-            <button
-              key={r.id}
-              disabled={busy}
-              onClick={() => nominate(r.id)}
-              className="w-full text-left px-1 py-2 text-sm text-brand-dark hover:bg-brand-soft disabled:opacity-50 flex items-center justify-between"
-            >
-              <span>{r.name}</span>
-              <span className="text-xs text-brand-active font-medium">Choose →</span>
-            </button>
-          ))
-        )}
-      </div>
+
+      <button
+        onClick={submit}
+        disabled={!selectedId || busy}
+        className="w-full py-2.5 rounded-lg bg-brand text-brand-dark text-sm font-bold disabled:opacity-40 hover:bg-brand-hover transition-colors"
+      >
+        {busy ? 'Adding…' : selectedName ? `Sub in ${selectedName}` : 'Sub them in'}
+      </button>
+
       <p className="text-[11px] text-brand-muted">{caption}</p>
     </div>
   )

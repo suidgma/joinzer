@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications/create'
 
-// POST /api/sub-nominations — a PLAYER nominates an existing Joinzer user to sub for
-// them. The nomination stays 'pending' until the organizer approves it (see PATCH
-// /api/sub-nominations/[id]). Surface-dispatched; Phase 1 implements 'play'.
+// POST /api/sub-nominations — a PLAYER picks an existing Joinzer user to sub for them.
+// The sub takes effect IMMEDIATELY (no organizer approval — the point is less work for
+// organizers, not more). We still record the swap in sub_nominations as an audit trail
+// and notify the organizer + the sub. Surface-dispatched; Phase 1 implements 'play'.
 //
 // sub_nominations is deny-all RLS, so every read/write here goes through the service
 // role — which means THIS ROUTE is the authorization boundary: we re-derive the
@@ -47,7 +48,7 @@ async function createPlayNomination(
 
   const { data: event } = await db
     .from('events')
-    .select('id, title, starts_at, status, captain_user_id')
+    .select('id, title, starts_at, status, price_cents, captain_user_id')
     .eq('id', eventId)
     .single()
   if (!event) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
@@ -72,35 +73,59 @@ async function createPlayNomination(
     return NextResponse.json({ error: `${nominee.name} is already in this session` }, { status: 400 })
   }
 
-  const { data: nom, error } = await db
-    .from('sub_nominations')
-    .insert({
-      surface: 'play',
+  // Apply the swap immediately: the requester leaves, the sub takes their joined slot
+  // (1:1, capacity preserved). No organizer approval required.
+  const paid = (event.price_cents ?? 0) > 0
+  await db.from('event_participants')
+    .update({ participant_status: 'left' })
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+  const { error: upErr } = await db.from('event_participants').upsert(
+    {
       event_id: eventId,
-      requesting_user_id: userId,
-      nominated_user_id: nominee.id,
-      note,
-    })
-    .select('id')
-    .single()
-  if (error) {
-    // Partial unique index → a pending nomination already exists.
-    if (error.code === '23505') {
-      return NextResponse.json({ error: 'You already have a pending sub request' }, { status: 409 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+      user_id: nominee.id,
+      participant_status: 'joined',
+      payment_status: paid ? 'unpaid' : 'free',
+    },
+    { onConflict: 'event_id,user_id' }
+  )
+  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
 
-  const { data: reqProfile } = await db.from('profiles').select('name').eq('id', userId).maybeSingle()
-  await createNotification({
-    recipientId: event.captain_user_id,
-    surface: 'event',
-    surfaceId: eventId,
-    kind: 'sub_nomination',
-    title: `Sub request: ${event.title}`,
-    body: `${reqProfile?.name ?? 'A player'} wants ${nominee.name} to sub in — approve or decline`,
-    url: `/play/${eventId}`,
+  // Record the applied swap (audit trail).
+  const nowIso = new Date().toISOString()
+  await db.from('sub_nominations').insert({
+    surface: 'play',
+    event_id: eventId,
+    requesting_user_id: userId,
+    nominated_user_id: nominee.id,
+    note,
+    status: 'approved',
+    resolved_by: userId,
+    resolved_at: nowIso,
   })
 
-  return NextResponse.json({ ok: true, id: nom.id })
+  // Notify the organizer (FYI) and the sub.
+  const { data: reqProfile } = await db.from('profiles').select('name').eq('id', userId).maybeSingle()
+  await Promise.all([
+    createNotification({
+      recipientId: event.captain_user_id,
+      surface: 'event',
+      surfaceId: eventId,
+      kind: 'sub_added',
+      title: `Sub added: ${event.title}`,
+      body: `${reqProfile?.name ?? 'A player'} subbed in ${nominee.name} for their spot`,
+      url: `/play/${eventId}`,
+    }),
+    createNotification({
+      recipientId: nominee.id,
+      surface: 'event',
+      surfaceId: eventId,
+      kind: 'sub_added',
+      title: `You're subbing in: ${event.title}`,
+      body: `You're on the roster in place of ${reqProfile?.name ?? 'a player'}`,
+      url: `/play/${eventId}`,
+    }),
+  ])
+
+  return NextResponse.json({ ok: true })
 }
