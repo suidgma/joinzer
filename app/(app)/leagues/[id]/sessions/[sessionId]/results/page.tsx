@@ -5,6 +5,7 @@ import { formatSessionDate } from '@/lib/utils/date'
 import MatchEntryForm from './MatchEntryForm'
 import LockedRoundsScoring, { type LockedMatch } from './LockedRoundsScoring'
 import PlayerRoundScores, { type PlayerRoundMatch } from './PlayerRoundScores'
+import RefreshButton from '@/components/ui/RefreshButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -180,8 +181,9 @@ export default async function SessionResultsPage(
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Link href={canEdit ? `/leagues/${params.id}/sessions/${params.sessionId}/live` : `/leagues/${params.id}`} className="text-brand-muted text-sm">← Back</Link>
+        <RefreshButton />
       </div>
 
       <div>
