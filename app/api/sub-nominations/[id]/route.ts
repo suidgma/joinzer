@@ -21,6 +21,8 @@ type Nomination = {
   requesting_user_id: string
   nominated_user_id: string
   event_id: string | null
+  league_session_id: string | null
+  covered_registration_id: string | null
 }
 
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -38,7 +40,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const db = admin()
   const { data: nom } = await db
     .from('sub_nominations')
-    .select('id, surface, status, requesting_user_id, nominated_user_id, event_id')
+    .select('id, surface, status, requesting_user_id, nominated_user_id, event_id, league_session_id, covered_registration_id')
     .eq('id', id)
     .single<Nomination>()
   if (!nom) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -55,6 +57,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
     if (nom.surface === 'play') {
       return undoPlay(db, { nom, actorId: user.id, now })
+    }
+    if (nom.surface === 'league') {
+      return undoLeague(db, { nom, actorId: user.id, now })
     }
     return NextResponse.json({ error: 'Unsupported surface' }, { status: 400 })
   }
@@ -237,6 +242,60 @@ async function undoPlay(
     title: `Sub cancelled: ${event.title}`,
     body: `${reqP?.name ?? 'The player'} took their spot back`,
     url: `/play/${event.id}`,
+  })
+
+  return NextResponse.json({ ok: true })
+}
+
+// Undo a round-robin league self-sub: remove the sub's session row and clear the
+// player's 'has_sub'. Only before the session's rounds are generated.
+async function undoLeague(
+  db: ReturnType<typeof admin>,
+  { nom, actorId, now }: { nom: Nomination; actorId: string; now: string }
+) {
+  const { data: session } = await db
+    .from('league_sessions')
+    .select('id, league_id, status')
+    .eq('id', nom.league_session_id!)
+    .single()
+  if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  if (session.status === 'completed' || session.status === 'cancelled') {
+    return NextResponse.json({ error: 'This session is closed' }, { status: 400 })
+  }
+
+  const { data: rounds } = await db.from('league_rounds').select('id').eq('session_id', session.id).limit(1)
+  if (rounds && rounds.length > 0) {
+    return NextResponse.json({ error: 'Rounds are already set — ask your organizer' }, { status: 400 })
+  }
+
+  // Remove the sub row placed for this cover, then clear 'has_sub' on the player's row.
+  await db
+    .from('league_session_players')
+    .delete()
+    .eq('session_id', session.id)
+    .eq('user_id', nom.nominated_user_id)
+    .eq('sub_for_session_player_id', nom.covered_registration_id!)
+  if (nom.covered_registration_id) {
+    await db
+      .from('league_session_players')
+      .update({ actual_status: 'not_present' })
+      .eq('id', nom.covered_registration_id)
+  }
+
+  await db.from('sub_nominations').update({ status: 'cancelled', resolved_by: actorId, resolved_at: now }).eq('id', nom.id)
+
+  const [{ data: league }, { data: reqP }] = await Promise.all([
+    db.from('leagues').select('name').eq('id', session.league_id).maybeSingle(),
+    db.from('profiles').select('name').eq('id', actorId).maybeSingle(),
+  ])
+  await createNotification({
+    recipientId: nom.nominated_user_id,
+    surface: 'league',
+    surfaceId: session.league_id,
+    kind: 'sub_removed',
+    title: `Sub cancelled: ${league?.name ?? 'League'}`,
+    body: `${reqP?.name ?? 'The player'} took their spot back`,
+    url: `/leagues/${session.league_id}`,
   })
 
   return NextResponse.json({ ok: true })

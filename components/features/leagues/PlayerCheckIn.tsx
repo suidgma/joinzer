@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import AddSubForMe from '@/components/features/subs/AddSubForMe'
+import UndoSubButton from '@/components/features/subs/UndoSubButton'
 
 type Status = 'planning_to_attend' | 'cannot_attend' | 'checked_in_present' | 'running_late' | 'not_responded'
 
@@ -17,9 +19,22 @@ type Props = {
   initialStatus: Status
   showSubRequest?: boolean
   leagueSkillLevel?: string | null
+  // Round-robin self-sub: allowed before the session's rounds are generated.
+  allowSelfSub?: boolean
+  currentUserId?: string
+  activeSelfSub?: { id: string; nomineeName: string } | null
 }
 
-export default function PlayerCheckIn({ sessionId, leagueId, initialStatus, showSubRequest = true, leagueSkillLevel }: Props) {
+export default function PlayerCheckIn({
+  sessionId,
+  leagueId,
+  initialStatus,
+  showSubRequest = true,
+  leagueSkillLevel,
+  allowSelfSub = false,
+  currentUserId,
+  activeSelfSub = null,
+}: Props) {
   const [status, setStatus]           = useState<Status>(initialStatus)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState<string | null>(null)
@@ -115,6 +130,20 @@ export default function PlayerCheckIn({ sessionId, leagueId, initialStatus, show
       )}
 
       {subError && <p className="text-xs text-red-600">{subError}</p>}
+
+      {/* Direct-pick self-sub (round-robin, before rounds are generated) */}
+      {activeSelfSub ? (
+        <UndoSubButton nominationId={activeSelfSub.id} nomineeName={activeSelfSub.nomineeName} />
+      ) : (
+        allowSelfSub && status === 'cannot_attend' && (
+          <AddSubForMe
+            surface="league"
+            scope={{ leagueId, sessionId }}
+            currentUserId={currentUserId}
+            caption="Your sub takes your spot for this session — your standing/credit stays with you."
+          />
+        )
+      )}
     </div>
   )
 }
