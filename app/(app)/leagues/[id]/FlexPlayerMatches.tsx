@@ -4,6 +4,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { FlexMatchView } from '@/lib/leagues/flexView'
 
+// A self-scheduled time is a wall-clock value — format it in UTC so it reads back
+// exactly as entered (no timezone shift).
+function fmtSchedule(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 // A registered player's own Flex matches: report a score, or confirm/dispute what the
 // opponent reported. Scores are shown from the viewer's perspective (you first).
 export default function FlexPlayerMatches({ leagueId, matches }: { leagueId: string; matches: FlexMatchView[] }) {
@@ -13,8 +21,32 @@ export default function FlexPlayerMatches({ leagueId, matches }: { leagueId: str
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [scores, setScores] = useState<Record<string, { you: string; opp: string }>>({})
+  const [schedId, setSchedId] = useState<string | null>(null)
+  const [schedTime, setSchedTime] = useState('')
+  const [schedCourt, setSchedCourt] = useState('')
 
   if (mine.length === 0) return null
+
+  function openSched(m: FlexMatchView) {
+    setError(null)
+    if (schedId === m.id) { setSchedId(null); return }
+    setSchedId(m.id)
+    setSchedTime(m.scheduledTime ? m.scheduledTime.slice(0, 16) : '')
+    setSchedCourt(m.court != null ? String(m.court) : '')
+  }
+
+  async function saveSchedule(id: string) {
+    setBusy(id + 'sched'); setError(null)
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/flex/fixtures/${id}/schedule`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduledTime: schedTime || null, court: schedCourt || null }),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? 'Could not save the time'); return }
+      setSchedId(null)
+      router.refresh()
+    } catch { setError('Network error') } finally { setBusy(null) }
+  }
 
   const setScore = (id: string, k: 'you' | 'opp', v: string) =>
     setScores((p) => ({ ...p, [id]: { ...(p[id] ?? { you: '', opp: '' }), [k]: v.replace(/[^0-9]/g, '') } }))
@@ -71,6 +103,24 @@ export default function FlexPlayerMatches({ leagueId, matches }: { leagueId: str
                 <span className="text-sm font-medium text-brand-dark truncate">vs {oppName}</span>
                 {m.round != null && <span className="text-[11px] text-brand-muted shrink-0">Round {m.round}</span>}
               </div>
+
+              {/* Self-scheduling — agree a time + court with your opponent */}
+              {(m.status === 'scheduled' || m.status === 'in_progress') && (
+                schedId === m.id ? (
+                  <div className="flex flex-wrap items-center gap-2 bg-brand-soft/40 rounded-lg p-2">
+                    <input type="datetime-local" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="rounded-lg border border-brand-border px-2 py-1.5 text-sm" aria-label="Match time" />
+                    <input inputMode="numeric" value={schedCourt} onChange={(e) => setSchedCourt(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Court" className="w-16 rounded-lg border border-brand-border px-2 py-1.5 text-sm" aria-label="Court" />
+                    <button onClick={() => saveSchedule(m.id)} disabled={busy === m.id + 'sched'} className="bg-brand text-brand-dark rounded-lg text-xs font-semibold px-3 py-1.5 hover:bg-brand-hover disabled:opacity-50">Save</button>
+                    <button onClick={() => setSchedId(null)} className="text-xs text-brand-muted">Cancel</button>
+                  </div>
+                ) : m.scheduledTime ? (
+                  <button onClick={() => openSched(m)} className="text-xs text-brand-muted hover:text-brand-dark">
+                    📅 {fmtSchedule(m.scheduledTime)}{m.court ? ` · Court ${m.court}` : ''} · Change
+                  </button>
+                ) : (
+                  <button onClick={() => openSched(m)} className="text-xs text-brand-active font-medium">+ Set match time</button>
+                )
+              )}
 
               {m.status === 'scheduled' && (editing === m.id ? inputs : (
                 <button onClick={() => setEditing(m.id)} className="text-sm font-semibold text-brand-active">Report score →</button>

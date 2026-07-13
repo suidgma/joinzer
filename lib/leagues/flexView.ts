@@ -17,6 +17,8 @@ export type FlexMatchView = {
   reporterSide: FlexSide | null // which side entered the pending report
   winner1: boolean | null // side 1 won (completed only)
   viewerSide: FlexSide | null // the viewing player's side, if any
+  scheduledTime: string | null // self-scheduled match time (wall-clock ISO) or null
+  court: number | null
 }
 export type FlexCounts = { total: number; completed: number; pending: number; disputed: number; scheduled: number }
 export type FlexMatchesResult = { matches: FlexMatchView[]; counts: FlexCounts; entrantCount: number }
@@ -75,7 +77,7 @@ export async function loadFlexMatches(
 
   const { data: fxRaw } = await db
     .from('league_fixtures')
-    .select('id, round_number, match_number, status, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, reported_by, winner_registration_id')
+    .select('id, round_number, match_number, status, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, reported_by, winner_registration_id, scheduled_time, court_number')
     .eq('league_id', leagueId).eq('match_stage', 'round_robin')
     .order('round_number', { ascending: true }).order('match_number', { ascending: true })
   const fixtures = (fxRaw ?? []) as any[]
@@ -96,6 +98,8 @@ export async function loadFlexMatches(
       reporterSide: sideOf(f.reported_by),
       winner1: f.status === 'completed' && f.winner_registration_id != null ? f.winner_registration_id === f.team_1_registration_id : null,
       viewerSide: sideOf(viewerUserId),
+      scheduledTime: f.scheduled_time ?? null,
+      court: f.court_number ?? null,
     }
   })
 
