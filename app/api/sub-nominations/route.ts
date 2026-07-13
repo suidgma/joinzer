@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications/create'
 import { assignRrSub } from '@/lib/leagues/assignRrSub'
+import { assignAttendanceSub } from '@/lib/leagues/assignAttendanceSub'
 
 // POST /api/sub-nominations — a PLAYER picks an existing Joinzer user to sub for them.
 // The sub takes effect IMMEDIATELY (no organizer approval — the point is less work for
@@ -38,6 +39,10 @@ export async function POST(req: NextRequest) {
     return createPlayNomination(db, { userId: user.id, eventId: body.eventId, nominee, note })
   }
   if (body.surface === 'league') {
+    // Round-robin scopes on a session; box/ladder scope on a period.
+    if (body.periodId) {
+      return createLeaguePeriodNomination(db, { userId: user.id, leagueId: body.leagueId, periodId: body.periodId, nominee, note })
+    }
     return createLeagueNomination(db, {
       userId: user.id,
       leagueId: body.leagueId,
@@ -56,6 +61,111 @@ export async function POST(req: NextRequest) {
     })
   }
   return NextResponse.json({ error: 'Unsupported surface' }, { status: 400 })
+}
+
+// Box / ladder league self-sub (unified league_attendance model): the player picks
+// their sub for the active cycle/session and it's applied immediately — their entry
+// is marked 'has_sub' and the sub is placed for their spot (credit stays on them).
+// Only before the period's matches are generated.
+async function createLeaguePeriodNomination(
+  db: ReturnType<typeof admin>,
+  {
+    userId,
+    leagueId,
+    periodId,
+    nominee,
+    note,
+  }: { userId: string; leagueId?: string; periodId?: string; nominee: { id: string; name: string }; note: string | null }
+) {
+  if (!leagueId || !periodId) return NextResponse.json({ error: 'Missing league or session' }, { status: 400 })
+
+  const { data: league } = await db.from('leagues').select('id, name, created_by').eq('id', leagueId).single()
+  if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+
+  const { data: period } = await db
+    .from('league_periods')
+    .select('id, league_id, status')
+    .eq('id', periodId)
+    .single()
+  if (!period || period.league_id !== leagueId) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  if (period.status !== 'active') return NextResponse.json({ error: 'This session is closed' }, { status: 400 })
+
+  const { data: reg } = await db
+    .from('league_registrations')
+    .select('id, status')
+    .eq('league_id', leagueId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!reg || reg.status !== 'registered') {
+    return NextResponse.json({ error: 'Only a registered player can add a sub' }, { status: 403 })
+  }
+
+  // Guard: only before the period's matches are generated.
+  const { data: fx } = await db.from('league_fixtures').select('id').eq('period_id', periodId).limit(1)
+  if (fx && fx.length > 0) {
+    return NextResponse.json({ error: 'Matches are already set — ask your organizer to sub you out' }, { status: 400 })
+  }
+
+  // Nominee must not already be an attendee in this period (by user or their reg).
+  const { data: nomineeAtt } = await db.from('league_attendance').select('id').eq('period_id', periodId).eq('user_id', nominee.id).maybeSingle()
+  if (nomineeAtt) return NextResponse.json({ error: `${nominee.name} is already in this session` }, { status: 400 })
+  const { data: nomineeReg } = await db
+    .from('league_registrations').select('id').eq('league_id', leagueId).eq('user_id', nominee.id).neq('status', 'cancelled').maybeSingle()
+  if (nomineeReg) {
+    const { data: nomineeAtt2 } = await db.from('league_attendance').select('id').eq('period_id', periodId).eq('registration_id', nomineeReg.id).maybeSingle()
+    if (nomineeAtt2) return NextResponse.json({ error: `${nominee.name} is already in this session` }, { status: 400 })
+  }
+
+  const result = await assignAttendanceSub(db, {
+    leagueId,
+    periodId,
+    coveredRegistrationId: reg.id,
+    coveredUserId: userId,
+    subUserId: nominee.id,
+  })
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+
+  const nowIso = new Date().toISOString()
+  const { data: nom } = await db
+    .from('sub_nominations')
+    .insert({
+      surface: 'league',
+      league_id: leagueId,
+      league_period_id: periodId,
+      covered_registration_id: reg.id,
+      requesting_user_id: userId,
+      nominated_user_id: nominee.id,
+      note,
+      status: 'approved',
+      resolved_by: userId,
+      resolved_at: nowIso,
+    })
+    .select('id')
+    .single()
+
+  const { data: reqProfile } = await db.from('profiles').select('name').eq('id', userId).maybeSingle()
+  await Promise.all([
+    createNotification({
+      recipientId: league.created_by,
+      surface: 'league',
+      surfaceId: leagueId,
+      kind: 'sub_added',
+      title: `Sub added: ${league.name}`,
+      body: `${reqProfile?.name ?? 'A player'} subbed in ${nominee.name} for their spot`,
+      url: `/leagues/${leagueId}`,
+    }),
+    createNotification({
+      recipientId: nominee.id,
+      surface: 'league',
+      surfaceId: leagueId,
+      kind: 'sub_added',
+      title: `You're subbing in: ${league.name}`,
+      body: `You're covering for ${reqProfile?.name ?? 'a player'}`,
+      url: `/leagues/${leagueId}`,
+    }),
+  ])
+
+  return NextResponse.json({ ok: true, id: nom?.id })
 }
 
 // Tournament self-sub: transfer your spot to the chosen player (swap the
