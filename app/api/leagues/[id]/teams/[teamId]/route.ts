@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { teamAdmin, assertTeamLeagueOrganizer } from '@/lib/leagues/teamsServer'
+import { teamAdmin, assertTeamLeagueOrganizer, captainTeamIds } from '@/lib/leagues/teamsServer'
 import { logAudit } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string; teamId: string }> }
 
 // PATCH /api/leagues/[id]/teams/[teamId] — rename / set captain / withdraw.
-// Body: { name?, captain_registration_id?, status? }.
+// Body: { name?, captain_registration_id?, status? }. Organizer can change anything;
+// the current captain can only transfer captaincy to one of their own teammates.
 export async function PATCH(req: NextRequest, props: Params) {
   const { id, teamId } = await props.params
   const supabase = createClient()
@@ -15,7 +16,9 @@ export async function PATCH(req: NextRequest, props: Params) {
 
   const db = teamAdmin()
   const gate = await assertTeamLeagueOrganizer(db, id, user.id)
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
+  const isOrganizer = gate.ok
+  const isCaptain = !isOrganizer && (await captainTeamIds(db, id, user.id)).has(teamId)
+  if (!isOrganizer && !isCaptain) return NextResponse.json({ error: gate.ok ? 'Forbidden' : gate.error }, { status: 403 })
 
   const { data: team } = await db.from('league_teams')
     .select('id, name, captain_registration_id, status').eq('id', teamId).eq('league_id', id).maybeSingle()
@@ -23,9 +26,18 @@ export async function PATCH(req: NextRequest, props: Params) {
 
   const body = await req.json().catch(() => ({}))
   const patch: Record<string, unknown> = {}
-  if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim()
-  if ('captain_registration_id' in body) patch.captain_registration_id = body.captain_registration_id || null
-  if (body.status === 'active' || body.status === 'withdrawn') patch.status = body.status
+  if (isOrganizer) {
+    if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim()
+    if ('captain_registration_id' in body) patch.captain_registration_id = body.captain_registration_id || null
+    if (body.status === 'active' || body.status === 'withdrawn') patch.status = body.status
+  } else {
+    // Captain: transfer captaincy only, and only to a member of their own team.
+    const newCap = body.captain_registration_id || null
+    if (!newCap) return NextResponse.json({ error: 'Pick a teammate to make captain' }, { status: 400 })
+    const { data: member } = await db.from('league_team_members').select('id').eq('team_id', teamId).eq('registration_id', newCap).maybeSingle()
+    if (!member) return NextResponse.json({ error: 'That player isn’t on your team' }, { status: 400 })
+    patch.captain_registration_id = newCap
+  }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No changes' }, { status: 400 })
   patch.updated_at = new Date().toISOString()
 
