@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 function formatTime(t: string | null | undefined): string | null {
@@ -47,6 +49,9 @@ type Props = {
   currentUserId: string
   matches: Match[]
   divisions: Division[]
+  tournamentId: string
+  // When the tournament allows player scores, a participant can score their own match.
+  canScore?: boolean
 }
 
 function firstName(name: string | null | undefined): string {
@@ -85,7 +90,45 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'text-gray-500 bg-gray-100',
 }
 
-export default function MyMatchesSection({ currentUserId, matches, divisions }: Props) {
+export default function MyMatchesSection({ currentUserId, matches, divisions, tournamentId, canScore = false }: Props) {
+  const router = useRouter()
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [myScoreInput, setMyScoreInput] = useState('')
+  const [oppScoreInput, setOppScoreInput] = useState('')
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  function toggle(id: string) {
+    setError(null)
+    if (openId === id) { setOpenId(null); return }
+    setOpenId(id)
+    setMyScoreInput('')
+    setOppScoreInput('')
+  }
+
+  async function saveScore(matchId: string, iAmTeam1: boolean) {
+    const a = parseInt(myScoreInput)
+    const b = parseInt(oppScoreInput)
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) { setError('Enter both scores'); return }
+    if (a === b) { setError('Scores can’t be tied'); return }
+    const team_1_score = iAmTeam1 ? a : b
+    const team_2_score = iAmTeam1 ? b : a
+    setSavingId(matchId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/matches/${matchId}/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team_1_score, team_2_score }),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? 'Failed to save'); return }
+      setOpenId(null)
+      router.refresh()
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   const allRegs = divisions.flatMap(d => d.tournament_registrations)
   const divisionMap = Object.fromEntries(divisions.map(d => [d.id, d.name]))
 
@@ -161,6 +204,28 @@ export default function MyMatchesSection({ currentUserId, matches, divisions }: 
                   <p className="text-sm font-medium text-brand-body truncate"><TeamNameDisplay regId={oppRegId} regs={allRegs} isDoubles={isDoubles} /></p>
                 </div>
               </div>
+
+              {/* Player score entry — when the tournament allows it, for my un-played matches */}
+              {canScore && m.status !== 'completed' && myRegId && oppRegId && (
+                openId === m.id ? (
+                  <div className="pt-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input inputMode="numeric" pattern="[0-9]*" value={myScoreInput} onChange={e => setMyScoreInput(e.target.value)} placeholder="You" className="w-16 input text-sm text-center" />
+                      <span className="text-xs text-brand-muted">–</span>
+                      <input inputMode="numeric" pattern="[0-9]*" value={oppScoreInput} onChange={e => setOppScoreInput(e.target.value)} placeholder="Opp" className="w-16 input text-sm text-center" />
+                      <button onClick={() => saveScore(m.id, iAmTeam1)} disabled={savingId === m.id} className="ml-auto text-xs font-semibold bg-brand text-brand-dark px-3 py-1.5 rounded-lg disabled:opacity-50">
+                        {savingId === m.id ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={() => toggle(m.id)} className="text-xs text-brand-muted">Cancel</button>
+                    </div>
+                    {error && <p className="text-xs text-red-600">{error}</p>}
+                  </div>
+                ) : (
+                  <button onClick={() => toggle(m.id)} className="w-full py-2 rounded-lg bg-brand text-brand-dark text-xs font-semibold hover:bg-brand-hover transition-colors">
+                    Enter my score
+                  </button>
+                )
+              )}
             </div>
           )
         })}
