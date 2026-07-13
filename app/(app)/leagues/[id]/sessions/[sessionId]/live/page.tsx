@@ -233,7 +233,6 @@ export default async function LiveSessionPage(
         initialPlayers={players ?? []}
         initialRounds={rounds ?? []}
         numberOfCourts={session.number_of_courts ?? 4}
-        roundsPlanned={session.rounds_planned ?? 7}
         initialScoredRounds={scoredRoundNumbers}
         initialMatchScores={(matchScoreRows ?? []) as any[]}
         availableSubs={(availableProfiles ?? []).map(p => ({ id: p.id, name: p.name }))}

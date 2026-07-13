@@ -194,7 +194,7 @@ export default async function SessionResultsPage(
 
       {/* Organizer: editable scoring. Registered player: read-only schedule + scores. */}
       {canEdit ? (
-        <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} roundsPlanned={session.rounds_planned ?? 7} pointsToWin={league.points_to_win ?? 11} />
+        <LockedRoundsScoring sessionId={params.sessionId} leagueId={params.id} matches={lockedMatches} pointsToWin={league.points_to_win ?? 11} />
       ) : roundEntries.length > 0 ? (
         <div className="space-y-4">
           {roundEntries.map(([round, matches]) => (
