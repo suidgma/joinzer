@@ -109,6 +109,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const isLadder = formatKind === 'ladder'
   const isTeam = formatKind === 'team'
   const isFlex = formatKind === 'flex'
+  // Box/ladder default player self-scoring ON (player-run); the organizer can uncheck it.
+  useEffect(() => { setAllowPlayerScores(isBox || isLadder) }, [isBox, isLadder])
   // Period-based formats (box cycles, ladder sessions, team matchdays) don't generate
   // weekly league_sessions.
   const usesPeriods = isBox || isLadder || isTeam
