@@ -22,6 +22,7 @@ type Nomination = {
   nominated_user_id: string
   event_id: string | null
   league_session_id: string | null
+  league_period_id: string | null
   covered_registration_id: string | null
   tournament_registration_id: string | null
 }
@@ -41,7 +42,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const db = admin()
   const { data: nom } = await db
     .from('sub_nominations')
-    .select('id, surface, status, requesting_user_id, nominated_user_id, event_id, league_session_id, covered_registration_id, tournament_registration_id')
+    .select('id, surface, status, requesting_user_id, nominated_user_id, event_id, league_session_id, league_period_id, covered_registration_id, tournament_registration_id')
     .eq('id', id)
     .single<Nomination>()
   if (!nom) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -257,6 +258,9 @@ async function undoLeague(
   db: ReturnType<typeof admin>,
   { nom, actorId, now }: { nom: Nomination; actorId: string; now: string }
 ) {
+  // Box / ladder (unified league_attendance) self-sub undo.
+  if (nom.league_period_id) return undoLeaguePeriod(db, { nom, actorId, now })
+
   const { data: session } = await db
     .from('league_sessions')
     .select('id, league_id, status')
@@ -300,6 +304,58 @@ async function undoLeague(
     title: `Sub cancelled: ${league?.name ?? 'League'}`,
     body: `${reqP?.name ?? 'The player'} took their spot back`,
     url: `/leagues/${session.league_id}`,
+  })
+
+  return NextResponse.json({ ok: true })
+}
+
+// Undo a box/ladder league self-sub: remove the sub's attendance row and clear the
+// player's 'has_sub'. Only before the period's matches are generated.
+async function undoLeaguePeriod(
+  db: ReturnType<typeof admin>,
+  { nom, actorId, now }: { nom: Nomination; actorId: string; now: string }
+) {
+  const { data: period } = await db
+    .from('league_periods')
+    .select('id, league_id, status')
+    .eq('id', nom.league_period_id!)
+    .single()
+  if (!period) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  if (period.status !== 'active') return NextResponse.json({ error: 'This session is closed' }, { status: 400 })
+
+  const { data: fx } = await db.from('league_fixtures').select('id').eq('period_id', period.id).limit(1)
+  if (fx && fx.length > 0) {
+    return NextResponse.json({ error: 'Matches are already set — ask your organizer' }, { status: 400 })
+  }
+
+  // Remove the sub row placed for this cover, then reset the player's own row.
+  await db
+    .from('league_attendance')
+    .delete()
+    .eq('period_id', period.id)
+    .eq('subbing_for_registration_id', nom.covered_registration_id!)
+  if (nom.covered_registration_id) {
+    await db
+      .from('league_attendance')
+      .update({ status: 'cannot_attend', updated_at: now })
+      .eq('period_id', period.id)
+      .eq('registration_id', nom.covered_registration_id)
+  }
+
+  await db.from('sub_nominations').update({ status: 'cancelled', resolved_by: actorId, resolved_at: now }).eq('id', nom.id)
+
+  const [{ data: league }, { data: reqP }] = await Promise.all([
+    db.from('leagues').select('name').eq('id', period.league_id).maybeSingle(),
+    db.from('profiles').select('name').eq('id', actorId).maybeSingle(),
+  ])
+  await createNotification({
+    recipientId: nom.nominated_user_id,
+    surface: 'league',
+    surfaceId: period.league_id,
+    kind: 'sub_removed',
+    title: `Sub cancelled: ${league?.name ?? 'League'}`,
+    body: `${reqP?.name ?? 'The player'} took their spot back`,
+    url: `/leagues/${period.league_id}`,
   })
 
   return NextResponse.json({ ok: true })

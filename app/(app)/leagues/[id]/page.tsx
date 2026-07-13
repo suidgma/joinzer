@@ -15,6 +15,7 @@ import AutoRefresh from '@/components/ui/AutoRefresh'
 import RefreshButton from '@/components/ui/RefreshButton'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
+import BoxLadderCheckIn from '@/components/features/leagues/BoxLadderCheckIn'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
 import FlexPlayerMatches from './FlexPlayerMatches'
@@ -298,6 +299,49 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     flexMatches = res.matches.filter((m) => m.viewerSide != null)
   }
 
+  // Box / Ladder: a registered player's self-check-in + self-sub for the active
+  // cycle/session (unified league_attendance). Deny-all tables → service role.
+  let boxLadderCheckIn: {
+    periodId: string
+    initialStatus: 'coming' | 'present' | 'late' | 'cannot_attend' | null
+    allowSelfSub: boolean
+    activeSelfSub: { id: string; nomineeName: string } | null
+  } | null = null
+  {
+    const kind = (league as any).format_kind
+    if ((kind === 'box' || kind === 'ladder') && user && myReg?.status === 'registered' && !isAdmin) {
+      const clDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const { data: period } = await clDb
+        .from('league_periods')
+        .select('id')
+        .eq('league_id', league.id)
+        .in('period_kind', ['cycle', 'ladder_session'])
+        .eq('status', 'active')
+        .order('period_number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (period) {
+        const [{ data: att }, { data: fx }, { data: noms }] = await Promise.all([
+          clDb.from('league_attendance').select('status').eq('period_id', period.id).eq('registration_id', myReg.id).maybeSingle(),
+          clDb.from('league_fixtures').select('id').eq('period_id', period.id).limit(1),
+          clDb.from('sub_nominations').select('id, nominated_user_id').eq('surface', 'league').eq('league_period_id', period.id).eq('requesting_user_id', user.id).eq('status', 'approved').limit(1),
+        ])
+        const rawStatus = (att as any)?.status as string | undefined
+        const initialStatus =
+          rawStatus === 'coming' || rawStatus === 'present' || rawStatus === 'late' || rawStatus === 'cannot_attend'
+            ? rawStatus
+            : null
+        let activeSelfSub: { id: string; nomineeName: string } | null = null
+        const nomRow = noms?.[0] as any
+        if (nomRow) {
+          const { data: prof } = await clDb.from('profiles').select('name').eq('id', nomRow.nominated_user_id).maybeSingle()
+          activeSelfSub = { id: nomRow.id, nomineeName: (prof as any)?.name ?? 'Your sub' }
+        }
+        boxLadderCheckIn = { periodId: period.id, initialStatus, allowSelfSub: !(fx && fx.length > 0), activeSelfSub }
+      }
+    }
+  }
+
   return (
     <DesktopShell
       header={
@@ -424,6 +468,16 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
                 <p className="text-xs text-amber-700">Paid securely via Stripe</p>
               </div>
             </div>
+          )}
+          {boxLadderCheckIn && (
+            <BoxLadderCheckIn
+              leagueId={league.id}
+              periodId={boxLadderCheckIn.periodId}
+              initialStatus={boxLadderCheckIn.initialStatus}
+              allowSelfSub={boxLadderCheckIn.allowSelfSub}
+              currentUserId={user?.id}
+              activeSelfSub={boxLadderCheckIn.activeSelfSub}
+            />
           )}
           {user && (league as any).format_kind === 'ladder' && myReg?.status === 'registered' && (
             <LadderPlayerCard leagueId={league.id} userId={user.id} format={league.format} settings={(league as any).format_settings_json ?? null} />
