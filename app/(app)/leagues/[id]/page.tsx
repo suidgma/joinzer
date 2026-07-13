@@ -20,6 +20,7 @@ import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
 import FlexPlayerMatches from './FlexPlayerMatches'
 import LeagueSetupChecklist from './LeagueSetupChecklist'
 import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner'
+import ChatPanel from '@/components/features/ChatPanel'
 import PlayerFixtureScores from './PlayerFixtureScores'
 import { loadPlayerScorableFixtures, type PlayerScorableFixture } from '@/lib/leagues/playerFixtures'
 import PlayerTeamLineScores from './PlayerTeamLineScores'
@@ -491,41 +492,28 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         </section>
       )}
 
-      {/* Quick links — Chat + Standings */}
-      <div className="grid grid-cols-2 gap-2">
-        {user && (
-          <Link
-            href={`/leagues/${league.id}/chat`}
-            className="flex items-center justify-between bg-brand-surface border border-brand rounded-2xl px-4 py-3 hover:bg-brand-soft transition-colors"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-brand-dark">League Chat</p>
-              {leagueMessages && leagueMessages.length > 0 ? (
-                <p className="text-xs text-brand-muted truncate">
-                  {(leagueMessages[leagueMessages.length - 1] as any).profile?.name?.split(' ')[0] ?? 'Someone'}: {(leagueMessages[leagueMessages.length - 1] as any).message_text}
-                </p>
-              ) : (
-                <p className="text-xs text-brand-muted">No messages yet</p>
-              )}
-            </div>
-            <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
-              {leagueMessages && leagueMessages.length > 0 && (
-                <span className="text-[10px] font-bold bg-brand text-brand-dark px-1.5 py-0.5 rounded-full leading-none">
-                  {leagueMessages.length}
-                </span>
-              )}
-              <span className="text-brand-active text-sm">→</span>
-            </div>
-          </Link>
-        )}
-        <Link
-          href={`/leagues/${league.id}/standings`}
-          className={`flex items-center justify-between bg-brand-surface border border-brand-border rounded-2xl px-4 py-3 hover:bg-brand-soft transition-colors ${!user ? 'col-span-2' : ''}`}
-        >
-          <p className="text-sm font-semibold text-brand-dark">Standings</p>
-          <span className="text-brand-active text-sm">→</span>
-        </Link>
-      </div>
+      {/* Standings quick link */}
+      <Link
+        href={`/leagues/${league.id}/standings`}
+        className="flex items-center justify-between bg-brand-surface border border-brand-border rounded-2xl px-4 py-3 hover:bg-brand-soft transition-colors"
+      >
+        <p className="text-sm font-semibold text-brand-dark">Standings</p>
+        <span className="text-brand-active text-sm">→</span>
+      </Link>
+
+      {/* League chat — inline preview, expands in place ("Open") */}
+      {user && (
+        <ChatPanel
+          table="league_messages"
+          entityField="league_id"
+          entityId={league.id}
+          initialMessages={(leagueMessages ?? []) as any[]}
+          currentUserId={user.id}
+          canChat={isAdmin || myReg?.status === 'registered'}
+          title="League Chat"
+          joinHint="Join to chat"
+        />
+      )}
 
       {/* Player score entry — own box/ladder matches when the league allows it */}
       {playerFixtures.length > 0 && (
