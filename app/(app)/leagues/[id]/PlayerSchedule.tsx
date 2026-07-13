@@ -22,6 +22,8 @@ export default function PlayerSchedule({
   sessionsWithSchedule,
   isRegistered,
   leagueSkillLevel,
+  currentUserId,
+  selfSubBySession = {},
 }: {
   leagueId: string
   sessions: Session[]
@@ -29,6 +31,8 @@ export default function PlayerSchedule({
   sessionsWithSchedule: string[]
   isRegistered: boolean
   leagueSkillLevel: string | null
+  currentUserId?: string
+  selfSubBySession?: Record<string, { id: string; nomineeName: string }>
 }) {
   if (sessions.length === 0) {
     return <p className="text-sm text-brand-muted">No sessions scheduled yet.</p>
@@ -76,6 +80,9 @@ export default function PlayerSchedule({
             leagueId={leagueId}
             initialStatus={myStatus}
             leagueSkillLevel={leagueSkillLevel}
+            allowSelfSub={!scheduleSet.has(s.id)}
+            currentUserId={currentUserId}
+            activeSelfSub={selfSubBySession[s.id] ?? null}
           />
         )}
       </div>

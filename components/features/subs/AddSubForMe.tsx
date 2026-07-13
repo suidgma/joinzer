@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import PlayerCombobox, { type PlayerOption } from '@/components/ui/PlayerCombobox'
 import { UserPlus, X } from 'lucide-react'
 
@@ -11,9 +12,11 @@ type Props = {
   surface: Surface
   // Scope identifiers merged into the request body, e.g. { eventId } for play.
   scope: Record<string, string>
-  // Existing Joinzer users the player can pick from (already excludes self + anyone
-  // in the session), shown in a searchable "Pick your sub" dropdown.
-  candidates: PlayerOption[]
+  // Existing Joinzer users to pick from, shown in a searchable "Pick your sub"
+  // dropdown. When omitted, the list is fetched from profiles on open (self
+  // excluded via currentUserId); the server still validates the choice.
+  candidates?: PlayerOption[]
+  currentUserId?: string
   label?: string
   caption?: string
 }
@@ -25,6 +28,7 @@ export default function AddSubForMe({
   surface,
   scope,
   candidates,
+  currentUserId,
   label = 'Add a sub for me',
   caption = 'Your sub takes your spot right away — no approval needed.',
 }: Props) {
@@ -33,8 +37,19 @@ export default function AddSubForMe({
   const [selectedId, setSelectedId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fetched, setFetched] = useState<PlayerOption[] | null>(null)
 
-  const selectedName = candidates.find((c) => c.id === selectedId)?.name ?? ''
+  const options = candidates ?? fetched ?? []
+  const selectedName = options.find((c) => c.id === selectedId)?.name ?? ''
+
+  async function openPicker() {
+    setOpen(true)
+    if (!candidates && fetched === null) {
+      const supabase = createClient()
+      const { data } = await supabase.from('profiles').select('id, name').order('name').limit(1000)
+      setFetched(((data ?? []) as PlayerOption[]).filter((p) => p.id !== currentUserId))
+    }
+  }
 
   async function submit() {
     if (!selectedId) return
@@ -59,7 +74,7 @@ export default function AddSubForMe({
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={openPicker}
         className="w-full inline-flex items-center justify-center gap-2 bg-brand-surface border border-brand-border rounded-2xl px-4 py-3 text-sm font-semibold text-brand-dark hover:bg-brand-soft transition-colors"
       >
         <UserPlus className="w-4 h-4" /> {label}
@@ -85,7 +100,7 @@ export default function AddSubForMe({
       </div>
 
       <PlayerCombobox
-        options={candidates}
+        options={options}
         value={selectedId}
         onChange={(id) => {
           setSelectedId(id)

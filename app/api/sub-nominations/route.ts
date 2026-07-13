@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications/create'
+import { assignRrSub } from '@/lib/leagues/assignRrSub'
 
 // POST /api/sub-nominations — a PLAYER picks an existing Joinzer user to sub for them.
 // The sub takes effect IMMEDIATELY (no organizer approval — the point is less work for
@@ -36,8 +37,154 @@ export async function POST(req: NextRequest) {
   if (body.surface === 'play') {
     return createPlayNomination(db, { userId: user.id, eventId: body.eventId, nominee, note })
   }
-  // Leagues + Tournaments are wired in later phases.
+  if (body.surface === 'league') {
+    return createLeagueNomination(db, {
+      userId: user.id,
+      leagueId: body.leagueId,
+      sessionId: body.sessionId,
+      nominee,
+      note,
+    })
+  }
+  // Tournaments are wired in a later phase.
   return NextResponse.json({ error: 'Unsupported surface' }, { status: 400 })
+}
+
+// Round-robin league self-sub: the player picks their sub and it's applied
+// immediately — the covered roster row is flipped to 'has_sub' and the sub is
+// placed for their spot (credit stays on the covered player). Only before the
+// session's rounds are generated.
+async function createLeagueNomination(
+  db: ReturnType<typeof admin>,
+  {
+    userId,
+    leagueId,
+    sessionId,
+    nominee,
+    note,
+  }: { userId: string; leagueId?: string; sessionId?: string; nominee: { id: string; name: string }; note: string | null }
+) {
+  if (!leagueId || !sessionId) return NextResponse.json({ error: 'Missing league or session' }, { status: 400 })
+
+  const { data: league } = await db.from('leagues').select('id, name, created_by').eq('id', leagueId).single()
+  if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+
+  const { data: session } = await db
+    .from('league_sessions')
+    .select('id, league_id, status')
+    .eq('id', sessionId)
+    .single()
+  if (!session || session.league_id !== leagueId) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  }
+  if (session.status === 'completed' || session.status === 'cancelled') {
+    return NextResponse.json({ error: 'This session is closed' }, { status: 400 })
+  }
+
+  // Requester must be a registered member.
+  const { data: reg } = await db
+    .from('league_registrations')
+    .select('status')
+    .eq('league_id', leagueId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!reg || reg.status !== 'registered') {
+    return NextResponse.json({ error: 'Only a registered player can add a sub' }, { status: 403 })
+  }
+
+  // Guard: only before the session's rounds are generated.
+  const { data: rounds } = await db.from('league_rounds').select('id').eq('session_id', sessionId).limit(1)
+  if (rounds && rounds.length > 0) {
+    return NextResponse.json({ error: 'Rounds are already set — ask your organizer to sub you out' }, { status: 400 })
+  }
+
+  // Nominee must not already be in the session.
+  const { data: nomineeRow } = await db
+    .from('league_session_players')
+    .select('id')
+    .eq('session_id', sessionId)
+    .eq('user_id', nominee.id)
+    .maybeSingle()
+  if (nomineeRow) {
+    return NextResponse.json({ error: `${nominee.name} is already in this session` }, { status: 400 })
+  }
+
+  // Resolve (or create) the requester's roster row for this session.
+  let myRow = (await db
+    .from('league_session_players')
+    .select('id')
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .eq('player_type', 'roster_player')
+    .maybeSingle()).data
+  if (!myRow) {
+    const { data: prof } = await db.from('profiles').select('name, joinzer_rating').eq('id', userId).maybeSingle()
+    const { data: created, error: cErr } = await db
+      .from('league_session_players')
+      .insert({
+        session_id: sessionId,
+        user_id: userId,
+        display_name: prof?.name ?? 'Player',
+        player_type: 'roster_player',
+        expected_status: 'expected',
+        actual_status: 'not_present',
+        joinzer_rating: prof?.joinzer_rating ?? 1000,
+      })
+      .select('id')
+      .single()
+    if (cErr || !created) return NextResponse.json({ error: 'Could not find your roster spot' }, { status: 500 })
+    myRow = created
+  }
+
+  const result = await assignRrSub(db, {
+    sessionId,
+    absentPlayerId: myRow.id,
+    subUserId: nominee.id,
+    markCoveredHasSub: true,
+  })
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+
+  const nowIso = new Date().toISOString()
+  const { data: nom } = await db
+    .from('sub_nominations')
+    .insert({
+      surface: 'league',
+      league_id: leagueId,
+      league_session_id: sessionId,
+      covered_registration_id: myRow.id,
+      requesting_user_id: userId,
+      nominated_user_id: nominee.id,
+      note,
+      status: 'approved',
+      resolved_by: userId,
+      resolved_at: nowIso,
+    })
+    .select('id')
+    .single()
+
+  const { data: reqProfile } = await db.from('profiles').select('name').eq('id', userId).maybeSingle()
+  await Promise.all([
+    createNotification({
+      recipientId: league.created_by,
+      surface: 'league',
+      surfaceId: leagueId,
+      kind: 'sub_added',
+      title: `Sub added: ${league.name}`,
+      body: `${reqProfile?.name ?? 'A player'} subbed in ${nominee.name} for their spot`,
+      url: `/leagues/${leagueId}`,
+    }),
+    createNotification({
+      recipientId: nominee.id,
+      surface: 'league',
+      surfaceId: leagueId,
+      kind: 'sub_added',
+      title: `You're subbing in: ${league.name}`,
+      body: `You're covering for ${reqProfile?.name ?? 'a player'}`,
+      url: `/leagues/${leagueId}`,
+    }),
+  ])
+
+  return NextResponse.json({ ok: true, id: nom?.id })
 }
 
 async function createPlayNomination(
