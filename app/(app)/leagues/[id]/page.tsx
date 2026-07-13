@@ -16,6 +16,7 @@ import RefreshButton from '@/components/ui/RefreshButton'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import BoxLadderCheckIn from '@/components/features/leagues/BoxLadderCheckIn'
+import { captainTeamIds } from '@/lib/leagues/teamsServer'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
 import FlexPlayerMatches from './FlexPlayerMatches'
@@ -343,6 +344,31 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     }
   }
 
+  // Team leagues: a team captain gets their team's matchups (set lineup + score) right
+  // on the overview — the captain-run entry point.
+  let captainMatchups: { id: string; oppName: string; status: string; matchday: number | null }[] = []
+  if ((league as any).format_kind === 'team' && user && myReg?.status === 'registered' && !isAdmin) {
+    const tDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const caps = await captainTeamIds(tDb, league.id, user.id)
+    if (caps.size > 0) {
+      const capArr = [...caps]
+      const { data: fixtures } = await tDb
+        .from('league_fixtures')
+        .select('id, round_number, team_1_id, team_2_id, status')
+        .eq('league_id', league.id)
+        .eq('match_stage', 'team_matchup')
+        .or(`team_1_id.in.(${capArr.join(',')}),team_2_id.in.(${capArr.join(',')})`)
+        .order('round_number', { ascending: true })
+      const teamIds = [...new Set((fixtures ?? []).flatMap((f: any) => [f.team_1_id, f.team_2_id]).filter(Boolean))]
+      const { data: teams } = teamIds.length ? await tDb.from('league_teams').select('id, name').in('id', teamIds) : { data: [] as any[] }
+      const teamName = new Map<string, string>((teams ?? []).map((t: any) => [t.id, t.name]))
+      captainMatchups = (fixtures ?? []).map((f: any) => {
+        const oppTeam = caps.has(f.team_1_id) ? f.team_2_id : f.team_1_id
+        return { id: f.id, oppName: teamName.get(oppTeam) ?? 'TBD', status: f.status, matchday: f.round_number ?? null }
+      })
+    }
+  }
+
   return (
     <DesktopShell
       header={
@@ -479,6 +505,29 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
               currentUserId={user?.id}
               activeSelfSub={boxLadderCheckIn.activeSelfSub}
             />
+          )}
+          {captainMatchups.length > 0 && (
+            <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
+              <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Your team — matchups</p>
+              <p className="text-xs text-brand-muted">Set your lineup and enter scores for your team.</p>
+              <div className="divide-y divide-brand-border">
+                {captainMatchups.map((m) => (
+                  <Link
+                    key={m.id}
+                    href={`/leagues/${league.id}/teams/matchups/${m.id}`}
+                    className="flex items-center justify-between gap-2 py-2.5 hover:bg-brand-soft -mx-1 px-1 rounded-lg transition-colors"
+                  >
+                    <div className="min-w-0">
+                      {m.matchday != null && <p className="text-[10px] text-brand-muted uppercase font-semibold">Matchday {m.matchday}</p>}
+                      <p className="text-sm text-brand-dark truncate">vs {m.oppName}</p>
+                    </div>
+                    <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                      m.status === 'completed' ? 'bg-brand-soft text-brand-muted' : 'bg-brand text-brand-dark'
+                    }`}>{m.status === 'completed' ? 'Done' : 'Set lineup'}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
           )}
           {user && (league as any).format_kind === 'ladder' && myReg?.status === 'registered' && (
             <LadderPlayerCard leagueId={league.id} userId={user.id} format={league.format} settings={(league as any).format_settings_json ?? null} />

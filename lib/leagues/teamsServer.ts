@@ -26,6 +26,31 @@ export async function assertTeamLeagueOrganizer(db: SupabaseClient, leagueId: st
   return { ok: true }
 }
 
+// The team ids this user captains in the league (league_teams.captain_registration_id
+// points at the captain's registration; match it to any of the user's registrations).
+export async function captainTeamIds(db: SupabaseClient, leagueId: string, userId: string): Promise<Set<string>> {
+  const { data: myRegs } = await db.from('league_registrations').select('id').eq('league_id', leagueId).eq('user_id', userId)
+  const regIds = (myRegs ?? []).map((r: any) => r.id as string)
+  if (regIds.length === 0) return new Set()
+  const { data: teams } = await db.from('league_teams').select('id').eq('league_id', leagueId).in('captain_registration_id', regIds)
+  return new Set((teams ?? []).map((t: any) => t.id as string))
+}
+
+// Role for a specific matchup: the league organizer/co-admin runs both sides; a team
+// captain runs only their own side.
+export async function teamMatchupRole(
+  db: SupabaseClient,
+  leagueId: string,
+  userId: string,
+  team1Id: string,
+  team2Id: string,
+): Promise<{ isOrganizer: boolean; captainSide: 1 | 2 | null }> {
+  const org = await assertTeamLeagueOrganizer(db, leagueId, userId)
+  if (org.ok) return { isOrganizer: true, captainSide: null }
+  const caps = await captainTeamIds(db, leagueId, userId)
+  return { isOrganizer: false, captainSide: caps.has(team1Id) ? 1 : caps.has(team2Id) ? 2 : null }
+}
+
 // Registration ids already rostered on ANY team in this league (a player belongs to at
 // most one team per league).
 export async function rosteredRegistrationIds(db: SupabaseClient, leagueId: string): Promise<Set<string>> {

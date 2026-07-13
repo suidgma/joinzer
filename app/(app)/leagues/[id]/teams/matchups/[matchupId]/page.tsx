@@ -7,9 +7,10 @@ import ManageNav from '@/components/ui/manage-nav'
 import type { ManageNavItem } from '@/components/ui/manage-nav'
 import LineupEditor from './LineupEditor'
 import MatchupScorer from './MatchupScorer'
+import { teamMatchupRole } from '@/lib/leagues/teamsServer'
 
-// Organizer lineup entry for one team matchup: assign roster players to each line, which
-// creates the child (player-vs-player) line fixtures. Team leagues only, organizer-only.
+// Match-day surface for one team matchup: set the lineup + score. The organizer runs both
+// sides; a team captain runs only their own side. Team leagues only.
 export default async function MatchupPage(props: { params: Promise<{ id: string; matchupId: string }> }) {
   const params = await props.params
   const supabase = createClient()
@@ -21,11 +22,6 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
   if (!league) notFound()
   if ((league as any).format_kind !== 'team') redirect(`/leagues/${params.id}`)
 
-  const { data: myReg } = await supabase
-    .from('league_registrations').select('is_co_admin').eq('league_id', params.id).eq('user_id', user.id).maybeSingle()
-  const isOrganizer = league.created_by === user.id || (myReg as any)?.is_co_admin === true
-  if (!isOrganizer) redirect(`/leagues/${params.id}`)
-
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const { data: matchup } = await admin
@@ -33,6 +29,11 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
     .select('id, period_id, round_number, team_1_id, team_2_id, team_1_score, team_2_score, winner_team_id, status')
     .eq('id', params.matchupId).eq('league_id', params.id).eq('match_stage', 'team_matchup').maybeSingle()
   if (!matchup) notFound()
+
+  // Organizer runs both sides; a team captain runs only their own side.
+  const role = await teamMatchupRole(admin, params.id, user.id, (matchup as any).team_1_id, (matchup as any).team_2_id)
+  if (!role.isOrganizer && role.captainSide === null) redirect(`/leagues/${params.id}`)
+  const viewerSide: 1 | 2 | undefined = role.isOrganizer ? undefined : role.captainSide ?? undefined
 
   const { data: teamsRaw } = await admin.from('league_teams').select('id, name').in('id', [(matchup as any).team_1_id, (matchup as any).team_2_id])
   const teamName = new Map<string, string>((teamsRaw ?? []).map((t: any) => [t.id, t.name]))
@@ -97,19 +98,26 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
     ? teamName.get((matchup as any).winner_team_id) ?? null
     : null
 
-  const navItems: ManageNavItem[] = [
-    { label: 'Overview', href: `/leagues/${params.id}` },
-    { label: 'Standings', href: `/leagues/${params.id}/standings` },
-    { label: 'Teams', href: `/leagues/${params.id}/teams` },
-    { label: 'Roster', href: `/leagues/${params.id}/roster` },
-    { label: 'Edit', href: `/leagues/${params.id}/edit` },
-  ]
+  const navItems: ManageNavItem[] = role.isOrganizer
+    ? [
+        { label: 'Overview', href: `/leagues/${params.id}` },
+        { label: 'Standings', href: `/leagues/${params.id}/standings` },
+        { label: 'Teams', href: `/leagues/${params.id}/teams` },
+        { label: 'Roster', href: `/leagues/${params.id}/roster` },
+        { label: 'Edit', href: `/leagues/${params.id}/edit` },
+      ]
+    : [
+        { label: 'Overview', href: `/leagues/${params.id}` },
+        { label: 'Standings', href: `/leagues/${params.id}/standings` },
+      ]
+  const backHref = role.isOrganizer ? `/leagues/${params.id}/teams` : `/leagues/${params.id}`
+  const backLabel = role.isOrganizer ? 'Teams' : league.name
 
   return (
     <DesktopShell
       header={
         <div className="flex items-center gap-3">
-          <Link href={`/leagues/${params.id}/teams`} className="text-brand-muted text-sm">← Teams</Link>
+          <Link href={backHref} className="text-brand-muted text-sm">← {backLabel}</Link>
           <span className="text-brand-muted text-sm">/</span>
           <span className="text-sm font-medium text-brand-dark">Matchup</span>
         </div>
@@ -155,6 +163,7 @@ export default async function MatchupPage(props: { params: Promise<{ id: string;
               team2={{ name: t2Name, roster: rosterOf((matchup as any).team_2_id) }}
               initialLineup={initialLineup}
               readOnly={(matchup as any).status === 'completed'}
+              side={viewerSide}
             />
           </div>
         </details>

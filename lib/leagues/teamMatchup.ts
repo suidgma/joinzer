@@ -58,6 +58,35 @@ export function validateLineup(
   return { ok: true, rows }
 }
 
+// Validate ONE side's lineup (a captain sets only their own team's half). Returns the
+// per-line player id arrays (in order) or the first rule violation.
+export type SideLineInput = { players?: (string | null)[] }
+export type SideLineupValidation = { ok: true; lines: string[][] } | { ok: false; error: string }
+export function validateLineupSide(
+  lineConfigs: LineConfig[],
+  sideLines: SideLineInput[],
+  roster: Set<string>,
+  allowMulti: boolean,
+): SideLineupValidation {
+  if (lineConfigs.length === 0) return { ok: false, error: 'This league has no line configuration' }
+  if (sideLines.length !== lineConfigs.length) return { ok: false, error: 'Lineup must cover every line' }
+  const used = new Set<string>()
+  const out: string[][] = []
+  for (let i = 0; i < lineConfigs.length; i++) {
+    const expected = lineConfigs[i].discipline === 'singles' ? 1 : 2
+    const players = (sideLines[i]?.players ?? []).filter(Boolean) as string[]
+    if (players.length !== expected) return { ok: false, error: `Line ${i + 1} needs ${expected} player${expected > 1 ? 's' : ''}` }
+    if (new Set(players).size !== players.length) return { ok: false, error: `Line ${i + 1} has a duplicate player` }
+    for (const r of players) {
+      if (!roster.has(r)) return { ok: false, error: `Line ${i + 1}: a selected player isn't on your roster` }
+      if (!allowMulti && used.has(r)) return { ok: false, error: 'A player is assigned to more than one line' }
+    }
+    if (!allowMulti) players.forEach((r) => used.add(r))
+    out.push(players)
+  }
+  return { ok: true, lines: out }
+}
+
 // ── Matchup roll-up ─────────────────────────────────────────────────────────────
 export type LineChild = {
   id: string
