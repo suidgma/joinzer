@@ -51,6 +51,16 @@ export async function teamMatchupRole(
   return { isOrganizer: false, captainSide: caps.has(team1Id) ? 1 : caps.has(team2Id) ? 2 : null }
 }
 
+// Roster access for a specific team: the league organizer/co-admin, or that team's
+// captain (captain self-manages their own roster).
+export async function assertTeamRosterAccess(db: SupabaseClient, leagueId: string, userId: string, teamId: string): Promise<OrgGate> {
+  const org = await assertTeamLeagueOrganizer(db, leagueId, userId)
+  if (org.ok) return { ok: true }
+  const caps = await captainTeamIds(db, leagueId, userId)
+  if (caps.has(teamId)) return { ok: true }
+  return { ok: false, status: 403, error: 'Only the organizer or team captain can change this roster' }
+}
+
 // Registration ids already rostered on ANY team in this league (a player belongs to at
 // most one team per league).
 export async function rosteredRegistrationIds(db: SupabaseClient, leagueId: string): Promise<Set<string>> {
