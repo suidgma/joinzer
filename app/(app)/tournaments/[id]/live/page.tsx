@@ -2,6 +2,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import Link from 'next/link'
 import LiveScoreboard from './LiveScoreboard'
 import RefreshButton from '@/components/ui/RefreshButton'
+import ViewerCount from '@/components/ui/ViewerCount'
 
 export const revalidate = 0
 
@@ -77,6 +78,7 @@ export default async function PublicLiveScoreboardPage(
               View full tournament →
             </Link>
             <RefreshButton />
+            <ViewerCount topic={`tournament:${params.id}`} />
           </div>
         </div>
 

@@ -12,6 +12,7 @@ import PeriodSelector from '@/app/(app)/leagues/[id]/standings/PeriodSelector'
 import { getLadderPublicStandings, getBoxPublicStandings, getRRPublicStandings, getTeamPublicStandings, getFlexPublicStandings } from '@/lib/leagues/publicStandings'
 import { getBoxPositionTrend } from '@/lib/leagues/boxTrend'
 import PublicLeagueLive from './PublicLeagueLive'
+import ViewerCount from '@/components/ui/ViewerCount'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,7 +151,10 @@ export default async function PublicLeagueStandingsPage({ params, searchParams }
       <main className={`${widthClass} mx-auto px-4 py-6 space-y-4`}>
         <div>
           <h1 className="font-heading text-xl font-bold text-brand-dark">{league.name}</h1>
-          <p className="text-xs text-brand-muted">{league.location_name ? `${league.location_name} · ` : ''}Live standings &amp; results</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-brand-muted">{league.location_name ? `${league.location_name} · ` : ''}Live standings &amp; results</p>
+            <ViewerCount topic={`league:${id}`} />
+          </div>
         </div>
         {content}
         <p className="text-[11px] text-brand-muted text-center pt-4">
