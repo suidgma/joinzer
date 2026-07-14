@@ -189,9 +189,21 @@ That's it — no new provider, socket, or dependency.
   changes, but **skips any match with an unsynced local write** (`dedupeKey === match.id` in the
   bracket queue) so offline/in-progress scores are never clobbered. Online-only; RunMode + print untouched.
 
+**Shipped July 14, 2026 (Phase 4):**
+- **Chat edit/delete** — author UPDATE/DELETE RLS on league/tournament messages (migration
+  `20260714000007`; event already had it) + ChatPanel inline edit/delete UI. Optimistic; the realtime
+  UPDATE/DELETE handler (already present) reconciles other viewers.
+- **Live notification bell + toasts** — `createNotification(s)` broadcast to `notifications:<userId>`;
+  `NotificationBell` toasts + re-fetches the count instantly (poll kept as a 120s fallback).
+- **Live tournament check-in** — organizer `PlayersTab` subscribes to `tournament_registrations`
+  (published + readable) and patches the check-in map live.
+
 **Remaining:**
 - **Private-channel authorization** — the hardening path for broadcast (per-user RLS on realtime
   messages) if attendance/score topics ever need to be non-public.
+- **Bespoke-channel cleanup (cosmetic)** — a few pre-refactor callers still use `supabase.channel()`
+  directly (TournamentOrganizerView, GroupChat, LiveSessionManager, DivisionsSection). They work over
+  the shared socket but bypass the ChannelManager/connection status; migrating them is tidy-up, not a fix.
 - **Chat RLS hardened (July 14, 2026, migration `20260714000006`):** message SELECT (all 3 tables) +
   league/tournament INSERT are now scoped to membership via `SECURITY DEFINER` helpers
   (`is_{league,tournament,event}_chat_member`) — previously SELECT was `USING(true)` (any authed user
