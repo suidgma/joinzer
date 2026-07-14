@@ -673,6 +673,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
           id: div.id,
           name: div.name,
           baseCents: div.cost_cents != null ? div.cost_cents : tournamentCostCents,
+          isDoubles: isDoublesFormat(div.format),
           schedule: div.schedule ?? null,
         }))
     : []

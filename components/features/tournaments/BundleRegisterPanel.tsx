@@ -8,10 +8,12 @@ export type BundleDivision = {
   id: string
   name: string
   baseCents: number
+  isDoubles: boolean
   schedule?: { date: string; start: string | null; end: string | null } | null
 }
 
 const fmt = (c: number) => `$${(c / 100).toFixed(2)}`
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
 
 function describeDiscount(d: MultiDivisionDiscount): string {
   if (d.type === 'percent_additional') return `${d.value}% off each division after your first`
@@ -29,8 +31,10 @@ function conflicts(a: BundleDivision, b: BundleDivision): boolean {
 }
 
 // Player-facing multi-division cross-sell: pick 2+ eligible divisions, see the bundle
-// discount + total, and check out once. Additive — the per-division Register button is
-// unchanged. Posts to the reserve-then-pay orders route.
+// discount + total, and check out once. For a doubles division the player can also cover a
+// partner's entry ("pay for both", Phase 5c) — the partner is charged at full price on top of
+// the bundle. Additive — the per-division Register button is unchanged. Posts to the
+// reserve-then-pay orders route.
 export default function BundleRegisterPanel({
   tournamentId,
   discount,
@@ -42,11 +46,26 @@ export default function BundleRegisterPanel({
 }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [partnerOn, setPartnerOn] = useState<Set<string>>(new Set())
+  const [partnerEmail, setPartnerEmail] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const toggle = (id: string) =>
     setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+        // Deselecting a division also drops any partner add-on for it.
+        setPartnerOn((p) => { const n = new Set(p); n.delete(id); return n })
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+
+  const togglePartner = (id: string) =>
+    setPartnerOn((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
@@ -55,6 +74,12 @@ export default function BundleRegisterPanel({
   const chosen = divisions.filter((d) => selected.has(d.id))
   const bundle = computeBundle(chosen.map((d) => ({ divisionId: d.id, baseCents: d.baseCents })), discount)
 
+  // Partner add-ons: full-price seats for selected doubles divisions with a valid partner email.
+  const partnerDivs = chosen.filter((d) => d.isDoubles && partnerOn.has(d.id))
+  const partnerExtra = partnerDivs.reduce((sum, d) => sum + d.baseCents, 0)
+  const partnerMissing = partnerDivs.filter((d) => !isEmail(partnerEmail[d.id] ?? ''))
+  const grandTotal = bundle.totalCents + partnerExtra
+
   const clashes: string[] = []
   for (let i = 0; i < chosen.length; i++) {
     for (let j = i + 1; j < chosen.length; j++) {
@@ -62,15 +87,19 @@ export default function BundleRegisterPanel({
     }
   }
 
+  const canSubmit = chosen.length >= 2 && partnerMissing.length === 0 && !loading
+
   async function register() {
-    if (chosen.length < 2) return
+    if (chosen.length < 2 || partnerMissing.length > 0) return
     setLoading(true)
     setError(null)
     try {
+      const partners: Record<string, string> = {}
+      for (const d of partnerDivs) partners[d.id] = partnerEmail[d.id].trim()
       const res = await fetch(`/api/tournaments/${tournamentId}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ division_ids: [...selected] }),
+        body: JSON.stringify({ division_ids: [...selected], partners }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -97,14 +126,39 @@ export default function BundleRegisterPanel({
         <p className="text-xs text-brand-muted">{describeDiscount(discount)} — pick the divisions you want and pay once.</p>
       </div>
 
-      <div className="space-y-1">
-        {divisions.map((d) => (
-          <label key={d.id} className="flex items-center gap-2 text-sm cursor-pointer py-0.5">
-            <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} className="accent-brand w-4 h-4" />
-            <span className="flex-1 text-brand-dark">{d.name}</span>
-            <span className="text-brand-muted tabular-nums">{fmt(d.baseCents)}</span>
-          </label>
-        ))}
+      <div className="space-y-1.5">
+        {divisions.map((d) => {
+          const isSel = selected.has(d.id)
+          const hasPartner = partnerOn.has(d.id)
+          return (
+            <div key={d.id}>
+              <label className="flex items-center gap-2 text-sm cursor-pointer py-0.5">
+                <input type="checkbox" checked={isSel} onChange={() => toggle(d.id)} className="accent-brand w-4 h-4" />
+                <span className="flex-1 text-brand-dark">{d.name}</span>
+                <span className="text-brand-muted tabular-nums">{fmt(d.baseCents)}</span>
+              </label>
+
+              {isSel && d.isDoubles && (
+                <div className="pl-6 pt-0.5">
+                  <label className="flex items-center gap-2 text-xs cursor-pointer text-brand-muted">
+                    <input type="checkbox" checked={hasPartner} onChange={() => togglePartner(d.id)} className="accent-brand w-3.5 h-3.5" />
+                    <span>Also pay for my partner <span className="text-brand-muted/70">(+{fmt(d.baseCents)})</span></span>
+                  </label>
+                  {hasPartner && (
+                    <input
+                      type="email"
+                      inputMode="email"
+                      value={partnerEmail[d.id] ?? ''}
+                      onChange={(e) => setPartnerEmail((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                      placeholder="partner@email.com"
+                      className="mt-1 w-full rounded-lg border border-brand-border px-2.5 py-1.5 text-xs text-brand-dark placeholder:text-brand-muted/60 focus:outline-none focus:ring-1 focus:ring-brand"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {clashes.length > 0 && (
@@ -115,9 +169,12 @@ export default function BundleRegisterPanel({
 
       {chosen.length >= 2 && (
         <div className="text-xs text-brand-muted space-y-0.5 border-t border-brand-border pt-2">
-          <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{fmt(bundle.subtotalCents)}</span></div>
+          <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{fmt(bundle.subtotalCents + partnerExtra)}</span></div>
           <div className="flex justify-between text-brand-active"><span>Bundle discount</span><span className="tabular-nums">−{fmt(bundle.multiDivDiscountCents)}</span></div>
-          <div className="flex justify-between font-semibold text-brand-dark text-sm"><span>Total</span><span className="tabular-nums">{fmt(bundle.totalCents)}</span></div>
+          {partnerExtra > 0 && (
+            <div className="flex justify-between"><span>Partner {partnerDivs.length === 1 ? 'entry' : 'entries'}</span><span className="tabular-nums">{fmt(partnerExtra)}</span></div>
+          )}
+          <div className="flex justify-between font-semibold text-brand-dark text-sm"><span>Total</span><span className="tabular-nums">{fmt(grandTotal)}</span></div>
         </div>
       )}
 
@@ -125,10 +182,16 @@ export default function BundleRegisterPanel({
 
       <button
         onClick={register}
-        disabled={loading || chosen.length < 2}
+        disabled={!canSubmit}
         className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-40 transition-colors"
       >
-        {loading ? 'Starting checkout…' : chosen.length < 2 ? 'Select 2+ divisions to bundle' : `Register ${chosen.length} divisions — ${fmt(bundle.totalCents)}`}
+        {loading
+          ? 'Starting checkout…'
+          : chosen.length < 2
+            ? 'Select 2+ divisions to bundle'
+            : partnerMissing.length > 0
+              ? "Enter your partner's email"
+              : `Register ${chosen.length} ${chosen.length === 1 ? 'division' : 'divisions'} — ${fmt(grandTotal)}`}
       </button>
     </div>
   )
