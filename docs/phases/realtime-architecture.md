@@ -149,10 +149,14 @@ That's it — no new provider, socket, or dependency.
 - **RLS-scoped postgres_changes need an AUTHED realtime socket.** If a table's SELECT policy is
   membership-scoped (`auth.uid()`, e.g. chat) or even just `to authenticated`, an *unauthenticated*
   realtime connection receives **nothing** — the viewer sees their own optimistic write but never
-  others' live (symptom: "only updates after refresh"). `RealtimeProvider` fixes this by calling
-  `supabase.realtime.setAuth(session.access_token)` on mount + every auth change. `setAuth`
-  **re-authorizes already-subscribed channels**, so it's fine that it runs after child subscriptions.
-  (Only `USING(true)` tables like `tournament_matches` deliver on an anon socket.)
+  others' live (symptom: "only updates after refresh", or flaky "first few work then stop"). Gotcha:
+  supabase-js does **not** auth realtime on `INITIAL_SESSION` (cookie restore on page load — its
+  `_handleTokenChanged` only reacts to `TOKEN_REFRESHED`/`SIGNED_IN`/`SIGNED_OUT`), so on a fresh load
+  the socket is authed only if `connect()`'s `getSession()` callback wins a race against the channel
+  joining. `RealtimeProvider` fixes it by calling **`supabase.realtime.setAuth()` (no args —
+  callback-based fresh token)** on mount, every auth change, and on tab focus (reconnect-after-idle).
+  `setAuth` **re-authorizes already-joined channels**, so it's fine that it runs after child
+  subscriptions. (Only `USING(true)` tables like `tournament_matches` deliver on an anon socket.)
 - **Broadcast channels are public.** Anyone who knows a topic (an entity UUID) can subscribe. That's
   why payloads are non-PII. For stricter control, adopt Realtime Authorization (private channels +
   RLS on `realtime.messages`) — see §10.
