@@ -20,17 +20,20 @@ export async function broadcast(
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return
-  try {
-    await fetch(`${url}/realtime/v1/api/broadcast`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({ messages: [{ topic, event, payload, ...(opts.private ? { private: true } : {}) }] }),
-    })
-  } catch (err) {
-    console.error('[realtime] broadcast failed', { topic, event, err })
+
+  const body = JSON.stringify({ messages: [{ topic, event, payload, ...(opts.private ? { private: true } : {}) }] })
+  const headers = { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${key}` }
+
+  // Best-effort, but retry once on a transient failure so a single network blip doesn't
+  // silently drop a live update (receivers otherwise only catch up on their next load).
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${url}/realtime/v1/api/broadcast`, { method: 'POST', headers, body })
+      if (res.ok) return
+      if (attempt === 1) console.error('[realtime] broadcast non-ok', { topic, event, status: res.status })
+    } catch (err) {
+      if (attempt === 1) console.error('[realtime] broadcast failed', { topic, event, err })
+    }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 200))
   }
 }

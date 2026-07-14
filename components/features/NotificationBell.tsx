@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Bell } from 'lucide-react'
 import NotificationPanel from './NotificationPanel'
 import { useRealtimeChannel } from '@/lib/realtime/hooks'
 import { useToast } from '@/components/ui/ToastProvider'
 import { notificationsTopic, RealtimeEvents } from '@/lib/realtime/topics'
+import type { ChannelStatus } from '@/lib/realtime/channelManager'
 
 export default function NotificationBell({ userId }: { userId: string | null }) {
   const [unread, setUnread] = useState(0)
@@ -30,10 +31,18 @@ export default function NotificationBell({ userId }: { userId: string | null }) 
     return () => clearInterval(interval)
   }, [fetchUnread])
 
-  // Live: a new notification toasts + re-fetches the authoritative unread count.
+  // Live: a new notification toasts + re-fetches the authoritative unread count. On a
+  // reconnect, refetch once to catch anything broadcast while the socket was down (instead
+  // of waiting for the poll).
+  const prevStatus = useRef<ChannelStatus>('connecting')
   useRealtimeChannel(
     userId ? { topic: notificationsTopic(userId), broadcast: [RealtimeEvents.notificationCreated], private: true } : null,
     (evt) => {
+      if (evt.kind === 'status') {
+        if (prevStatus.current === 'error' && evt.status === 'subscribed') fetchUnread()
+        prevStatus.current = evt.status
+        return
+      }
       if (evt.kind !== 'broadcast') return
       const p = evt.payload as { title?: string }
       if (p.title) toast({ message: p.title, icon: '🔔', key: 'notif' })
