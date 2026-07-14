@@ -74,6 +74,8 @@ use `postgres_changes` (`useRealtimeList`). Otherwise broadcast it from the writ
 | `useRealtimeList.ts` | Workhorse for `postgres_changes` list state (chat): INSERT appends, UPDATE replaces, DELETE removes, de-dup by id, reconnect reconciliation. |
 | `useAttendanceBroadcast.ts` | Broadcast consumer for attendance status changes. |
 | `serverBroadcast.ts` | Server helper: `broadcast(topic, event, payload)` via the Realtime HTTP endpoint. Best-effort, never throws, never blocks the write. |
+| `leagueBroadcast.ts` | `broadcastLeagueFixtures(leagueId)` — coarse per-league "fixtures changed" signal for deny-all `league_fixtures`. |
+| `components/ui/RealtimeRefresh.tsx` | Drop-in client component: subscribes to a broadcast topic and debounce-triggers `router.refresh()`. The third consumption mode (below). |
 | `components/ui/ConnectionIndicator.tsx` | Subtle header dot: green when live, "Reconnecting…" / "Offline" otherwise. |
 
 ---
@@ -114,9 +116,10 @@ patches the one matching row. The occasion id is the `league_sessions.id` (round
 2. **Pick the mechanism** (§3). Client-readable table → `postgres_changes`; deny-all → broadcast.
 3. **Emit** (broadcast only): after the authorized write in the route, `await broadcast(fooTopic(id),
    RealtimeEvents.fooChanged, { …minimal non-PII payload… })`.
-4. **Consume** in the component:
-   - List from a client-readable table → `useRealtimeList({ topic, table, filter, initial, mapRow, onReconcile })`.
-   - Broadcast → `useRealtimeChannel({ topic, broadcast: [event] }, onEvent)` (or a small typed wrapper like `useAttendanceBroadcast`).
+4. **Consume** — three modes, pick by how the data is shaped:
+   - **Fine-grained list** from a client-readable table → `useRealtimeList({ topic, table, filter, initial, mapRow, onReconcile })` (chat).
+   - **Broadcast patch** — the event carries enough to update local state → `useRealtimeChannel({ topic, broadcast: [event] }, onEvent)` or a typed wrapper (`useAttendanceBroadcast`).
+   - **Broadcast-triggered refetch** — deny-all *aggregate* data (standings/results, fixtures across formats) where per-row patching isn't practical → drop `<RealtimeRefresh topic={…} events={[…]} />` on the page (or a layout) and it re-derives from fresh server data. Reuses the existing loader; no client SELECT, no patch logic. This is how live league fixtures work (one `<RealtimeRefresh>` in `leagues/[id]/layout.tsx` covers every format's standings/ladder/flex/team surface).
 5. **Publish the table** (only for `postgres_changes`): `alter publication supabase_realtime add table public.<t>;` — and make sure it has a scoped SELECT policy the viewer satisfies.
 
 That's it — no new provider, socket, or dependency.
@@ -162,9 +165,14 @@ That's it — no new provider, socket, or dependency.
   to tables that were never in the publication, so their "live" updates never fired). Correction to
   §3's earlier framing: not every match table is deny-all — check RLS per table.
 
+- **Live league fixtures/results** (box/ladder/flex/team) — `league_fixtures` is deny-all, so each
+  fixture score route broadcasts `broadcastLeagueFixtures(leagueId)` and `<RealtimeRefresh>` in
+  `leagues/[id]/layout.tsx` refetches the current sub-page. Instrumented: box/ladder score, all 5 flex
+  routes, ladder round, team matchup + line scores. Follow-ons (same one-liner): generation routes,
+  ladder finalize, flex self-schedule, RR `league_matches` scores, and the public `/l/[id]` page
+  (needs a provider wrapper).
+
 **Remaining:**
-- **League fixtures live** (box/ladder/team/flex) — `league_fixtures` is deny-all → server broadcast
-  from the score routes; add a single-row `useRealtimeRecord` sibling of `useRealtimeList`.
 - **Interactive bracket live** — `BracketView` has a local-advance engine; live-updating it needs
   care to reconcile local vs remote state. Left for a dedicated pass.
 - **Cross-page unread nav badges** ("Leagues (3)") — needs the user's chat memberships loaded globally

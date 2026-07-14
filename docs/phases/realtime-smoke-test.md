@@ -96,6 +96,20 @@ These subscriptions were **dead** before (tables weren't in the publication); mi
 - [ ] (Round robin) A on the RR **live session** view; B marks a player's status → the row updates
       live (`league_session_players` now published).
 
+## 2.6 Live league fixtures/results (broadcast → `RealtimeRefresh`)
+
+Deny-all `league_fixtures`, so this is a broadcast-triggered `router.refresh()`. Two sessions on the
+same league; A on the **Standings/Results** page (or ladder/flex/box run screen):
+
+- [ ] **Box/Ladder:** B (organizer or player) scores a fixture → A's standings/results update within
+      ~1s (a brief debounce), no manual refresh.
+- [ ] **Flex:** B reports a score → A (organizer on the Flex screen) sees it; A confirms/resolves →
+      standings update on both.
+- [ ] **Team:** B scores a matchup/line → A's team standings update.
+- [ ] Mid-edit safety: while A is typing in a score form, a refresh triggered by B's change should
+      **not** wipe A's inputs (router.refresh preserves client state).
+- [ ] Backgrounded tab: hide A's tab, have B score, return → A refreshes once on becoming visible.
+
 ## 3. Connection indicator + reconnect
 
 - [ ] DevTools → Network → **Offline** → indicator shows **"Offline"** (⚪).
