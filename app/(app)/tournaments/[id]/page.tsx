@@ -588,7 +588,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
           />
         )}
 
-        {user && (
+        {user && (isRegistered || isOrganizer || !!staffRow) && (
           <ChatPanel
             table="tournament_messages"
             entityField="tournament_id"

@@ -654,8 +654,8 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         <span className="text-brand-active text-sm">→</span>
       </Link>
 
-      {/* League chat — inline preview, expands in place ("Open") */}
-      {user && (
+      {/* League chat — members only (matches the message RLS), inline preview, expands in place */}
+      {user && (isAdmin || (myReg && myReg.status !== 'cancelled')) && (
         <ChatPanel
           table="league_messages"
           entityField="league_id"

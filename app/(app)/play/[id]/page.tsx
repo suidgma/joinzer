@@ -348,8 +348,8 @@ export default async function EventDetailPage(
         />
       )}
 
-      {/* Realtime chat */}
-      {currentUserId && (
+      {/* Realtime chat — members only (matches the message RLS) */}
+      {currentUserId && (!!myParticipation || isCaptain || currentUserId === event.creator_user_id) && (
         <ChatPanel
           table="event_messages"
           entityField="event_id"
