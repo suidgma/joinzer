@@ -5,6 +5,8 @@ import BottomNav from '@/components/features/BottomNav'
 import DesktopNav from '@/components/features/DesktopNav'
 import NotificationBell from '@/components/features/NotificationBell'
 import DialogProvider from '@/components/ui/DialogProvider'
+import { RealtimeProvider } from '@/lib/realtime/RealtimeProvider'
+import ConnectionIndicator from '@/components/ui/ConnectionIndicator'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -40,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // inset, so the last bit of page content never hides behind the safe-area-padded nav.
   return (
     <DialogProvider>
+    <RealtimeProvider>
     <div className="min-h-screen bg-brand-page pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
       <header className="sticky top-0 z-20 bg-brand-surface border-b border-brand-border">
         <div className="max-w-7xl mx-auto px-4 h-14 relative flex items-center">
@@ -55,8 +58,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <DesktopNav />
             </div>
           </div>
-          {/* Notification bell — right-anchored */}
-          <div className="ml-auto shrink-0 z-10">
+          {/* Realtime status + notification bell — right-anchored */}
+          <div className="ml-auto shrink-0 z-10 flex items-center gap-3">
+            <ConnectionIndicator />
             <NotificationBell />
           </div>
         </div>
@@ -66,6 +70,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <BottomNav />
       </div>
     </div>
+    </RealtimeProvider>
     </DialogProvider>
   )
 }

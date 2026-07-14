@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Maximize2, X } from 'lucide-react'
+import { useRealtimeList } from '@/lib/realtime/useRealtimeList'
+import { chatTopic } from '@/lib/realtime/topics'
+import { Maximize2, X, ArrowDown } from 'lucide-react'
 
 type Message = {
   id: string
@@ -28,8 +30,11 @@ type Props = {
 
 // Standard chat panel shared across Play, Leagues, and Tournaments. Shows a compact
 // ~10-line inline preview with a live composer, and expands in place to a full-screen
-// view ("Open") without navigating away — the same instance is reused, so scroll
-// position, realtime subscription, and unsent text all survive the toggle.
+// view without navigating away. Realtime runs through the shared realtime infra
+// (useRealtimeList): new messages append (dedup by id), edits/deletes patch in place,
+// and a reconnect refetches the tail to fill any gap. Scroll position is preserved —
+// if you're reading older messages a "new messages" pill appears instead of yanking you
+// to the bottom.
 export default function ChatPanel({
   table,
   entityField,
@@ -40,19 +45,90 @@ export default function ChatPanel({
   title = 'Chat',
   joinHint = 'Join to chat',
 }: Props) {
-  const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const [newCount, setNewCount] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const atBottomRef = useRef(true)
+  const prevLenRef = useRef(initialMessages.length)
 
-  // Pin to the latest message by scrolling the chat's OWN container, never the
-  // window (scrollIntoView drags every ancestor and yanks the whole page down).
-  useEffect(() => {
+  // Hydrate a raw message row into the display shape, fetching the author's name.
+  const mapRow = useCallback(async (row: Record<string, any>): Promise<Message> => {
+    const base: Message = {
+      id: row.id,
+      user_id: row.user_id,
+      message_text: row.message_text,
+      created_at: row.created_at,
+      profile: null,
+    }
+    if (row.user_id === currentUserId) return base // own messages don't show a name
+    const supabase = createClient()
+    const { data: profile } = await supabase.from('profiles').select('name').eq('id', row.user_id).single()
+    return { ...base, profile: profile ?? null }
+  }, [currentUserId])
+
+  // Reconnect reconciliation: refetch the recent tail + author names in one batch.
+  const onReconcile = useCallback(async (): Promise<Message[] | null> => {
+    const supabase = createClient()
+    const { data: rows } = await supabase
+      .from(table)
+      .select('id, user_id, message_text, created_at')
+      .eq(entityField, entityId)
+      .order('created_at', { ascending: true })
+      .limit(200)
+    if (!rows) return null
+    const userIds = [...new Set(rows.map((r) => r.user_id))]
+    const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', userIds)
+    const nameById = new Map((profiles ?? []).map((p) => [p.id, p.name]))
+    return rows.map((r) => ({
+      id: r.id,
+      user_id: r.user_id,
+      message_text: r.message_text,
+      created_at: r.created_at,
+      profile: r.user_id === currentUserId ? null : { name: nameById.get(r.user_id) ?? 'Unknown' },
+    }))
+  }, [table, entityField, entityId, currentUserId])
+
+  const { items: messages, setItems: setMessages, status } = useRealtimeList<Message>({
+    topic: currentUserId ? chatTopic(table, entityId) : null,
+    table,
+    filter: `${entityField}=eq.${entityId}`,
+    initial: initialMessages,
+    mapRow,
+    onReconcile,
+  })
+
+  const scrollToBottom = useCallback(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages, expanded])
+    setNewCount(0)
+  }, [])
+
+  // Track whether the reader is pinned near the bottom (so incoming messages don't
+  // yank them up while they're reading history).
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    atBottomRef.current = nearBottom
+    if (nearBottom) setNewCount(0)
+  }, [])
+
+  // When the list grows: auto-scroll if the reader is at the bottom, otherwise surface a
+  // "N new messages" pill. Shrinks/edits don't change scroll intent.
+  useEffect(() => {
+    const grew = messages.length - prevLenRef.current
+    prevLenRef.current = messages.length
+    if (atBottomRef.current) scrollToBottom()
+    else if (grew > 0) setNewCount((n) => n + grew)
+  }, [messages, scrollToBottom])
+
+  // Keep pinned to the bottom when the view mode toggles (open/close).
+  useEffect(() => {
+    if (atBottomRef.current) scrollToBottom()
+  }, [expanded, scrollToBottom])
 
   // While the full-screen view is open, lock body scroll and let Esc close it.
   useEffect(() => {
@@ -69,48 +145,6 @@ export default function ChatPanel({
     }
   }, [expanded])
 
-  useEffect(() => {
-    if (!currentUserId) return
-
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`${table}-${entityId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table,
-          filter: `${entityField}=eq.${entityId}`,
-        },
-        async (payload) => {
-          const row = payload.new as {
-            id: string
-            user_id: string
-            message_text: string
-            created_at: string
-          }
-          // Skip our own messages — already added optimistically on send.
-          if (row.user_id === currentUserId) return
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', row.user_id)
-            .single()
-          setMessages((prev) =>
-            prev.some((m) => m.id === row.id)
-              ? prev
-              : [...prev, { ...row, profile: profile ?? null }]
-          )
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [table, entityId, entityField, currentUserId])
-
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = text.trim()
@@ -120,6 +154,8 @@ export default function ChatPanel({
     setSendError(null)
     setText('')
 
+    // Insert with a client-generated id so the realtime echo de-dupes against this
+    // optimistic row (no "skip own" needed, and edits/deletes reconcile uniformly).
     const optimisticId = crypto.randomUUID()
     const optimistic: Message = {
       id: optimisticId,
@@ -128,10 +164,12 @@ export default function ChatPanel({
       created_at: new Date().toISOString(),
       profile: null,
     }
+    atBottomRef.current = true
     setMessages((prev) => [...prev, optimistic])
 
     const supabase = createClient()
     const { error } = await supabase.from(table).insert({
+      id: optimisticId,
       [entityField]: entityId,
       user_id: currentUserId,
       message_text: trimmed,
@@ -202,6 +240,9 @@ export default function ChatPanel({
                 {messages.length}
               </span>
             )}
+            {status === 'error' && (
+              <span className="text-[10px] text-amber-600" title="Reconnecting…">• reconnecting</span>
+            )}
           </div>
           <button
             type="button"
@@ -222,41 +263,56 @@ export default function ChatPanel({
         </div>
 
         {/* Message list — ~10 lines inline, fills the screen when expanded */}
-        <div
-          ref={scrollRef}
-          className={`overflow-y-auto p-3 space-y-2 bg-brand-surface ${
-            expanded ? 'flex-1 min-h-0' : 'h-80'
-          }`}
-        >
-          {messages.length === 0 ? (
-            <p className="text-xs text-brand-muted text-center pt-10">
-              No messages yet — start the conversation
-            </p>
-          ) : (
-            messages.map((msg) => {
-              const isOwn = msg.user_id === currentUserId
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
-                >
-                  {!isOwn && (
-                    <span className="text-xs text-brand-muted mb-0.5">
-                      {msg.profile?.name ?? 'Unknown'}
-                    </span>
-                  )}
+        <div className="relative">
+          <div
+            ref={scrollRef}
+            onScroll={onScroll}
+            className={`overflow-y-auto p-3 space-y-2 bg-brand-surface ${
+              expanded ? 'flex-1 min-h-0' : 'h-80'
+            }`}
+          >
+            {messages.length === 0 ? (
+              <p className="text-xs text-brand-muted text-center pt-10">
+                No messages yet — start the conversation
+              </p>
+            ) : (
+              messages.map((msg) => {
+                const isOwn = msg.user_id === currentUserId
+                return (
                   <div
-                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${
-                      isOwn
-                        ? 'bg-brand text-brand-dark rounded-br-sm'
-                        : 'bg-white border border-brand-border rounded-bl-sm'
-                    }`}
+                    key={msg.id}
+                    className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
                   >
-                    {msg.message_text}
+                    {!isOwn && (
+                      <span className="text-xs text-brand-muted mb-0.5">
+                        {msg.profile?.name ?? 'Unknown'}
+                      </span>
+                    )}
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${
+                        isOwn
+                          ? 'bg-brand text-brand-dark rounded-br-sm'
+                          : 'bg-white border border-brand-border rounded-bl-sm'
+                      }`}
+                    >
+                      {msg.message_text}
+                    </div>
                   </div>
-                </div>
-              )
-            })
+                )
+              })
+            )}
+          </div>
+
+          {/* "N new messages" pill — only when reading history and new ones arrived */}
+          {newCount > 0 && (
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-brand-dark text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg hover:bg-brand-dark/90 transition-colors"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+              {newCount} new message{newCount === 1 ? '' : 's'}
+            </button>
           )}
         </div>
 
