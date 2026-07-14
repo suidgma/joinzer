@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
 import { withBrandHeader } from '@/lib/email/send'
 
@@ -19,7 +20,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
   // Verify captain
   const { data: event } = await admin
     .from('events')
-    .select('id, title, starts_at, status, captain_user_id, location:locations!location_id(name)')
+    .select('id, title, starts_at, status, captain_user_id, price_cents, location:locations!location_id(name)')
     .eq('id', params.id)
     .single()
 
@@ -34,6 +35,36 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     .eq('id', params.id)
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+  // ── Refund every paid participant — the organizer cancelled, so refunds go out
+  //    regardless of the no-refund date (that gate is only for player self-cancel). ──
+  const { data: paidParts } = await admin
+    .from('event_participants')
+    .select('user_id, stripe_payment_intent_id')
+    .eq('event_id', params.id)
+    .eq('payment_status', 'paid')
+    .not('stripe_payment_intent_id', 'is', null)
+
+  if (paidParts && paidParts.length > 0) {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+    await Promise.allSettled(
+      paidParts.map(async (p) => {
+        try {
+          await stripe.refunds.create({ payment_intent: p.stripe_payment_intent_id as string })
+          await admin
+            .from('event_participants')
+            .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
+            .eq('event_id', params.id)
+            .eq('user_id', p.user_id)
+        } catch (err) {
+          console.error(
+            `[event-cancel] refund failed for event ${params.id} user ${p.user_id}:`,
+            err instanceof Error ? err.message : err,
+          )
+        }
+      }),
+    )
+  }
 
   // Fetch all joined participants with emails (exclude the captain themselves)
   const { data: participants } = await admin
@@ -59,6 +90,11 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
   const loc = (event as any).location
   const siteUrl = getSiteUrl()
 
+  const wasPaid = ((event as any).price_cents ?? 0) > 0
+  const refundNote = wasPaid
+    ? '<p style="margin:0 0 20px;font-size:14px;color:#6b7280">Any registration fee you paid has been refunded — it typically appears within 5–10 business days depending on your bank.</p>'
+    : ''
+
   const emails = participants
     .map((p) => {
       const profile = (p.profile as unknown) as { name: string; email: string | null } | null
@@ -78,6 +114,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
               <p style="margin:0 0 20px;font-size:15px">
                 Hey ${firstName}, the following session has been <strong>cancelled</strong> by the captain.
               </p>
+              ${refundNote}
               <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
                 <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">Session</td><td style="padding:6px 0;font-size:14px;font-weight:600">${event.title}</td></tr>
                 ${loc ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:14px">Location</td><td style="padding:6px 0;font-size:14px">${loc.name}</td></tr>` : ''}

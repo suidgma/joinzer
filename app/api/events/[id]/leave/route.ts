@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email/send'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import Stripe from 'stripe'
+import { isWithinRefundWindow } from '@/lib/payments/refundWindow'
 
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -14,6 +16,50 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  // ── Refund a paid participant who leaves within the refund window ──────────
+  // The no-refund date (falling back to registration close) gates the REFUND, not
+  // the leave — a player can always leave; whether they're refunded depends on the
+  // cutoff. Refund BEFORE leave_event so a Stripe failure aborts cleanly (nothing
+  // changed, they stay joined). leave_event only marks the row 'left', so the
+  // refunded payment_status survives; a retry sees 'refunded' and won't double-refund.
+  let refunded = false
+  const { data: myPart } = await admin
+    .from('event_participants')
+    .select('payment_status, stripe_payment_intent_id')
+    .eq('event_id', params.id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (myPart?.payment_status === 'paid' && myPart.stripe_payment_intent_id) {
+    const { data: ev } = await admin
+      .from('events')
+      .select('no_refund_date, registration_closes_at')
+      .eq('id', params.id)
+      .single()
+    if (isWithinRefundWindow((ev as any)?.no_refund_date, (ev as any)?.registration_closes_at)) {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+      try {
+        await stripe.refunds.create({ payment_intent: myPart.stripe_payment_intent_id })
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return NextResponse.json({ error: `Refund failed: ${msg}` }, { status: 502 })
+      }
+      const { error: refundDbErr } = await admin
+        .from('event_participants')
+        .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
+        .eq('event_id', params.id)
+        .eq('user_id', user.id)
+      if (refundDbErr) {
+        console.error(
+          `[event-leave] CRITICAL: Stripe refund issued for event ${params.id} user ${user.id} ` +
+          `but payment_status DB update failed: ${refundDbErr.message}. Manual reconciliation required.`
+        )
+        return NextResponse.json({ error: 'Refund was issued but the record could not be updated. Contact support.' }, { status: 500 })
+      }
+      refunded = true
+    }
+  }
 
   // Peek at oldest waitlisted player BEFORE calling the RPC so we know who will be promoted
   const { data: nextUp } = await admin
@@ -85,5 +131,5 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
     }
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, refunded })
 }
