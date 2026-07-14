@@ -5,6 +5,7 @@ import { useDialog } from '@/components/ui/DialogProvider'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useRealtimeChannel } from '@/lib/realtime/hooks'
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
 import AttendanceGrid, { type AttendeeRow } from '@/components/features/leagues/AttendanceGrid'
@@ -574,7 +575,6 @@ export default function LiveSessionManager({
 
   type SyncStatus = 'synced' | 'saving' | 'saved_locally' | 'syncing' | 'sync_failed'
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced')
-  const [realtimeOk, setRealtimeOk] = useState(true)
   const isOnline = useOnlineStatus()
 
   // session_player_id → user_id (for score lookup)
@@ -601,24 +601,15 @@ export default function LiveSessionManager({
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime: sync player status changes (e.g. self-check-in from player's device)
-  useEffect(() => {
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`session-players-${sessionId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'league_session_players', filter: `session_id=eq.${sessionId}` },
-        (payload) => {
-          const updated = payload.new as { id: string; actual_status: ActualStatus }
-          setPlayers(prev => prev.map(p => p.id === updated.id ? { ...p, actual_status: updated.actual_status } : p))
-        }
-      )
-      .subscribe((status) => {
-        setRealtimeOk(status === 'SUBSCRIBED')
-      })
-
-    return () => { supabase.removeChannel(channel) }
-  }, [sessionId])
+  const rtStatus = useRealtimeChannel(
+    { topic: `session-players-${sessionId}`, postgresChanges: [{ event: 'UPDATE', table: 'league_session_players', filter: `session_id=eq.${sessionId}` }] },
+    (evt) => {
+      if (evt.kind !== 'postgres_changes') return
+      const updated = evt.payload.new as { id: string; actual_status: ActualStatus }
+      setPlayers(prev => prev.map(p => p.id === updated.id ? { ...p, actual_status: updated.actual_status } : p))
+    },
+  )
+  const realtimeOk = rtStatus !== 'error'
 
   // Drain pending queue when coming back online
   useEffect(() => {

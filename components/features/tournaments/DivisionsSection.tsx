@@ -20,6 +20,7 @@ import SeedingPanel, { type MatchItem } from './SeedingPanel'
 import ShareButton from '@/components/features/ShareButton'
 import BundleRegisterPanel from './BundleRegisterPanel'
 import { normalizeMultiDivisionDiscount } from '@/lib/payments/multiDivisionDiscount'
+import { useRealtimeChannel } from '@/lib/realtime/hooks'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles:           "Men's Doubles",
@@ -218,38 +219,25 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
 
   // When an invitee accepts, the server sets partner_user_id on the inviter's row.
   // Without this subscription the inviter's page stays stale and "Pay for Both" never appears.
-  useEffect(() => {
-    if (!currentUserId) return
-
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`partner-update-${tournamentId}-${currentUserId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'tournament_registrations',
-          filter: `user_id=eq.${currentUserId}`,
-        },
-        (payload) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const updated = payload.new as any
-          if (updated.tournament_id !== tournamentId) return
-          setDivisions(prev => prev.map(d => ({
-            ...d,
-            tournament_registrations: d.tournament_registrations.map(r =>
-              r.id === updated.id
-                ? { ...r, partner_user_id: updated.partner_user_id ?? null, partner_registration_id: updated.partner_registration_id ?? null }
-                : r
-            ),
-          })))
-        }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [tournamentId, currentUserId])
+  useRealtimeChannel(
+    currentUserId
+      ? { topic: `partner-update-${tournamentId}-${currentUserId}`, postgresChanges: [{ event: 'UPDATE', table: 'tournament_registrations', filter: `user_id=eq.${currentUserId}` }] }
+      : null,
+    (evt) => {
+      if (evt.kind !== 'postgres_changes') return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updated = evt.payload.new as any
+      if (updated.tournament_id !== tournamentId) return
+      setDivisions(prev => prev.map(d => ({
+        ...d,
+        tournament_registrations: d.tournament_registrations.map(r =>
+          r.id === updated.id
+            ? { ...r, partner_user_id: updated.partner_user_id ?? null, partner_registration_id: updated.partner_registration_id ?? null }
+            : r
+        ),
+      })))
+    },
+  )
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingFormatId, setEditingFormatId] = useState<string | null>(null)
   const [registeringDiv, setRegisteringDiv] = useState<Division | null>(null)

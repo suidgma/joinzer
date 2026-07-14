@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRealtimeChannel } from '@/lib/realtime/hooks'
+import { chatTopic } from '@/lib/realtime/topics'
 
 type Message = {
   id: string
@@ -44,50 +46,18 @@ export default function GroupChat({
     if (el) el.scrollTop = el.scrollHeight
   }, [messages])
 
-  useEffect(() => {
-    if (!currentUserId) return
-
-    const supabase = createClient()
-
-    const channel = supabase
-      .channel(`${table}-${entityId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table,
-          filter: `${entityField}=eq.${entityId}`,
-        },
-        async (payload) => {
-          const row = payload.new as {
-            id: string
-            user_id: string
-            message_text: string
-            created_at: string
-          }
-
-          // Skip messages we sent ourselves — already added optimistically
-          if (row.user_id === currentUserId) return
-
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', row.user_id)
-            .single()
-
-          setMessages((prev) => [
-            ...prev,
-            { ...row, profile: profile ?? null },
-          ])
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [table, entityId, entityField, currentUserId])
+  useRealtimeChannel(
+    currentUserId ? { topic: chatTopic(table, entityId), postgresChanges: [{ event: '*', table, filter: `${entityField}=eq.${entityId}` }] } : null,
+    async (evt) => {
+      if (evt.kind !== 'postgres_changes' || evt.payload.eventType !== 'INSERT') return
+      const row = evt.payload.new as { id: string; user_id: string; message_text: string; created_at: string }
+      // Skip messages we sent ourselves — already added optimistically.
+      if (row.user_id === currentUserId) return
+      const supabase = createClient()
+      const { data: profile } = await supabase.from('profiles').select('name').eq('id', row.user_id).single()
+      setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, { ...row, profile: profile ?? null }]))
+    },
+  )
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
