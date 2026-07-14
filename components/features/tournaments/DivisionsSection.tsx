@@ -18,6 +18,8 @@ import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 import SeedingPanel, { type MatchItem } from './SeedingPanel'
 import ShareButton from '@/components/features/ShareButton'
+import BundleRegisterPanel from './BundleRegisterPanel'
+import { normalizeMultiDivisionDiscount } from '@/lib/payments/multiDivisionDiscount'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles:           "Men's Doubles",
@@ -155,6 +157,7 @@ type Props = {
   currentUserId: string | null
   tournamentCostCents: number
   registrationClosesAt?: string | null
+  multiDivisionDiscount?: unknown
   tournamentStartDate?: string | null
   tournamentStartTime?: string | null
   tournamentEndTime?: string | null
@@ -169,7 +172,7 @@ type Props = {
   matchesByDivision?: Record<string, MatchItem[]>
 }
 
-export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', tournamentSchedulingMethod = 'timed', defaultLocationId = null, locations = [], matchCountByDivision = {}, matchesByDivision = {} }: Props) {
+export default function DivisionsSection({ tournamentId, tournamentName, initialDivisions, isOrganizer, currentUserId, tournamentCostCents, registrationClosesAt, multiDivisionDiscount, tournamentStartDate, tournamentStartTime, tournamentEndTime, tournamentLocationName, defaultWinBy = 1, defaultGamesTo = 11, defaultBracketType = 'round_robin', tournamentSchedulingMethod = 'timed', defaultLocationId = null, locations = [], matchCountByDivision = {}, matchesByDivision = {} }: Props) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const { confirm, alert } = useDialog()
@@ -652,6 +655,28 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const fAutoName = buildAutoName(fCategory, fTeamType, fSkill, ageSegmentLabel(fMinAge, fMaxAge), fBracketType)
   const editAutoName = buildAutoName(editCategory, editTeamType, editSkill, ageSegmentLabel(editMinAge, editMaxAge), editBracketType)
 
+  // ── Multi-division bundle (cross-sell): the divisions a logged-in player can add
+  //    to a bundled registration (not already in, not closed, not full). ──
+  const bundleDiscount = !isOrganizer && currentUserId ? normalizeMultiDivisionDiscount(multiDivisionDiscount) : null
+  const bundleRegClosed = registrationClosesAt ? new Date() > new Date(registrationClosesAt) : false
+  const bundleEligible = bundleDiscount && !bundleRegClosed
+    ? divisions
+        .filter((div) => {
+          const active = div.tournament_registrations.filter((r) => r.status === 'registered')
+          const myReg = div.tournament_registrations.find((r) => r.user_id === currentUserId && r.status !== 'cancelled')
+          const isDoubles = isDoublesFormat(div.format)
+          const maxPlayers = isDoubles ? div.max_entries * 2 : div.max_entries
+          return !myReg && div.status !== 'closed' && active.length < maxPlayers
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((div) => ({
+          id: div.id,
+          name: div.name,
+          baseCents: div.cost_cents != null ? div.cost_cents : tournamentCostCents,
+          schedule: div.schedule ?? null,
+        }))
+    : []
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
@@ -896,6 +921,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             </button>
           </div>
         </form>
+      )}
+
+      {bundleDiscount && bundleEligible.length >= 2 && (
+        <BundleRegisterPanel tournamentId={tournamentId} discount={bundleDiscount} divisions={bundleEligible} />
       )}
 
       {/* ── Division list ── */}
