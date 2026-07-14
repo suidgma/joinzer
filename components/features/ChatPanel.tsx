@@ -100,6 +100,26 @@ export default function ChatPanel({
     onReconcile,
   })
 
+  // Persistent unread count: messages from others newer than the last time this viewer
+  // engaged with the chat (localStorage, per entity). Cleared on expand / focus / send /
+  // pill — deliberately NOT on the mount auto-scroll, so arriving on the page still shows
+  // "N new" until you engage.
+  const readKey = `chat-read:${table}:${entityId}`
+  const [lastRead, setLastRead] = useState('')
+  useEffect(() => {
+    try { setLastRead(localStorage.getItem(readKey) ?? '') } catch {}
+  }, [readKey])
+  const unread = messages.reduce(
+    (n, m) => (m.user_id !== currentUserId && (!lastRead || m.created_at > lastRead) ? n + 1 : n),
+    0,
+  )
+  const markRead = useCallback(() => {
+    const newest = messages.length ? messages[messages.length - 1].created_at : ''
+    if (!newest) return
+    setLastRead(newest)
+    try { localStorage.setItem(readKey, newest) } catch {}
+  }, [messages, readKey])
+
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
@@ -125,10 +145,12 @@ export default function ChatPanel({
     else if (grew > 0) setNewCount((n) => n + grew)
   }, [messages, scrollToBottom])
 
-  // Keep pinned to the bottom when the view mode toggles (open/close).
+  // Keep pinned to the bottom when the view mode toggles (open/close). Opening the chat
+  // counts as reading it (and stays read as new messages arrive while expanded).
   useEffect(() => {
     if (atBottomRef.current) scrollToBottom()
-  }, [expanded, scrollToBottom])
+    if (expanded) markRead()
+  }, [expanded, scrollToBottom, markRead])
 
   // While the full-screen view is open, lock body scroll and let Esc close it.
   useEffect(() => {
@@ -166,6 +188,7 @@ export default function ChatPanel({
     }
     atBottomRef.current = true
     setMessages((prev) => [...prev, optimistic])
+    markRead()
 
     const supabase = createClient()
     const { error } = await supabase.from(table).insert({
@@ -207,6 +230,7 @@ export default function ChatPanel({
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onFocus={markRead}
             placeholder="Message…"
             className="flex-1 text-sm px-3 py-1.5 border border-brand-border rounded-full focus:outline-none focus:ring-2 focus:ring-brand bg-brand-surface"
           />
@@ -235,11 +259,15 @@ export default function ChatPanel({
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-brand-border bg-white shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <h2 className="text-sm font-semibold text-brand-dark">{title}</h2>
-            {messages.length > 0 && (
+            {!expanded && unread > 0 ? (
+              <span className="text-[10px] font-bold bg-brand-dark text-white px-1.5 py-0.5 rounded-full leading-none">
+                {unread} new
+              </span>
+            ) : messages.length > 0 ? (
               <span className="text-[10px] font-bold bg-brand text-brand-dark px-1.5 py-0.5 rounded-full leading-none">
                 {messages.length}
               </span>
-            )}
+            ) : null}
             {status === 'error' && (
               <span className="text-[10px] text-amber-600" title="Reconnecting…">• reconnecting</span>
             )}
@@ -307,7 +335,7 @@ export default function ChatPanel({
           {newCount > 0 && (
             <button
               type="button"
-              onClick={scrollToBottom}
+              onClick={() => { scrollToBottom(); markRead() }}
               className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-brand-dark text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg hover:bg-brand-dark/90 transition-colors"
             >
               <ArrowDown className="w-3.5 h-3.5" />
