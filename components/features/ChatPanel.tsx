@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeList } from '@/lib/realtime/useRealtimeList'
 import { chatTopic } from '@/lib/realtime/topics'
-import { Maximize2, X, ArrowDown } from 'lucide-react'
+import { Maximize2, X, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 
 type Message = {
   id: string
@@ -50,6 +50,9 @@ export default function ChatPanel({
   const [sendError, setSendError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [newCount, setNewCount] = useState(0)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const atBottomRef = useRef(true)
   const prevLenRef = useRef(initialMessages.length)
@@ -209,6 +212,32 @@ export default function ChatPanel({
     setSending(false)
   }
 
+  // Edit own message — optimistic, revert on failure. The realtime UPDATE echo reconciles
+  // every other viewer (useRealtimeList patches by id).
+  async function saveEdit(msg: Message) {
+    const trimmed = editText.trim()
+    setEditingId(null)
+    if (!trimmed || trimmed === msg.message_text) return
+    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, message_text: trimmed } : m)))
+    const supabase = createClient()
+    const { error } = await supabase.from(table).update({ message_text: trimmed }).eq('id', msg.id)
+    if (error) setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, message_text: msg.message_text } : m)))
+  }
+
+  // Delete own message — optimistic, re-insert (sorted) on failure. Realtime DELETE removes it
+  // for everyone else.
+  async function deleteMsg(msg: Message) {
+    setConfirmDeleteId(null)
+    setMessages((prev) => prev.filter((m) => m.id !== msg.id))
+    const supabase = createClient()
+    const { error } = await supabase.from(table).delete().eq('id', msg.id)
+    if (error) {
+      setMessages((prev) =>
+        prev.some((m) => m.id === msg.id) ? prev : [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+      )
+    }
+  }
+
   const composer = () => {
     if (!currentUserId) {
       return (
@@ -308,6 +337,8 @@ export default function ChatPanel({
             ) : (
               messages.map((msg) => {
                 const isOwn = msg.user_id === currentUserId
+                const isEditing = editingId === msg.id
+                const isConfirming = confirmDeleteId === msg.id
                 return (
                   <div
                     key={msg.id}
@@ -318,15 +349,59 @@ export default function ChatPanel({
                         {msg.profile?.name ?? 'Unknown'}
                       </span>
                     )}
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${
-                        isOwn
-                          ? 'bg-brand text-brand-dark rounded-br-sm'
-                          : 'bg-white border border-brand-border rounded-bl-sm'
-                      }`}
-                    >
-                      {msg.message_text}
-                    </div>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1 w-full max-w-[80%]">
+                        <input
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveEdit(msg)
+                            if (e.key === 'Escape') setEditingId(null)
+                          }}
+                          autoFocus
+                          className="flex-1 text-sm px-2.5 py-1.5 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand bg-white"
+                        />
+                        <button onClick={() => saveEdit(msg)} className="text-xs font-semibold text-brand-active px-1">Save</button>
+                        <button onClick={() => setEditingId(null)} className="text-xs text-brand-muted px-1">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {isOwn && !isConfirming && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => { setEditingId(msg.id); setEditText(msg.message_text) }}
+                              aria-label="Edit message"
+                              className="text-brand-muted/60 hover:text-brand-dark transition-colors"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(msg.id)}
+                              aria-label="Delete message"
+                              className="text-brand-muted/60 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${
+                            isOwn
+                              ? 'bg-brand text-brand-dark rounded-br-sm'
+                              : 'bg-white border border-brand-border rounded-bl-sm'
+                          }`}
+                        >
+                          {msg.message_text}
+                        </div>
+                      </div>
+                    )}
+                    {isConfirming && (
+                      <div className="flex items-center gap-2 mt-1 text-xs">
+                        <span className="text-brand-muted">Delete this message?</span>
+                        <button onClick={() => deleteMsg(msg)} className="font-semibold text-red-500">Delete</button>
+                        <button onClick={() => setConfirmDeleteId(null)} className="text-brand-muted">Cancel</button>
+                      </div>
+                    )}
                   </div>
                 )
               })
