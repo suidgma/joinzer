@@ -56,3 +56,22 @@ Thumbs.db
 
 # Playwright MCP scratch output (console logs, page snapshots)
 .playwright-mcp/
+
+# Local one-off / scratch scripts (data backfills, import generators, test fixtures) —
+# not shared tooling. The reusable scripts (geocode, recompute-ratings) stay tracked.
+/scripts/apply-avatars-random.mjs
+/scripts/backfill-location-zips.mjs
+/scripts/backfill-reset-slot.mjs
+/scripts/convert-stubs-to-dummies.mjs
+/scripts/dump-de-bracket.mjs
+/scripts/fix-location-zips.mjs
+/scripts/gen-hsc-import.mjs
+/scripts/gen-import-test.mjs
+/scripts/gen-lvpc-import.mjs
+/scripts/gen-singles-csv.mjs
+/scripts/recheck-location-zips.mjs
+/scripts/rename-stubs.mjs
+/scripts/set-dummy-avatar.mjs
+/scripts/set-dummy-avatars-batch.mjs
+/scripts/verify-labels.mjs
+/test-import-singles.csv
