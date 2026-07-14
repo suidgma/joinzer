@@ -146,6 +146,13 @@ That's it — no new provider, socket, or dependency.
 
 - **Deny-all + postgres_changes delivers nothing.** The #1 gotcha. Use broadcast, or add a scoped
   SELECT policy — verify per table.
+- **RLS-scoped postgres_changes need an AUTHED realtime socket.** If a table's SELECT policy is
+  membership-scoped (`auth.uid()`, e.g. chat) or even just `to authenticated`, an *unauthenticated*
+  realtime connection receives **nothing** — the viewer sees their own optimistic write but never
+  others' live (symptom: "only updates after refresh"). `RealtimeProvider` fixes this by calling
+  `supabase.realtime.setAuth(session.access_token)` on mount + every auth change. `setAuth`
+  **re-authorizes already-subscribed channels**, so it's fine that it runs after child subscriptions.
+  (Only `USING(true)` tables like `tournament_matches` deliver on an anon socket.)
 - **Broadcast channels are public.** Anyone who knows a topic (an entity UUID) can subscribe. That's
   why payloads are non-PII. For stricter control, adopt Realtime Authorization (private channels +
   RLS on `realtime.messages`) — see §10.
