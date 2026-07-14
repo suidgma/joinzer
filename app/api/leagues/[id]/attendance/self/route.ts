@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { broadcast } from '@/lib/realtime/serverBroadcast'
+import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
 
 // POST /api/leagues/[id]/attendance/self — a PLAYER self-reports their own attendance
 // for the league's active period (box cycle or ladder session). Sets ONLY their own
@@ -64,6 +66,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   } else {
     await db.from('league_attendance').insert({ league_id: id, period_id: period.id, registration_id: reg.id, user_id: user.id, status })
   }
+
+  // Live push to the organizer grid / anyone viewing this period's attendance.
+  await broadcast(attendanceTopic(period.id), RealtimeEvents.attendanceStatusChanged, {
+    registrationId: reg.id,
+    userId: user.id,
+    status,
+  })
 
   return NextResponse.json({ ok: true })
 }

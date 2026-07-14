@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { broadcast } from '@/lib/realtime/serverBroadcast'
+import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -99,6 +101,12 @@ export async function POST(req: NextRequest, props: Params) {
       .eq('session_id', params.sessionId)
       .eq('user_id', effectiveUserId)
   }
+
+  // Live push to everyone viewing this session's "who's coming" list.
+  await broadcast(attendanceTopic(params.sessionId), RealtimeEvents.attendanceStatusChanged, {
+    userId: effectiveUserId,
+    status: attendance_status,
+  })
 
   return NextResponse.json(data)
 }

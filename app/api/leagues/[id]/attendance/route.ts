@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { authorizeOrganizer, ATTENDANCE_STATUSES } from '@/lib/leagues/attendanceWrite'
+import { broadcast } from '@/lib/realtime/serverBroadcast'
+import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
 
 type Params = { params: Promise<{ id: string }> }
 function admin() {
@@ -31,6 +33,15 @@ export async function POST(req: NextRequest, props: Params) {
 
   const now = new Date().toISOString()
 
+  // Live push to the organizer grid / co-admins viewing this period's attendance.
+  const emitAttendance = (row: any) =>
+    broadcast(attendanceTopic(row.period_id), RealtimeEvents.attendanceStatusChanged, {
+      registrationId: row.registration_id ?? null,
+      attendanceId: row.id,
+      userId: row.user_id ?? null,
+      status: row.status,
+    })
+
   // When a covered member is marked back to present (any non-'has_sub' status),
   // un-assign their sub(s) so none linger and show in matches. For doubles a team
   // is one entrant with two slots (its own reg + the partner's), so clear covers on
@@ -56,6 +67,7 @@ export async function POST(req: NextRequest, props: Params) {
       .single()
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 500 })
     await clearCoveringSubs((data as any).registration_id, (data as any).period_id)
+    await emitAttendance(data)
     return NextResponse.json({ attendance: data })
   }
 
@@ -80,6 +92,7 @@ export async function POST(req: NextRequest, props: Params) {
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     await clearCoveringSubs(registrationId, periodId)
+    await emitAttendance(data)
     return NextResponse.json({ attendance: data })
   }
 
@@ -98,5 +111,6 @@ export async function POST(req: NextRequest, props: Params) {
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await emitAttendance(data)
   return NextResponse.json({ attendance: data })
 }

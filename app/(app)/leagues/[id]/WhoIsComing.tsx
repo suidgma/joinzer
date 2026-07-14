@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
+import { useAttendanceBroadcast } from '@/lib/realtime/useAttendanceBroadcast'
 
 type Player = { id: string; name: string }
 
@@ -32,25 +32,11 @@ export default function WhoIsComing({
 }) {
   const [attendance, setAttendance] = useState<Record<string, string>>(initialAttendance)
 
-  useEffect(() => {
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`lsa-${sessionId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'league_session_attendance', filter: `league_session_id=eq.${sessionId}` },
-        (payload) => {
-          const row = payload.new as { user_id?: string; attendance_status?: string; league_session_id?: string }
-          if (!row?.user_id || !row.attendance_status) return
-          if (row.league_session_id && row.league_session_id !== sessionId) return
-          setAttendance((prev) => ({ ...prev, [row.user_id!]: row.attendance_status! }))
-        },
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [sessionId])
+  // Live status via server broadcast (the write route pushes { userId, status } to this
+  // session's topic — no SELECT is opened on the deny-all attendance table).
+  useAttendanceBroadcast(sessionId, (change) => {
+    if (change.userId) setAttendance((prev) => ({ ...prev, [change.userId!]: change.status }))
+  })
 
   if (players.length === 0) return null
 

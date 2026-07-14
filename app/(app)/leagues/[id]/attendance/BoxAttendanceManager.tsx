@@ -4,6 +4,7 @@ import { useState } from 'react'
 import AttendanceGrid from '@/components/features/leagues/AttendanceGrid'
 import PlayerCombobox from '@/components/ui/PlayerCombobox'
 import { buildAttendeeRows, type AttendeeInput } from '@/lib/leagues/attendance'
+import { useAttendanceBroadcast } from '@/lib/realtime/useAttendanceBroadcast'
 import type { LeagueAttendanceStatus } from '@/lib/types'
 
 // One entrant/sub in the box attendance surface. `rowId` is the grid key:
@@ -42,6 +43,19 @@ export default function BoxAttendanceManager({
   const [showAddSub, setShowAddSub] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Live status: a player self-checking-in, or a co-admin editing, patches the one row.
+  // Match by attendance row id (subs/guests) or registration (roster members).
+  useAttendanceBroadcast(periodId, (change) => {
+    setAttendees((list) =>
+      list.map((a) => {
+        const match =
+          (change.attendanceId && a.attendanceId === change.attendanceId) ||
+          (change.registrationId && a.kind === 'roster' && a.registrationId === change.registrationId)
+        return match ? { ...a, status: change.status as LeagueAttendanceStatus } : a
+      }),
+    )
+  })
 
   const { roster, subs } = buildAttendeeRows(
     attendees.map<AttendeeInput>((a) => ({
