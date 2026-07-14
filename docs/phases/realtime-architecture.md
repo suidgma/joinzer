@@ -148,18 +148,29 @@ That's it — no new provider, socket, or dependency.
 
 ---
 
-## 10. Future extension points
+## 10. Shipped (Phase 2) + remaining extension points
 
-- **Live scores / brackets / standings** — broadcast from the score routes (deny-all `tournament_matches`
-  / `league_fixtures`) on a `match:<id>` / `division:<id>` topic; consume with `useRealtimeRecord`
-  (a single-row sibling of `useRealtimeList`, to add).
+**Shipped July 14, 2026 (Phase 2):**
+- **Toasts** — `components/ui/ToastProvider.tsx` (auto-dismiss, capped stack, de-duped, non-throwing
+  `useToast`). `WhoIsComing` toasts when *another* player changes status. Generic for any future event.
+- **Unread badges (in-context)** — `ChatPanel` shows an "N new" badge computed from a localStorage
+  last-read timestamp per entity, cleared when the viewer engages (expand / focus / send / pill).
+- **Live scores (tournaments)** — `tournament_matches` is **public-readable** (`matches_read` for
+  anon+auth), so it uses `postgres_changes`, **not** broadcast. Migration `20260714000005` added it
+  (plus `league_matches`, `league_session_players`) to the publication — which also **revived the
+  `LiveScoreboard` and `LiveSessionManager` subscriptions that were silently dead** (they subscribed
+  to tables that were never in the publication, so their "live" updates never fired). Correction to
+  §3's earlier framing: not every match table is deny-all — check RLS per table.
+
+**Remaining:**
+- **League fixtures live** (box/ladder/team/flex) — `league_fixtures` is deny-all → server broadcast
+  from the score routes; add a single-row `useRealtimeRecord` sibling of `useRealtimeList`.
+- **Interactive bracket live** — `BracketView` has a local-advance engine; live-updating it needs
+  care to reconcile local vs remote state. Left for a dedicated pass.
+- **Cross-page unread nav badges** ("Leagues (3)") — needs the user's chat memberships loaded globally
+  + a provider that subscribes to them regardless of the open page.
 - **Presence** ("who's viewing", 🟢 online) — Supabase Realtime Presence on the same provider; add
   `usePresence(topic)`.
-- **Toast notifications** ("Sarah is running late", "Division announcement posted") — a small toast
-  context fed by the same events. *Not built yet.*
-- **Cross-page unread badges** (League Chat (3)) — a global set of chat subscriptions in the provider,
-  independent of which page is open, feeding badge counts. *Not built yet* (needs the user's entity
-  memberships loaded globally).
 - **Private-channel authorization** — the hardening path for broadcast (per-user RLS on realtime
   messages) if attendance/score topics ever need to be non-public.
 
@@ -171,8 +182,12 @@ That's it — no new provider, socket, or dependency.
 stack (edit/delete-ready, "N new messages", reconnect refetch), live attendance for round-robin
 (`WhoIsComing`) and box/ladder (`BoxAttendanceManager`) via broadcast, and the connection indicator.
 
-**Deferred (documented above):** toasts, cross-page unread badges, live scores/standings, presence.
-Each is additive on this foundation.
+**Shipped (Phase 2, July 14, 2026):** toasts (`ToastProvider` + attendance toasts), in-context chat
+unread badge, and live tournament scores (publishing `tournament_matches` — which also fixed the
+dead `LiveScoreboard`/`LiveSessionManager` subscriptions). See §10.
+
+**Deferred:** live league fixtures (deny-all → broadcast), interactive-bracket live, cross-page unread
+nav badges, presence. Each is additive on this foundation.
 
 **Notes:** `WhoIsComing` moved from `postgres_changes` to broadcast; `league_session_attendance`
 remains in the `supabase_realtime` publication (harmless, now unused by that component). Chat

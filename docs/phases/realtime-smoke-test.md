@@ -85,6 +85,17 @@ Run once inline and once in the expanded ("Open") view. Repeat across all three 
 
 ---
 
+## 2.5 Live scores (tournament — `postgres_changes`)
+
+These subscriptions were **dead** before (tables weren't in the publication); migration
+`20260714000005` fixed it. Verify they actually fire now:
+
+- [ ] A on the tournament **Live** tab (scoreboard); organizer B scores/updates a match → A's
+      scoreboard, standings, and (rolling) court board update live, **no refresh**.
+- [ ] Draft matches stay hidden; publishing a draft makes it appear live.
+- [ ] (Round robin) A on the RR **live session** view; B marks a player's status → the row updates
+      live (`league_session_players` now published).
+
 ## 3. Connection indicator + reconnect
 
 - [ ] DevTools → Network → **Offline** → indicator shows **"Offline"** (⚪).
