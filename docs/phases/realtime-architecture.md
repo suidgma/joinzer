@@ -133,7 +133,11 @@ That's it — no new provider, socket, or dependency.
   echo de-dupes and edits/deletes reconcile uniformly (see `ChatPanel.handleSend`).
 - **Keep broadcast payloads minimal and non-PII** (ids + a status/enum). The client already has, or
   can fetch, the rest.
-- **Broadcast is best-effort.** Always after a successful write; never let it block or fail the write.
+- **Broadcast is best-effort** (but retries once on a transient send failure). Always after a
+  successful write; never let it block or fail the write. Broadcast is **ephemeral** — a receiver
+  disconnected during a send misses it, so broadcast consumers reconcile on reconnect
+  (`RealtimeRefresh` + `NotificationBell` refresh/refetch on error → subscribed), matching
+  `useRealtimeList.onReconcile`.
 - **Scope topics by entity UUID** so channels stay small and don't cross-talk.
 
 ---
