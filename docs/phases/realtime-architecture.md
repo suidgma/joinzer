@@ -198,12 +198,15 @@ That's it — no new provider, socket, or dependency.
 - **Live tournament check-in** — organizer `PlayersTab` subscribes to `tournament_registrations`
   (published + readable) and patches the check-in map live.
 
+**Bespoke-channel cleanup — done (July 14, 2026):** every component-level realtime now goes through
+`useRealtimeChannel` / the ChannelManager. The pre-refactor callers (TournamentOrganizerView, GroupChat,
+LiveSessionManager, DivisionsSection) were migrated. The **only** direct `supabase.channel()` calls left
+are `channelManager.ts` (the manager) and `usePresence.ts` (the one documented exception — presence is
+stateful per-viewer and doesn't fit the fan-out model).
+
 **Remaining:**
 - **Private-channel authorization** — the hardening path for broadcast (per-user RLS on realtime
   messages) if attendance/score topics ever need to be non-public.
-- **Bespoke-channel cleanup (cosmetic)** — a few pre-refactor callers still use `supabase.channel()`
-  directly (TournamentOrganizerView, GroupChat, LiveSessionManager, DivisionsSection). They work over
-  the shared socket but bypass the ChannelManager/connection status; migrating them is tidy-up, not a fix.
 - **Chat RLS hardened (July 14, 2026, migration `20260714000006`):** message SELECT (all 3 tables) +
   league/tournament INSERT are now scoped to membership via `SECURITY DEFINER` helpers
   (`is_{league,tournament,event}_chat_member`) — previously SELECT was `USING(true)` (any authed user
