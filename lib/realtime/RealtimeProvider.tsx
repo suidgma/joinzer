@@ -41,18 +41,30 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     else setConnection('connecting')
   }, [])
 
-  // Authenticate the realtime socket. This is REQUIRED for any RLS-scoped postgres_changes
-  // to deliver — membership-gated chat (auth.uid()) and the `authenticated`-only league score/
-  // attendance tables all return nothing on an anon socket, so without this the live updates
-  // silently stop and the page needs a manual refresh. setAuth re-authorizes channels that
-  // already subscribed, so it doesn't matter that child components subscribe before this runs.
-  // Kept fresh on sign-in / token-refresh / sign-out.
+  // Authenticate the realtime socket. REQUIRED for any RLS-scoped postgres_changes to
+  // deliver — membership-gated chat (auth.uid()) and the `authenticated`-only league score/
+  // attendance tables return nothing on an anon socket, so without this, live updates
+  // silently stop and the page needs a manual refresh.
+  //
+  // supabase-js does NOT auth realtime on INITIAL_SESSION (the event fired when the session
+  // is restored from cookies on page load — see SupabaseClient._handleTokenChanged, which
+  // only reacts to TOKEN_REFRESHED / SIGNED_IN / SIGNED_OUT). On a fresh load the socket
+  // otherwise gets a token only if connect()'s getSession() callback wins a race against the
+  // channel joining — flaky. So we assert it ourselves. `setAuth()` with NO args pulls a
+  // fresh token via supabase-js's own callback and re-authorizes already-joined channels, so
+  // it's fine that child components subscribe before this runs. Re-assert on every auth
+  // change and on tab focus (covers a socket reconnect after the tab was idle/backgrounded).
   useEffect(() => {
     const client = createClient()
-    const apply = (token?: string) => { if (token) client.realtime.setAuth(token) }
-    client.auth.getSession().then(({ data }) => apply(data.session?.access_token)).catch(() => {})
-    const { data: sub } = client.auth.onAuthStateChange((_event, session) => apply(session?.access_token ?? undefined))
-    return () => sub.subscription.unsubscribe()
+    const authRealtime = () => { client.realtime.setAuth().catch(() => {}) }
+    authRealtime()
+    const { data: sub } = client.auth.onAuthStateChange(() => authRealtime())
+    const onVisible = () => { if (document.visibilityState === 'visible') authRealtime() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      sub.subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   useEffect(() => {
