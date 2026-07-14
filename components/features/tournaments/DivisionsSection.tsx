@@ -17,6 +17,7 @@ import { prepareDivisionWrite, divisionSkillRangeToLevel } from '@/lib/taxonomy/
 import { isDoublesFormat, formatSkillRange } from '@/lib/taxonomy/formats'
 import AddToCalendarMenu from '@/components/features/AddToCalendarMenu'
 import SeedingPanel, { type MatchItem } from './SeedingPanel'
+import ShareButton from '@/components/features/ShareButton'
 
 const FORMAT_LABELS: Record<string, string> = {
   mens_doubles:           "Men's Doubles",
@@ -159,6 +160,10 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
   const [divisions, setDivisions] = useState<Division[]>(initialDivisions)
   const { confirm, alert } = useDialog()
   const [paymentBanner, setPaymentBanner] = useState<'success' | 'cancelled' | null>(null)
+  const [sharedDivId, setSharedDivId] = useState<string | null>(null)
+  // Absolute URL to one division, for the per-division Share button.
+  const shareOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+  const divisionShareUrl = (divId: string) => `${shareOrigin}/tournaments/${tournamentId}?division=${divId}`
   const [cancelPending, setCancelPending] = useState<{ divId: string; regId: string; divName: string; paymentStatus: string | null } | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -182,6 +187,17 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [router, currentUserId])
+
+  // Deep link: /tournaments/[id]?division=<id> — a friend can share a link straight
+  // to one division. Highlight + scroll to it on arrival. The param is kept so the
+  // link stays shareable/refreshable.
+  useEffect(() => {
+    const divId = new URLSearchParams(window.location.search).get('division')
+    if (!divId) return
+    setSharedDivId(divId)
+    const el = document.getElementById(`division-${divId}`)
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200)
+  }, [])
 
   // When an invitee accepts, the server sets partner_user_id on the inviter's row.
   // Without this subscription the inviter's page stays stale and "Pay for Both" never appears.
@@ -921,7 +937,7 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
             const summaryLines = formatSummaryLines(fType, fSettings, isDoubles, div.max_entries)
 
             return (
-              <div key={div.id} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-3">
+              <div key={div.id} id={`division-${div.id}`} className={`bg-brand-surface border rounded-2xl p-4 space-y-3 scroll-mt-24 transition-shadow ${div.id === sharedDivId ? 'border-brand ring-2 ring-brand/40' : 'border-brand-border'}`}>
 
                 {/* Header row */}
                 <div className="flex items-start justify-between gap-2">
@@ -938,14 +954,17 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       </p>
                     )}
                   </div>
-                  <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
-                    isFinished                           ? 'bg-green-100 text-green-700'     :
-                    isClosed                             ? 'bg-gray-100 text-gray-500'       :
-                    isFull && !div.waitlist_enabled      ? 'bg-red-100 text-red-700'         :
-                                                          'bg-brand-soft text-brand-active'
-                  }`}>
-                    {isFinished ? '✓ Finished' : isClosed ? 'Closed' : isFull && !div.waitlist_enabled ? 'Full' : 'Open'}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
+                      isFinished                           ? 'bg-green-100 text-green-700'     :
+                      isClosed                             ? 'bg-gray-100 text-gray-500'       :
+                      isFull && !div.waitlist_enabled      ? 'bg-red-100 text-red-700'         :
+                                                            'bg-brand-soft text-brand-active'
+                    }`}>
+                      {isFinished ? '✓ Finished' : isClosed ? 'Closed' : isFull && !div.waitlist_enabled ? 'Full' : 'Open'}
+                    </span>
+                    <ShareButton title={`${tournamentName} — ${div.name}`} url={divisionShareUrl(div.id)} label="Share" />
+                  </div>
                 </div>
 
                 {/* Inline division editor — full form, mirrors "Add Division" */}
