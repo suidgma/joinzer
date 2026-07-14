@@ -57,6 +57,8 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [costDollars, setCostDollars] = useState(
     tournament.cost_cents ? String((tournament.cost_cents as any) / 100) : ''
   )
+  const [noRefundDate, setNoRefundDate] = useState((tournament as any).no_refund_date ?? '')
+  const [refundPolicy, setRefundPolicy] = useState((tournament as any).refund_policy ?? '')
   const [contactName, setContactName] = useState((tournament as any).contact_name ?? '')
   const [contactEmail, setContactEmail] = useState((tournament as any).contact_email ?? '')
   const [allowPlayerScores, setAllowPlayerScores] = useState((tournament as any).allow_player_scores ?? false)
@@ -111,6 +113,8 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        no_refund_date: noRefundDate || null,
+        refund_policy: refundPolicy.trim() || null,
         contact_name: contactName.trim() || null,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
@@ -288,6 +292,34 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             type="datetime-local"
             value={registrationClosesAt}
             onChange={(e) => setRegistrationClosesAt(e.target.value)}
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow
+          label="No-refund date"
+          htmlFor="no-refund-date"
+          width="md"
+          helpText="Refunds aren't issued on or after this date. Leave blank for no cutoff."
+        >
+          <input
+            id="no-refund-date"
+            type="date"
+            value={noRefundDate}
+            onChange={(e) => setNoRefundDate(e.target.value)}
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow
+          label="Refund policy"
+          htmlFor="refund-policy"
+          helpText="Shown to players before they register."
+        >
+          <textarea
+            id="refund-policy"
+            value={refundPolicy}
+            onChange={(e) => setRefundPolicy(e.target.value)}
+            rows={3}
+            placeholder="e.g. Full refund up to 7 days before the event; no refunds after."
             className="w-full input"
           />
         </FormRow>

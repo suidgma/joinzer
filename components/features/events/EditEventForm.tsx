@@ -26,6 +26,8 @@ type Props = {
     session_type: string
     price_cents: number | null
     registration_closes_at: string | null
+    no_refund_date: string | null
+    refund_policy: string | null
     skill_min: number | null
     skill_max: number | null
     location_id: string | null
@@ -78,6 +80,8 @@ export default function EditEventForm({ event, locations }: Props) {
     event.session_type === 'free_clinic' ? 'free' : event.session_type === 'paid_clinic' ? 'paid' : 'none'
   )
   const [priceCents, setPriceCents] = useState<number>(event.price_cents ?? 1000)
+  const [noRefundDate, setNoRefundDate] = useState(event.no_refund_date ?? '')
+  const [refundPolicy, setRefundPolicy] = useState(event.refund_policy ?? '')
   const [registrationClosesAt, setRegistrationClosesAt] = useState(
     event.registration_closes_at ? isoToPtLocal(event.registration_closes_at) : ''
   )
@@ -151,6 +155,8 @@ export default function EditEventForm({ event, locations }: Props) {
           session_type: clinicType === 'free' ? 'free_clinic' : clinicType === 'paid' ? 'paid_clinic' : 'game',
           price_cents: clinicType === 'paid' ? priceCents : null,
           registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
+          no_refund_date: noRefundDate || null,
+          refund_policy: refundPolicy.trim() || null,
           ...prepareEventWrite({
             min_skill_level: minSkill ? parseFloat(minSkill) : null,
             max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
@@ -389,6 +395,32 @@ export default function EditEventForm({ event, locations }: Props) {
           value={registrationClosesAt}
           onChange={(e) => setRegistrationClosesAt(e.target.value)}
           className="w-full sm:max-w-[18rem] border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          No-refund date <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <p className="text-xs text-gray-400 mb-1">Refunds aren&apos;t issued on or after this date.</p>
+        <input
+          type="date"
+          value={noRefundDate}
+          onChange={(e) => setNoRefundDate(e.target.value)}
+          className="w-full sm:max-w-[18rem] border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Refund policy <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <textarea
+          value={refundPolicy}
+          onChange={(e) => setRefundPolicy(e.target.value)}
+          placeholder="Shown to players before they register."
+          rows={3}
+          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none"
         />
       </div>
 

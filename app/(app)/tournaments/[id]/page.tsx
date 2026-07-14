@@ -15,6 +15,7 @@ import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner
 import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection'
 import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
+import RefundPolicyNote from '@/components/features/RefundPolicyNote'
 import RefreshButton from '@/components/ui/RefreshButton'
 import AddSubForMe from '@/components/features/subs/AddSubForMe'
 import UndoSubButton from '@/components/features/subs/UndoSubButton'
@@ -63,7 +64,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select(`
         id, name, description, start_date, start_time, estimated_end_time, additional_days,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, contact_name, location_id, default_win_by, default_games_to, default_bracket_type, scheduling_method, show_seeds, allow_player_scores,
+        cost_cents, no_refund_date, refund_policy, contact_name, location_id, default_win_by, default_games_to, default_bracket_type, scheduling_method, show_seeds, allow_player_scores,
         location:locations!location_id (id, name, subarea, court_count),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -377,6 +378,8 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
               <DeleteTournamentButton tournamentId={tournament.id} />
             </div>
           </div>
+
+          <RefundPolicyNote policy={(tournament as any).refund_policy} noRefundDate={(tournament as any).no_refund_date} className="mb-4" />
 
           {/* Divisions + player registration — setup tools always visible to organizer.
               Anchor target for the setup checklist's "Add divisions" step. */}

@@ -141,6 +141,8 @@ export default function EditLeagueForm({
   const [status, setStatus] = useState(d.status ?? 'active')
   const [description, setDescription] = useState(d.description ?? '')
   const [costDollars, setCostDollars] = useState(d.cost_cents ? String(d.cost_cents / 100) : '')
+  const [noRefundDate, setNoRefundDate] = useState((d as any).no_refund_date ?? '')
+  const [refundPolicy, setRefundPolicy] = useState((d as any).refund_policy ?? '')
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>(
     (d.standings_method as 'win_loss' | 'total_points') ?? 'total_points'
   )
@@ -238,6 +240,8 @@ export default function EditLeagueForm({
         status,
         description: description.trim() || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        no_refund_date: noRefundDate || null,
+        refund_policy: refundPolicy.trim() || null,
         standings_method: standingsMethod,
         allow_player_scores: allowPlayerScores,
         points_to_win: pointsToWinNum,
@@ -704,6 +708,34 @@ export default function EditLeagueForm({
               className="w-full input pl-7"
             />
           </div>
+        </FormRow>
+        <FormRow
+          label="No-refund date"
+          htmlFor="no-refund-date"
+          width="md"
+          helpText="Refunds aren't issued on or after this date. Leave blank for no cutoff."
+        >
+          <input
+            id="no-refund-date"
+            type="date"
+            value={noRefundDate}
+            onChange={(e) => setNoRefundDate(e.target.value)}
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow
+          label="Refund policy"
+          htmlFor="refund-policy"
+          helpText="Shown to players before they register."
+        >
+          <textarea
+            id="refund-policy"
+            value={refundPolicy}
+            onChange={(e) => setRefundPolicy(e.target.value)}
+            rows={3}
+            placeholder="e.g. Full refund up to 7 days before the season starts; no refunds after."
+            className="w-full input"
+          />
         </FormRow>
       </FormSection>
 

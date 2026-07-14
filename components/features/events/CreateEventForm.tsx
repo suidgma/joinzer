@@ -50,6 +50,8 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
     defaults?.sessionType === 'free_clinic' ? 'free' : defaults?.sessionType === 'paid_clinic' ? 'paid' : 'none'
   )
   const [priceCents, setPriceCents] = useState<number>(defaults?.priceCents ?? 1000)
+  const [noRefundDate, setNoRefundDate] = useState('')
+  const [refundPolicy, setRefundPolicy] = useState('')
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [deadlineTouched, setDeadlineTouched] = useState(false)
@@ -136,6 +138,8 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       price_cents: clinicType === 'paid' ? priceCents : null,
       recurrence_group_id: recurrenceGroupId,
       registration_closes_at: deadlineIso,
+      no_refund_date: noRefundDate || null,
+      refund_policy: refundPolicy.trim() || null,
     }))
 
     const { data: events, error: eventError } = await supabase
@@ -459,6 +463,34 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           value={registrationClosesAt}
           onChange={(e) => { setRegistrationClosesAt(e.target.value); setDeadlineTouched(true) }}
           className="w-full sm:max-w-[18rem] input"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          No-refund date{' '}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <p className="text-xs text-brand-muted mb-1">Refunds aren&apos;t issued on or after this date.</p>
+        <input
+          type="date"
+          value={noRefundDate}
+          onChange={(e) => setNoRefundDate(e.target.value)}
+          className="w-full sm:max-w-[18rem] input"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Refund policy{' '}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <textarea
+          value={refundPolicy}
+          onChange={(e) => setRefundPolicy(e.target.value)}
+          placeholder="Shown to players before they register."
+          rows={3}
+          className="input resize-none"
         />
       </div>
 

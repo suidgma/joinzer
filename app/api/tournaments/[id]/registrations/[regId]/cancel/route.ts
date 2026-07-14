@@ -32,7 +32,7 @@ export async function POST(_req: NextRequest, props: Params) {
   // registration_closes_at: deadline that gates the REFUND (not the cancellation).
   const { data: tournament } = await service
     .from('tournaments')
-    .select('id, name, organizer_id, registration_closes_at')
+    .select('id, name, organizer_id, registration_closes_at, no_refund_date')
     .eq('id', params.id)
     .single()
 
@@ -55,9 +55,13 @@ export async function POST(_req: NextRequest, props: Params) {
 
   // ── paid → refund (or cancel-only if past deadline) ───────────────────────
   if (reg.payment_status === 'paid' && reg.stripe_payment_intent_id) {
-    // Deadline gates the REFUND, not the cancellation. NULL deadline = always within window.
-    const deadline = tournament.registration_closes_at ? new Date(tournament.registration_closes_at) : null
-    const withinDeadline = !deadline || new Date() <= deadline
+    // Deadline gates the REFUND, not the cancellation. A dedicated no-refund date, when
+    // set, is the authoritative cutoff (refunds stop at the start of that day); otherwise
+    // fall back to registration_closes_at. NULL both = always within window.
+    const noRefund = (tournament as any).no_refund_date ? new Date((tournament as any).no_refund_date + 'T00:00:00') : null
+    const regClose = tournament.registration_closes_at ? new Date(tournament.registration_closes_at) : null
+    const cutoff = noRefund ?? regClose
+    const withinDeadline = !cutoff || new Date() < cutoff
 
     if (withinDeadline) {
       // Stripe FIRST — if this fails, no DB writes have happened, safe to abort.

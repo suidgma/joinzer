@@ -72,6 +72,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [winBy, setWinBy] = useState<1 | 2>(1)
   const [subCreditCap, setSubCreditCap] = useState('7')
   const [costDollars, setCostDollars] = useState('')
+  const [noRefundDate, setNoRefundDate] = useState('')
+  const [refundPolicy, setRefundPolicy] = useState('')
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('total_points')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
   const [noPlayDates, setNoPlayDates] = useState<string[]>([])
@@ -263,6 +265,8 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         win_by: winBy,
         sub_credit_cap: parseInt(subCreditCap) || 7,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        no_refund_date: noRefundDate || null,
+        refund_policy: refundPolicy.trim() || null,
         standings_method: standingsMethod,
         allow_player_scores: allowPlayerScores,
         no_play_dates: finalNoPlayDates,
@@ -747,6 +751,34 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               className="w-full input pl-7"
             />
           </div>
+        </FormRow>
+        <FormRow
+          label="No-refund date"
+          htmlFor="no-refund-date"
+          width="md"
+          helpText="Refunds aren't issued on or after this date. Leave blank for no cutoff."
+        >
+          <input
+            id="no-refund-date"
+            type="date"
+            value={noRefundDate}
+            onChange={(e) => setNoRefundDate(e.target.value)}
+            className="w-full input"
+          />
+        </FormRow>
+        <FormRow
+          label="Refund policy"
+          htmlFor="refund-policy"
+          helpText="Shown to players before they register."
+        >
+          <textarea
+            id="refund-policy"
+            value={refundPolicy}
+            onChange={(e) => setRefundPolicy(e.target.value)}
+            rows={3}
+            placeholder="e.g. Full refund up to 7 days before the season starts; no refunds after."
+            className="w-full input"
+          />
         </FormRow>
       </FormSection>
 

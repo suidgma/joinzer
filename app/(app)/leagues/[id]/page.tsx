@@ -16,6 +16,7 @@ import RefreshButton from '@/components/ui/RefreshButton'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import BoxLadderCheckIn from '@/components/features/leagues/BoxLadderCheckIn'
+import RefundPolicyNote from '@/components/features/RefundPolicyNote'
 import CaptainRoster from '@/components/features/leagues/CaptainRoster'
 import { captainTeamIds, rosteredRegistrationIds } from '@/lib/leagues/teamsServer'
 import { createClient as createAdmin } from '@supabase/supabase-js'
@@ -523,6 +524,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
               </div>
             </div>
           )}
+          <RefundPolicyNote policy={(league as any).refund_policy} noRefundDate={(league as any).no_refund_date} />
           {boxLadderCheckIn && (
             <BoxLadderCheckIn
               leagueId={league.id}

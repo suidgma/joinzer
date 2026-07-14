@@ -13,6 +13,7 @@ import SessionRatingForm from '@/components/features/events/SessionRatingForm'
 import type { EventDetail } from '@/lib/types'
 import ShareButton from '@/components/features/ShareButton'
 import PaymentTracker from '@/components/features/events/PaymentTracker'
+import RefundPolicyNote from '@/components/features/RefundPolicyNote'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
 type ChatMessage = {
@@ -70,7 +71,7 @@ export default async function EventDetailPage(
         .select(`
           id, title, starts_at, duration_minutes, court_count, players_per_court,
           max_players, status, notes, registration_closes_at, skill_min, skill_max, creator_user_id, captain_user_id, location_id,
-          session_type, price_cents,
+          session_type, price_cents, no_refund_date, refund_policy,
           location:locations!location_id (name, court_count, subarea, access_type),
           captain:profiles!captain_user_id (name),
           event_participants!event_id (
@@ -256,6 +257,8 @@ export default async function EventDetailPage(
           </span>
         </div>
       </div>
+
+      <RefundPolicyNote policy={(event as any).refund_policy} noRefundDate={(event as any).no_refund_date} />
 
       {/* Join / Leave */}
       {isActive && currentUserId && (
