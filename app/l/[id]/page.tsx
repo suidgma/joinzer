@@ -8,6 +8,7 @@ import StandingsTable from '@/app/(app)/leagues/[id]/standings/StandingsTable'
 import BoxPositionTrend from '@/app/(app)/leagues/[id]/standings/BoxPositionTrend'
 import RecentResults from '@/app/(app)/leagues/[id]/standings/RecentResults'
 import TeamStandings from '@/app/(app)/leagues/[id]/standings/TeamStandings'
+import PeriodSelector from '@/app/(app)/leagues/[id]/standings/PeriodSelector'
 import { getLadderPublicStandings, getBoxPublicStandings, getRRPublicStandings, getTeamPublicStandings, getFlexPublicStandings } from '@/lib/leagues/publicStandings'
 import { getBoxPositionTrend } from '@/lib/leagues/boxTrend'
 
@@ -26,7 +27,7 @@ async function getLeague(id: string) {
   return data as any
 }
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ id: string }>; searchParams: Promise<{ cycle?: string; week?: string; session?: string; matchday?: string }> }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params
@@ -49,8 +50,9 @@ function EmptyState({ msg }: { msg: string }) {
   )
 }
 
-export default async function PublicLeagueStandingsPage({ params }: Params) {
+export default async function PublicLeagueStandingsPage({ params, searchParams }: Params) {
   const { id } = await params
+  const sp = await searchParams
   const league = await getLeague(id)
   // Only accessible when the organizer has opted in and the league is live.
   if (!league || league.public_standings !== true || league.status !== 'active') notFound()
@@ -70,41 +72,65 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
     content = hasResults ? (
       <>
         <BoxStandings boxes={boxes} />
-        {recentRows.length > 0 && <RecentResults heading="Latest results" rows={recentRows} />}
+        {recentRows.length > 0 && <RecentResults heading="Results" rows={recentRows} />}
       </>
     ) : <EmptyState msg="Standings appear as players report and confirm their matches." />
   } else if (league.format_kind === 'team') {
-    const { rows, hasResults, recentRows, latestRound } = await getTeamPublicStandings(db, id)
+    const { rows, hasResults, recentRows, selectedRound, teamRounds } = await getTeamPublicStandings(db, id, sp.matchday)
     content = hasResults ? (
       <>
         <TeamStandings rows={rows} />
-        {recentRows.length > 0 && <RecentResults heading={`Latest results — Matchday ${latestRound}`} rows={recentRows} />}
+        {recentRows.length > 0 && (
+          <RecentResults
+            heading={`Results — Matchday ${selectedRound}`}
+            rows={recentRows}
+            right={<PeriodSelector param="matchday" options={teamRounds.map((n) => ({ value: String(n), label: `Matchday ${n}` }))} current={String(selectedRound)} />}
+          />
+        )}
       </>
     ) : <EmptyState msg="Standings appear once matchups are scored." />
   } else if (league.format_kind === 'ladder') {
-    const { rows, sessionNumbers, recentRows, latestSessionNumber } = await getLadderPublicStandings(db, id, league.format, settings)
+    const { rows, sessionNumbers, recentRows, selectedSessionNumber, selectedPeriodId, ladderPeriods } = await getLadderPublicStandings(db, id, league.format, settings, sp.session)
     content = (
       <>
         <LadderStandings rows={rows} periodNumbers={sessionNumbers} />
-        {recentRows.length > 0 && <RecentResults heading={`Latest results — Session ${latestSessionNumber}`} rows={recentRows} />}
+        {recentRows.length > 0 && selectedPeriodId && (
+          <RecentResults
+            heading={`Results — Session ${selectedSessionNumber}`}
+            rows={recentRows}
+            right={<PeriodSelector param="session" options={ladderPeriods.map((p) => ({ value: p.id as string, label: `Session ${p.period_number}` }))} current={selectedPeriodId} />}
+          />
+        )}
       </>
     )
   } else if (league.format_kind === 'box') {
-    const { boxes } = await getBoxPublicStandings(db, id, league.format)
+    const { boxes, cycleNumber, cycleOptions, selectedCycleId } = await getBoxPublicStandings(db, id, league.format, sp.cycle)
     const boxTrend = await getBoxPositionTrend(db, id, league.format)
     content = boxes.length ? (
       <>
         {boxTrend.cycleNumbers.length >= 1 && <BoxPositionTrend rows={boxTrend.rows} periodNumbers={boxTrend.cycleNumbers} />}
+        {cycleOptions.length > 1 && selectedCycleId && (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm font-semibold text-brand-dark">Cycle {cycleNumber}</p>
+            <PeriodSelector param="cycle" options={cycleOptions.map((c) => ({ value: c.id, label: `Cycle ${c.number}` }))} current={selectedCycleId} />
+          </div>
+        )}
         <BoxStandings boxes={boxes} />
       </>
     ) : <EmptyState msg="Standings appear once the first cycle is completed." />
   } else {
-    const rr = await getRRPublicStandings(db, id, league.sub_credit_cap ?? 7, (league.standings_method ?? 'win_loss') as any, league.partner_mode ?? null)
+    const rr = await getRRPublicStandings(db, id, league.sub_credit_cap ?? 7, (league.standings_method ?? 'win_loss') as any, league.partner_mode ?? null, sp.week)
     content = rr.hasResults ? (
       <>
         {rr.weekNumbers.length >= 1 && <BoxPositionTrend rows={rr.trendRows} periodNumbers={rr.weekNumbers} />}
         <StandingsTable initialStandings={rr.standings as any} sessionsWithData={rr.sessionsWithData} sessionPts={rr.sessionPts} sessionWL={rr.sessionWL} standingsMethod={rr.standingsMethod} />
-        {rr.recentRows.length > 0 && <RecentResults heading={`Latest results — Wk ${rr.latestSessionNumber}`} rows={rr.recentRows} />}
+        {rr.recentRows.length > 0 && rr.selectedSessionId && (
+          <RecentResults
+            heading={`Results — Wk ${rr.selectedSessionNumber}`}
+            rows={rr.recentRows}
+            right={<PeriodSelector param="week" options={rr.sessionsWithData.map((s: any) => ({ value: s.id as string, label: `Wk ${s.session_number}` }))} current={rr.selectedSessionId} />}
+          />
+        )}
       </>
     ) : <EmptyState msg="No results posted yet." />
   }

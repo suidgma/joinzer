@@ -16,7 +16,7 @@ type Admin = ReturnType<typeof ladderAdmin>
 const firstName = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
 
 // ── Ladder ────────────────────────────────────────────────────────────────────
-export async function getLadderPublicStandings(admin: Admin, leagueId: string, format: string | null, settings: Record<string, unknown> | null) {
+export async function getLadderPublicStandings(admin: Admin, leagueId: string, format: string | null, settings: Record<string, unknown> | null, selectedSessionId?: string) {
   const state = await readLadderState(admin, leagueId, format, settings)
   const { data: hist } = await admin
     .from('ladder_position_history')
@@ -46,18 +46,21 @@ export async function getLadderPublicStandings(admin: Admin, leagueId: string, f
     }
   })
 
-  // Most recent night's court scores.
-  const { data: lastPeriod } = await admin
+  // Court scores for the selected session (default: most recent completed night).
+  const { data: ladderPeriodsRaw } = await admin
     .from('league_periods').select('id, period_number')
     .eq('league_id', leagueId).eq('period_kind', 'ladder_session').eq('status', 'completed')
-    .order('period_number', { ascending: false }).limit(1).maybeSingle()
+    .order('period_number', { ascending: true })
+  const ladderPeriods = (ladderPeriodsRaw ?? []) as any[]
+  const selectedPeriod = ladderPeriods.find((p) => p.id === selectedSessionId) ?? ladderPeriods[ladderPeriods.length - 1]
   let recentRows: ResultRow[] = []
-  const latestSessionNumber: number | null = lastPeriod ? (lastPeriod.period_number as number) : null
-  if (lastPeriod) {
+  const selectedSessionNumber: number | null = selectedPeriod ? (selectedPeriod.period_number as number) : null
+  const selectedPeriodId: string | null = selectedPeriod ? (selectedPeriod.id as string) : null
+  if (selectedPeriod) {
     const { data: fx } = await admin
       .from('league_fixtures')
       .select('court_number, round_number, match_stage, team_1_registration_id, team_2_registration_id, team_1_score, team_2_score, winner_registration_id')
-      .eq('period_id', lastPeriod.id)
+      .eq('period_id', selectedPeriod.id)
     recentRows = (fx ?? [])
       .filter((f: any) => f.match_stage === 'ladder_round' && f.team_1_score != null)
       .sort((a: any, b: any) => (a.round_number - b.round_number) || ((a.court_number ?? 0) - (b.court_number ?? 0)))
@@ -71,11 +74,11 @@ export async function getLadderPublicStandings(admin: Admin, leagueId: string, f
       }))
   }
 
-  return { rows, sessionNumbers, recentRows, latestSessionNumber }
+  return { rows, sessionNumbers, recentRows, selectedSessionNumber, selectedPeriodId, ladderPeriods }
 }
 
 // ── Box (latest completed cycle) ─────────────────────────────────────────────
-export async function getBoxPublicStandings(admin: Admin, leagueId: string, format: string | null) {
+export async function getBoxPublicStandings(admin: Admin, leagueId: string, format: string | null, selectedCycleId?: string) {
   const doubles = isDoublesFormat(format)
   const { data: regsRaw } = await admin
     .from('league_registrations')
@@ -98,8 +101,9 @@ export async function getBoxPublicStandings(admin: Admin, leagueId: string, form
     .from('league_periods').select('id, period_number, status')
     .eq('league_id', leagueId).eq('period_kind', 'cycle').order('period_number', { ascending: true })
   const completed = (cyclesRaw ?? []).filter((c: any) => c.status === 'completed')
-  const cycle = completed[completed.length - 1]
-  if (!cycle) return { boxes: [] as BoxStandingView[], cycleNumber: null as number | null }
+  const cycle = completed.find((c: any) => c.id === selectedCycleId) ?? completed[completed.length - 1]
+  const cycleOptions = completed.map((c: any) => ({ id: c.id as string, number: c.period_number as number }))
+  if (!cycle) return { boxes: [] as BoxStandingView[], cycleNumber: null as number | null, cycleOptions, selectedCycleId: null as string | null }
 
   const { data: bx } = await admin.from('league_boxes').select('id, tier_rank, name').eq('period_id', cycle.id).order('tier_rank', { ascending: true })
   const bxIds = (bx ?? []).map((b: any) => b.id)
@@ -140,7 +144,7 @@ export async function getBoxPublicStandings(admin: Admin, leagueId: string, form
       matches,
     }
   })
-  return { boxes, cycleNumber: cycle.period_number as number }
+  return { boxes, cycleNumber: cycle.period_number as number, cycleOptions, selectedCycleId: cycle.id as string }
 }
 
 // ── Flex (whole-league self-scheduled round-robin) ───────────────────────────
@@ -176,10 +180,10 @@ export async function getFlexPublicStandings(admin: Admin, leagueId: string, for
     pf: row.pf, pa: row.pa, diff: row.pf - row.pa,
   }))
   const boxes: BoxStandingView[] = [{ name: 'Standings', rows }]
+  // Whole-season round-robin (no periods) — surface ALL confirmed matches.
   const recentRows: ResultRow[] = fixtures
     .filter((f) => f.status === 'completed' && f.team_1_score != null)
     .sort((a, b) => new Date(b.updated_at ?? 0).getTime() - new Date(a.updated_at ?? 0).getTime())
-    .slice(0, 8)
     .map((f) => ({
       name1: nameOf(f.team_1_registration_id),
       name2: nameOf(f.team_2_registration_id),
@@ -193,7 +197,7 @@ export async function getFlexPublicStandings(admin: Admin, leagueId: string, for
 // ── Team league ──────────────────────────────────────────────────────────────
 // Ranks TEAM entities over completed team_matchup fixtures (matchup W–L → line-win
 // differential) via the shared rankEntities core. Team names are public (no PII).
-export async function getTeamPublicStandings(admin: Admin, leagueId: string) {
+export async function getTeamPublicStandings(admin: Admin, leagueId: string, selectedMatchday?: string) {
   const { data: teamsRaw } = await admin
     .from('league_teams').select('id, name, status').eq('league_id', leagueId)
     .neq('status', 'withdrawn').order('created_at', { ascending: true })
@@ -231,9 +235,10 @@ export async function getTeamPublicStandings(admin: Admin, leagueId: string) {
   }))
   const hasResults = rankMatches.length > 0
 
-  const latestRound = matchups.filter((m) => m.status === 'completed').reduce((mx, m) => Math.max(mx, m.round_number ?? 0), 0)
+  const teamRounds = [...new Set(matchups.filter((m) => m.status === 'completed').map((m) => m.round_number ?? 0))].filter((n) => n > 0).sort((a, b) => a - b)
+  const selectedRound = teamRounds.includes(Number(selectedMatchday)) ? Number(selectedMatchday) : (teamRounds[teamRounds.length - 1] ?? 0)
   const recentRows: ResultRow[] = matchups
-    .filter((m) => m.status === 'completed' && (m.round_number ?? 0) === latestRound)
+    .filter((m) => m.status === 'completed' && (m.round_number ?? 0) === selectedRound)
     .map((m) => ({
       name1: nameOf(m.team_1_id),
       name2: nameOf(m.team_2_id),
@@ -242,11 +247,11 @@ export async function getTeamPublicStandings(admin: Admin, leagueId: string) {
       winner1: m.winner_team_id === m.team_1_id,
     }))
 
-  return { rows, hasResults, recentRows, latestRound }
+  return { rows, hasResults, recentRows, selectedRound, teamRounds }
 }
 
 // ── Round-robin (session_rr) ─────────────────────────────────────────────────
-export async function getRRPublicStandings(admin: Admin, leagueId: string, subCreditCap: number, standingsMethod: 'win_loss' | 'total_points', partnerMode: string | null) {
+export async function getRRPublicStandings(admin: Admin, leagueId: string, subCreditCap: number, standingsMethod: 'win_loss' | 'total_points', partnerMode: string | null, selectedWeekId?: string) {
   const [{ data: registrations }, { data: sessions }] = await Promise.all([
     admin.from('league_registrations').select('user_id, partner_user_id, profile:profiles!user_id(id, name)').eq('league_id', leagueId).eq('status', 'registered'),
     admin.from('league_sessions').select('id, session_number').eq('league_id', leagueId).order('session_date', { ascending: true }),
@@ -363,12 +368,13 @@ export async function getRRPublicStandings(admin: Admin, leagueId: string, subCr
   const sessionsWithData = (sessions ?? []).filter((s: any) => (matches ?? []).some((m: any) => m.session_id === s.id)).map((s: any) => ({ id: s.id, session_number: s.session_number }))
   const hasResults = (matches ?? []).length > 0
 
-  // Most recent week's match scores.
-  const latest = sessionsWithData[sessionsWithData.length - 1]
+  // Match scores for the selected week (default: most recent week with data).
+  const selected = sessionsWithData.find((s: any) => s.id === selectedWeekId) ?? sessionsWithData[sessionsWithData.length - 1]
   let recentRows: ResultRow[] = []
-  const latestSessionNumber: number | null = latest ? (latest.session_number as number) : null
-  if (latest) {
-    const latestMatches = (matches ?? []).filter((m: any) => m.session_id === latest.id && m.team1_score != null)
+  const selectedSessionNumber: number | null = selected ? (selected.session_number as number) : null
+  const selectedSessionId: string | null = selected ? (selected.id as string) : null
+  if (selected) {
+    const latestMatches = (matches ?? []).filter((m: any) => m.session_id === selected.id && m.team1_score != null)
     const pids = new Set<string>()
     for (const m of latestMatches) for (const pid of [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id]) if (pid) pids.add(pid)
     const { data: profs } = pids.size ? await admin.from('profiles').select('id, name').in('id', [...pids]) : { data: [] as any[] }
@@ -414,5 +420,5 @@ export async function getRRPublicStandings(admin: Admin, leagueId: string, subCr
   }))
   const weekNumbers = sessionsWithData.map((s: any) => s.session_number as number)
 
-  return { standings, sessionsWithData, sessionPts, sessionWL, standingsMethod, hasResults, recentRows, latestSessionNumber, trendRows, weekNumbers }
+  return { standings, sessionsWithData, sessionPts, sessionWL, standingsMethod, hasResults, recentRows, selectedSessionNumber, selectedSessionId, trendRows, weekNumbers }
 }
