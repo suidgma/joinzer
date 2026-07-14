@@ -31,7 +31,8 @@ These rules apply to every session, every file, every commit on Joinzer.
 - Enable RLS on **every** table. Many tables are intentionally **deny-all** (RLS on, no policy) and touched only by server code via the service role — the default for anything not meant for direct client reads (ratings, stats, achievements, fixtures, attendance, ladder/box/team, audit_log, …). A Supabase "RLS enabled, no policy" advisory on these is expected, not a bug.
 - Where a table **is** client-readable, its RLS policy is the guard — keep policies least-privilege. Avoid `USING (true)` / `WITH CHECK (true)` for INSERT/UPDATE/DELETE (a service-role write doesn't need a permissive public policy).
 - A sensitive column on an otherwise client-readable table is hidden with **column-level GRANTs** (e.g. `stripe_payment_intent_id` on the registration tables): table-level `SELECT` is revoked and only the safe columns are granted to `anon`/`authenticated`. Consequence — **a new column on such a table isn't client-readable until you `GRANT SELECT (col)` on it**; do so when the client needs to read it.
-- Verify policies before assuming they work.
+- Verify policies before assuming they work. Two clean ways to test a policy without a browser: (a) a scripted authed supabase-js client, or (b) in SQL — `begin; set local role authenticated; set local request.jwt.claims to '{"sub":"<user-uuid>"}'; <query>; rollback;`.
+- **Membership-scoped reads** (a member can read/write only their own entity's rows) are checked with a `SECURITY DEFINER` helper function (locked `search_path`), NOT a bare `EXISTS` subquery — because an `EXISTS` against a deny-all membership table inside a policy is itself subject to that table's RLS and would always be false. Pattern: `is_{league,tournament,event}_chat_member(id)` gate the chat message tables' SELECT/INSERT (migration `20260714000006`). `auth.uid()` still resolves to the caller inside a `SECURITY DEFINER` function.
 
 ## Player PII
 

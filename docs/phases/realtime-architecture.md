@@ -192,10 +192,12 @@ That's it — no new provider, socket, or dependency.
 **Remaining:**
 - **Private-channel authorization** — the hardening path for broadcast (per-user RLS on realtime
   messages) if attendance/score topics ever need to be non-public.
-- **Security note (found during Phase 3):** the chat message tables' SELECT RLS is `USING(true)` —
-  any authenticated user can read *any* league/tournament/event chat. That's why cross-app unread
-  subscribes per-entity (a global subscription would stream all platform chat to every client).
-  Scoping message SELECT to membership is a separate, worthwhile RLS hardening task.
+- **Chat RLS hardened (July 14, 2026, migration `20260714000006`):** message SELECT (all 3 tables) +
+  league/tournament INSERT are now scoped to membership via `SECURITY DEFINER` helpers
+  (`is_{league,tournament,event}_chat_member`) — previously SELECT was `USING(true)` (any authed user
+  could read any chat) and league/tournament INSERT only checked `user_id = auth.uid()`. ChatPanel
+  render is member-gated to match, so non-members don't see the server-rendered initial batch either.
+  (Cross-app unread still subscribes per-entity — correct regardless, and now doubly safe.)
 
 ---
 
