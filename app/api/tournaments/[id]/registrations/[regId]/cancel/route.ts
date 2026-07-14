@@ -64,36 +64,64 @@ export async function POST(_req: NextRequest, props: Params) {
     const withinDeadline = !cutoff || new Date() < cutoff
 
     if (withinDeadline) {
-      // Stripe FIRST — if this fails, no DB writes have happened, safe to abort.
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-      let stripeRefund: Stripe.Refund
-      try {
-        stripeRefund = await stripe.refunds.create({ payment_intent: reg.stripe_payment_intent_id })
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return NextResponse.json({ error: `Refund failed: ${msg}` }, { status: 502 })
-      }
+      // A registration that's part of a multi-division ORDER shares one payment with
+      // its sibling divisions, so refund only THIS division's allocated share
+      // (net_cents). A standalone registration refunds the full payment.
+      const { data: orderItem } = await service
+        .from('tournament_order_items')
+        .select('net_cents')
+        .eq('registration_id', params.regId)
+        .maybeSingle()
+      const bundledCents: number | null = orderItem ? ((orderItem as any).net_cents ?? 0) : null
 
-      // DB update AFTER Stripe success. If this fails, money moved but record didn't — surface it.
-      const { error: refundDbErr } = await service
-        .from('tournament_registrations')
-        .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
-        .eq('id', params.regId)
+      // Free bundled division (net 0) — nothing to refund; mark refunded and cancel below.
+      if (bundledCents !== null && bundledCents <= 0) {
+        await service
+          .from('tournament_registrations')
+          .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
+          .eq('id', params.regId)
+      } else {
+        // Stripe FIRST — if this fails, no DB writes have happened, safe to abort.
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+        let stripeRefund: Stripe.Refund
+        try {
+          if (bundledCents !== null) {
+            // Partial refund of the shared payment; reverse the proportional Connect
+            // transfer when this was a destination charge.
+            const pi = await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id)
+            const isConnect = !!(pi as any).transfer_data?.destination
+            stripeRefund = await stripe.refunds.create({
+              payment_intent: reg.stripe_payment_intent_id,
+              amount: bundledCents,
+              ...(isConnect ? { reverse_transfer: true } : {}),
+            })
+          } else {
+            stripeRefund = await stripe.refunds.create({ payment_intent: reg.stripe_payment_intent_id })
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          return NextResponse.json({ error: `Refund failed: ${msg}` }, { status: 502 })
+        }
 
-      if (refundDbErr) {
-        // CRITICAL: Stripe refund issued but DB record not updated.
-        // Do NOT proceed to cancel — registration stays paid/registered so discrepancy is visible.
-        // Manual reconciliation required: match stripeRefund.id to registration params.regId.
-        console.error(
-          `[tournament-cancel] CRITICAL: Stripe refund ${stripeRefund.id} issued for ` +
-          `registration ${params.regId} (tournament ${params.id}, user ${user.id}) but ` +
-          `payment_status DB update failed: ${refundDbErr.message}. ` +
-          `Manual reconciliation required.`
-        )
-        return NextResponse.json(
-          { error: 'Refund was issued but the record could not be updated. Contact support immediately with your tournament and account details.' },
-          { status: 500 }
-        )
+        // DB update AFTER Stripe success. If this fails, money moved but record didn't — surface it.
+        const { error: refundDbErr } = await service
+          .from('tournament_registrations')
+          .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
+          .eq('id', params.regId)
+
+        if (refundDbErr) {
+          // CRITICAL: Stripe refund issued but DB record not updated.
+          console.error(
+            `[tournament-cancel] CRITICAL: Stripe refund ${stripeRefund.id} issued for ` +
+            `registration ${params.regId} (tournament ${params.id}, user ${user.id}) but ` +
+            `payment_status DB update failed: ${refundDbErr.message}. ` +
+            `Manual reconciliation required.`
+          )
+          return NextResponse.json(
+            { error: 'Refund was issued but the record could not be updated. Contact support immediately with your tournament and account details.' },
+            { status: 500 }
+          )
+        }
       }
 
       refunded = true

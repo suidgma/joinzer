@@ -238,6 +238,40 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Multi-division tournament order ──────────────────────────────────────────
+    // A single payment covering several division registrations. Idempotent: a
+    // re-delivered event on an already-paid order is a no-op.
+    else if (meta.event_type === 'tournament_order' && meta.order_id) {
+      const { data: order } = await service
+        .from('tournament_orders')
+        .select('id, status, discount_code_id')
+        .eq('id', meta.order_id)
+        .single()
+      if (order && order.status !== 'paid') {
+        await service
+          .from('tournament_orders')
+          .update({ status: 'paid', stripe_payment_intent_id: paymentIntentId })
+          .eq('id', meta.order_id)
+
+        const { data: orderItems } = await service
+          .from('tournament_order_items')
+          .select('registration_id')
+          .eq('order_id', meta.order_id)
+        const regIds = (orderItems ?? []).map((i: any) => i.registration_id).filter(Boolean)
+        if (regIds.length > 0) {
+          await service
+            .from('tournament_registrations')
+            .update({ payment_status: 'paid', stripe_payment_intent_id: paymentIntentId })
+            .in('id', regIds)
+        }
+        await service.from('tournament_order_items').update({ outcome: 'registered' }).eq('order_id', meta.order_id)
+
+        if ((order as any).discount_code_id) {
+          await service.rpc('increment_discount_uses', { code_id: (order as any).discount_code_id })
+        }
+      }
+    }
+
     // ── Paid play session ──────────────────────────────────────────────────────
     else if (meta.event_type === 'session' && meta.event_id && meta.user_id) {
       const { data: ev } = await service
