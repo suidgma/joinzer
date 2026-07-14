@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PriceTiersEditor from '@/components/features/PriceTiersEditor'
+import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
 import { formatSessionDate } from '@/lib/utils/date'
 import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-helpers'
 import TimeSelect from '@/components/features/events/TimeSelect'
@@ -143,6 +145,7 @@ export default function EditLeagueForm({
   const [costDollars, setCostDollars] = useState(d.cost_cents ? String(d.cost_cents / 100) : '')
   const [noRefundDate, setNoRefundDate] = useState((d as any).no_refund_date ?? '')
   const [refundPolicy, setRefundPolicy] = useState((d as any).refund_policy ?? '')
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>(normalizeTiers((d as any).price_tiers))
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>(
     (d.standings_method as 'win_loss' | 'total_points') ?? 'total_points'
   )
@@ -242,6 +245,7 @@ export default function EditLeagueForm({
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
+        price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         standings_method: standingsMethod,
         allow_player_scores: allowPlayerScores,
         points_to_win: pointsToWinNum,
@@ -708,6 +712,9 @@ export default function EditLeagueForm({
               className="w-full input pl-7"
             />
           </div>
+        </FormRow>
+        <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
+          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
         </FormRow>
         <FormRow
           label="No-refund date"

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import { resolvePriceCents } from '@/lib/payments/priceTiers'
 
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -18,7 +19,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: event } = await service
       .from('events')
-      .select('id, title, starts_at, price_cents, status, max_players, session_type, registration_closes_at')
+      .select('id, title, starts_at, price_cents, price_tiers, status, max_players, session_type, registration_closes_at')
       .eq('id', params.id)
       .single()
 
@@ -31,7 +32,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
     }
 
-    const priceCents = event.price_cents ?? 0
+    const priceCents = resolvePriceCents(event.price_cents ?? 0, (event as any).price_tiers, new Date())
     if (priceCents <= 0) return NextResponse.json({ error: 'This event is free — use the regular join flow' }, { status: 400 })
 
     // Check they haven't already paid

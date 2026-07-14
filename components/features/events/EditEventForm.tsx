@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import PriceTiersEditor from '@/components/features/PriceTiersEditor'
+import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
 import TimeSelect from './TimeSelect'
 import LocationCombobox from './LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
@@ -28,6 +30,7 @@ type Props = {
     registration_closes_at: string | null
     no_refund_date: string | null
     refund_policy: string | null
+    price_tiers: unknown
     skill_min: number | null
     skill_max: number | null
     location_id: string | null
@@ -82,6 +85,7 @@ export default function EditEventForm({ event, locations }: Props) {
   const [priceCents, setPriceCents] = useState<number>(event.price_cents ?? 1000)
   const [noRefundDate, setNoRefundDate] = useState(event.no_refund_date ?? '')
   const [refundPolicy, setRefundPolicy] = useState(event.refund_policy ?? '')
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>(normalizeTiers((event as any).price_tiers))
   const [registrationClosesAt, setRegistrationClosesAt] = useState(
     event.registration_closes_at ? isoToPtLocal(event.registration_closes_at) : ''
   )
@@ -157,6 +161,7 @@ export default function EditEventForm({ event, locations }: Props) {
           registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
           no_refund_date: noRefundDate || null,
           refund_policy: refundPolicy.trim() || null,
+          price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
           ...prepareEventWrite({
             min_skill_level: minSkill ? parseFloat(minSkill) : null,
             max_skill_level: maxSkill ? parseFloat(maxSkill) : null,
@@ -396,6 +401,14 @@ export default function EditEventForm({ event, locations }: Props) {
           onChange={(e) => setRegistrationClosesAt(e.target.value)}
           className="w-full sm:max-w-[18rem] border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Early-bird pricing <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <p className="text-xs text-gray-400 mb-1">Charge less for earlier sign-ups; the fee above is the full price.</p>
+        <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
       </div>
 
       <div>

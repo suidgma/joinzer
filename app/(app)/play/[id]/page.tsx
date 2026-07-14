@@ -14,6 +14,8 @@ import type { EventDetail } from '@/lib/types'
 import ShareButton from '@/components/features/ShareButton'
 import PaymentTracker from '@/components/features/events/PaymentTracker'
 import RefundPolicyNote from '@/components/features/RefundPolicyNote'
+import EarlyBirdNote from '@/components/features/EarlyBirdNote'
+import { resolvePriceCents } from '@/lib/payments/priceTiers'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
 type ChatMessage = {
@@ -71,7 +73,7 @@ export default async function EventDetailPage(
         .select(`
           id, title, starts_at, duration_minutes, court_count, players_per_court,
           max_players, status, notes, registration_closes_at, skill_min, skill_max, creator_user_id, captain_user_id, location_id,
-          session_type, price_cents, no_refund_date, refund_policy,
+          session_type, price_cents, price_tiers, no_refund_date, refund_policy,
           location:locations!location_id (name, court_count, subarea, access_type),
           captain:profiles!captain_user_id (name),
           event_participants!event_id (
@@ -241,7 +243,7 @@ export default async function EventDetailPage(
         {(event as any).session_type === 'paid_clinic' && (event as any).price_cents && (
           <div className="flex items-center gap-2">
             <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-              ${((event as any).price_cents / 100).toFixed(0)}/person
+              ${(resolvePriceCents((event as any).price_cents ?? 0, (event as any).price_tiers, new Date()) / 100).toFixed(0)}/person
             </span>
             <span className="text-xs text-brand-muted">Fee required · pay your captain directly</span>
           </div>
@@ -258,6 +260,7 @@ export default async function EventDetailPage(
         </div>
       </div>
 
+      <EarlyBirdNote baseCents={(event as any).price_cents ?? 0} tiers={(event as any).price_tiers} />
       <RefundPolicyNote policy={(event as any).refund_policy} noRefundDate={(event as any).no_refund_date} />
 
       {/* Join / Leave */}

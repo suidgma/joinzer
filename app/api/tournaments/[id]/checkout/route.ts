@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import { resolvePriceCents } from '@/lib/payments/priceTiers'
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     // Fetch tournament for price + name + organizer
     const { data: tournament } = await service
       .from('tournaments')
-      .select('name, cost_cents, organizer_id')
+      .select('name, cost_cents, price_tiers, organizer_id')
       .eq('id', params.id)
       .single()
 
@@ -61,9 +62,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       .eq('id', reg.division_id)
       .single()
 
+    // Division-level fee is a flat override; the tournament fee honors early-bird tiers.
     const unitAmount = (divisionForCost as any)?.cost_cents != null
       ? (divisionForCost as any).cost_cents
-      : ((tournament as any).cost_cents ?? 0)
+      : resolvePriceCents((tournament as any).cost_cents ?? 0, (tournament as any).price_tiers, new Date())
     if (unitAmount <= 0) {
       // Free — mark both as waived
       await service.from('tournament_registrations').update({ payment_status: 'waived' }).eq('id', registration_id)

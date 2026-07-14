@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PriceTiersEditor from '@/components/features/PriceTiersEditor'
+import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
 import type { LocationOption } from '@/lib/types'
 import { prepareLeagueWrite, mapDivisionFormat } from '@/lib/taxonomy/write-helpers'
 import { formatSessionDate } from '@/lib/utils/date'
@@ -74,6 +76,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
   const [costDollars, setCostDollars] = useState('')
   const [noRefundDate, setNoRefundDate] = useState('')
   const [refundPolicy, setRefundPolicy] = useState('')
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([])
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('total_points')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
   const [noPlayDates, setNoPlayDates] = useState<string[]>([])
@@ -267,6 +270,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
+        price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         standings_method: standingsMethod,
         allow_player_scores: allowPlayerScores,
         no_play_dates: finalNoPlayDates,
@@ -751,6 +755,9 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               className="w-full input pl-7"
             />
           </div>
+        </FormRow>
+        <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
+          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
         </FormRow>
         <FormRow
           label="No-refund date"

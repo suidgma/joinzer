@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import { resolvePriceCents } from '@/lib/payments/priceTiers'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const { data: league } = await service
       .from('leagues')
-      .select('id, name, cost_cents, format, registration_status, registration_closes_at, max_players')
+      .select('id, name, cost_cents, price_tiers, format, registration_status, registration_closes_at, max_players')
       .eq('id', params.id)
       .single()
 
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Registration is not open' }, { status: 400 })
     }
 
-    const costCents = (league as any).cost_cents ?? 0
+    const costCents = resolvePriceCents((league as any).cost_cents ?? 0, (league as any).price_tiers, new Date())
     if (costCents <= 0) return NextResponse.json({ error: 'This league is free — use the regular register flow' }, { status: 400 })
 
     const registrationType: 'team' | 'solo' = body.registration_type === 'solo' ? 'solo' : 'team'

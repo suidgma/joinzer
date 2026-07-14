@@ -16,6 +16,8 @@ import MyMatchesSection from '@/components/features/tournaments/MyMatchesSection
 import DiscountCodesSection from '@/components/features/tournaments/DiscountCodesSection'
 import ShareButton from '@/components/features/ShareButton'
 import RefundPolicyNote from '@/components/features/RefundPolicyNote'
+import EarlyBirdNote from '@/components/features/EarlyBirdNote'
+import { resolvePriceCents } from '@/lib/payments/priceTiers'
 import RefreshButton from '@/components/ui/RefreshButton'
 import AddSubForMe from '@/components/features/subs/AddSubForMe'
 import UndoSubButton from '@/components/features/subs/UndoSubButton'
@@ -64,7 +66,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
       .select(`
         id, name, description, start_date, start_time, estimated_end_time, additional_days,
         status, visibility, registration_status, registration_closes_at, organizer_id,
-        cost_cents, no_refund_date, refund_policy, contact_name, location_id, default_win_by, default_games_to, default_bracket_type, scheduling_method, show_seeds, allow_player_scores,
+        cost_cents, price_tiers, no_refund_date, refund_policy, contact_name, location_id, default_win_by, default_games_to, default_bracket_type, scheduling_method, show_seeds, allow_player_scores,
         location:locations!location_id (id, name, subarea, court_count),
         organizer:profiles!organizer_id (name),
         created_at, updated_at
@@ -109,7 +111,9 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
 
   if (!data) notFound()
 
-  const costCents: number = (data as any).cost_cents ?? 0
+  // Effective (early-bird-aware) tournament fee — what a division inheriting the
+  // tournament fee charges right now; the checkout resolves the same value.
+  const costCents: number = resolvePriceCents((data as any).cost_cents ?? 0, (data as any).price_tiers, new Date())
 
   const tournament = data as unknown as TournamentDetail
   const isOrganizer = user?.id === tournament.organizer_id
@@ -379,6 +383,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
             </div>
           </div>
 
+          <EarlyBirdNote baseCents={(tournament as any).cost_cents ?? 0} tiers={(tournament as any).price_tiers} className="mb-4" />
           <RefundPolicyNote policy={(tournament as any).refund_policy} noRefundDate={(tournament as any).no_refund_date} className="mb-4" />
 
           {/* Divisions + player registration — setup tools always visible to organizer.

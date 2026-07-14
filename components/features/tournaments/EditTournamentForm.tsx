@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PriceTiersEditor from '@/components/features/PriceTiersEditor'
+import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
 import NewLocationFields from '@/components/features/NewLocationFields'
@@ -59,6 +61,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   )
   const [noRefundDate, setNoRefundDate] = useState((tournament as any).no_refund_date ?? '')
   const [refundPolicy, setRefundPolicy] = useState((tournament as any).refund_policy ?? '')
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>(normalizeTiers((tournament as any).price_tiers))
   const [contactName, setContactName] = useState((tournament as any).contact_name ?? '')
   const [contactEmail, setContactEmail] = useState((tournament as any).contact_email ?? '')
   const [allowPlayerScores, setAllowPlayerScores] = useState((tournament as any).allow_player_scores ?? false)
@@ -115,6 +118,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
+        price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         contact_name: contactName.trim() || null,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
@@ -280,6 +284,9 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
               className="w-full input pl-7"
             />
           </div>
+        </FormRow>
+        <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
+          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
         </FormRow>
         <FormRow
           label="Registration deadline"

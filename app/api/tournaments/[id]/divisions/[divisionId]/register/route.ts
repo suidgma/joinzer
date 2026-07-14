@@ -8,6 +8,7 @@ import { generateIcs } from '@/lib/email/ics'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { icsFilename } from '@/lib/utils/slug'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import { resolvePriceCents } from '@/lib/payments/priceTiers'
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -147,11 +148,11 @@ export async function POST(
 
   // Hard deadline for player self-registration; organizer manual adds bypass this.
   // Also capture fields needed for Stripe Connect check on paid solo path.
-  let tournamentForPay: { name: string; organizer_id: string; start_date: string | null; location_id: string | null; cost_cents: number } | null = null
+  let tournamentForPay: { name: string; organizer_id: string; start_date: string | null; location_id: string | null; cost_cents: number; price_tiers: unknown } | null = null
   if (targetUserId === user.id) {
     const { data: tEntry } = await service
       .from('tournaments')
-      .select('name, organizer_id, start_date, location_id, registration_closes_at, cost_cents')
+      .select('name, organizer_id, start_date, location_id, registration_closes_at, cost_cents, price_tiers')
       .eq('id', params.id)
       .single()
     if (tEntry?.registration_closes_at && new Date() > new Date(tEntry.registration_closes_at)) {
@@ -164,12 +165,15 @@ export async function POST(
         start_date: (tEntry as any).start_date ?? null,
         location_id: (tEntry as any).location_id ?? null,
         cost_cents: tEntry.cost_cents ?? 0,
+        price_tiers: (tEntry as any).price_tiers ?? null,
       }
     }
   }
 
   // division.cost_cents is nullable; tournaments.cost_cents is NOT NULL — tournament is the safe fallback.
-  const effectiveCostCents: number = (division as any).cost_cents ?? tournamentForPay?.cost_cents ?? 0
+  // Division-level fee is a flat override; the tournament fee honors early-bird tiers.
+  const effectiveCostCents: number = (division as any).cost_cents
+    ?? (tournamentForPay ? resolvePriceCents(tournamentForPay.cost_cents, tournamentForPay.price_tiers, new Date()) : 0)
 
   // Count team slots used:
   //   team registrations = 1 slot each

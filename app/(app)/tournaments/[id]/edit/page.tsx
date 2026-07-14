@@ -26,7 +26,7 @@ export default async function EditTournamentPage(props: { params: Promise<{ id: 
       .select(`
         id, name, description, start_date, start_time, estimated_end_time, additional_days,
         status, visibility, registration_status, registration_closes_at, organizer_id, cost_cents,
-        no_refund_date, refund_policy,
+        no_refund_date, refund_policy, price_tiers,
         contact_name, contact_email, allow_player_scores,
         default_win_by, default_games_to, default_bracket_type, scheduling_method, show_seeds,
         location_id,

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PriceTiersEditor from '@/components/features/PriceTiersEditor'
+import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
 import LocationCombobox from './LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
 import LocationMapButton from '@/components/features/LocationMapButton'
@@ -52,6 +54,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
   const [priceCents, setPriceCents] = useState<number>(defaults?.priceCents ?? 1000)
   const [noRefundDate, setNoRefundDate] = useState('')
   const [refundPolicy, setRefundPolicy] = useState('')
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([])
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
   const [deadlineTouched, setDeadlineTouched] = useState(false)
@@ -140,6 +143,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       registration_closes_at: deadlineIso,
       no_refund_date: noRefundDate || null,
       refund_policy: refundPolicy.trim() || null,
+      price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
     }))
 
     const { data: events, error: eventError } = await supabase
@@ -464,6 +468,15 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           onChange={(e) => { setRegistrationClosesAt(e.target.value); setDeadlineTouched(true) }}
           className="w-full sm:max-w-[18rem] input"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Early-bird pricing{' '}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <p className="text-xs text-brand-muted mb-1">Charge less for earlier sign-ups; the fee above is the full price.</p>
+        <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
       </div>
 
       <div>

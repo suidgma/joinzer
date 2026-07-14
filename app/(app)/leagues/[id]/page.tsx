@@ -17,6 +17,8 @@ import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import BoxLadderCheckIn from '@/components/features/leagues/BoxLadderCheckIn'
 import RefundPolicyNote from '@/components/features/RefundPolicyNote'
+import EarlyBirdNote from '@/components/features/EarlyBirdNote'
+import { resolvePriceCents } from '@/lib/payments/priceTiers'
 import CaptainRoster from '@/components/features/leagues/CaptainRoster'
 import { captainTeamIds, rosteredRegistrationIds } from '@/lib/leagues/teamsServer'
 import { createClient as createAdmin } from '@supabase/supabase-js'
@@ -148,6 +150,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
   ])
 
   if (!league) notFound()
+
+  // Effective (early-bird-aware) league fee — matches what checkout charges.
+  const leagueCostCents = resolvePriceCents((league as any).cost_cents ?? 0, (league as any).price_tiers, new Date())
 
   const waitlist = (waitlistRows ?? []) as { user_id: string; registered_at: string | null }[]
   const waitlistTotal = waitlist.length
@@ -518,12 +523,13 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
               <span className="text-base">💳</span>
               <div>
                 <p className="text-sm font-semibold text-amber-900">
-                  Registration fee: ${((league as any).cost_cents / 100).toFixed(0)}/person
+                  Registration fee: ${(leagueCostCents / 100).toFixed(0)}/person
                 </p>
                 <p className="text-xs text-amber-700">Paid securely via Stripe</p>
               </div>
             </div>
           )}
+          <EarlyBirdNote baseCents={(league as any).cost_cents ?? 0} tiers={(league as any).price_tiers} />
           <RefundPolicyNote policy={(league as any).refund_policy} noRefundDate={(league as any).no_refund_date} />
           {boxLadderCheckIn && (
             <BoxLadderCheckIn
@@ -580,7 +586,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
             myReg={(myReg?.status ?? null) as 'registered' | 'waitlist' | 'cancelled' | 'pending_partner' | null}
             mySubInterest={!!mySubInterest}
             isFull={isFull}
-            costCents={(league as any).cost_cents ?? 0}
+            costCents={leagueCostCents}
             format={league.format}
             partnerMode={(league as any).partner_mode ?? null}
             partnerUserName={partnerUserName}

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PriceTiersEditor from '@/components/features/PriceTiersEditor'
+import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
 import LocationMapButton from '@/components/features/LocationMapButton'
@@ -40,6 +42,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [costDollars, setCostDollars] = useState('')
   const [noRefundDate, setNoRefundDate] = useState('')
   const [refundPolicy, setRefundPolicy] = useState('')
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([])
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
@@ -110,6 +113,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
+        price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         contact_name: contactName.trim() || null,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
@@ -329,6 +333,9 @@ export default function CreateTournamentForm({ locations }: Props) {
               className="w-full input pl-7"
             />
           </div>
+        </FormRow>
+        <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
+          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
         </FormRow>
         <FormRow
           label="Registration deadline"
