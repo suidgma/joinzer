@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
+import { useRealtimeChannel } from '@/lib/realtime/hooks'
 
 type Division = { id: string; name: string }
 type Match = {
@@ -123,39 +123,33 @@ export default function LiveScoreboard({ tournamentId, status, schedulingMethod,
   const [matches, setMatches] = useState<Match[]>(initialMatches)
   const [updatedAt, setUpdatedAt] = useState(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
 
-  useEffect(() => {
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`live-board-${tournamentId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'tournament_matches',
-        filter: `tournament_id=eq.${tournamentId}`,
-      }, payload => {
-        setUpdatedAt(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
-        if (payload.eventType === 'DELETE') {
-          const deletedId = (payload.old as { id: string }).id
-          setMatches(prev => prev.filter(m => m.id !== deletedId))
-        } else {
-          const updated = payload.new as Match
-          // Unpublished draft matches must never surface on the live board. A
-          // publish flips is_draft → false and arrives as an UPDATE, which falls
-          // through and gets added.
-          if (updated.is_draft) {
-            setMatches(prev => prev.filter(m => m.id !== updated.id))
-            return
-          }
-          setMatches(prev =>
-            prev.some(m => m.id === updated.id)
-              ? prev.map(m => m.id === updated.id ? updated : m)
-              : [...prev, updated]
-          )
+  // Live via the shared realtime infra (postgres_changes on tournament_matches, which is
+  // public-readable + now in the realtime publication — see migration 20260714000005).
+  useRealtimeChannel(
+    { topic: `live-board-${tournamentId}`, postgresChanges: [{ event: '*', table: 'tournament_matches', filter: `tournament_id=eq.${tournamentId}` }] },
+    (evt) => {
+      if (evt.kind !== 'postgres_changes') return
+      const payload = evt.payload
+      setUpdatedAt(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
+      if (payload.eventType === 'DELETE') {
+        const deletedId = (payload.old as { id: string }).id
+        setMatches(prev => prev.filter(m => m.id !== deletedId))
+      } else {
+        const updated = payload.new as Match
+        // Unpublished draft matches must never surface on the live board. A publish flips
+        // is_draft → false and arrives as an UPDATE, which falls through and gets added.
+        if (updated.is_draft) {
+          setMatches(prev => prev.filter(m => m.id !== updated.id))
+          return
         }
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [tournamentId])
+        setMatches(prev =>
+          prev.some(m => m.id === updated.id)
+            ? prev.map(m => m.id === updated.id ? updated : m)
+            : [...prev, updated]
+        )
+      }
+    },
+  )
 
   // Exclude null-null phantom matches (structural BYE slots in double elimination)
   // from the progress counter — they can never be played or scored.
