@@ -109,7 +109,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           <div className="flex items-center gap-3">
             <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
             <span className="text-brand-muted text-sm">/</span>
-            <span className="text-sm font-medium text-brand-dark">Standings</span>
+            <span className="text-sm font-medium text-brand-dark">Standings/Results</span>
           </div>
         }
         sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
@@ -117,7 +117,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
         <div className="space-y-4 pb-8 max-w-2xl">
           <div>
-            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings/Results</h1>
             <p className="text-xs text-brand-muted">Matchup win % → line-win differential.</p>
           </div>
           <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
@@ -199,7 +199,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           <div className="flex items-center gap-3">
             <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
             <span className="text-brand-muted text-sm">/</span>
-            <span className="text-sm font-medium text-brand-dark">Standings</span>
+            <span className="text-sm font-medium text-brand-dark">Standings/Results</span>
           </div>
         }
         sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
@@ -207,7 +207,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
         <div className="space-y-4 pb-8 max-w-2xl">
           <div>
-            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings/Results</h1>
             <p className="text-xs text-brand-muted">Win % → point differential. Updates as matches are confirmed.</p>
           </div>
           <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
@@ -293,7 +293,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           <div className="flex items-center gap-3">
             <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
             <span className="text-brand-muted text-sm">/</span>
-            <span className="text-sm font-medium text-brand-dark">Ladder</span>
+            <span className="text-sm font-medium text-brand-dark">Standings/Results</span>
           </div>
         }
         sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
@@ -301,7 +301,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         <ManageNav items={navItems} mobileOnly primaryAction={runSessionAction} />
         <div className="space-y-4 pb-8 max-w-2xl">
           <div>
-            <h1 className="font-heading text-xl font-bold text-brand-dark">Ladder</h1>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">Standings/Results</h1>
             <p className="text-xs text-brand-muted">Current rank, movement since the last night (▲/▼), and trend.</p>
           </div>
           <StandingsShareCard leagueId={params.id} initialEnabled={(league as any).public_standings === true} canToggle={isManager0} />
@@ -483,7 +483,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
           <div className="flex items-center gap-3">
             <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
             <span className="text-brand-muted text-sm">/</span>
-            <span className="text-sm font-medium text-brand-dark">Standings</span>
+            <span className="text-sm font-medium text-brand-dark">Standings/Results</span>
           </div>
         }
         sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
@@ -492,7 +492,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         <div className="space-y-5 pb-8 max-w-2xl">
           <div className="flex items-center gap-4 flex-wrap">
             <div>
-              <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+              <h1 className="font-heading text-xl font-bold text-brand-dark">Standings/Results</h1>
               <p className="text-xs text-brand-muted">
                 Per-box — win %, then point differential.{isPast ? ' Finished cycle (▲ promoted · ▼ relegated).' : ''}
               </p>
@@ -767,7 +767,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
         <div className="flex items-center gap-3">
           <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← {league.name}</Link>
           <span className="text-brand-muted text-sm">/</span>
-          <span className="text-sm font-medium text-brand-dark">Standings</span>
+          <span className="text-sm font-medium text-brand-dark">Standings/Results</span>
         </div>
       }
       sidebar={<ManageNav items={navItems} primaryAction={runSessionAction} />}
@@ -776,7 +776,7 @@ export default async function LeagueStandingsPage(props: { params: Promise<{ id:
       <div className="space-y-6 pb-8">
 
       <div>
-        <h1 className="font-heading text-xl font-bold text-brand-dark">Standings</h1>
+        <h1 className="font-heading text-xl font-bold text-brand-dark">Standings/Results</h1>
         <p className="text-xs text-brand-muted">
           Sorted by points scored by default. Click any column header to re-sort.
         </p>

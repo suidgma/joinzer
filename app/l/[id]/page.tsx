@@ -31,12 +31,12 @@ type Params = { params: Promise<{ id: string }> }
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params
   const league = await getLeague(id)
-  if (!league || league.public_standings !== true) return { title: 'Standings — Joinzer' }
+  if (!league || league.public_standings !== true) return { title: 'Standings/Results — Joinzer' }
   const where = league.location_name ? ` at ${league.location_name}` : ''
   return {
-    title: `${league.name} — Standings · Joinzer`,
-    description: `Live standings for ${league.name}${where}.`,
-    openGraph: { title: `${league.name} — Standings`, description: `Live pickleball league standings on Joinzer.` },
+    title: `${league.name} — Standings/Results · Joinzer`,
+    description: `Live standings and results for ${league.name}${where}.`,
+    openGraph: { title: `${league.name} — Standings/Results`, description: `Live pickleball league standings and results on Joinzer.` },
   }
 }
 
@@ -122,7 +122,7 @@ export default async function PublicLeagueStandingsPage({ params }: Params) {
       <main className={`${widthClass} mx-auto px-4 py-6 space-y-4`}>
         <div>
           <h1 className="font-heading text-xl font-bold text-brand-dark">{league.name}</h1>
-          <p className="text-xs text-brand-muted">{league.location_name ? `${league.location_name} · ` : ''}Live standings</p>
+          <p className="text-xs text-brand-muted">{league.location_name ? `${league.location_name} · ` : ''}Live standings &amp; results</p>
         </div>
         {content}
         <p className="text-[11px] text-brand-muted text-center pt-4">

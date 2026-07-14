@@ -10,7 +10,7 @@ export function leagueNavItems(
   if (opts.canManage) {
     return [
       { label: 'Overview', href: `/leagues/${id}` },
-      { label: 'Standings', href: `/leagues/${id}/standings` },
+      { label: 'Standings/Results', href: `/leagues/${id}/standings` },
       ...(opts.formatKind === 'team' ? [{ label: 'Teams', href: `/leagues/${id}/teams` }] : []),
       { label: 'Roster', href: `/leagues/${id}/roster` },
       { label: 'Edit', href: `/leagues/${id}/edit` },
@@ -20,6 +20,6 @@ export function leagueNavItems(
     { label: 'Overview', href: `/leagues/${id}` },
     { label: 'Roster', href: `/leagues/${id}/roster` },
     { label: 'Schedule', href: `/leagues/${id}/schedule` },
-    { label: 'Standings', href: `/leagues/${id}/standings` },
+    { label: 'Standings/Results', href: `/leagues/${id}/standings` },
   ]
 }

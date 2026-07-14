@@ -642,7 +642,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         href={`/leagues/${league.id}/standings`}
         className="flex items-center justify-between bg-brand-surface border border-brand-border rounded-2xl px-4 py-3 hover:bg-brand-soft transition-colors"
       >
-        <p className="text-sm font-semibold text-brand-dark">Standings</p>
+        <p className="text-sm font-semibold text-brand-dark">Standings/Results</p>
         <span className="text-brand-active text-sm">→</span>
       </Link>
 

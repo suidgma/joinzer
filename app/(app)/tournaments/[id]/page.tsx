@@ -120,7 +120,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     ...(canEdit ? [
       { label: 'Schedule', href: `/tournaments/${params.id}/schedule` },
       { label: 'Schedule Builder', href: `/tournaments/${params.id}/schedule/builder` },
-      { label: 'Standings', href: `/tournaments/${params.id}/standings` },
+      { label: 'Standings/Results', href: `/tournaments/${params.id}/standings` },
       { label: 'Players', href: `/tournaments/${params.id}/players` },
     ] : []),
     // Offline run mode is the LEAD organizer's tool — one offline writer per tournament

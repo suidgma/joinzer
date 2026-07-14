@@ -41,7 +41,7 @@ export default function StandingsTab({ matches, registrations, divisions, update
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">Standings</h3>
+        <h3 className="text-[11px] font-bold text-brand-muted uppercase tracking-widest">Standings/Results</h3>
         {isLive ? (
           <span className="text-[10px] text-brand-muted flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />
