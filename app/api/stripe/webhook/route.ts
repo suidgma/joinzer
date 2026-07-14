@@ -239,12 +239,13 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Multi-division tournament order ──────────────────────────────────────────
-    // A single payment covering several division registrations. Idempotent: a
-    // re-delivered event on an already-paid order is a no-op.
+    // A single payment covering several division registrations (and optionally a
+    // partner's seat per doubles division — "pay for both"). Idempotent: a
+    // re-delivered event on an already-paid order is a no-op, so emails send once.
     else if (meta.event_type === 'tournament_order' && meta.order_id) {
       const { data: order } = await service
         .from('tournament_orders')
-        .select('id, status, discount_code_id')
+        .select('id, status, discount_code_id, user_id, tournament_id')
         .eq('id', meta.order_id)
         .single()
       if (order && order.status !== 'paid') {
@@ -255,7 +256,7 @@ export async function POST(req: NextRequest) {
 
         const { data: orderItems } = await service
           .from('tournament_order_items')
-          .select('registration_id')
+          .select('registration_id, division_id')
           .eq('order_id', meta.order_id)
         const regIds = (orderItems ?? []).map((i: any) => i.registration_id).filter(Boolean)
         if (regIds.length > 0) {
@@ -268,6 +269,126 @@ export async function POST(req: NextRequest) {
 
         if ((order as any).discount_code_id) {
           await service.rpc('increment_discount_uses', { code_id: (order as any).discount_code_id })
+        }
+
+        // ── Confirmation emails: one to the payer listing every division, plus a
+        //    "your partner paid your entry" email to each covered partner. ──
+        try {
+          const payerId: string = (order as any).user_id
+          const tId: string = (order as any).tournament_id
+          const [{ data: orderRegs }, { data: orderTournament }] = await Promise.all([
+            service.from('tournament_registrations').select('id, user_id, division_id, team_name').in('id', regIds),
+            service.from('tournaments').select('id, name, start_date, location_id').eq('id', tId).single(),
+          ])
+
+          if (orderTournament && orderRegs && orderRegs.length > 0) {
+            const divIds = [...new Set(orderRegs.map((r: any) => r.division_id))]
+            const userIds = [...new Set(orderRegs.map((r: any) => r.user_id))]
+            const [{ data: orderDivs }, { data: orderProfiles }, locResult] = await Promise.all([
+              service.from('tournament_divisions').select('id, name').in('id', divIds),
+              service.from('profiles').select('id, name, email').in('id', userIds),
+              (orderTournament as any).location_id
+                ? service.from('locations').select('name').eq('id', (orderTournament as any).location_id).single()
+                : Promise.resolve({ data: null }),
+            ])
+            const divName = new Map((orderDivs ?? []).map((d: any) => [d.id, d.name]))
+            const profById = new Map((orderProfiles ?? []).map((p: any) => [p.id, p]))
+            const locationName = (locResult as any)?.data?.name ?? null
+            const tournamentUrl = `${siteUrl}/tournaments/${orderTournament.id}`
+            const amountPaid = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : ''
+
+            const buildAttachments = () => (orderTournament as any).start_date ? [{
+              filename: icsFilename(orderTournament.name, 'tournament'),
+              content: Buffer.from(generateIcs([{
+                uid: orderTournament.id,
+                title: orderTournament.name,
+                startDate: (orderTournament as any).start_date,
+                ...(locationName ? { location: locationName } : {}),
+                url: tournamentUrl,
+              }])),
+            }] : []
+
+            const payerRegs = orderRegs.filter((r: any) => r.user_id === payerId)
+            const partnerRegs = orderRegs.filter((r: any) => r.user_id !== payerId)
+            const partnerDivIds = new Set(partnerRegs.map((r: any) => r.division_id))
+
+            // Payer receipt — one row per division, marking partner-covered ones.
+            const payer = profById.get(payerId)
+            if (payer?.email) {
+              const rows: EmailRow[] = [
+                ['Tournament', orderTournament.name],
+                ...(locationName ? [['Location', locationName] as EmailRow] : []),
+                ...payerRegs.map((r: any) =>
+                  ['Division', `${divName.get(r.division_id) ?? '—'}${partnerDivIds.has(r.division_id) ? ' (+ partner)' : ''}`] as EmailRow),
+                ...(amountPaid ? [['Amount paid', amountPaid] as EmailRow] : []),
+              ]
+              await sendEmail({
+                to: payer.email,
+                subject: `Payment confirmed — ${orderTournament.name}`,
+                html: registrationEmail({
+                  heading: 'Payment Confirmed ✓',
+                  firstName: payer.name?.split(' ')[0] ?? 'there',
+                  intro: `You're registered for ${payerRegs.length} ${payerRegs.length === 1 ? 'division' : 'divisions'} in ${orderTournament.name}.`,
+                  rows,
+                  ctaLabel: 'View Tournament',
+                  ctaUrl: tournamentUrl,
+                  footerNote: 'Keep this email as your payment receipt.',
+                }),
+                ...(buildAttachments().length > 0 ? { attachments: buildAttachments() } : {}),
+              })
+              await createNotification({
+                recipientId: payerId,
+                surface: 'tournament',
+                surfaceId: tId,
+                kind: 'tournament_registration_confirmed',
+                title: `Registered — ${orderTournament.name}`,
+                body: `Payment confirmed for ${payerRegs.length} ${payerRegs.length === 1 ? 'division' : 'divisions'}.`,
+                url: `/tournaments/${tId}`,
+              })
+            }
+
+            // Covered partners — group by person in case they were covered in >1 division.
+            const partnerDivsByUser = new Map<string, string[]>()
+            for (const pr of partnerRegs as any[]) {
+              if (!partnerDivsByUser.has(pr.user_id)) partnerDivsByUser.set(pr.user_id, [])
+              partnerDivsByUser.get(pr.user_id)!.push(divName.get(pr.division_id) ?? '—')
+            }
+            for (const [partnerUserId, divNames] of partnerDivsByUser) {
+              const partnerProf = profById.get(partnerUserId)
+              if (!partnerProf?.email) continue
+              const rows: EmailRow[] = [
+                ['Tournament', orderTournament.name],
+                ...(locationName ? [['Location', locationName] as EmailRow] : []),
+                ...divNames.map((n) => ['Division', n] as EmailRow),
+                ...(payer?.name ? [['Registered by', payer.name] as EmailRow] : []),
+              ]
+              sendEmail({
+                to: partnerProf.email,
+                subject: `You're registered — ${orderTournament.name}`,
+                html: registrationEmail({
+                  heading: "You're registered! ✓",
+                  firstName: partnerProf.name?.split(' ')[0] ?? 'there',
+                  intro: `${payer?.name ?? 'Your partner'} paid your entry and added you to ${orderTournament.name}.`,
+                  rows,
+                  ctaLabel: 'View Tournament',
+                  ctaUrl: tournamentUrl,
+                  footerNote: 'Your entry fee was covered by your partner.',
+                }),
+                ...(buildAttachments().length > 0 ? { attachments: buildAttachments() } : {}),
+              }).catch(() => {})
+              await createNotification({
+                recipientId: partnerUserId,
+                surface: 'tournament',
+                surfaceId: tId,
+                kind: 'tournament_registration_confirmed',
+                title: `Registered — ${orderTournament.name}`,
+                body: `${payer?.name ?? 'Your partner'} covered your entry.`,
+                url: `/tournaments/${tId}`,
+              }).catch(() => {})
+            }
+          }
+        } catch (err) {
+          console.error('[webhook] tournament_order confirmation email error:', err)
         }
       }
     }
