@@ -1,8 +1,16 @@
-# Multi-Division Registration + Discount + Cross-Sell — Design (for review)
+# Multi-Division Registration + Discount + Cross-Sell — Design
 
-> Status: **scoping / not built.** This is the design to pressure-test before Phase 5a.
-> Prereqs already shipped: early-bird `price_tiers`, tournament discount codes, per-division
+> Status: **Phases 5a + 5b + 5c shipped (July 14, 2026).** Needs a real-Stripe smoke test.
+> Prereqs shipped first: early-bird `price_tiers`, tournament discount codes, per-division
 > shareable deep link, and **division timing surfaced to players** (the concurrency read path).
+>
+> **5c decisions (as built):** pay-for-both lives in the cart for doubles divisions. The bundle
+> discount applies to the player's own division entries only; a partner seat is **full price**
+> (a friend's entry isn't an "additional division"). The partner **must already have a Joinzer
+> account** (email-invite stub in the cart is deferred). Each seat is its own `tournament_order_item`
+> (own `net_cents`) for exact per-seat refunds; pairs are cross-linked at reserve time so the webhook
+> is unchanged. 5c also added payer gender validation + team-slot-aware capacity to the orders route.
+> Remaining v1 limits: no discount code on bundles; no email-invite partner in the cart.
 
 ## 1. Goal
 Let a player register for **several divisions of one tournament in a single transaction** and get a
@@ -142,10 +150,12 @@ discount). The organizer-cancel-tournament path refunds all items.
 - Waitlisted item in an otherwise-registered order (partial outcome; store per-item `outcome`).
 
 ## 14. Phasing
-- **5a — Order primitive + bundled checkout** (singles + solo-doubles only; no cross-sell UI yet):
-  tables, discount config + math, reserve-then-pay + webhook, per-item refund. The engine.
-- **5b — Cross-sell UI + concurrency**: the "add more & save" surface using the timing read path.
-- **5c — Pay-for-both / partner bundling in the cart** (hard; deferred until 5a is proven).
+- **5a — Order primitive + bundled checkout** ✅ shipped: tables, discount config + math,
+  reserve-then-pay + webhook, per-item refund. The engine.
+- **5b — Cross-sell UI + concurrency** ✅ shipped: the "add more & save" `BundleRegisterPanel`
+  using the timing read path (soft-warn on overlapping divisions).
+- **5c — Pay-for-both / partner bundling in the cart** ✅ shipped: per-doubles-division partner
+  toggle, full-price partner seat, cross-linked reservation, per-seat refund. See the header note.
 
 ## 15. Open decisions to pressure-test
 1. **Reserve-then-pay** (capacity hold + cron) vs **pay-then-create** (simpler, waitlist-on-full).
