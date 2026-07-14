@@ -10,11 +10,14 @@ export type ResultRow = {
   label?: string // optional left tag, e.g. "Ct 3"
 }
 
-export default function RecentResults({ heading, rows }: { heading: string; rows: ResultRow[] }) {
+export default function RecentResults({ heading, rows, right }: { heading: string; rows: ResultRow[]; right?: React.ReactNode }) {
   if (rows.length === 0) return null
   return (
     <div className="space-y-2">
-      <h2 className="font-heading text-base font-bold text-brand-dark">{heading}</h2>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="font-heading text-base font-bold text-brand-dark">{heading}</h2>
+        {right}
+      </div>
       <div className="rounded-xl border border-brand-border overflow-hidden divide-y divide-brand-border">
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-2 px-3 py-2 text-sm bg-white">
