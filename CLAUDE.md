@@ -185,6 +185,9 @@ When a query uses a foreign-key join (e.g. `profile:profiles!user_id(...)`), Typ
 **Dev server — `npm run dev` is webpack + polling, not Turbopack.**
 Turbopack's file watcher goes stale on Windows (serves old compiled code → phantom hydration mismatches, a `(stale)` badge, old UI rendering). The default `dev` script runs `next dev --webpack` with `WATCHPACK_POLLING` for reliable HMR; `npm run dev:turbo` is the faster Turbopack path when it's behaving. If you ever see stale UI, `rm -rf .next && npm run dev`. (Added `cross-env` dev dep so the env var works in both Git Bash and PowerShell.)
 
+**Run commands in a permission-allowlist-friendly way (fewer approval prompts).**
+The Bash tool's working directory already persists at the repo root — do **not** prefix commands with `cd .../Joinzer &&`; a `cd` in a compound command defeats the allow rules and forces a prompt. Prefer plain invocations (`git checkout …`, `npx tsc --noEmit`, `gh pr create …`) that match the `Bash(git:*)` / `Bash(gh:*)` / `Bash(npx:*)` allow rules in `.claude/settings.local.json`. For commits use repeated `-m` flags (`git commit -m "title" -m "body" -m "Co-Authored-By: …"`) instead of a `$(cat <<'EOF' …)` heredoc, and merge with a single `gh pr merge N --squash --delete-branch` (no retry `for`-loop) — heredocs and loops can't be auto-approved, so they always prompt.
+
 ---
 
 ## Quick Links

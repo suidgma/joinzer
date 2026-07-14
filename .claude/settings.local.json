@@ -1,7 +1,15 @@
 {
   "permissions": {
+    "defaultMode": "acceptEdits",
     "allow": [
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(npx:*)",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(cd:*)",
       "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__execute_sql",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "mcp__Claude_in_Chrome__navigate",
@@ -38,6 +46,10 @@
       "Bash(gh auth *)",
       "Bash(gh api *)",
       "Bash(gh pr *)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
     ]
   }
 }
