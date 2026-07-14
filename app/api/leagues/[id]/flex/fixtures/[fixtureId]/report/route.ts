@@ -4,6 +4,7 @@ import { flexAdmin, loadFlexFixtureContext } from '@/lib/leagues/flexServer'
 import { reportResult, resolveActingSide } from '@/lib/leagues/flexFixture'
 import { logAudit } from '@/lib/audit/log'
 import { createNotifications } from '@/lib/notifications/create'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string; fixtureId: string }> }
 
@@ -44,5 +45,6 @@ export async function PATCH(req: NextRequest, props: Params) {
     url: `/leagues/${id}`,
   })))
 
+  await broadcastLeagueFixtures(id)
   return NextResponse.json({ ok: true })
 }

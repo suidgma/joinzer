@@ -4,6 +4,7 @@ import { teamAdmin } from '@/lib/leagues/teamsServer'
 import { validateScores } from '@/lib/scoring/validateScores'
 import { rollUpMatchup, type LineChild } from '@/lib/leagues/teamMatchup'
 import { logAudit } from '@/lib/audit/log'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string; matchupId: string; lineId: string }> }
 
@@ -68,5 +69,6 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (parentErr) return NextResponse.json({ error: parentErr.message }, { status: 500 })
 
   await logAudit({ actorId: user.id, entityType: 'league_match', entityId: matchupId, action: 'score_updated', after: { line: lineId, team_1_score: t1, team_2_score: t2 } })
+  await broadcastLeagueFixtures(id)
   return NextResponse.json({ ok: true, team1Lines: rollup.team1Lines, team2Lines: rollup.team2Lines, completed: rollup.completed })
 }

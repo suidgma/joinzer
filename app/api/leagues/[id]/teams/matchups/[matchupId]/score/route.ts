@@ -4,6 +4,7 @@ import { teamAdmin, teamMatchupRole } from '@/lib/leagues/teamsServer'
 import { validateScores } from '@/lib/scoring/validateScores'
 import { rollUpMatchup, type LineChild, type ProvidedScore } from '@/lib/leagues/teamMatchup'
 import { logAudit } from '@/lib/audit/log'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string; matchupId: string }> }
 
@@ -72,5 +73,6 @@ export async function PATCH(req: NextRequest, props: Params) {
     after: { team_1_score: rollup.team1Lines, team_2_score: rollup.team2Lines, winner_team_id: rollup.winnerTeamId, status: parentStatus },
   })
 
+  await broadcastLeagueFixtures(id)
   return NextResponse.json({ ok: true, team1Lines: rollup.team1Lines, team2Lines: rollup.team2Lines, completed: rollup.completed })
 }

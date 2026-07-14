@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { flexAdmin, loadFlexFixtureContext } from '@/lib/leagues/flexServer'
 import { organizerSetResult } from '@/lib/leagues/flexFixture'
 import { logAudit } from '@/lib/audit/log'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string; fixtureId: string }> }
 
@@ -28,5 +29,6 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await logAudit({ actorId: user.id, entityType: 'league_match', entityId: fixtureId, action: 'flex_organizer_score', after: action.patch })
+  await broadcastLeagueFixtures(id)
   return NextResponse.json({ ok: true })
 }

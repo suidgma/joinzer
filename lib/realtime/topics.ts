@@ -16,7 +16,14 @@ export const chatTopic = (table: string, entityId: string) => `chat:${table}:${e
 // or league_periods.id (box/ladder) — whichever the write route is mutating.
 export const attendanceTopic = (occasionId: string) => `attendance:${occasionId}`
 
+// League fixtures/results: server broadcast, one topic per league. league_fixtures is
+// deny-all (box/ladder/flex/team), so a score/result change can't reach clients via
+// postgres_changes — the write route emits a coarse "changed" signal here and the page
+// reconciles by refetching its (authorized) server data. See RealtimeRefresh.
+export const leagueFixturesTopic = (leagueId: string) => `league-fixtures:${leagueId}`
+
 // Broadcast event names (app-level events, decoupled from table shape).
 export const RealtimeEvents = {
   attendanceStatusChanged: 'player.status.changed',
+  leagueFixturesChanged: 'league.fixtures.changed',
 } as const

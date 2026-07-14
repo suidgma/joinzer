@@ -4,6 +4,7 @@ import { authorizeOrganizer } from '@/lib/leagues/attendanceWrite'
 import { ladderAdmin, readLadderState } from '@/lib/leagues/ladderServer'
 import { seedKotcRound, nextKotcRound, type CourtAssignment, type CourtResult } from '@/lib/leagues/ladder'
 import { orderByServe, tallyFrom, type ServeTally } from '@/lib/scheduling/serveBalance'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -150,5 +151,6 @@ export async function POST(req: NextRequest, props: Params) {
   const { error } = await db.from('league_fixtures').insert(rows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  await broadcastLeagueFixtures(params.id)
   return NextResponse.json({ ok: true, round: targetRound, regenerated: regenerate })
 }

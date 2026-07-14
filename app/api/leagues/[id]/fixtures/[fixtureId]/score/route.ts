@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { validateScores } from '@/lib/scoring/validateScores'
 import { entrantSidesForFixture } from '@/lib/leagues/flexServer'
 import { logAudit } from '@/lib/audit/log'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string; fixtureId: string }> }
 
@@ -84,6 +85,8 @@ export async function PATCH(req: NextRequest, props: Params) {
 
   // Player notifications on league score entry are a deferred product decision
   // (see docs/phases/league-formats.md §7) — not sent here.
+
+  await broadcastLeagueFixtures(params.id)
 
   return NextResponse.json({ fixture: updated })
 }
