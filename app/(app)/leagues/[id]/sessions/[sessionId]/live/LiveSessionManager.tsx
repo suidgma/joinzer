@@ -495,6 +495,51 @@ function AssignSubModal({
   )
 }
 
+// ─── Session-complete prompt ──────────────────────────────────────────────────
+
+// Fired when the round-robin reaches its natural endpoint (every present player
+// has faced everyone). Three explicit choices — no destructive action hides on a
+// backdrop-dismiss, which just closes it.
+function SessionCompleteModal({
+  onGenerate, onEndDay, onClose, busy,
+}: { onGenerate: () => void; onEndDay: () => void; onClose: () => void; busy: boolean }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+        <div>
+          <h2 className="font-heading text-lg font-bold text-brand-dark">Everyone’s played everyone 🎉</h2>
+          <p className="text-sm text-brand-muted mt-1">
+            Every player here has faced each other at least once — a natural stopping point. Keep going, or wrap up the day.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <button
+            onClick={onGenerate}
+            disabled={busy}
+            className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+          >
+            Generate another round
+          </button>
+          <button
+            onClick={onEndDay}
+            disabled={busy}
+            className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            🏁 End the day
+          </button>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="w-full py-2 text-sm font-medium text-brand-muted hover:text-brand-dark disabled:opacity-50 transition-colors"
+          >
+            Not yet
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LiveSessionManager({
@@ -637,17 +682,13 @@ export default function LiveSessionManager({
   // everyone" state while idle (no active round, last round scored). The ref keeps
   // it from nagging on every extra round; it re-arms only if the set of present
   // players changes such that the round-robin is no longer complete.
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
   const completionPromptedRef = useRef(false)
   useEffect(() => {
     if (!sessionComplete) { completionPromptedRef.current = false; return }
     if (showCompletionPrompt && !pendingScores && !completionPromptedRef.current) {
       completionPromptedRef.current = true
-      confirm({
-        title: "Everyone's played everyone 🎉",
-        body: 'Every player here has faced each other at least once — a natural stopping point. Generate another round, or end the day when you’re ready below.',
-        confirmLabel: 'Generate another round',
-        cancelLabel: 'Not yet',
-      }).then(go => { if (go) handleGenerate(false) })
+      setShowCompleteModal(true)
     }
   }, [sessionComplete, showCompletionPrompt, pendingScores]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -799,8 +840,7 @@ export default function LiveSessionManager({
   }
 
   // --- End the day ---
-  async function handleEndDay() {
-    if (!(await confirm({ title: 'End the day?', body: 'Mark this session as completed and end the day?', confirmLabel: 'End day' }))) return
+  async function doEndDay() {
     setEndingDay(true)
     const res = await fetch(`/api/league-sessions/${sessionId}`, {
       method: 'PATCH',
@@ -814,6 +854,10 @@ export default function LiveSessionManager({
       setError(d.error ?? 'Failed to end session')
       setEndingDay(false)
     }
+  }
+  async function handleEndDay() {
+    if (!(await confirm({ title: 'End the day?', body: 'Mark this session as completed and end the day?', confirmLabel: 'End day' }))) return
+    await doEndDay()
   }
 
   // --- Send reminder ---
@@ -1149,6 +1193,16 @@ export default function LiveSessionManager({
             {endingDay ? 'Ending…' : '🏁 End the Day'}
           </button>
         </section>
+      )}
+
+      {/* ── Session-complete prompt ────────────────────────────── */}
+      {showCompleteModal && (
+        <SessionCompleteModal
+          busy={generating || endingDay}
+          onGenerate={() => { setShowCompleteModal(false); handleGenerate(false) }}
+          onEndDay={() => { setShowCompleteModal(false); doEndDay() }}
+          onClose={() => setShowCompleteModal(false)}
+        />
       )}
 
       {/* ── Add sub modal ──────────────────────────────────────── */}
