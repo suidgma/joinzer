@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Share2, Check, Copy } from 'lucide-react'
+import { Share2, Check, Copy, QrCode } from 'lucide-react'
 
 // Share control on the Standings page. Organizers (canToggle) get the on/off
 // switch that controls the public, no-login page at /l/[id] + the copy-link when
@@ -20,7 +20,11 @@ export default function StandingsShareCard({
   const [enabled, setEnabled] = useState(initialEnabled)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showQr, setShowQr] = useState(false)
   const publicUrl = typeof window !== 'undefined' ? `${window.location.origin}/l/${leagueId}` : `/l/${leagueId}`
+  // QR image via api.qrserver.com — encodes only the public /l/[id] URL (a UUID, no
+  // PII), same service the tournament check-in QR uses.
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=2&data=${encodeURIComponent(publicUrl)}`
 
   async function toggle() {
     const next = !enabled
@@ -55,6 +59,34 @@ export default function StandingsShareCard({
     </div>
   )
 
+  // Copy link + a scannable QR (reveal-on-tap so the card stays compact), shown
+  // wherever the standings are shareable.
+  const shareBody = (
+    <div className="space-y-2">
+      {linkRow}
+      <button
+        onClick={() => setShowQr((v) => !v)}
+        className="flex items-center gap-1.5 text-xs font-medium text-brand-active hover:underline"
+      >
+        <QrCode className="w-3.5 h-3.5" />
+        {showQr ? 'Hide QR code' : 'Show QR code'}
+      </button>
+      {showQr && (
+        <div className="flex flex-col items-center gap-1.5 pt-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={qrSrc}
+            alt="QR code to open the live standings"
+            width={200}
+            height={200}
+            className="rounded-xl border border-brand-border bg-white p-2"
+          />
+          <p className="text-[10px] text-brand-muted">Scan to open the live standings — no login needed.</p>
+        </div>
+      )}
+    </div>
+  )
+
   // Participants: only a share link, and only when the organizer has made it public.
   if (!canToggle) {
     if (!enabled) return null
@@ -64,7 +96,7 @@ export default function StandingsShareCard({
           <Share2 className="w-4 h-4 text-brand-active shrink-0" />
           <p className="text-sm font-medium text-brand-dark">Share these standings</p>
         </div>
-        {linkRow}
+        {shareBody}
       </div>
     )
   }
@@ -89,7 +121,7 @@ export default function StandingsShareCard({
           <div className={`w-4 h-4 bg-white rounded-full shadow m-0.5 transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
         </button>
       </div>
-      {enabled && linkRow}
+      {enabled && shareBody}
     </div>
   )
 }
