@@ -157,6 +157,7 @@ These are the actual unresolved decisions blocking informed choices:
 
 Global rules from `~/.claude/CLAUDE.md` apply. Joinzer adds:
 
+- **Deploy autonomy (overrides the global "ask before pushing to remote").** For Joinzer, commit, push, merge PRs, and let `main` deploy to production (Vercel) **freely — no per-push confirmation.** Justified by the automated gates below + easy git/Vercel rollback. Still non-negotiable: never commit secrets; `tsc --noEmit` + `next build` (+ tests where they exist) must be green before shipping; confirm before genuinely destructive/irreversible **non-git** actions (dropping DB columns, deleting data). Only pause for a push if Marty explicitly asks to slow down for a specific risky change.
 - If a doc claim contradicts the codebase, the codebase wins — flag and stop.
 - The last step of any session that changes structure, schema, or status: update CLAUDE.md's "Current State" and verification date. **Drift is the enemy.**
 - When finishing a phase or major slice: 10-minute pass through CLAUDE.md to re-verify "Current State" claims, move completed items out of "Open Decisions," update the verification date.
