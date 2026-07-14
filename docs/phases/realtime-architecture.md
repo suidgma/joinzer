@@ -177,5 +177,5 @@ Each is additive on this foundation.
 **Notes:** `WhoIsComing` moved from `postgres_changes` to broadcast; `league_session_attendance`
 remains in the `supabase_realtime` publication (harmless, now unused by that component). Chat
 message tables stay on `postgres_changes` (they're client-readable). Needs a two-device manual smoke
-test (two browsers on one league/tournament: send chat, tap attendance, confirm live + reconnect on
-airplane-mode toggle).
+test before relying on it — run the checklist in **`docs/phases/realtime-smoke-test.md`** (chat,
+attendance, reconnect, one-socket, mobile).
