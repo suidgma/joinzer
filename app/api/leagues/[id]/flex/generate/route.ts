@@ -4,6 +4,7 @@ import { flexAdmin, assertFlexLeagueOrganizer } from '@/lib/leagues/flexServer'
 import { dedupeRegistrationsToTeams } from '@/lib/tournament/teams'
 import { roundRobinMatches } from '@/lib/tournament/bracketBuilder'
 import { logAudit } from '@/lib/audit/log'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -58,5 +59,6 @@ export async function POST(req: NextRequest, props: Params) {
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
 
   await logAudit({ actorId: user.id, entityType: 'league_match', entityId: id, action: 'flex_generated', after: { fixtures: fixtureRows.length, entrants: entrants.length } })
+  await broadcastLeagueFixtures(id)
   return NextResponse.json({ ok: true, fixtures: fixtureRows.length, entrants: entrants.length })
 }

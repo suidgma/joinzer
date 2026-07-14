@@ -11,6 +11,7 @@ import TeamStandings from '@/app/(app)/leagues/[id]/standings/TeamStandings'
 import PeriodSelector from '@/app/(app)/leagues/[id]/standings/PeriodSelector'
 import { getLadderPublicStandings, getBoxPublicStandings, getRRPublicStandings, getTeamPublicStandings, getFlexPublicStandings } from '@/lib/leagues/publicStandings'
 import { getBoxPositionTrend } from '@/lib/leagues/boxTrend'
+import PublicLeagueLive from './PublicLeagueLive'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,6 +138,7 @@ export default async function PublicLeagueStandingsPage({ params, searchParams }
 
   return (
     <div className="min-h-screen bg-brand-page">
+      <PublicLeagueLive leagueId={id} />
       <header className="border-b border-brand-border bg-white">
         <div className={`${widthClass} mx-auto px-4 py-3 flex items-center justify-between gap-3`}>
           <Link href="/" className="font-heading font-bold text-brand-dark">🏓 Joinzer</Link>

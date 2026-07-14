@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { computeFixtureStandings } from '@/lib/leagues/fixtureStandings'
 import { applyPromotionRelegation, type StandingBox } from '@/lib/leagues/promoteRelegate'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -103,5 +104,6 @@ export async function POST(req: NextRequest, props: Params) {
     if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 })
   }
 
+  await broadcastLeagueFixtures(params.id)
   return NextResponse.json({ ok: true, cycle: nextNumber })
 }

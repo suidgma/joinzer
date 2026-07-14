@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { validateScores } from '@/lib/scoring/validateScores'
 import { logAudit } from '@/lib/audit/log'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string; sessionId: string }> }
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -89,5 +90,6 @@ export async function POST(req: NextRequest, props: Params) {
     actorId: user.id, entityType: 'league_match', entityId: roundMatchId, action: 'score_updated',
     after: { team1_score: t1, team2_score: t2, round_number: roundNumber, court_number: (rm as any).court_number },
   })
+  await broadcastLeagueFixtures(id)
   return NextResponse.json({ ok: true })
 }

@@ -4,6 +4,7 @@ import { authorizeOrganizer } from '@/lib/leagues/attendanceWrite'
 import { ladderAdmin, computeLadderUpdate } from '@/lib/leagues/ladderServer'
 import { logAudit } from '@/lib/audit/log'
 import { createNotifications, type NotificationInput } from '@/lib/notifications/create'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -98,5 +99,6 @@ export async function POST(req: NextRequest, props: Params) {
     after: { session_number: period.period_number, moved },
   })
 
+  await broadcastLeagueFixtures(params.id)
   return NextResponse.json({ ok: true, moved })
 }

@@ -53,6 +53,7 @@ export default function MatchEntryForm({ sessionId, leagueId, players, pointsToW
 
     setT1p1(''); setT1p2(''); setT2p1(''); setT2p2('')
     setWinner(''); setLoserScore(''); setCourt('')
+    fetch(`/api/leagues/${leagueId}/fixtures-changed`, { method: 'POST' }).catch(() => {})
     router.refresh()
     setLoading(false)
   }

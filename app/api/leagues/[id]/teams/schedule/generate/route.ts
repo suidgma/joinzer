@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { teamAdmin, assertTeamLeagueOrganizer } from '@/lib/leagues/teamsServer'
 import { buildTeamRoundRobin } from '@/lib/leagues/teamSchedule'
 import { logAudit } from '@/lib/audit/log'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -66,5 +67,6 @@ export async function POST(_req: NextRequest, props: Params) {
   }
 
   await logAudit({ actorId: user.id, entityType: 'league', entityId: id, action: 'team_schedule_generated', after: { matchdays: schedule.length, matchups: fixtureRows.length } })
+  await broadcastLeagueFixtures(id)
   return NextResponse.json({ ok: true, matchdays: schedule.length, matchups: fixtureRows.length })
 }

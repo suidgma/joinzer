@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { roundRobinMatches } from '@/lib/tournament/bracketBuilder'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -107,5 +108,6 @@ export async function POST(req: NextRequest, props: Params) {
   const { error: insErr } = await db.from('league_fixtures').insert(fixtureRows)
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
 
+  await broadcastLeagueFixtures(params.id)
   return NextResponse.json({ ok: true, fixtures: fixtureRows.length, boxes: boxIds.length - skippedBoxes })
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { distributeIntoBoxes } from '@/lib/leagues/boxAssignment'
+import { broadcastLeagueFixtures } from '@/lib/realtime/leagueBroadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -114,5 +115,6 @@ export async function POST(req: NextRequest, props: Params) {
   // schedule regenerates fresh (Matches shows "Generate matches").
   await db.from('league_fixtures').delete().eq('league_id', params.id).eq('period_id', cycle.id)
 
+  await broadcastLeagueFixtures(params.id)
   return NextResponse.json({ ok: true, boxes: assigned.length })
 }

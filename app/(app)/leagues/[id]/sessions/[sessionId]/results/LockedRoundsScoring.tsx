@@ -139,6 +139,8 @@ export default function LockedRoundsScoring({ sessionId, leagueId, matches, poin
       for (const m of unsaved) nowSaved[m.roundMatchId] = true
       setSaved((prev) => ({ ...prev, ...nowSaved }))
       setEditing({})
+      // Push a live "results changed" signal so other viewers + the public page refresh.
+      fetch(`/api/leagues/${leagueId}/fixtures-changed`, { method: 'POST' }).catch(() => {})
       router.refresh()
     }
     setSavingAll(false)
