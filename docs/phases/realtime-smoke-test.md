@@ -124,6 +124,18 @@ same league; A on the **Standings/Results** page (or ladder/flex/box run screen)
 - [ ] **Public spectator:** open `/l/<id>` (logged out, league must have public standings on); B scores
       anything → the public standings refresh live.
 
+## 2.7 Private notifications channel (authorization)
+
+The `notifications:<userId>` broadcast is a **private** channel (migration `20260714000008`). The
+server round-trip + RLS rejection were validated headlessly with two signed-in users; this confirms it
+works in a real browser session:
+
+- [ ] Signed in, trigger something that notifies you (e.g. register, or have another account act) →
+      the bell badge bumps + a 🔔 toast appears (the private channel authorized on your session).
+- [ ] If the bell only updates on the ~120s poll and never instantly, the private channel isn't
+      authorizing — check the console for a channel error on `notifications:<yourId>` and confirm
+      `RealtimeProvider` called `realtime.setAuth()` before the bell subscribed.
+
 ## 3. Connection indicator + reconnect
 
 - [ ] DevTools → Network → **Offline** → indicator shows **"Offline"** (⚪).

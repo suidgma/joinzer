@@ -204,9 +204,18 @@ LiveSessionManager, DivisionsSection) were migrated. The **only** direct `supaba
 are `channelManager.ts` (the manager) and `usePresence.ts` (the one documented exception — presence is
 stateful per-viewer and doesn't fit the fan-out model).
 
-**Remaining:**
-- **Private-channel authorization** — the hardening path for broadcast (per-user RLS on realtime
-  messages) if attendance/score topics ever need to be non-public.
+**Private-channel authorization — done for notifications (July 14, 2026, migration `20260714000008`):**
+the per-user `notifications:<userId>` broadcast is now a **private channel** — `ChannelSpec.private`
+sets `config.private`, `serverBroadcast(..., { private: true })` flags the message, `RealtimeProvider`
+eagerly calls `realtime.setAuth()`, and an RLS policy on `realtime.messages`
+(`realtime.topic() = 'notifications:' || auth.uid()`) authorizes the join. Validated headlessly with two
+signed-in users (own topic subscribes + receives; another's is `CHANNEL_ERROR`). **To make any channel
+private:** add its `realtime.messages` SELECT policy, set `private: true` on the spec, and pass
+`{ private: true }` to the server broadcast. **Deliberately still public:** attendance (non-PII
+`{status, id}`) and `league-fixtures` (anon spectators on `/l/[id]` must receive it).
+
+**Remaining:** nothing on the core realtime program — only the manual two-device UI pass (and a browser
+check that the private notifications channel authorizes on a real session; the mechanism is proven).
 - **Chat RLS hardened (July 14, 2026, migration `20260714000006`):** message SELECT (all 3 tables) +
   league/tournament INSERT are now scoped to membership via `SECURITY DEFINER` helpers
   (`is_{league,tournament,event}_chat_member`) — previously SELECT was `USING(true)` (any authed user
