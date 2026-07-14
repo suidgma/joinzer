@@ -1,8 +1,17 @@
 # Realtime Smoke Test — Joinzer
 
-> Manual two-device pass for the Phase 1 realtime architecture (`docs/phases/realtime-architecture.md`).
-> Realtime delivery (WebSockets) can't be exercised by the automated gates, so run this once against
-> a real deployment before relying on it. ~15–20 min.
+> Manual two-device pass for the realtime architecture (`docs/phases/realtime-architecture.md`).
+>
+> **Transport validated (July 14, 2026).** Both realtime paths were confirmed end-to-end headlessly:
+> a **server Broadcast** round-trip (HTTP `202` → a subscribed client received the payload, exact
+> format `serverBroadcast.ts` uses) and a **postgres_changes** UPDATE on the newly-published
+> `tournament_matches` (a real change was delivered to an anon subscriber, then reverted net-zero).
+> So *"does realtime reach the client?"* is answered **yes** — including the previously-dead
+> `LiveScoreboard` subscription. **Gotcha learned:** a *same-value* update fires **no** event; only
+> real value changes do (fine in prod — scores genuinely change).
+>
+> What remains below is the **UI-level** two-device pass — optimistic dedupe, scroll preservation /
+> "N new messages", toasts, unread badges, mid-edit refresh safety — which needs a real browser. ~15 min.
 
 The two risk tiers: **chat** is a migration of already-working `postgres_changes` code (low risk);
 **attendance** is the new **server-broadcast** path (verify carefully — §2, §2c).
