@@ -7,6 +7,7 @@ import NotificationBell from '@/components/features/NotificationBell'
 import DialogProvider from '@/components/ui/DialogProvider'
 import { RealtimeProvider } from '@/lib/realtime/RealtimeProvider'
 import ConnectionIndicator from '@/components/ui/ConnectionIndicator'
+import { ToastProvider } from '@/components/ui/ToastProvider'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -43,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <DialogProvider>
     <RealtimeProvider>
+    <ToastProvider>
     <div className="min-h-screen bg-brand-page pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
       <header className="sticky top-0 z-20 bg-brand-surface border-b border-brand-border">
         <div className="max-w-7xl mx-auto px-4 h-14 relative flex items-center">
@@ -70,6 +72,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <BottomNav />
       </div>
     </div>
+    </ToastProvider>
     </RealtimeProvider>
     </DialogProvider>
   )

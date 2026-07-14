@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAttendanceBroadcast } from '@/lib/realtime/useAttendanceBroadcast'
+import { useToast } from '@/components/ui/ToastProvider'
 
 type Player = { id: string; name: string }
 
@@ -31,11 +32,23 @@ export default function WhoIsComing({
   currentUserId: string | null
 }) {
   const [attendance, setAttendance] = useState<Record<string, string>>(initialAttendance)
+  const toast = useToast()
 
   // Live status via server broadcast (the write route pushes { userId, status } to this
   // session's topic — no SELECT is opened on the deny-all attendance table).
   useAttendanceBroadcast(sessionId, (change) => {
-    if (change.userId) setAttendance((prev) => ({ ...prev, [change.userId!]: change.status }))
+    if (!change.userId) return
+    // Toast only for *other* players changing to a meaningful status — a teammate
+    // checking in is useful awareness; your own taps aren't (you just made them).
+    if (change.userId !== currentUserId) {
+      const meta = STATUS_META[change.status]
+      const player = players.find((p) => p.id === change.userId)
+      if (meta && player && change.status !== 'not_responded') {
+        const icon = change.status === 'checked_in_present' ? '🟢' : change.status === 'cannot_attend' ? '🔴' : '🟡'
+        toast({ message: `${player.name} — ${meta.label}`, icon, key: `att-${change.userId}` })
+      }
+    }
+    setAttendance((prev) => ({ ...prev, [change.userId!]: change.status }))
   })
 
   if (players.length === 0) return null
