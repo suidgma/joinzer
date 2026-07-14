@@ -165,12 +165,16 @@ That's it — no new provider, socket, or dependency.
   to tables that were never in the publication, so their "live" updates never fired). Correction to
   §3's earlier framing: not every match table is deny-all — check RLS per table.
 
-- **Live league fixtures/results** (box/ladder/flex/team) — `league_fixtures` is deny-all, so each
-  fixture score route broadcasts `broadcastLeagueFixtures(leagueId)` and `<RealtimeRefresh>` in
-  `leagues/[id]/layout.tsx` refetches the current sub-page. Instrumented: box/ladder score, all 5 flex
-  routes, ladder round, team matchup + line scores. Follow-ons (same one-liner): generation routes,
-  ladder finalize, flex self-schedule, RR `league_matches` scores, and the public `/l/[id]` page
-  (needs a provider wrapper).
+- **Live league fixtures/results — full coverage** (box/ladder/flex/team **+ round robin**) —
+  `league_fixtures` is deny-all, so each write route broadcasts `broadcastLeagueFixtures(leagueId)` and
+  `<RealtimeRefresh>` in `leagues/[id]/layout.tsx` refetches the current sub-page. Instrumented: box/
+  ladder score, all 5 flex routes, ladder round + finalize, team matchup + line scores, flex
+  self-schedule, and every generation route (box generate/save, cycle advance, flex/team schedule).
+  **RR scores** live too: the player-score route broadcasts, and because RR organizer scoring writes
+  `league_matches` **client-side** (no `league_id` column → no postgres_changes filter), a gated
+  `POST /fixtures-changed` ping re-emits the signal (called by `LockedRoundsScoring`/`MatchEntryForm`).
+  The **public `/l/[id]`** spectator page mounts a self-contained `RealtimeProvider` + `RealtimeRefresh`
+  (`PublicLeagueLive`) so anon viewers get live standings over the public broadcast channel.
 
 **Remaining:**
 - **Interactive bracket live** — `BracketView` has a local-advance engine; live-updating it needs

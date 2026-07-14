@@ -109,6 +109,11 @@ same league; A on the **Standings/Results** page (or ladder/flex/box run screen)
 - [ ] Mid-edit safety: while A is typing in a score form, a refresh triggered by B's change should
       **not** wipe A's inputs (router.refresh preserves client state).
 - [ ] Backgrounded tab: hide A's tab, have B score, return → A refreshes once on becoming visible.
+- [ ] **Round robin:** A on the RR standings/results; B (organizer via manual entry, or a player via
+      self-score) posts a score → A updates. (RR organizer writes are client-side + pinged via
+      `/fixtures-changed`.)
+- [ ] **Public spectator:** open `/l/<id>` (logged out, league must have public standings on); B scores
+      anything → the public standings refresh live.
 
 ## 3. Connection indicator + reconnect
 
