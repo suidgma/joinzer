@@ -13,6 +13,20 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return buffer
 }
 
+// Fetch the VAPID public key from the server at runtime rather than reading an
+// inlined NEXT_PUBLIC_ value — the build-time inline baked `undefined` into the
+// bundle whenever the var wasn't present for the Production build.
+async function fetchVapidPublicKey(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/push/vapid-public-key')
+    if (!res.ok) return null
+    const { key } = await res.json()
+    return typeof key === 'string' && key.length > 0 ? key : null
+  } catch {
+    return null
+  }
+}
+
 type Status = 'loading' | 'unsupported' | 'denied' | 'subscribed' | 'unsubscribed'
 
 interface Props {
@@ -48,12 +62,19 @@ export default function PushSubscribeButton({ compact = false }: Props) {
         return
       }
 
+      const vapidKey = await fetchVapidPublicKey()
+      if (!vapidKey) {
+        console.error(
+          '[push] VAPID public key not configured on the server — set NEXT_PUBLIC_VAPID_PUBLIC_KEY for the Production environment in Vercel and redeploy.'
+        )
+        setStatus('unsubscribed')
+        return
+      }
+
       const reg = await navigator.serviceWorker.ready
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
-        ),
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       })
 
       await fetch('/api/push/subscribe', {
