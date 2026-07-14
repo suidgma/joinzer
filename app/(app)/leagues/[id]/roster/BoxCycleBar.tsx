@@ -39,6 +39,30 @@ export default function BoxCycleBar({
     }
   }
 
+  // Completion state: every box match is scored — i.e. everyone has played
+  // everyone in their box. Shown prominently (regardless of who entered the
+  // final score) so a player self-scoring the last match, or an organizer who
+  // dismissed the on-score pop-up, still gets a clear "ready to advance" prompt.
+  if (canAdvance && incomplete === 0) {
+    return (
+      <div className="mb-4 flex items-center justify-between gap-3 flex-wrap bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-emerald-900">🎉 Cycle {cycleNumber} complete</p>
+          <p className="text-xs text-emerald-700">
+            Everyone has played everyone in their box. Advancing promotes the top and relegates the bottom of each box into Cycle {cycleNumber + 1}.
+          </p>
+        </div>
+        <button
+          onClick={advance}
+          disabled={busy}
+          className="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
+        >
+          {busy ? 'Advancing…' : 'Advance to next cycle →'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="mb-4 flex items-center justify-between gap-3 bg-brand-soft/40 border border-brand-border rounded-xl px-3 py-2">
       <div>

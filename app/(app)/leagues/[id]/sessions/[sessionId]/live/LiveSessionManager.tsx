@@ -9,6 +9,8 @@ import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 import { enqueue, drainQueue, getQueue } from '@/lib/pendingQueue'
 import AttendanceGrid, { type AttendeeRow } from '@/components/features/leagues/AttendanceGrid'
 import PlayerCombobox from '@/components/ui/PlayerCombobox'
+import { everyoneHasFacedEveryone } from '@/lib/leagues/sessionCompletion'
+import type { CompletedRound } from '@/lib/scheduling/leagueScheduler'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -610,6 +612,45 @@ export default function LiveSessionManager({
   const lastCompletedRound = completedRoundsSorted[completedRoundsSorted.length - 1]
   const pendingScores = lastCompletedRound != null && !scoredRounds.has(lastCompletedRound.round_number)
 
+  // --- Natural endpoint: has every present player faced every other? ---
+  // "Played everyone" is about opponent pairings (who's been on the court against
+  // whom), which is known from the completed rounds regardless of scores. When the
+  // session reaches this point and there's no round in progress, we surface it as a
+  // "generate another round, or end the day?" prompt — the round-robin's soft finish.
+  const presentIds = presentPlayers.map(p => p.id)
+  const completedForCheck: CompletedRound[] = rounds
+    .filter(r => r.status === 'completed')
+    .map(r => ({
+      roundNumber: r.round_number,
+      matches: r.matches.map(m => ({
+        matchType: m.match_type,
+        team1: [m.team1_player1_id, m.team1_player2_id].filter(Boolean) as string[],
+        team2: [m.team2_player1_id, m.team2_player2_id].filter(Boolean) as string[],
+        singles: [m.singles_player1_id, m.singles_player2_id].filter(Boolean) as string[],
+        byePlayerId: m.bye_player_id,
+      })),
+    }))
+  const sessionComplete = everyoneHasFacedEveryone(presentIds, completedForCheck)
+  const showCompletionPrompt = sessionComplete && !activeRound
+
+  // Fire the pop-up once when the session first reaches the "everyone's played
+  // everyone" state while idle (no active round, last round scored). The ref keeps
+  // it from nagging on every extra round; it re-arms only if the set of present
+  // players changes such that the round-robin is no longer complete.
+  const completionPromptedRef = useRef(false)
+  useEffect(() => {
+    if (!sessionComplete) { completionPromptedRef.current = false; return }
+    if (showCompletionPrompt && !pendingScores && !completionPromptedRef.current) {
+      completionPromptedRef.current = true
+      confirm({
+        title: "Everyone's played everyone 🎉",
+        body: 'Every player here has faced each other at least once — a natural stopping point. Generate another round, or end the day when you’re ready below.',
+        confirmLabel: 'Generate another round',
+        cancelLabel: 'Not yet',
+      }).then(go => { if (go) handleGenerate(false) })
+    }
+  }, [sessionComplete, showCompletionPrompt, pendingScores]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // --- Quick court preview ---
   function courtsPreview() {
     if (eligibleCount === 0) return 'No players present yet.'
@@ -999,6 +1040,15 @@ export default function LiveSessionManager({
             <p className="text-xs text-brand-muted mt-1">Subs will be preferred for singles if a singles match is needed.</p>
           )}
         </div>
+
+        {showCompletionPrompt && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+            <p className="text-sm font-semibold text-emerald-900">🎉 Everyone’s played everyone</p>
+            <p className="text-xs text-emerald-700 mt-0.5">
+              Every player here has faced each other at least once. Generate another round below, or end the day when you’re ready.
+            </p>
+          </div>
+        )}
 
         {pendingScores && !draftRound && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
