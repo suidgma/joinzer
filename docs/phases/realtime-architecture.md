@@ -176,15 +176,26 @@ That's it — no new provider, socket, or dependency.
   The **public `/l/[id]`** spectator page mounts a self-contained `RealtimeProvider` + `RealtimeRefresh`
   (`PublicLeagueLive`) so anon viewers get live standings over the public broadcast channel.
 
+**Shipped July 14, 2026 (Phase 3):**
+- **Presence** — `usePresence(topic)` (Supabase Realtime Presence, keyed by user id) + a subtle
+  `ViewerCount` ("N watching") on the tournament live scoreboard and public `/l/[id]`.
+- **Cross-app unread nav badges** — `ChatUnreadProvider` (app layout) loads the user's chat sources
+  (`GET /api/chat/unread-sources`, leagues + tournaments, 30-day bound), compares each to the
+  per-entity localStorage last-read (same key ChatPanel writes), subscribes per source (sharing
+  ChatPanel's channel), and shows a dot on the Leagues/Tournaments nav; ChatPanel dispatches a
+  `chat:read` event to clear it. **Per-entity** subscriptions because the message tables' SELECT RLS
+  is `USING(true)` (see security note).
+- **Interactive bracket live** — `DivisionManageView` merges other scorers' `tournament_matches`
+  changes, but **skips any match with an unsynced local write** (`dedupeKey === match.id` in the
+  bracket queue) so offline/in-progress scores are never clobbered. Online-only; RunMode + print untouched.
+
 **Remaining:**
-- **Interactive bracket live** — `BracketView` has a local-advance engine; live-updating it needs
-  care to reconcile local vs remote state. Left for a dedicated pass.
-- **Cross-page unread nav badges** ("Leagues (3)") — needs the user's chat memberships loaded globally
-  + a provider that subscribes to them regardless of the open page.
-- **Presence** ("who's viewing", 🟢 online) — Supabase Realtime Presence on the same provider; add
-  `usePresence(topic)`.
 - **Private-channel authorization** — the hardening path for broadcast (per-user RLS on realtime
   messages) if attendance/score topics ever need to be non-public.
+- **Security note (found during Phase 3):** the chat message tables' SELECT RLS is `USING(true)` —
+  any authenticated user can read *any* league/tournament/event chat. That's why cross-app unread
+  subscribes per-entity (a global subscription would stream all platform chat to every client).
+  Scoping message SELECT to membership is a separate, worthwhile RLS hardening task.
 
 ---
 
