@@ -548,7 +548,6 @@ export default function LiveSessionManager({
   initialPlayers,
   initialRounds,
   numberOfCourts,
-  initialScoredRounds,
   initialMatchScores,
   availableSubs,
   attendanceByUserId,
@@ -568,7 +567,6 @@ export default function LiveSessionManager({
   const [showFairness, setShowFairness] = useState(false)
   const [assignSubForPlayer, setAssignSubForPlayer] = useState<Player | null>(null)
   const [endingDay, setEndingDay] = useState(false)
-  const [scoredRounds, setScoredRounds] = useState(() => new Set(initialScoredRounds))
   const [sendingReminder, setSendingReminder] = useState(false)
   const [reminderSent, setReminderSent] = useState(false)
   const [localSubRequests, setLocalSubRequests] = useState<SubRequest[]>(subRequests)
@@ -593,11 +591,6 @@ export default function LiveSessionManager({
     if (ids.length === 0) continue
     scoreMap.set(`${m.round_number}:${ids.join(',')}`, { t1: m.team1_score, t2: m.team2_score })
   }
-
-  // Sync when server re-fetches after router.refresh()
-  useEffect(() => {
-    setScoredRounds(new Set(initialScoredRounds))
-  }, [initialScoredRounds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to current round on initial load (e.g. arriving from Results page)
   useEffect(() => {
@@ -652,10 +645,21 @@ export default function LiveSessionManager({
   const activeRound     = draftRound ?? lockedRound
   const nextRoundNumber = rounds.length === 0 ? 1 : Math.max(...rounds.map(r => r.round_number)) + 1
 
-  // Last completed round must have scores before allowing the next generation
+  // The current round must be COMPLETE and FULLY scored before the next can be
+  // generated — every non-bye match needs a result, not just some. This forces
+  // organizers to enter the round's scores before moving on.
   const completedRoundsSorted = rounds.filter(r => r.status === 'completed').sort((a, b) => a.round_number - b.round_number)
   const lastCompletedRound = completedRoundsSorted[completedRoundsSorted.length - 1]
-  const pendingScores = lastCompletedRound != null && !scoredRounds.has(lastCompletedRound.round_number)
+  const scoredMatchCountByRound = new Map<number, number>()
+  for (const m of initialMatchScores) {
+    if (m.team1_score == null || m.team2_score == null) continue
+    scoredMatchCountByRound.set(m.round_number, (scoredMatchCountByRound.get(m.round_number) ?? 0) + 1)
+  }
+  const roundFullyScored = (round: Round): boolean => {
+    const scoreable = round.matches.filter(m => m.match_type !== 'bye').length
+    return scoreable === 0 || (scoredMatchCountByRound.get(round.round_number) ?? 0) >= scoreable
+  }
+  const currentRoundNeedsScores = lastCompletedRound != null && !roundFullyScored(lastCompletedRound)
 
   // --- Natural endpoint: has every present player faced every other? ---
   // "Played everyone" is about opponent pairings (who's been on the court against
@@ -686,11 +690,11 @@ export default function LiveSessionManager({
   const completionPromptedRef = useRef(false)
   useEffect(() => {
     if (!sessionComplete) { completionPromptedRef.current = false; return }
-    if (showCompletionPrompt && !pendingScores && !completionPromptedRef.current) {
+    if (showCompletionPrompt && !currentRoundNeedsScores && !completionPromptedRef.current) {
       completionPromptedRef.current = true
       setShowCompleteModal(true)
     }
-  }, [sessionComplete, showCompletionPrompt, pendingScores]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionComplete, showCompletionPrompt, currentRoundNeedsScores]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Quick court preview ---
   function courtsPreview() {
@@ -1094,23 +1098,41 @@ export default function LiveSessionManager({
           </div>
         )}
 
-        {pendingScores && !draftRound && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
-            Enter scores for Round {lastCompletedRound!.round_number} before generating the next round.
+        {currentRoundNeedsScores && !activeRound && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800 flex items-center justify-between gap-3">
+            <span>Enter all scores for Round {lastCompletedRound!.round_number} before generating the next round.</span>
+            <Link
+              href={`/leagues/${leagueId}/sessions/${sessionId}/results`}
+              className="underline font-semibold whitespace-nowrap shrink-0"
+            >
+              Enter results →
+            </Link>
           </div>
         )}
 
         <button
           onClick={() => handleGenerate(false)}
-          disabled={generating || eligibleCount < 2 || !!draftRound || pendingScores}
+          disabled={generating || eligibleCount < 2 || !!activeRound || currentRoundNeedsScores}
           className="w-full py-3 rounded-xl bg-brand text-brand-dark text-sm font-bold hover:bg-brand-hover disabled:opacity-40 transition-colors"
         >
-          {generating ? 'Generating…' : draftRound ? `Round ${draftRound.round_number} draft ready` : `Generate Round ${nextRoundNumber}`}
+          {generating
+            ? 'Generating…'
+            : draftRound
+              ? `Round ${draftRound.round_number} draft ready`
+              : lockedRound
+                ? `Finish Round ${lockedRound.round_number} first`
+                : `Generate Round ${nextRoundNumber}`}
         </button>
 
         {draftRound && !generating && (
           <p className="text-xs text-brand-muted text-center">
             Lock or complete Round {draftRound.round_number} before generating a new round, or use Regenerate to replace the draft.
+          </p>
+        )}
+
+        {lockedRound && !generating && (
+          <p className="text-xs text-brand-muted text-center">
+            Complete Round {lockedRound.round_number} and enter its scores before generating the next round.
           </p>
         )}
       </section>
