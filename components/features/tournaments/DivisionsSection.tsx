@@ -109,6 +109,19 @@ type Registration = {
   } | null
 }
 
+function fmtBlockDate(d: string): string {
+  const dt = new Date(d + 'T00:00:00')
+  if (isNaN(dt.getTime())) return d
+  return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+function fmtBlockTime(t: string | null): string {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
+}
+
 type Division = {
   id: string
   name: string
@@ -128,6 +141,7 @@ type Division = {
   min_age: number | null
   max_age: number | null
   start_time: string | null
+  schedule?: { date: string; start: string | null; end: string | null } | null
   tournament_registrations: Registration[]
 }
 
@@ -948,6 +962,13 @@ export default function DivisionsSection({ tournamentId, tournamentName, initial
                       {formatSkillRange(div.skill_min, div.skill_max) && ` · ${formatSkillRange(div.skill_min, div.skill_max)}`}
                     </p>
                     <p className="text-xs text-brand-muted mt-0.5">{summaryLines.join(' · ')}</p>
+                    {div.schedule && (
+                      <p className="text-xs text-brand-active font-medium mt-1">
+                        🗓 {fmtBlockDate(div.schedule.date)}
+                        {div.schedule.start ? ` · ${fmtBlockTime(div.schedule.start)}` : ''}
+                        {div.schedule.start && div.schedule.end ? `–${fmtBlockTime(div.schedule.end)}` : ''}
+                      </p>
+                    )}
                     {div.cost_cents != null && div.cost_cents > 0 && (
                       <p className="text-xs text-brand-muted mt-0.5">
                         Entry fee: ${(div.cost_cents / 100).toFixed(2)}

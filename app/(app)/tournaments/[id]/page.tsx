@@ -111,6 +111,26 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
 
   if (!data) notFound()
 
+  // Division timing from the schedule blocks — surfaced to players so they can see
+  // which day/time each division plays. Read via the service-role `db`; the page is
+  // the auth boundary and this timing is public-safe.
+  const [{ data: divBlockRows }, { data: scheduleBlocks }] = await Promise.all([
+    db.from('tournament_division_blocks').select('division_id, block_id').eq('tournament_id', params.id),
+    db.from('tournament_schedule_blocks').select('id, block_date, start_time, end_time').eq('tournament_id', params.id),
+  ])
+  const scheduleBlockById = new Map<string, any>((scheduleBlocks ?? []).map((b: any) => [b.id, b]))
+  const divTimingById: Record<string, { date: string; start: string | null; end: string | null }> = {}
+  for (const row of (divBlockRows ?? []) as any[]) {
+    const b = scheduleBlockById.get(row.block_id)
+    if (!b?.block_date) continue
+    const cand = { date: b.block_date as string, start: b.start_time ?? null, end: b.end_time ?? null }
+    const cur = divTimingById[row.division_id]
+    // Keep the earliest block per division (by date, then start time).
+    if (!cur || cand.date < cur.date || (cand.date === cur.date && (cand.start ?? '') < (cur.start ?? ''))) {
+      divTimingById[row.division_id] = cand
+    }
+  }
+
   // Effective (early-bird-aware) tournament fee — what a division inheriting the
   // tournament fee charges right now; the checkout resolves the same value.
   const costCents: number = resolvePriceCents((data as any).cost_cents ?? 0, (data as any).price_tiers, new Date())
@@ -292,6 +312,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
     const divisionsForOrg = (divisionsRaw ?? []).map((div: any) => ({
       ...div,
       tournament_registrations: regsByDivisionOrg[div.id] ?? [],
+      schedule: divTimingById[div.id] ?? null,
     }))
     const matchesForOrg = (matchesData ?? []) as any[]
 
@@ -453,6 +474,7 @@ export default async function TournamentDetailPage(props: { params: Promise<{ id
   const divisions = (divisionsRaw ?? []).map((div: any) => ({
     ...div,
     tournament_registrations: regsByDivision[div.id] ?? [],
+    schedule: divTimingById[div.id] ?? null,
   }))
   const matches = (matchesData ?? []) as any[]
 
