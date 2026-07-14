@@ -1,0 +1,96 @@
+// Multi-division bundle pricing (Phase 5a). Pure + deterministic.
+//
+// Given the per-division base prices (already tier-resolved) and the organizer's
+// bundle-discount config, computes the order subtotal, the bundle discount, an
+// optional stacked code discount, the final total, and — critically — each
+// division's ALLOCATED share of that total (`netCents`) so a later single-division
+// refund gives back exactly what that division contributed.
+
+export type BundleItem = { divisionId: string; baseCents: number }
+
+export type MultiDivisionDiscount = {
+  // percent_additional: every division after the most expensive gets `value`% off.
+  // flat_per_additional: `value` cents off per division after the first.
+  // percent_order:       `value`% off the whole order.
+  type: 'percent_additional' | 'flat_per_additional' | 'percent_order'
+  value: number
+  min_divisions: number // discount applies only at this many divisions (>= 2)
+}
+
+export type BundleResult = {
+  subtotalCents: number
+  multiDivDiscountCents: number
+  codeDiscountCents: number
+  totalCents: number
+  items: { divisionId: string; baseCents: number; netCents: number }[]
+}
+
+// Parse the jsonb config; null when absent/off/malformed.
+export function normalizeMultiDivisionDiscount(raw: unknown): MultiDivisionDiscount | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const type = r.type
+  const value = r.value
+  if (
+    (type === 'percent_additional' || type === 'flat_per_additional' || type === 'percent_order') &&
+    typeof value === 'number' && value > 0
+  ) {
+    const min = typeof r.min_divisions === 'number' && r.min_divisions >= 2 ? Math.floor(r.min_divisions) : 2
+    return { type, value, min_divisions: min }
+  }
+  return null
+}
+
+// Allocate `total` across items pro-rata by base price, in whole cents, remainder
+// going to the largest fractional shares. Sum of netCents === total exactly.
+function allocate(items: BundleItem[], total: number): BundleResult['items'] {
+  const subtotal = items.reduce((s, i) => s + Math.max(0, i.baseCents), 0)
+  if (subtotal <= 0 || total <= 0) {
+    return items.map((i) => ({ divisionId: i.divisionId, baseCents: i.baseCents, netCents: 0 }))
+  }
+  const raw = items.map((i) => (Math.max(0, i.baseCents) / subtotal) * total)
+  const net = raw.map(Math.floor)
+  let remainder = total - net.reduce((a, b) => a + b, 0)
+  const byFrac = raw
+    .map((v, idx) => ({ idx, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac)
+  for (let k = 0; remainder > 0 && byFrac.length > 0; k++, remainder--) {
+    net[byFrac[k % byFrac.length].idx]++
+  }
+  return items.map((i, idx) => ({ divisionId: i.divisionId, baseCents: i.baseCents, netCents: net[idx] }))
+}
+
+export function computeBundle(
+  items: BundleItem[],
+  discount: MultiDivisionDiscount | null | undefined,
+  codeDiscountCents = 0,
+): BundleResult {
+  const subtotal = items.reduce((s, i) => s + Math.max(0, i.baseCents), 0)
+  const n = items.length
+
+  let multiDiv = 0
+  if (discount && n >= discount.min_divisions) {
+    if (discount.type === 'percent_additional') {
+      // Most expensive division is full price; each of the rest gets value% off.
+      const additional = [...items].sort((a, b) => b.baseCents - a.baseCents).slice(1)
+      multiDiv = additional.reduce((s, i) => s + Math.round(Math.max(0, i.baseCents) * discount.value / 100), 0)
+    } else if (discount.type === 'flat_per_additional') {
+      multiDiv = (n - 1) * discount.value
+    } else if (discount.type === 'percent_order') {
+      multiDiv = Math.round(subtotal * discount.value / 100)
+    }
+  }
+  multiDiv = Math.min(Math.max(0, multiDiv), subtotal)
+
+  const afterBundle = subtotal - multiDiv
+  const code = Math.min(Math.max(0, Math.round(codeDiscountCents)), afterBundle)
+  const total = afterBundle - code
+
+  return {
+    subtotalCents: subtotal,
+    multiDivDiscountCents: multiDiv,
+    codeDiscountCents: code,
+    totalCents: total,
+    items: allocate(items, total),
+  }
+}

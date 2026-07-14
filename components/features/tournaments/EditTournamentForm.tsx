@@ -62,6 +62,11 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   const [noRefundDate, setNoRefundDate] = useState((tournament as any).no_refund_date ?? '')
   const [refundPolicy, setRefundPolicy] = useState((tournament as any).refund_policy ?? '')
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>(normalizeTiers((tournament as any).price_tiers))
+  const [multiDivPercent, setMultiDivPercent] = useState(
+    (tournament as any).multi_division_discount?.type === 'percent_additional'
+      ? String((tournament as any).multi_division_discount.value ?? '')
+      : ''
+  )
   const [contactName, setContactName] = useState((tournament as any).contact_name ?? '')
   const [contactEmail, setContactEmail] = useState((tournament as any).contact_email ?? '')
   const [allowPlayerScores, setAllowPlayerScores] = useState((tournament as any).allow_player_scores ?? false)
@@ -119,6 +124,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
         price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
+        multi_division_discount: parseFloat(multiDivPercent) > 0 ? { type: 'percent_additional', value: parseFloat(multiDivPercent), min_divisions: 2 } : null,
         contact_name: contactName.trim() || null,
         contact_email: contactEmail.trim() || null,
         allow_player_scores: allowPlayerScores,
@@ -287,6 +293,27 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         </FormRow>
         <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
           <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
+        </FormRow>
+        <FormRow
+          label="Multi-division discount"
+          htmlFor="multi-div-pct"
+          width="sm"
+          helpText="Optional. Percent off each division after a player's most expensive one, when they enter 2+ at once."
+        >
+          <div className="relative w-24">
+            <input
+              id="multi-div-pct"
+              type="number"
+              min="0"
+              max="100"
+              step="5"
+              value={multiDivPercent}
+              onChange={(e) => setMultiDivPercent(e.target.value)}
+              placeholder="0"
+              className="w-full input pr-7"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">%</span>
+          </div>
         </FormRow>
         <FormRow
           label="Registration deadline"
