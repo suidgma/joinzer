@@ -118,7 +118,9 @@ export default function ChatPanel({
     if (!newest) return
     setLastRead(newest)
     try { localStorage.setItem(readKey, newest) } catch {}
-  }, [messages, readKey])
+    // Let the cross-app unread provider clear this chat's nav badge.
+    try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
+  }, [messages, readKey, table, entityId])
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current

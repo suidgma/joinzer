@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useChatUnread } from '@/lib/realtime/ChatUnreadProvider'
 
 const tabs = [
   {
@@ -65,6 +66,7 @@ const tabs = [
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const unread = useChatUnread()
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-brand-surface border-t border-brand-border pb-[env(safe-area-inset-bottom)]">
@@ -72,6 +74,8 @@ export default function BottomNav() {
         {tabs.map((tab) => {
           // Match the full path segment so /players doesn't also light up /play.
           const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
+          const surface = tab.href === '/leagues' ? 'leagues' : tab.href === '/tournaments' ? 'tournaments' : null
+          const showDot = !!surface && unread[surface] > 0
           return (
             <Link
               key={tab.href}
@@ -80,7 +84,12 @@ export default function BottomNav() {
                 active ? 'text-brand-dark' : 'text-brand-muted'
               }`}
             >
-              {tab.icon(active)}
+              <span className="relative">
+                {tab.icon(active)}
+                {showDot && (
+                  <span className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-brand-dark ring-2 ring-brand-surface" aria-label="New messages" />
+                )}
+              </span>
               {/* Six tabs share ~62px each on a 375px phone — keep the label small and
                   non-wrapping so "Tournaments" never breaks onto a second line. */}
               <span className="text-[10px] leading-none tracking-tight whitespace-nowrap">{tab.label}</span>
