@@ -35,6 +35,7 @@ export default async function TournamentPlayersPage(props: { params: Promise<{ i
           registrations={orgRegs}
           divisions={orgDivisions}
           tournamentName={tournament.name}
+          tournamentId={id}
         />
       </div>
     </DesktopShell>

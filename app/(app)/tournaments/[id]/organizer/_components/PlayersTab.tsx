@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 import { Download, CheckCircle, Circle, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useRealtimeChannel } from '@/lib/realtime/hooks'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import type { OrgMatch, OrgRegistration, OrgDivision } from './types'
 import { Toast, useToast } from './Toast'
@@ -69,11 +70,26 @@ type Props = {
   registrations: OrgRegistration[]
   divisions: OrgDivision[]
   tournamentName?: string
+  tournamentId: string
 }
 
-export default function PlayersTab({ matches, registrations, divisions, tournamentName }: Props) {
+export default function PlayersTab({ matches, registrations, divisions, tournamentName, tournamentId }: Props) {
   const [checkedIn, setCheckedIn] = useState<Record<string, boolean>>(
     () => Object.fromEntries(registrations.map(r => [r.id, r.checked_in]))
+  )
+
+  // Live check-in: a player self-checking-in (QR) or a co-organizer toggling flips the
+  // status here in real time. tournament_registrations is published + readable, so
+  // postgres_changes delivers; own toggles are idempotent (same value → no-op).
+  useRealtimeChannel(
+    { topic: `tournament-checkin:${tournamentId}`, postgresChanges: [{ event: 'UPDATE', table: 'tournament_registrations', filter: `tournament_id=eq.${tournamentId}` }] },
+    (evt) => {
+      if (evt.kind !== 'postgres_changes') return
+      const row = evt.payload.new as { id?: string; checked_in?: boolean }
+      if (row?.id && typeof row.checked_in === 'boolean') {
+        setCheckedIn((prev) => (prev[row.id!] === row.checked_in ? prev : { ...prev, [row.id!]: row.checked_in! }))
+      }
+    },
   )
   const [search, setSearch] = useState('')
   const [divFilter, setDivFilter] = useState('')
