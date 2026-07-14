@@ -22,8 +22,14 @@ export const attendanceTopic = (occasionId: string) => `attendance:${occasionId}
 // reconciles by refetching its (authorized) server data. See RealtimeRefresh.
 export const leagueFixturesTopic = (leagueId: string) => `league-fixtures:${leagueId}`
 
+// Per-user in-app notifications: server broadcast on create so the bell badge + a toast go
+// live (replacing the poll). notifications is created server-side, so broadcast fits (no
+// client SELECT needed on the table).
+export const notificationsTopic = (userId: string) => `notifications:${userId}`
+
 // Broadcast event names (app-level events, decoupled from table shape).
 export const RealtimeEvents = {
   attendanceStatusChanged: 'player.status.changed',
   leagueFixturesChanged: 'league.fixtures.changed',
+  notificationCreated: 'notification.created',
 } as const

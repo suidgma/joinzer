@@ -65,7 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* Realtime status + notification bell — right-anchored */}
           <div className="ml-auto shrink-0 z-10 flex items-center gap-3">
             <ConnectionIndicator />
-            <NotificationBell />
+            <NotificationBell userId={user.id} />
           </div>
         </div>
       </header>

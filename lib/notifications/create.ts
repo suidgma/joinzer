@@ -1,5 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import { sendPush, sendPushBatch } from '@/lib/push/send'
+import { broadcast } from '@/lib/realtime/serverBroadcast'
+import { notificationsTopic, RealtimeEvents } from '@/lib/realtime/topics'
+
+// Live push to the recipient's notification bell (badge + toast). Best-effort, non-blocking.
+function broadcastNotification(input: NotificationInput): void {
+  broadcast(notificationsTopic(input.recipientId), RealtimeEvents.notificationCreated, {
+    title: input.title,
+    body: input.body ?? null,
+    url: input.url ?? null,
+    kind: input.kind,
+  }).catch(() => {})
+}
 
 type Surface = 'event' | 'league' | 'tournament' | 'system'
 
@@ -35,6 +47,8 @@ export async function createNotification(input: NotificationInput): Promise<void
     console.error('[notifications] create failed:', err)
   }
 
+  broadcastNotification(input)
+
   // Push is fire-and-forget — never blocks the caller
   sendPush(input.recipientId, {
     title: input.title,
@@ -62,6 +76,8 @@ export async function createNotifications(inputs: NotificationInput[]): Promise<
   } catch (err) {
     console.error('[notifications] batch create failed:', err)
   }
+
+  for (const input of inputs) broadcastNotification(input)
 
   // Group by kind so all recipients of the same notification get the same payload
   // then batch-send push to all unique recipients
