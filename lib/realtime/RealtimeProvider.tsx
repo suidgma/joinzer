@@ -23,14 +23,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [connection, setConnection] = useState<ConnectionStatus>('connecting')
 
   if (!managerRef.current) {
-    const client = createClient()
-    // Authorize the realtime connection so private channels (per-user notifications) can
-    // join. supabase-js also re-sets this on auth events; this eager call covers the initial
-    // race before the first private subscription. Public channels are unaffected.
-    client.auth.getSession().then(({ data }) => {
-      if (data.session?.access_token) client.realtime.setAuth(data.session.access_token)
-    }).catch(() => {})
-    managerRef.current = new ChannelManager(client, () => recomputeRef.current())
+    managerRef.current = new ChannelManager(createClient(), () => recomputeRef.current())
   }
 
   const recompute = useCallback(() => {
@@ -46,6 +39,20 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (statuses.every((s) => s === 'subscribed')) setConnection('live')
     else if (statuses.some((s) => s === 'error')) setConnection('reconnecting')
     else setConnection('connecting')
+  }, [])
+
+  // Authenticate the realtime socket. This is REQUIRED for any RLS-scoped postgres_changes
+  // to deliver — membership-gated chat (auth.uid()) and the `authenticated`-only league score/
+  // attendance tables all return nothing on an anon socket, so without this the live updates
+  // silently stop and the page needs a manual refresh. setAuth re-authorizes channels that
+  // already subscribed, so it doesn't matter that child components subscribe before this runs.
+  // Kept fresh on sign-in / token-refresh / sign-out.
+  useEffect(() => {
+    const client = createClient()
+    const apply = (token?: string) => { if (token) client.realtime.setAuth(token) }
+    client.auth.getSession().then(({ data }) => apply(data.session?.access_token)).catch(() => {})
+    const { data: sub } = client.auth.onAuthStateChange((_event, session) => apply(session?.access_token ?? undefined))
+    return () => sub.subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
