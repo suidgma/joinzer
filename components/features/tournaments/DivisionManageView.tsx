@@ -19,6 +19,7 @@ import { precachePages } from '@/lib/offline/precache'
 import type { LocalMatch } from '@/lib/offline/applyMutations'
 import { getQueue, drainQueue } from '@/lib/pendingQueue'
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
+import { useRealtimeChannel } from '@/lib/realtime/hooks'
 
 function firstName(name: string | null | undefined): string {
   return name ? name.trim().split(/\s+/)[0] : ''
@@ -222,6 +223,31 @@ export default function DivisionManageView({
   const [pending, setPending] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState(false)
+
+  // ── Live bracket ──────────────────────────────────────────────────────────────
+  // Merge score updates from *other* scorers (a co-organizer on another court) as they
+  // land — patch only the changed match. NEVER clobber a match that has an unsynced local
+  // (offline) write: it stays local (dedupeKey === match.id) until the queue drains. Only
+  // while online; offline scoring keeps using the queue + snapshot above. tournament_matches
+  // is public-readable + published (migration 20260714000005), so postgres_changes delivers.
+  useRealtimeChannel(
+    isOnline ? { topic: `division-bracket:${division.id}`, postgresChanges: [{ event: '*', table: 'tournament_matches', filter: `division_id=eq.${division.id}` }] } : null,
+    (evt) => {
+      if (evt.kind !== 'postgres_changes') return
+      const p = evt.payload
+      const pendingIds = new Set(getQueue(scoreQueueKey).map((op) => op.dedupeKey).filter(Boolean))
+      if (p.eventType === 'DELETE') {
+        const id = (p.old as { id?: string })?.id
+        if (id && !pendingIds.has(id)) setMatches((prev) => prev.filter((m) => m.id !== id))
+        return
+      }
+      const row = p.new as unknown as Match & { is_draft?: boolean }
+      if (!row?.id || pendingIds.has(row.id)) return
+      // A draft (unpublished) match must never surface here.
+      if (row.is_draft) { setMatches((prev) => prev.filter((m) => m.id !== row.id)); return }
+      setMatches((prev) => (prev.some((m) => m.id === row.id) ? prev.map((m) => (m.id === row.id ? { ...m, ...row } : m)) : [...prev, row]))
+    },
+  )
 
   const refreshPending = useCallback(() => {
     setPending(typeof window !== 'undefined' ? getQueue(scoreQueueKey).length : 0)
