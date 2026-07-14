@@ -13,6 +13,9 @@ export async function broadcast(
   topic: string,
   event: string,
   payload: Record<string, unknown>,
+  // Set `private: true` for topics whose subscribers join a private channel (RLS-gated on
+  // realtime.messages) — the message must be flagged private to reach them.
+  opts: { private?: boolean } = {},
 ): Promise<void> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -25,7 +28,7 @@ export async function broadcast(
         apikey: key,
         Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({ messages: [{ topic, event, payload }] }),
+      body: JSON.stringify({ messages: [{ topic, event, payload, ...(opts.private ? { private: true } : {}) }] }),
     })
   } catch (err) {
     console.error('[realtime] broadcast failed', { topic, event, err })

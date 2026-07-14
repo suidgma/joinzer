@@ -5,12 +5,13 @@ import { notificationsTopic, RealtimeEvents } from '@/lib/realtime/topics'
 
 // Live push to the recipient's notification bell (badge + toast). Best-effort, non-blocking.
 function broadcastNotification(input: NotificationInput): void {
-  broadcast(notificationsTopic(input.recipientId), RealtimeEvents.notificationCreated, {
-    title: input.title,
-    body: input.body ?? null,
-    url: input.url ?? null,
-    kind: input.kind,
-  }).catch(() => {})
+  broadcast(
+    notificationsTopic(input.recipientId),
+    RealtimeEvents.notificationCreated,
+    { title: input.title, body: input.body ?? null, url: input.url ?? null, kind: input.kind },
+    // Private channel — only the recipient may receive it (RLS on realtime.messages).
+    { private: true },
+  ).catch(() => {})
 }
 
 type Surface = 'event' | 'league' | 'tournament' | 'system'

@@ -32,7 +32,7 @@ export default function NotificationBell({ userId }: { userId: string | null }) 
 
   // Live: a new notification toasts + re-fetches the authoritative unread count.
   useRealtimeChannel(
-    userId ? { topic: notificationsTopic(userId), broadcast: [RealtimeEvents.notificationCreated] } : null,
+    userId ? { topic: notificationsTopic(userId), broadcast: [RealtimeEvents.notificationCreated], private: true } : null,
     (evt) => {
       if (evt.kind !== 'broadcast') return
       const p = evt.payload as { title?: string }

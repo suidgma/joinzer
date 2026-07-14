@@ -23,7 +23,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [connection, setConnection] = useState<ConnectionStatus>('connecting')
 
   if (!managerRef.current) {
-    managerRef.current = new ChannelManager(createClient(), () => recomputeRef.current())
+    const client = createClient()
+    // Authorize the realtime connection so private channels (per-user notifications) can
+    // join. supabase-js also re-sets this on auth events; this eager call covers the initial
+    // race before the first private subscription. Public channels are unaffected.
+    client.auth.getSession().then(({ data }) => {
+      if (data.session?.access_token) client.realtime.setAuth(data.session.access_token)
+    }).catch(() => {})
+    managerRef.current = new ChannelManager(client, () => recomputeRef.current())
   }
 
   const recompute = useCallback(() => {

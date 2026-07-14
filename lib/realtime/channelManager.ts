@@ -21,6 +21,8 @@ export type ChannelSpec = {
   postgresChanges?: PgChangeConfig[]
   /** Broadcast event names to listen for (used for deny-all tables via server broadcast). */
   broadcast?: string[]
+  /** Private channel — join is authorized by RLS on realtime.messages (requires realtime auth). */
+  private?: boolean
 }
 
 export type ChannelStatus = 'connecting' | 'subscribed' | 'error' | 'closed'
@@ -73,7 +75,7 @@ export class ChannelManager {
   }
 
   private create(spec: ChannelSpec): Entry {
-    const channel = this.client.channel(spec.topic, { config: { broadcast: { self: false } } })
+    const channel = this.client.channel(spec.topic, { config: { private: !!spec.private, broadcast: { self: false } } })
     const entry: Entry = { channel, listeners: new Set(), status: 'connecting', refCount: 0 }
 
     for (const pg of spec.postgresChanges ?? []) {
