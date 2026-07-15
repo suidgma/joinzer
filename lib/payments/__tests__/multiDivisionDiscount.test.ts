@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeBundle, normalizeMultiDivisionDiscount, type MultiDivisionDiscount } from '../multiDivisionDiscount'
+import { computeBundle, normalizeMultiDivisionDiscount, bundleCancelRefundCents, type MultiDivisionDiscount } from '../multiDivisionDiscount'
 
 const items = (...cents: number[]) => cents.map((c, i) => ({ divisionId: 'd' + i, baseCents: c }))
 const pctAdd = (v: number, min = 2): MultiDivisionDiscount => ({ type: 'percent_additional', value: v, min_divisions: min })
@@ -81,5 +81,50 @@ describe('computeBundle', () => {
     // additional (the $0) discount = 0; total 5000
     expect(r.totalCents).toBe(5000)
     expect(r.items.reduce((s, i) => s + i.netCents, 0)).toBe(5000)
+  })
+})
+
+describe('bundleCancelRefundCents', () => {
+  const off80 = pctAdd(80) // organizer offers 80% off each additional division
+
+  it("the reported exploit: $100 + 20 (80% off) — cancelling either refunds only $20, not $60", () => {
+    // Paid $120 for two $100 divisions. Whichever you cancel, you drop to one division
+    // (no multi-discount), which is repriced to its full $100 → refund is $120 - $100.
+    expect(bundleCancelRefundCents([10000, 10000], 10000, off80)).toBe(2000)
+  })
+
+  it('the last remaining division refunds its full price', () => {
+    expect(bundleCancelRefundCents([10000], 10000, off80)).toBe(10000)
+  })
+
+  it('three equal divisions: cancelling one add-on refunds one add-on price', () => {
+    // $100 + $20 + $20 = $140. Cancel one → remaining two = $120 → refund $20.
+    expect(bundleCancelRefundCents([10000, 10000, 10000], 10000, off80)).toBe(2000)
+  })
+
+  it('unequal bases: cancelling the cheaper add-on refunds its discounted price', () => {
+    // $100 (anchor) + $50 add-on at 80% off ($10) = $110. Cancel the $50 → keep {$100} → refund $10.
+    expect(bundleCancelRefundCents([10000, 5000], 5000, off80)).toBe(1000)
+  })
+
+  it('unequal bases: cancelling the pricier anchor re-anchors on the other (no reverse exploit)', () => {
+    // Same $110 bundle. Cancel the $100 → keep {$50} repriced to full $50 → refund $110 - $50 = $60.
+    expect(bundleCancelRefundCents([10000, 5000], 10000, off80)).toBe(6000)
+  })
+
+  it('percent_order: dropping below min_divisions removes the discount from what remains', () => {
+    // $100 + $100 at 15% off the order = $170. Cancel one → remaining $100 (no discount) → refund $70.
+    expect(bundleCancelRefundCents([10000, 10000], 10000, { type: 'percent_order', value: 15, min_divisions: 2 })).toBe(7000)
+  })
+
+  it('no discount → refunds the cancelled division at full base', () => {
+    expect(bundleCancelRefundCents([10000, 6000], 10000, null)).toBe(10000)
+  })
+
+  it('refunds telescope to the full amount paid regardless of cancel order', () => {
+    // Two $100 divisions, paid $120. Cancel one ($20 refund) then the other ($100 refund) = $120.
+    const first = bundleCancelRefundCents([10000, 10000], 10000, off80) // 2000
+    const second = bundleCancelRefundCents([10000], 10000, off80)        // 10000
+    expect(first + second).toBe(12000)
   })
 })

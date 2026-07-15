@@ -178,6 +178,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         multi_div_discount_cents: bundle.multiDivDiscountCents,
         code_discount_cents: 0,
         total_cents: totalCents,
+        // Freeze the discount terms so per-division refunds recompute against what
+        // was actually purchased, even if the organizer edits the discount later.
+        discount_config: discount ?? null,
       })
       .select('id')
       .single()
