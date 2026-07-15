@@ -175,7 +175,38 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     // Bundle discount applies to the player's own division entries only.
     const items: BundleItem[] = divs.map((d) => ({ divisionId: d.id, baseCents: baseOf(d) }))
     const discount = normalizeMultiDivisionDiscount((tournament as any).multi_division_discount)
-    const bundle = computeBundle(items, discount)
+
+    // Optional discount code stacks AFTER the bundle discount, on the player's own entries only
+    // (partner "pay-for-both" seats stay full price). Validated server-side — the client total is
+    // never trusted. Silently ignored if missing/invalid/expired/exhausted (mirrors single-division).
+    const rawCode: string | null =
+      typeof body.discount_code === 'string' && body.discount_code.trim() ? body.discount_code.trim() : null
+    let discountCodeId: string | null = null
+    let codeDiscountCents = 0
+    if (rawCode) {
+      const { data: codeRow } = await service
+        .from('tournament_discount_codes')
+        .select('id, discount_type, discount_value, max_uses, uses_count, expires_at, is_active')
+        .eq('tournament_id', params.id)
+        .eq('code', rawCode.toUpperCase())
+        .eq('is_active', true)
+        .maybeSingle()
+      if (codeRow) {
+        const nowIso = new Date().toISOString()
+        const expired = codeRow.expires_at && codeRow.expires_at < nowIso
+        const exhausted = codeRow.max_uses != null && codeRow.uses_count >= codeRow.max_uses
+        if (!expired && !exhausted) {
+          const preCode = computeBundle(items, discount)
+          const afterBundle = preCode.subtotalCents - preCode.multiDivDiscountCents
+          codeDiscountCents = codeRow.discount_type === 'percent'
+            ? Math.round(afterBundle * codeRow.discount_value / 100)
+            : Math.min(codeRow.discount_value, afterBundle)
+          discountCodeId = codeRow.id
+        }
+      }
+    }
+
+    const bundle = computeBundle(items, discount, codeDiscountCents)
     // Partner seats are full price (a friend's entry isn't an "additional division").
     let partnerTotal = 0
     for (const divId of partnerByDiv.keys()) partnerTotal += baseOf(divById.get(divId))
@@ -191,7 +222,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         status: 'pending',
         subtotal_cents: subtotalCents,
         multi_div_discount_cents: bundle.multiDivDiscountCents,
-        code_discount_cents: 0,
+        code_discount_cents: bundle.codeDiscountCents,
+        discount_code_id: discountCodeId,
         total_cents: totalCents,
         // Freeze the discount terms so per-division refunds recompute against what
         // was actually purchased, even if the organizer edits the discount later.
@@ -285,6 +317,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     await service.from('tournament_order_items').insert(itemRows)
 
     if (isFree) {
+      // No webhook fires for a free order, so credit the code here if one brought it to $0.
+      if (discountCodeId) await service.rpc('increment_discount_uses', { code_id: discountCodeId })
       await service.from('tournament_orders').update({ status: 'paid' }).eq('id', order.id)
       return NextResponse.json({ free: true })
     }

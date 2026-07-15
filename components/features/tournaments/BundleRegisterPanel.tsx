@@ -50,6 +50,10 @@ export default function BundleRegisterPanel({
   const [partnerEmail, setPartnerEmail] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [code, setCode] = useState('')
+  const [appliedCode, setAppliedCode] = useState<{ code: string; type: 'percent' | 'flat'; value: number } | null>(null)
+  const [codeError, setCodeError] = useState<string | null>(null)
+  const [codeChecking, setCodeChecking] = useState(false)
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -72,7 +76,17 @@ export default function BundleRegisterPanel({
     })
 
   const chosen = divisions.filter((d) => selected.has(d.id))
-  const bundle = computeBundle(chosen.map((d) => ({ divisionId: d.id, baseCents: d.baseCents })), discount)
+  const items = chosen.map((d) => ({ divisionId: d.id, baseCents: d.baseCents }))
+  // A discount code stacks after the bundle discount, on the player's own entries. Compute its
+  // cents the same way the orders route does so the preview matches the charge (server re-validates).
+  const preCode = computeBundle(items, discount)
+  const afterBundle = preCode.subtotalCents - preCode.multiDivDiscountCents
+  const codeCents = appliedCode
+    ? (appliedCode.type === 'percent'
+        ? Math.round(afterBundle * appliedCode.value / 100)
+        : Math.min(appliedCode.value, afterBundle))
+    : 0
+  const bundle = computeBundle(items, discount, codeCents)
 
   // Partner add-ons: full-price seats for selected doubles divisions with a valid partner email.
   const partnerDivs = chosen.filter((d) => d.isDoubles && partnerOn.has(d.id))
@@ -89,6 +103,30 @@ export default function BundleRegisterPanel({
 
   const canSubmit = chosen.length >= 2 && partnerMissing.length === 0 && !loading
 
+  async function applyCode() {
+    const c = code.trim()
+    if (!c) { setAppliedCode(null); setCodeError(null); return }
+    setCodeChecking(true); setCodeError(null)
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/discount-codes/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: c }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (data.valid) {
+        setAppliedCode({ code: c, type: data.discount_type, value: data.discount_value })
+        setCodeError(null)
+      } else {
+        setAppliedCode(null)
+        setCodeError('That code isn’t valid.')
+      }
+    } catch {
+      setCodeError('Could not check that code — try again.')
+    }
+    setCodeChecking(false)
+  }
+
   async function register() {
     if (chosen.length < 2 || partnerMissing.length > 0) return
     setLoading(true)
@@ -99,7 +137,7 @@ export default function BundleRegisterPanel({
       const res = await fetch(`/api/tournaments/${tournamentId}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ division_ids: [...selected], partners }),
+        body: JSON.stringify({ division_ids: [...selected], partners, discount_code: appliedCode?.code }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -168,13 +206,46 @@ export default function BundleRegisterPanel({
       )}
 
       {chosen.length >= 2 && (
-        <div className="text-xs text-brand-muted space-y-0.5 border-t border-brand-border pt-2">
-          <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{fmt(bundle.subtotalCents + partnerExtra)}</span></div>
-          <div className="flex justify-between text-brand-active"><span>Bundle discount</span><span className="tabular-nums">−{fmt(bundle.multiDivDiscountCents)}</span></div>
-          {partnerExtra > 0 && (
-            <div className="flex justify-between"><span>Partner {partnerDivs.length === 1 ? 'entry' : 'entries'}</span><span className="tabular-nums">{fmt(partnerExtra)}</span></div>
-          )}
-          <div className="flex justify-between font-semibold text-brand-dark text-sm"><span>Total</span><span className="tabular-nums">{fmt(grandTotal)}</span></div>
+        <div className="border-t border-brand-border pt-2 space-y-2">
+          <div>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => { setCode(e.target.value); setCodeError(null) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCode() } }}
+                placeholder="Discount code"
+                className="flex-1 rounded-lg border border-brand-border px-2.5 py-1.5 text-xs uppercase text-brand-dark placeholder:normal-case placeholder:text-brand-muted/60 focus:outline-none focus:ring-1 focus:ring-brand"
+              />
+              <button
+                type="button"
+                onClick={applyCode}
+                disabled={codeChecking || !code.trim()}
+                className="px-3 py-1.5 rounded-lg border border-brand-border text-xs font-semibold text-brand-dark hover:bg-brand-soft disabled:opacity-40"
+              >
+                {codeChecking ? '…' : appliedCode ? 'Update' : 'Apply'}
+              </button>
+            </div>
+            {codeError && <p className="text-[11px] text-red-600 mt-1">{codeError}</p>}
+            {appliedCode && codeCents > 0 && (
+              <p className="text-[11px] text-brand-active mt-1">Code “{appliedCode.code.toUpperCase()}” applied.</p>
+            )}
+            {appliedCode && codeCents === 0 && (
+              <p className="text-[11px] text-brand-muted mt-1">This code doesn’t reduce this order.</p>
+            )}
+          </div>
+
+          <div className="text-xs text-brand-muted space-y-0.5">
+            <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{fmt(bundle.subtotalCents + partnerExtra)}</span></div>
+            <div className="flex justify-between text-brand-active"><span>Bundle discount</span><span className="tabular-nums">−{fmt(bundle.multiDivDiscountCents)}</span></div>
+            {codeCents > 0 && (
+              <div className="flex justify-between text-brand-active"><span>Discount code</span><span className="tabular-nums">−{fmt(bundle.codeDiscountCents)}</span></div>
+            )}
+            {partnerExtra > 0 && (
+              <div className="flex justify-between"><span>Partner {partnerDivs.length === 1 ? 'entry' : 'entries'}</span><span className="tabular-nums">{fmt(partnerExtra)}</span></div>
+            )}
+            <div className="flex justify-between font-semibold text-brand-dark text-sm"><span>Total</span><span className="tabular-nums">{fmt(grandTotal)}</span></div>
+          </div>
         </div>
       )}
 
