@@ -496,52 +496,6 @@ function AssignSubModal({
   )
 }
 
-// ─── Session-complete prompt ──────────────────────────────────────────────────
-
-// Fired when the round-robin reaches its natural endpoint (every present player
-// has faced everyone). Requires an EXPLICIT choice — the backdrop does NOT dismiss.
-// (A stray tap right after entering the last score was closing it on the backdrop
-// before the organizer could read it; the effect won't re-open it once shown, so it
-// vanished for good.) It stays until they pick Generate / End the day / Not yet.
-function SessionCompleteModal({
-  onGenerate, onEndDay, onClose, busy,
-}: { onGenerate: () => void; onEndDay: () => void; onClose: () => void; busy: boolean }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4">
-        <div>
-          <h2 className="font-heading text-lg font-bold text-brand-dark">Everyone’s played everyone 🎉</h2>
-          <p className="text-sm text-brand-muted mt-1">
-            Every player here has faced each other at least once — a natural stopping point. Keep going, or wrap up the day.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <button
-            onClick={onGenerate}
-            disabled={busy}
-            className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
-          >
-            Generate another round
-          </button>
-          <button
-            onClick={onEndDay}
-            disabled={busy}
-            className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
-          >
-            🏁 End the day
-          </button>
-          <button
-            onClick={onClose}
-            disabled={busy}
-            className="w-full py-2 text-sm font-medium text-brand-muted hover:text-brand-dark disabled:opacity-50 transition-colors"
-          >
-            Not yet
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -675,16 +629,10 @@ export default function LiveSessionManager({
   const sessionComplete = everyoneHasFacedEveryone(presentIds, completedForCheck)
   const showCompletionPrompt = sessionComplete && !activeRound
 
-  // Are we at the round-robin's natural endpoint right now — everyone present has faced everyone,
-  // no round in progress, and the last round fully scored? This is DERIVED, not a fire-once effect,
-  // so a background router.refresh() (the league layout refetches ~400ms after any score) or any
-  // other re-render can't drop the prompt: it shows whenever we're at the endpoint AND the organizer
-  // hasn't dismissed THIS one. Leaving the endpoint (a new round, or the last round needing scores)
-  // re-arms it, so completing the next round prompts again instead of only once.
-  const atEndpoint = showCompletionPrompt && !currentRoundNeedsScores
-  const [endpointDismissed, setEndpointDismissed] = useState(false)
-  useEffect(() => { if (!atEndpoint) setEndpointDismissed(false) }, [atEndpoint])
-  const showCompleteModal = atEndpoint && !endpointDismissed
+  // The "everyone's played everyone" prompt is rendered INLINE (the emerald decision card below),
+  // not as a modal — a modal kept getting dropped by the page's realtime router.refresh(). As an
+  // inline section keyed off `showCompletionPrompt`, it simply re-derives on every render and stays
+  // put until the organizer generates another round or ends the day.
 
   // --- Quick court preview ---
   function courtsPreview() {
@@ -1079,12 +1027,33 @@ export default function LiveSessionManager({
           )}
         </div>
 
+        {/* Natural-endpoint decision prompt — a PERSISTENT inline card (replaces a modal that kept
+            getting dropped by the page's realtime refresh). Stays visible until the organizer picks
+            a next step: generate another round, or end the day. */}
         {showCompletionPrompt && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-            <p className="text-sm font-semibold text-emerald-900">🎉 Everyone’s played everyone</p>
-            <p className="text-xs text-emerald-700 mt-0.5">
-              Every player here has faced each other at least once. Generate another round below, or end the day when you’re ready.
-            </p>
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-3">
+            <div>
+              <p className="text-base font-bold text-emerald-900">🎉 Everyone’s played everyone</p>
+              <p className="text-sm text-emerald-700 mt-0.5">
+                Every player here has faced each other at least once — a natural stopping point. What next?
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleGenerate(false)}
+                disabled={generating || eligibleCount < 2 || !!activeRound || currentRoundNeedsScores}
+                className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
+              >
+                {generating ? 'Generating…' : currentRoundNeedsScores ? 'Enter this round’s scores first' : 'Generate another round'}
+              </button>
+              <button
+                onClick={handleEndDay}
+                disabled={endingDay}
+                className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {endingDay ? 'Ending…' : '🏁 End the day'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1192,7 +1161,8 @@ export default function LiveSessionManager({
       )}
 
       {/* ── End the Day ───────────────────────────────────────── */}
-      {completedCount >= 1 && !activeRound && (
+      {/* Hidden at the natural endpoint — the decision card above already offers End the day. */}
+      {completedCount >= 1 && !activeRound && !showCompletionPrompt && (
         <section className="pt-2 border-t border-brand-border">
           <p className="text-xs text-brand-muted text-center mb-3">
             {completedCount} round{completedCount !== 1 ? 's' : ''} played. Generate more above, or wrap up when you&apos;re done.
@@ -1207,15 +1177,6 @@ export default function LiveSessionManager({
         </section>
       )}
 
-      {/* ── Session-complete prompt ────────────────────────────── */}
-      {showCompleteModal && (
-        <SessionCompleteModal
-          busy={generating || endingDay}
-          onGenerate={() => { setEndpointDismissed(true); handleGenerate(false) }}
-          onEndDay={() => { setEndpointDismissed(true); doEndDay() }}
-          onClose={() => setEndpointDismissed(true)}
-        />
-      )}
 
       {/* ── Add sub modal ──────────────────────────────────────── */}
       {showAddSub && (
