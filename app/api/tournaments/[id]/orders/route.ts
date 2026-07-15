@@ -182,6 +182,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const rawCode: string | null =
       typeof body.discount_code === 'string' && body.discount_code.trim() ? body.discount_code.trim() : null
     let discountCodeId: string | null = null
+    let codeConfig: { type: 'percent' | 'flat'; value: number } | null = null
     let codeDiscountCents = 0
     if (rawCode) {
       const { data: codeRow } = await service
@@ -202,6 +203,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             ? Math.round(afterBundle * codeRow.discount_value / 100)
             : Math.min(codeRow.discount_value, afterBundle)
           discountCodeId = codeRow.id
+          codeConfig = { type: codeRow.discount_type, value: codeRow.discount_value }
         }
       }
     }
@@ -226,8 +228,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         discount_code_id: discountCodeId,
         total_cents: totalCents,
         // Freeze the discount terms so per-division refunds recompute against what
-        // was actually purchased, even if the organizer edits the discount later.
+        // was actually purchased, even if the organizer edits the discount/code later.
         discount_config: discount ?? null,
+        code_config: codeConfig,
       })
       .select('id')
       .single()

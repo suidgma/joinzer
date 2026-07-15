@@ -127,4 +127,23 @@ describe('bundleCancelRefundCents', () => {
     const second = bundleCancelRefundCents([10000], 10000, off80)        // 10000
     expect(first + second).toBe(12000)
   })
+
+  it('a stacked percent code: refunds the marginal value NET of the code (no over-refund)', () => {
+    // 2×$100 at 20%-additional = $180 bundle; a 10% code = $162 paid.
+    // Cancel one → keep {$100} repriced WITH the code ($90) → refund $162 − $90 = $72.
+    expect(bundleCancelRefundCents([10000, 10000], 10000, pctAdd(20), { type: 'percent', value: 10 })).toBe(7200)
+  })
+
+  it('a stacked code telescopes to the coded total actually paid', () => {
+    const code = { type: 'percent' as const, value: 10 }
+    const first = bundleCancelRefundCents([10000, 10000], 10000, pctAdd(20), code) // 7200
+    const second = bundleCancelRefundCents([10000], 10000, pctAdd(20), code)        // 9000
+    expect(first + second).toBe(16200) // == $162 paid, not the pre-code $180
+  })
+
+  it('a flat code is reapplied (capped) to what remains', () => {
+    // 2×$100 at 20%-additional = $180; a $30 flat code → $150 paid.
+    // Cancel one → keep {$100}, flat $30 still applies (capped at $100) → $70 → refund $150 − $70 = $80.
+    expect(bundleCancelRefundCents([10000, 10000], 10000, pctAdd(20), { type: 'flat', value: 3000 })).toBe(8000)
+  })
 })
