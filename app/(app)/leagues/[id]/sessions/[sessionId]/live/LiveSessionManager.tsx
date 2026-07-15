@@ -675,19 +675,21 @@ export default function LiveSessionManager({
   const sessionComplete = everyoneHasFacedEveryone(presentIds, completedForCheck)
   const showCompletionPrompt = sessionComplete && !activeRound
 
-  // Fire the pop-up once when the session first reaches the "everyone's played
-  // everyone" state while idle (no active round, last round scored). The ref keeps
-  // it from nagging on every extra round; it re-arms only if the set of present
-  // players changes such that the round-robin is no longer complete.
+  // Prompt at EVERY "everyone's played everyone + idle + fully scored" moment — i.e. after each
+  // completed round that lands on the round-robin's natural endpoint. The ref re-arms whenever we
+  // leave that state (a round in progress, or the last round still needs scores), so completing
+  // the next round prompts again. Firing only once let an organizer blow past to round 4 after the
+  // first prompt was missed/dismissed.
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const completionPromptedRef = useRef(false)
   useEffect(() => {
-    if (!sessionComplete) { completionPromptedRef.current = false; return }
-    if (showCompletionPrompt && !currentRoundNeedsScores && !completionPromptedRef.current) {
+    const atEndpoint = showCompletionPrompt && !currentRoundNeedsScores
+    if (!atEndpoint) { completionPromptedRef.current = false; return }
+    if (!completionPromptedRef.current) {
       completionPromptedRef.current = true
       setShowCompleteModal(true)
     }
-  }, [sessionComplete, showCompletionPrompt, currentRoundNeedsScores]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showCompletionPrompt, currentRoundNeedsScores]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Quick court preview ---
   function courtsPreview() {
