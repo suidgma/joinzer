@@ -84,7 +84,7 @@ export async function POST(_req: NextRequest, props: Params) {
       if (orderItem) {
         const { data: order } = await service
           .from('tournament_orders')
-          .select('user_id, discount_config')
+          .select('user_id, discount_config, code_config')
           .eq('id', (orderItem as any).order_id)
           .single()
         const payerId = (order as any)?.user_id
@@ -112,7 +112,7 @@ export async function POST(_req: NextRequest, props: Params) {
           const discount = normalizeMultiDivisionDiscount(
             (order as any).discount_config ?? (tournament as any).multi_division_discount,
           )
-          refundCents = bundleCancelRefundCents(activeBases, (orderItem as any).base_cents ?? 0, discount)
+          refundCents = bundleCancelRefundCents(activeBases, (orderItem as any).base_cents ?? 0, discount, (order as any).code_config ?? null)
         } else {
           // Partner seat (full-price standalone item) — refund its own allocated share.
           refundCents = (orderItem as any).net_cents ?? 0

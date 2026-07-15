@@ -100,6 +100,9 @@ export function computeBundle(
   }
 }
 
+// The discount-code terms snapshotted on an order, so a refund reprices with the same code.
+export type BundleDiscountCode = { type: 'percent' | 'flat'; value: number }
+
 // Refund for cancelling ONE division out of a bundle: the marginal amount that
 // division contributes at the bundle's current size, i.e.
 //   bundleTotal(divisions still active) − bundleTotal(those minus the cancelled one).
@@ -108,19 +111,32 @@ export function computeBundle(
 //   - dropping below `min_divisions` removes the discount from what remains, so a
 //     kept division is always repriced to its fair standalone/marginal price.
 // This closes the arbitrage in BOTH directions (cancel the add-on OR the anchor).
+// When a discount code was applied, it's reapplied to both the before/after totals
+// (percent = % of that subset's after-bundle amount; flat = capped at it) so a coded
+// bundle refunds the marginal value NET of the code — never the pre-code amount.
 // Only the payer's own bundled divisions go through here; partner "pay-for-both"
 // seats are full-price standalone items and refund their own base.
 export function bundleCancelRefundCents(
   activeBaseCentsBefore: number[], // base_cents of every still-active payer division in the order (incl. the one being cancelled)
   cancelledBaseCents: number,      // base_cents of the division being cancelled (one of the above)
   discount: MultiDivisionDiscount | null | undefined,
+  code?: BundleDiscountCode | null,
 ): number {
-  const toItems = (cents: number[]): BundleItem[] =>
-    cents.map((c, i) => ({ divisionId: String(i), baseCents: c }))
-  const before = computeBundle(toItems(activeBaseCentsBefore), discount).totalCents
+  const totalFor = (cents: number[]): number => {
+    const items: BundleItem[] = cents.map((c, i) => ({ divisionId: String(i), baseCents: c }))
+    let codeCents = 0
+    if (code && cents.length > 0) {
+      const pre = computeBundle(items, discount)
+      const afterBundle = pre.subtotalCents - pre.multiDivDiscountCents
+      codeCents = code.type === 'percent'
+        ? Math.round(afterBundle * code.value / 100)
+        : Math.min(code.value, afterBundle)
+    }
+    return computeBundle(items, discount, codeCents).totalCents
+  }
+  const before = totalFor(activeBaseCentsBefore)
   const after = [...activeBaseCentsBefore]
   const idx = after.indexOf(cancelledBaseCents)
   if (idx >= 0) after.splice(idx, 1) // remove one matching base; identity doesn't matter, only the multiset
-  const afterTotal = computeBundle(toItems(after), discount).totalCents
-  return Math.max(0, before - afterTotal)
+  return Math.max(0, before - totalFor(after))
 }
