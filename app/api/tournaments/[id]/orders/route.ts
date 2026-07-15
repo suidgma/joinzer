@@ -65,6 +65,56 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Registration is closed' }, { status: 400 })
     }
 
+    // Clear THIS user's own abandoned bundle for this tournament so a retry isn't blocked
+    // by their prior unpaid reservations (and so those reservations stop holding capacity).
+    // Expire the old Checkout session FIRST: an already-completed session can't be expired,
+    // so if that throws we skip the order — that's a real in-flight payment and must be left
+    // alone. Only genuinely-abandoned (still-open) sessions get released, so we can never
+    // release a reservation that's actually being paid.
+    {
+      const { data: priorOrders } = await service
+        .from('tournament_orders')
+        .select('id, stripe_session_id')
+        .eq('tournament_id', params.id)
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+      if (priorOrders && priorOrders.length > 0) {
+        const stripeForCleanup = new Stripe(process.env.STRIPE_SECRET_KEY!)
+        for (const po of priorOrders as any[]) {
+          if (po.stripe_session_id) {
+            let sess: Stripe.Checkout.Session
+            try {
+              sess = await stripeForCleanup.checkout.sessions.retrieve(po.stripe_session_id)
+            } catch {
+              continue // can't inspect the session → be safe, don't release
+            }
+            // A completed/paid session is a real in-flight payment — leave the order for the webhook.
+            if (sess.status === 'complete' || sess.payment_status === 'paid') continue
+            // An open session is genuinely abandoned — expire it so it can never be paid later.
+            if (sess.status === 'open') {
+              try {
+                await stripeForCleanup.checkout.sessions.expire(po.stripe_session_id)
+              } catch {
+                continue // couldn't expire → don't risk releasing
+              }
+            }
+            // status now 'expired' (or was already) → the session can't be paid → safe to release.
+          }
+          const { data: staleItems } = await service
+            .from('tournament_order_items')
+            .select('registration_id')
+            .eq('order_id', po.id)
+          const staleRegIds = (staleItems ?? []).map((i: any) => i.registration_id).filter(Boolean)
+          if (staleRegIds.length > 0) {
+            // Only unpaid reservations — never delete a seat someone actually paid for.
+            await service.from('tournament_registrations').delete().in('id', staleRegIds).eq('payment_status', 'unpaid')
+          }
+          await service.from('tournament_order_items').delete().eq('order_id', po.id)
+          await service.from('tournament_orders').update({ status: 'expired' }).eq('id', po.id)
+        }
+      }
+    }
+
     const { data: divisions } = await service
       .from('tournament_divisions')
       .select('id, name, cost_cents, max_entries, format')
