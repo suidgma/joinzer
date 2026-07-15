@@ -15,12 +15,19 @@ export async function POST(_req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Get or create a Connect account
+  // Gate: only organizers approved for paid events may set up payouts (book-a-call approval).
   const { data: profile } = await service
     .from('profiles')
-    .select('stripe_connect_account_id')
+    .select('stripe_connect_account_id, can_create_paid_events')
     .eq('id', user.id)
     .single()
+
+  if (!profile?.can_create_paid_events) {
+    return NextResponse.json(
+      { error: "Payments aren't enabled on your account yet — book a quick call and we'll set you up.", needsApproval: true },
+      { status: 403 },
+    )
+  }
 
   let accountId = profile?.stripe_connect_account_id
 

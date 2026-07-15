@@ -28,6 +28,12 @@ export default async function CreateLeaguePage() {
 
   const locations = (data ?? []) as LocationOption[]
 
+  let canCreatePaid = false
+  if (user) {
+    const { data: prof } = await supabase.from('profiles').select('can_create_paid_events').eq('id', user.id).single()
+    canCreatePaid = !!prof?.can_create_paid_events
+  }
+
   return (
     <DesktopShell
       header={
@@ -39,7 +45,7 @@ export default async function CreateLeaguePage() {
       }
       rail={<WizardOutline steps={STEPS} title="Create League" />}
     >
-      <CreateLeagueForm locations={locations} />
+      <CreateLeagueForm locations={locations} canCreatePaid={canCreatePaid} />
     </DesktopShell>
   )
 }

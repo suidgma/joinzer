@@ -28,6 +28,12 @@ export default async function CreateTournamentPage() {
 
   const locations = (locationData ?? []) as LocationOption[]
 
+  let canCreatePaid = false
+  if (user) {
+    const { data: prof } = await supabase.from('profiles').select('can_create_paid_events').eq('id', user.id).single()
+    canCreatePaid = !!prof?.can_create_paid_events
+  }
+
   return (
     <DesktopShell
       header={
@@ -39,7 +45,7 @@ export default async function CreateTournamentPage() {
       }
       rail={<WizardOutline steps={STEPS} title="Create Tournament" />}
     >
-      <CreateTournamentForm locations={locations} />
+      <CreateTournamentForm locations={locations} canCreatePaid={canCreatePaid} />
     </DesktopShell>
   )
 }

@@ -15,12 +15,13 @@ export async function GET(_req: NextRequest) {
 
   const { data: profile } = await service
     .from('profiles')
-    .select('stripe_connect_account_id, stripe_charges_enabled')
+    .select('stripe_connect_account_id, stripe_charges_enabled, can_create_paid_events')
     .eq('id', user.id)
     .single()
 
+  const canCreatePaid = !!profile?.can_create_paid_events
   if (!profile?.stripe_connect_account_id) {
-    return NextResponse.json({ connected: false, chargesEnabled: false })
+    return NextResponse.json({ connected: false, chargesEnabled: false, canCreatePaid })
   }
 
   // Sync latest status from Stripe
@@ -36,5 +37,6 @@ export async function GET(_req: NextRequest) {
     connected: true,
     chargesEnabled,
     accountId: profile.stripe_connect_account_id,
+    canCreatePaid,
   })
 }
