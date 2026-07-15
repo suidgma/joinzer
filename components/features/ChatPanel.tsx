@@ -326,7 +326,7 @@ export default function ChatPanel({
           <div
             ref={scrollRef}
             onScroll={onScroll}
-            className={`overflow-y-auto p-3 space-y-2 bg-brand-surface ${
+            className={`overflow-y-auto overflow-x-hidden p-3 space-y-2 bg-brand-surface ${
               expanded ? 'flex-1 min-h-0' : 'h-80'
             }`}
           >
@@ -340,68 +340,70 @@ export default function ChatPanel({
                 const isEditing = editingId === msg.id
                 const isConfirming = confirmDeleteId === msg.id
                 return (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
-                  >
-                    {!isOwn && (
-                      <span className="text-xs text-brand-muted mb-0.5">
-                        {msg.profile?.name ?? 'Unknown'}
-                      </span>
-                    )}
-                    {isEditing ? (
-                      <div className="flex items-center gap-1 w-full max-w-[80%]">
-                        <input
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveEdit(msg)
-                            if (e.key === 'Escape') setEditingId(null)
-                          }}
-                          autoFocus
-                          className="flex-1 text-sm px-2.5 py-1.5 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand bg-white"
-                        />
-                        <button onClick={() => saveEdit(msg)} className="text-xs font-semibold text-brand-active px-1">Save</button>
-                        <button onClick={() => setEditingId(null)} className="text-xs text-brand-muted px-1">Cancel</button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        {isOwn && !isConfirming && (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              onClick={() => { setEditingId(msg.id); setEditText(msg.message_text) }}
-                              aria-label="Edit message"
-                              className="text-brand-muted/60 hover:text-brand-dark transition-colors"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => setConfirmDeleteId(msg.id)}
-                              aria-label="Delete message"
-                              className="text-brand-muted/60 hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                        <div
-                          className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${
-                            isOwn
-                              ? 'bg-brand text-brand-dark rounded-br-sm'
-                              : 'bg-white border border-brand-border rounded-bl-sm'
-                          }`}
-                        >
-                          {msg.message_text}
+                  <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                    {/* Column caps at 80% of the FULL-WIDTH row above (not a shrink-to-fit
+                        parent), so bubbles never collapse to a couple chars or overflow. */}
+                    <div className={`flex flex-col min-w-0 max-w-[80%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                      {!isOwn && (
+                        <span className="text-xs text-brand-muted mb-0.5">
+                          {msg.profile?.name ?? 'Unknown'}
+                        </span>
+                      )}
+                      {isEditing ? (
+                        <div className="flex items-center gap-1 w-full">
+                          <input
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveEdit(msg)
+                              if (e.key === 'Escape') setEditingId(null)
+                            }}
+                            autoFocus
+                            className="flex-1 min-w-0 text-sm px-2.5 py-1.5 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand bg-white"
+                          />
+                          <button onClick={() => saveEdit(msg)} className="text-xs font-semibold text-brand-active px-1">Save</button>
+                          <button onClick={() => setEditingId(null)} className="text-xs text-brand-muted px-1">Cancel</button>
                         </div>
-                      </div>
-                    )}
-                    {isConfirming && (
-                      <div className="flex items-center gap-2 mt-1 text-xs">
-                        <span className="text-brand-muted">Delete this message?</span>
-                        <button onClick={() => deleteMsg(msg)} className="font-semibold text-red-500">Delete</button>
-                        <button onClick={() => setConfirmDeleteId(null)} className="text-brand-muted">Cancel</button>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+                          {isOwn && !isConfirming && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={() => { setEditingId(msg.id); setEditText(msg.message_text) }}
+                                aria-label="Edit message"
+                                className="text-brand-muted/60 hover:text-brand-dark transition-colors"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(msg.id)}
+                                aria-label="Delete message"
+                                className="text-brand-muted/60 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                          {/* min-w-0 lets the bubble shrink; break-words wraps a long unbreakable word. */}
+                          <div
+                            className={`min-w-0 rounded-2xl px-3 py-2 text-sm break-words ${
+                              isOwn
+                                ? 'bg-brand text-brand-dark rounded-br-sm'
+                                : 'bg-white border border-brand-border rounded-bl-sm'
+                            }`}
+                          >
+                            {msg.message_text}
+                          </div>
+                        </div>
+                      )}
+                      {isConfirming && (
+                        <div className="flex items-center gap-2 mt-1 text-xs">
+                          <span className="text-brand-muted">Delete this message?</span>
+                          <button onClick={() => deleteMsg(msg)} className="font-semibold text-red-500">Delete</button>
+                          <button onClick={() => setConfirmDeleteId(null)} className="text-brand-muted">Cancel</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )
               })
