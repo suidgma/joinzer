@@ -41,6 +41,14 @@ export default async function TournamentsPage(props: { searchParams: Promise<Sea
     ? query.lt('start_date', today).order('start_date', { ascending: false })
     : query.gte('start_date', today).order('start_date', { ascending: true })
 
+  // Public discovery shows only published/completed + public tournaments — hide drafts,
+  // cancelled, and private. A logged-in organizer still sees their OWN (any status/visibility),
+  // so an in-progress draft isn't lost from this list.
+  const publicVisible = 'and(status.neq.draft,status.neq.cancelled,visibility.eq.public)'
+  query = user
+    ? query.or(`${publicVisible},organizer_id.eq.${user.id}`)
+    : query.neq('status', 'draft').neq('status', 'cancelled').eq('visibility', 'public')
+
   const { data, error: queryError } = await query
 
   if (queryError) {
