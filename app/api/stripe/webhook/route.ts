@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
             const userIds = [...new Set(orderRegs.map((r: any) => r.user_id))]
             const [{ data: orderDivs }, { data: orderProfiles }, locResult] = await Promise.all([
               service.from('tournament_divisions').select('id, name').in('id', divIds),
-              service.from('profiles').select('id, name, email').in('id', userIds),
+              service.from('profiles').select('id, name, email, is_stub').in('id', userIds),
               (orderTournament as any).location_id
                 ? service.from('locations').select('name').eq('id', (orderTournament as any).location_id).single()
                 : Promise.resolve({ data: null }),
@@ -362,17 +362,45 @@ export async function POST(req: NextRequest) {
                 ...divNames.map((n) => ['Division', n] as EmailRow),
                 ...(payer?.name ? [['Registered by', payer.name] as EmailRow] : []),
               ]
+              const localName = partnerProf.email.split('@')[0].replace(/[^a-zA-Z]/g, '')
+              const partnerFirst = partnerProf.name && !partnerProf.name.includes('@')
+                ? partnerProf.name.split(' ')[0]
+                : (localName ? localName.charAt(0).toUpperCase() + localName.slice(1) : 'there')
+
+              // A stub partner (no Joinzer account yet) can't "View Tournament" — send a
+              // magic-link "claim your spot" instead so they can access their covered entry.
+              let heading = "You're registered! ✓"
+              let intro = `${payer?.name ?? 'Your partner'} paid your entry and added you to ${orderTournament.name}.`
+              let ctaLabel = 'View Tournament'
+              let ctaUrl = tournamentUrl
+              let footerNote = 'Your entry fee was covered by your partner.'
+              if ((partnerProf as any).is_stub) {
+                try {
+                  const { data: linkData } = await service.auth.admin.generateLink({
+                    type: 'magiclink',
+                    email: partnerProf.email,
+                    options: { redirectTo: `${siteUrl}/auth/callback` },
+                  })
+                  if ((linkData as any)?.properties?.action_link) {
+                    heading = "You've been added! ✓"
+                    intro = `${payer?.name ?? 'Your partner'} paid your entry to ${orderTournament.name} and added you as their partner. Claim your free Joinzer account to see it.`
+                    ctaLabel = 'Claim your spot'
+                    ctaUrl = (linkData as any).properties.action_link
+                    footerNote = "You won't be charged — your entry was covered. You're receiving this because someone registered you on Joinzer."
+                  }
+                } catch { /* fall back to the View Tournament CTA */ }
+              }
               sendEmail({
                 to: partnerProf.email,
                 subject: `You're registered — ${orderTournament.name}`,
                 html: registrationEmail({
-                  heading: "You're registered! ✓",
-                  firstName: partnerProf.name?.split(' ')[0] ?? 'there',
-                  intro: `${payer?.name ?? 'Your partner'} paid your entry and added you to ${orderTournament.name}.`,
+                  heading,
+                  firstName: partnerFirst,
+                  intro,
                   rows,
-                  ctaLabel: 'View Tournament',
-                  ctaUrl: tournamentUrl,
-                  footerNote: 'Your entry fee was covered by your partner.',
+                  ctaLabel,
+                  ctaUrl,
+                  footerNote,
                 }),
                 ...(buildAttachments().length > 0 ? { attachments: buildAttachments() } : {}),
               }).catch(() => {})

@@ -183,14 +183,17 @@ export default function BundleRegisterPanel({
                     <span>Also pay for my partner <span className="text-brand-muted/70">(+{fmt(d.baseCents)})</span></span>
                   </label>
                   {hasPartner && (
-                    <input
-                      type="email"
-                      inputMode="email"
-                      value={partnerEmail[d.id] ?? ''}
-                      onChange={(e) => setPartnerEmail((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                      placeholder="partner@email.com"
-                      className="mt-1 w-full rounded-lg border border-brand-border px-2.5 py-1.5 text-xs text-brand-dark placeholder:text-brand-muted/60 focus:outline-none focus:ring-1 focus:ring-brand"
-                    />
+                    <>
+                      <input
+                        type="email"
+                        inputMode="email"
+                        value={partnerEmail[d.id] ?? ''}
+                        onChange={(e) => setPartnerEmail((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                        placeholder="partner@email.com"
+                        className="mt-1 w-full rounded-lg border border-brand-border px-2.5 py-1.5 text-xs text-brand-dark placeholder:text-brand-muted/60 focus:outline-none focus:ring-1 focus:ring-brand"
+                      />
+                      <p className="mt-1 text-[11px] text-brand-muted/80">New to Joinzer? We&rsquo;ll email them an invite to claim their spot.</p>
+                    </>
                   )}
                 </div>
               )}
