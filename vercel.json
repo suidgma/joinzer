@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/cron/expire-tournament-orders",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 10 * * *"
     }
   ]
 }
