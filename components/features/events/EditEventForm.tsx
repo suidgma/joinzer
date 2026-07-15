@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import PrizesEditor from '@/components/features/PrizesEditor'
+import { normalizePrizes, type Prize } from '@/lib/prizes'
 import TimeSelect from './TimeSelect'
 import LocationCombobox from './LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
@@ -85,6 +87,7 @@ export default function EditEventForm({ event, locations }: Props) {
   const [priceCents, setPriceCents] = useState<number>(event.price_cents ?? 1000)
   const [noRefundDate, setNoRefundDate] = useState(event.no_refund_date ?? '')
   const [refundPolicy, setRefundPolicy] = useState(event.refund_policy ?? '')
+  const [prizes, setPrizes] = useState<Prize[]>(normalizePrizes((event as any).prizes))
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>(normalizeTiers((event as any).price_tiers))
   const [registrationClosesAt, setRegistrationClosesAt] = useState(
     event.registration_closes_at ? isoToPtLocal(event.registration_closes_at) : ''
@@ -161,6 +164,7 @@ export default function EditEventForm({ event, locations }: Props) {
           registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
           no_refund_date: noRefundDate || null,
           refund_policy: refundPolicy.trim() || null,
+          prizes: prizes.length ? prizes : null,
           price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
           ...prepareEventWrite({
             min_skill_level: minSkill ? parseFloat(minSkill) : null,
@@ -435,6 +439,10 @@ export default function EditEventForm({ event, locations }: Props) {
           rows={3}
           className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none"
         />
+      </div>
+
+      <div>
+        <PrizesEditor value={prizes} onChange={setPrizes} />
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

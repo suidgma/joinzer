@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import PrizesEditor from '@/components/features/PrizesEditor'
+import { normalizePrizes, type Prize } from '@/lib/prizes'
 import LocationCombobox from './LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
 import LocationMapButton from '@/components/features/LocationMapButton'
@@ -54,6 +56,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
   const [priceCents, setPriceCents] = useState<number>(defaults?.priceCents ?? 1000)
   const [noRefundDate, setNoRefundDate] = useState('')
   const [refundPolicy, setRefundPolicy] = useState('')
+  const [prizes, setPrizes] = useState<Prize[]>([])
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>([])
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly'>('none')
   const [registrationClosesAt, setRegistrationClosesAt] = useState('')
@@ -143,6 +146,7 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
       registration_closes_at: deadlineIso,
       no_refund_date: noRefundDate || null,
       refund_policy: refundPolicy.trim() || null,
+      prizes: prizes.length ? prizes : null,
       price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
     }))
 
@@ -505,6 +509,10 @@ export default function CreateEventForm({ locations, defaults }: { locations: Lo
           rows={3}
           className="input resize-none"
         />
+      </div>
+
+      <div>
+        <PrizesEditor value={prizes} onChange={setPrizes} />
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

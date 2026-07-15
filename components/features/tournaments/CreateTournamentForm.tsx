@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import PrizesEditor from '@/components/features/PrizesEditor'
+import { normalizePrizes, type Prize } from '@/lib/prizes'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
 import LocationMapButton from '@/components/features/LocationMapButton'
@@ -42,6 +44,7 @@ export default function CreateTournamentForm({ locations }: Props) {
   const [costDollars, setCostDollars] = useState('')
   const [noRefundDate, setNoRefundDate] = useState('')
   const [refundPolicy, setRefundPolicy] = useState('')
+  const [prizes, setPrizes] = useState<Prize[]>([])
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>([])
   const [multiDivPercent, setMultiDivPercent] = useState('')
   const [contactName, setContactName] = useState('')
@@ -114,6 +117,7 @@ export default function CreateTournamentForm({ locations }: Props) {
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
+        prizes: prizes.length ? prizes : null,
         price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         multi_division_discount: parseFloat(multiDivPercent) > 0 ? { type: 'percent_additional', value: parseFloat(multiDivPercent), min_divisions: 2 } : null,
         contact_name: contactName.trim() || null,
@@ -402,6 +406,9 @@ export default function CreateTournamentForm({ locations }: Props) {
             className="w-full input"
           />
         </FormRow>
+        <div className="py-4">
+          <PrizesEditor value={prizes} onChange={setPrizes} />
+        </div>
         <FormRow label="Registration" width="sm">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {(['open', 'closed'] as const).map((r) => (

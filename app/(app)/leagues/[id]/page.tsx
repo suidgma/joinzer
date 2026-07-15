@@ -17,6 +17,7 @@ import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import BoxLadderCheckIn from '@/components/features/leagues/BoxLadderCheckIn'
 import RefundPolicyNote from '@/components/features/RefundPolicyNote'
+import PrizesDisplay from '@/components/features/PrizesDisplay'
 import EarlyBirdNote from '@/components/features/EarlyBirdNote'
 import { resolvePriceCents } from '@/lib/payments/priceTiers'
 import CaptainRoster from '@/components/features/leagues/CaptainRoster'
@@ -531,6 +532,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           )}
           <EarlyBirdNote baseCents={(league as any).cost_cents ?? 0} tiers={(league as any).price_tiers} />
           <RefundPolicyNote policy={(league as any).refund_policy} noRefundDate={(league as any).no_refund_date} />
+          <PrizesDisplay prizes={(league as any).prizes} />
           {boxLadderCheckIn && (
             <BoxLadderCheckIn
               leagueId={league.id}

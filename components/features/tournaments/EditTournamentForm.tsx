@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import PrizesEditor from '@/components/features/PrizesEditor'
+import { normalizePrizes, type Prize } from '@/lib/prizes'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
 import LocationAddress from '@/components/features/LocationAddress'
 import NewLocationFields from '@/components/features/NewLocationFields'
@@ -61,6 +63,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
   )
   const [noRefundDate, setNoRefundDate] = useState((tournament as any).no_refund_date ?? '')
   const [refundPolicy, setRefundPolicy] = useState((tournament as any).refund_policy ?? '')
+  const [prizes, setPrizes] = useState<Prize[]>(normalizePrizes((tournament as any).prizes))
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>(normalizeTiers((tournament as any).price_tiers))
   const [multiDivPercent, setMultiDivPercent] = useState(
     (tournament as any).multi_division_discount?.type === 'percent_additional'
@@ -123,6 +126,7 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
+        prizes: prizes.length ? prizes : null,
         price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         multi_division_discount: parseFloat(multiDivPercent) > 0 ? { type: 'percent_additional', value: parseFloat(multiDivPercent), min_divisions: 2 } : null,
         contact_name: contactName.trim() || null,
@@ -357,6 +361,9 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
             className="w-full input"
           />
         </FormRow>
+        <div className="py-4">
+          <PrizesEditor value={prizes} onChange={setPrizes} />
+        </div>
         <FormRow label="Registration" width="sm">
           <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
             {(['open', 'closed'] as const).map((r) => (

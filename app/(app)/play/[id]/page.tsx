@@ -14,6 +14,7 @@ import type { EventDetail } from '@/lib/types'
 import ShareButton from '@/components/features/ShareButton'
 import PaymentTracker from '@/components/features/events/PaymentTracker'
 import RefundPolicyNote from '@/components/features/RefundPolicyNote'
+import PrizesDisplay from '@/components/features/PrizesDisplay'
 import EarlyBirdNote from '@/components/features/EarlyBirdNote'
 import { resolvePriceCents } from '@/lib/payments/priceTiers'
 import { getSiteUrl } from '@/lib/utils/site-url'
@@ -73,7 +74,7 @@ export default async function EventDetailPage(
         .select(`
           id, title, starts_at, duration_minutes, court_count, players_per_court,
           max_players, status, notes, registration_closes_at, skill_min, skill_max, creator_user_id, captain_user_id, location_id,
-          session_type, price_cents, price_tiers, no_refund_date, refund_policy,
+          session_type, price_cents, price_tiers, no_refund_date, refund_policy, prizes,
           location:locations!location_id (name, court_count, subarea, access_type),
           captain:profiles!captain_user_id (name),
           event_participants!event_id (
@@ -262,6 +263,7 @@ export default async function EventDetailPage(
 
       <EarlyBirdNote baseCents={(event as any).price_cents ?? 0} tiers={(event as any).price_tiers} />
       <RefundPolicyNote policy={(event as any).refund_policy} noRefundDate={(event as any).no_refund_date} />
+      <PrizesDisplay prizes={(event as any).prizes} />
 
       {/* Join / Leave */}
       {isActive && currentUserId && (
