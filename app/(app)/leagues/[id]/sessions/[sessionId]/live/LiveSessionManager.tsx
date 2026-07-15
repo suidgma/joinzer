@@ -499,14 +499,16 @@ function AssignSubModal({
 // ─── Session-complete prompt ──────────────────────────────────────────────────
 
 // Fired when the round-robin reaches its natural endpoint (every present player
-// has faced everyone). Three explicit choices — no destructive action hides on a
-// backdrop-dismiss, which just closes it.
+// has faced everyone). Requires an EXPLICIT choice — the backdrop does NOT dismiss.
+// (A stray tap right after entering the last score was closing it on the backdrop
+// before the organizer could read it; the effect won't re-open it once shown, so it
+// vanished for good.) It stays until they pick Generate / End the day / Not yet.
 function SessionCompleteModal({
   onGenerate, onEndDay, onClose, busy,
 }: { onGenerate: () => void; onEndDay: () => void; onClose: () => void; busy: boolean }) {
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4">
         <div>
           <h2 className="font-heading text-lg font-bold text-brand-dark">Everyone’s played everyone 🎉</h2>
           <p className="text-sm text-brand-muted mt-1">
