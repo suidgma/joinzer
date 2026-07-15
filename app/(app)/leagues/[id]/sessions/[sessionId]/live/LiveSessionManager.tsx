@@ -675,21 +675,16 @@ export default function LiveSessionManager({
   const sessionComplete = everyoneHasFacedEveryone(presentIds, completedForCheck)
   const showCompletionPrompt = sessionComplete && !activeRound
 
-  // Prompt at EVERY "everyone's played everyone + idle + fully scored" moment — i.e. after each
-  // completed round that lands on the round-robin's natural endpoint. The ref re-arms whenever we
-  // leave that state (a round in progress, or the last round still needs scores), so completing
-  // the next round prompts again. Firing only once let an organizer blow past to round 4 after the
-  // first prompt was missed/dismissed.
-  const [showCompleteModal, setShowCompleteModal] = useState(false)
-  const completionPromptedRef = useRef(false)
-  useEffect(() => {
-    const atEndpoint = showCompletionPrompt && !currentRoundNeedsScores
-    if (!atEndpoint) { completionPromptedRef.current = false; return }
-    if (!completionPromptedRef.current) {
-      completionPromptedRef.current = true
-      setShowCompleteModal(true)
-    }
-  }, [showCompletionPrompt, currentRoundNeedsScores]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Are we at the round-robin's natural endpoint right now — everyone present has faced everyone,
+  // no round in progress, and the last round fully scored? This is DERIVED, not a fire-once effect,
+  // so a background router.refresh() (the league layout refetches ~400ms after any score) or any
+  // other re-render can't drop the prompt: it shows whenever we're at the endpoint AND the organizer
+  // hasn't dismissed THIS one. Leaving the endpoint (a new round, or the last round needing scores)
+  // re-arms it, so completing the next round prompts again instead of only once.
+  const atEndpoint = showCompletionPrompt && !currentRoundNeedsScores
+  const [endpointDismissed, setEndpointDismissed] = useState(false)
+  useEffect(() => { if (!atEndpoint) setEndpointDismissed(false) }, [atEndpoint])
+  const showCompleteModal = atEndpoint && !endpointDismissed
 
   // --- Quick court preview ---
   function courtsPreview() {
@@ -1216,9 +1211,9 @@ export default function LiveSessionManager({
       {showCompleteModal && (
         <SessionCompleteModal
           busy={generating || endingDay}
-          onGenerate={() => { setShowCompleteModal(false); handleGenerate(false) }}
-          onEndDay={() => { setShowCompleteModal(false); doEndDay() }}
-          onClose={() => setShowCompleteModal(false)}
+          onGenerate={() => { setEndpointDismissed(true); handleGenerate(false) }}
+          onEndDay={() => { setEndpointDismissed(true); doEndDay() }}
+          onClose={() => setEndpointDismissed(true)}
         />
       )}
 
