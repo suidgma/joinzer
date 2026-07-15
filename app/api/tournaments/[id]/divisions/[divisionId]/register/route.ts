@@ -9,6 +9,7 @@ import { isDoublesFormat } from '@/lib/taxonomy/formats'
 import { icsFilename } from '@/lib/utils/slug'
 import { getSiteUrl } from '@/lib/utils/site-url'
 import { resolvePriceCents } from '@/lib/payments/priceTiers'
+import { organizerCanCharge } from '@/lib/payments/paidEventGate'
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -359,6 +360,11 @@ export async function POST(
     if (costCents > 0) {
       if (!tournamentForPay) {
         return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+      }
+
+      // Backstop: an unapproved organizer can't collect money even if a paid event slipped past the create/edit gate.
+      if (!(await organizerCanCharge(service, tournamentForPay.organizer_id))) {
+        return NextResponse.json({ error: "This organizer isn't set up to accept payments yet." }, { status: 403 })
       }
 
       const { data: organizerProfile } = await service

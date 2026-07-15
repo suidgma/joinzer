@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import EnablePaymentsCTA from '@/components/features/EnablePaymentsCTA'
 import PrizesEditor from '@/components/features/PrizesEditor'
 import { normalizePrizes, type Prize } from '@/lib/prizes'
 import { formatSessionDate } from '@/lib/utils/date'
@@ -104,6 +105,7 @@ type Props = {
   sessions: SessionRow[]
   formatLocked: boolean
   locations: LocationOption[]
+  canCreatePaid: boolean
 }
 
 export default function EditLeagueForm({
@@ -115,6 +117,7 @@ export default function EditLeagueForm({
   sessions,
   formatLocked,
   locations,
+  canCreatePaid,
 }: Props) {
   const router = useRouter()
 
@@ -713,13 +716,17 @@ export default function EditLeagueForm({
               value={costDollars}
               onChange={(e) => setCostDollars(e.target.value)}
               placeholder="0"
-              className="w-full input pl-7"
+              disabled={!canCreatePaid}
+              className="w-full input pl-7 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
+          {!canCreatePaid && <EnablePaymentsCTA what="your league" className="mt-2" />}
         </FormRow>
-        <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
-          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
-        </FormRow>
+        {canCreatePaid && (
+          <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
+            <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
+          </FormRow>
+        )}
         <FormRow
           label="No-refund date"
           htmlFor="no-refund-date"

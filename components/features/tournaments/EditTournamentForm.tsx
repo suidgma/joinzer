@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import EnablePaymentsCTA from '@/components/features/EnablePaymentsCTA'
 import PrizesEditor from '@/components/features/PrizesEditor'
 import { normalizePrizes, type Prize } from '@/lib/prizes'
 import LocationCombobox from '@/components/features/events/LocationCombobox'
@@ -19,6 +20,7 @@ import type { LocationOption, TournamentDetail } from '@/lib/types'
 type Props = {
   tournament: TournamentDetail
   locations: LocationOption[]
+  canCreatePaid: boolean
 }
 
 // Convert ISO timestamptz to YYYY-MM-DDTHH:mm in PT for datetime-local inputs
@@ -42,7 +44,7 @@ function ptLocalToIso(local: string): string {
   return `${local}:00${ptOffset}`
 }
 
-export default function EditTournamentForm({ tournament, locations }: Props) {
+export default function EditTournamentForm({ tournament, locations, canCreatePaid }: Props) {
   const router = useRouter()
   const [name, setName] = useState(tournament.name)
   const [description, setDescription] = useState(tournament.description ?? '')
@@ -291,34 +293,40 @@ export default function EditTournamentForm({ tournament, locations }: Props) {
               value={costDollars}
               onChange={(e) => setCostDollars(e.target.value)}
               placeholder="0.00"
-              className="w-full input pl-7"
+              disabled={!canCreatePaid}
+              className="w-full input pl-7 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
+          {!canCreatePaid && <EnablePaymentsCTA what="your tournament" className="mt-2" />}
         </FormRow>
-        <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
-          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
-        </FormRow>
-        <FormRow
-          label="Multi-division discount"
-          htmlFor="multi-div-pct"
-          width="sm"
-          helpText="Optional. Percent off each division after a player's most expensive one, when they enter 2+ at once."
-        >
-          <div className="relative w-24">
-            <input
-              id="multi-div-pct"
-              type="number"
-              min="0"
-              max="100"
-              step="5"
-              value={multiDivPercent}
-              onChange={(e) => setMultiDivPercent(e.target.value)}
-              placeholder="0"
-              className="w-full input pr-7"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">%</span>
-          </div>
-        </FormRow>
+        {canCreatePaid && (
+          <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
+            <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
+          </FormRow>
+        )}
+        {canCreatePaid && (
+          <FormRow
+            label="Multi-division discount"
+            htmlFor="multi-div-pct"
+            width="sm"
+            helpText="Optional. Percent off each division after a player's most expensive one, when they enter 2+ at once."
+          >
+            <div className="relative w-24">
+              <input
+                id="multi-div-pct"
+                type="number"
+                min="0"
+                max="100"
+                step="5"
+                value={multiDivPercent}
+                onChange={(e) => setMultiDivPercent(e.target.value)}
+                placeholder="0"
+                className="w-full input pr-7"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted text-sm">%</span>
+            </div>
+          </FormRow>
+        )}
         <FormRow
           label="Registration deadline"
           htmlFor="reg-closes"

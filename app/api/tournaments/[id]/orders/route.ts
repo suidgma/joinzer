@@ -8,6 +8,7 @@ import { computeBundle, normalizeMultiDivisionDiscount, type BundleItem } from '
 import { reapAbandonedTournamentOrders } from '@/lib/payments/reapAbandonedOrders'
 import { createStub, listAllAuthUsers, normalizeEmail } from '@/lib/users/stubs'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
+import { organizerCanCharge } from '@/lib/payments/paidEventGate'
 
 // Gender-specific formats require both seats to match. Mirrors the single-division register route.
 const GENDER_REQUIRED: Record<string, string> = {
@@ -243,6 +244,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const subtotalCents = bundle.subtotalCents + partnerTotal
     const totalCents = bundle.totalCents + partnerTotal
     const isFree = totalCents <= 0
+
+    // Backstop: an unapproved organizer can't collect money. Gate before creating any
+    // reservation/order so a 403 leaves nothing half-created (a fully-discounted $0 bundle is fine).
+    if (!isFree && !(await organizerCanCharge(service, (tournament as any).organizer_id))) {
+      return NextResponse.json({ error: "This organizer isn't set up to accept payments yet." }, { status: 403 })
+    }
 
     const { data: order, error: orderErr } = await service
       .from('tournament_orders')

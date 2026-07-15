@@ -52,6 +52,12 @@ export default async function EditTournamentPage(props: { params: Promise<{ id: 
 
   const locations = (locationData ?? []) as LocationOption[]
 
+  let canCreatePaid = false
+  if (user) {
+    const { data: prof } = await supabase.from('profiles').select('can_create_paid_events').eq('id', user.id).single()
+    canCreatePaid = !!prof?.can_create_paid_events
+  }
+
   return (
     <DesktopShell
       header={
@@ -63,7 +69,7 @@ export default async function EditTournamentPage(props: { params: Promise<{ id: 
       }
       rail={<WizardOutline steps={STEPS} title="Edit Tournament" />}
     >
-      <EditTournamentForm tournament={tournament} locations={locations} />
+      <EditTournamentForm tournament={tournament} locations={locations} canCreatePaid={canCreatePaid} />
     </DesktopShell>
   )
 }

@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
 import { resolvePriceCents } from '@/lib/payments/priceTiers'
+import { organizerCanCharge } from '@/lib/payments/paidEventGate'
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -82,6 +83,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         }
       }
       return NextResponse.json({ free: true })
+    }
+
+    // Backstop: an unapproved organizer can't collect money even if a paid event slipped past the create/edit gate.
+    if (!(await organizerCanCharge(service, (tournament as any).organizer_id))) {
+      return NextResponse.json({ error: "This organizer isn't set up to accept payments yet." }, { status: 403 })
     }
 
     const { data: division } = await service
