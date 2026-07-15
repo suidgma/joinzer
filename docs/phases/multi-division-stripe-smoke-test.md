@@ -7,6 +7,11 @@
 > **NEVER run this with live keys.** Use `sk_test_…` throughout. Recommended path below is local dev +
 > Stripe test keys + Stripe CLI, testing the **non-Connect** path (plain platform charge — no test
 > Connect account needed). ~15 min. Design: `docs/phases/multi-division-cart.md`.
+>
+> **✅ Run July 15, 2026 — PASSED.** All four checks green: reserve-then-pay, webhook `tournament_order`
+> fulfillment, confirmation email, and per-seat `net_cents` refund (cancelled one bundled division →
+> refunded only its `$9` of `$18`, the sibling stayed `paid`). Only the Connect destination-charge
+> branch (`reverse_transfer`) remains unverified — needs a test Connect account.
 
 ---
 
