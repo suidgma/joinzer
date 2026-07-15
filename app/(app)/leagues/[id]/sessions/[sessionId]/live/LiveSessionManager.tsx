@@ -629,10 +629,17 @@ export default function LiveSessionManager({
   const sessionComplete = everyoneHasFacedEveryone(presentIds, completedForCheck)
   const showCompletionPrompt = sessionComplete && !activeRound
 
-  // The "everyone's played everyone" prompt is rendered INLINE (the emerald decision card below),
-  // not as a modal — a modal kept getting dropped by the page's realtime router.refresh(). As an
-  // inline section keyed off `showCompletionPrompt`, it simply re-derives on every render and stays
-  // put until the organizer generates another round or ends the day.
+  // The "everyone's played everyone" prompt is an INLINE card (below), not a modal. To stop it
+  // flickering out, it's LATCHED: turned on once we reach the endpoint and cleared ONLY when a new
+  // round actually starts (the organizer chose to keep playing). A transient re-render — the page's
+  // realtime refresh could momentarily flip `sessionComplete` via a stray player-status event — can
+  // no longer drop it, because we don't clear the latch when it goes false, only when a round begins.
+  const [endpointLatched, setEndpointLatched] = useState(false)
+  useEffect(() => {
+    if (showCompletionPrompt) setEndpointLatched(true)
+    else if (activeRound) setEndpointLatched(false)
+  }, [showCompletionPrompt, activeRound])
+  const showEndpointCard = endpointLatched && !activeRound
 
   // --- Quick court preview ---
   function courtsPreview() {
@@ -1030,7 +1037,7 @@ export default function LiveSessionManager({
         {/* Natural-endpoint decision prompt — a PERSISTENT inline card (replaces a modal that kept
             getting dropped by the page's realtime refresh). Stays visible until the organizer picks
             a next step: generate another round, or end the day. */}
-        {showCompletionPrompt && (
+        {showEndpointCard && (
           <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-3">
             <div>
               <p className="text-base font-bold text-emerald-900">🎉 Everyone’s played everyone</p>
@@ -1162,7 +1169,7 @@ export default function LiveSessionManager({
 
       {/* ── End the Day ───────────────────────────────────────── */}
       {/* Hidden at the natural endpoint — the decision card above already offers End the day. */}
-      {completedCount >= 1 && !activeRound && !showCompletionPrompt && (
+      {completedCount >= 1 && !activeRound && !showEndpointCard && (
         <section className="pt-2 border-t border-brand-border">
           <p className="text-xs text-brand-muted text-center mb-3">
             {completedCount} round{completedCount !== 1 ? 's' : ''} played. Generate more above, or wrap up when you&apos;re done.
