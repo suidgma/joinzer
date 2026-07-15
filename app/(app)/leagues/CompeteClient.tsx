@@ -63,6 +63,7 @@ type League = {
 type Props = {
   leagues: League[]
   isLoggedIn: boolean
+  when?: 'upcoming' | 'past'
 }
 
 function fmtDate(d: string | null, year = false) {
@@ -72,7 +73,7 @@ function fmtDate(d: string | null, year = false) {
   })
 }
 
-export default function CompeteClient({ leagues, isLoggedIn }: Props) {
+export default function CompeteClient({ leagues, isLoggedIn, when = 'upcoming' }: Props) {
   const [activeFilters, setActiveFilters] = useState<Set<SkillTier>>(new Set())
 
   function toggleTier(tier: SkillTier) {
@@ -137,7 +138,11 @@ export default function CompeteClient({ leagues, isLoggedIn }: Props) {
 
         {visibleLeagues.length === 0 ? (
           <p className="text-sm text-brand-muted text-center py-8">
-            {filtering ? 'No leagues match this skill level.' : 'No active leagues yet.'}
+            {filtering
+              ? 'No leagues match this skill level.'
+              : when === 'past'
+                ? 'No past leagues yet.'
+                : 'No active leagues yet.'}
           </p>
         ) : (
           <div className="space-y-3">

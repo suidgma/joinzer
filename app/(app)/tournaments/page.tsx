@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import TournamentSearch from '@/components/features/tournaments/TournamentSearch'
+import UpcomingPastToggle from '@/components/features/UpcomingPastToggle'
 import Link from 'next/link'
 import type { TournamentListItem } from '@/lib/types'
 
-type SearchParams = { showTest?: string }
+type SearchParams = { showTest?: string; when?: string }
 
 export default async function TournamentsPage(props: { searchParams: Promise<SearchParams> }) {
   const supabase = createClient()
@@ -24,6 +25,7 @@ export default async function TournamentsPage(props: { searchParams: Promise<Sea
     isAdmin = profile?.is_admin ?? false
   }
   const showTest = isAdmin && searchParams.showTest === '1'
+  const when: 'upcoming' | 'past' = searchParams.when === 'past' ? 'past' : 'upcoming'
 
   let query = supabase
     .from('tournaments')
@@ -33,8 +35,11 @@ export default async function TournamentsPage(props: { searchParams: Promise<Sea
       location:locations!location_id (name),
       organizer:profiles!organizer_id (name)
     `)
-    .gte('start_date', today)
-    .order('start_date', { ascending: true })
+
+  // Past = already started; upcoming = today onward. Past lists newest-first.
+  query = when === 'past'
+    ? query.lt('start_date', today).order('start_date', { ascending: false })
+    : query.gte('start_date', today).order('start_date', { ascending: true })
 
   const { data, error: queryError } = await query
 
@@ -60,14 +65,20 @@ export default async function TournamentsPage(props: { searchParams: Promise<Sea
         )}
       </div>
 
+      <UpcomingPastToggle basePath="/tournaments" searchParams={searchParams} when={when} />
+
       {tournaments.length === 0 ? (
         <div className="bg-brand-surface border border-brand-border rounded-2xl p-8 text-center space-y-3">
           <p className="text-2xl">🏆</p>
-          <p className="text-sm font-medium text-brand-dark">No tournaments yet</p>
-          <p className="text-xs text-brand-muted">
-            Check back soon for upcoming local pickleball tournaments.
+          <p className="text-sm font-medium text-brand-dark">
+            {when === 'past' ? 'No past tournaments' : 'No tournaments yet'}
           </p>
-          {isLoggedIn && (
+          <p className="text-xs text-brand-muted">
+            {when === 'past'
+              ? 'Past tournaments will show up here once events have wrapped up.'
+              : 'Check back soon for upcoming local pickleball tournaments.'}
+          </p>
+          {isLoggedIn && when !== 'past' && (
             <Link
               href="/tournaments/create"
               className="inline-block mt-2 bg-brand text-brand-dark text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-brand-hover transition-colors"

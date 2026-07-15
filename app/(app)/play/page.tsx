@@ -3,6 +3,7 @@ import EventCard from '@/components/features/events/EventCard'
 import EventFilters from '@/components/features/events/EventFilters'
 import EventCalendar from '@/components/features/events/EventCalendar'
 import AvailabilityButton from '@/components/features/availability/AvailabilityButton'
+import UpcomingPastToggle from '@/components/features/UpcomingPastToggle'
 import type { EventListItem, LocationOption } from '@/lib/types'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -23,6 +24,7 @@ type SearchParams = {
   location?: string
   type?: string
   q?: string
+  when?: string
 }
 
 export default async function EventsPage(
@@ -40,6 +42,8 @@ export default async function EventsPage(
   const locationFilter = searchParams.location ?? null
   const typeFilter = searchParams.type ?? null
   const qFilter = searchParams.q?.trim() ?? null
+  const when: 'upcoming' | 'past' = searchParams.when === 'past' ? 'past' : 'upcoming'
+  const nowIso = new Date().toISOString()
 
   // Build base query
   let query = supabase
@@ -51,18 +55,20 @@ export default async function EventsPage(
       captain:profiles!captain_user_id (name),
       event_participants!event_id (participant_status)
     `)
-    .in('status', ['open', 'full'])
+    // Past view includes 'completed' sessions and excludes 'cancelled'; upcoming stays open/full.
+    .in('status', when === 'past' ? ['open', 'full', 'completed'] : ['open', 'full'])
 
-  // Date filter — calendar fetches the whole current month regardless
+  // Date filter — calendar fetches the whole month; otherwise split by upcoming vs past.
   if (view === 'calendar' && !dateFilter) {
-    // Fetch all future events so the calendar can show dots across months
-    query = query.gte('starts_at', new Date().toISOString())
+    query = when === 'past' ? query.lt('starts_at', nowIso) : query.gte('starts_at', nowIso)
   } else if (dateFilter) {
     const start = new Date(`${dateFilter}T00:00:00-0${VEGAS_OFFSET_HOURS}:00`).toISOString()
     const end = new Date(`${dateFilter}T23:59:59-0${VEGAS_OFFSET_HOURS}:00`).toISOString()
     query = query.gte('starts_at', start).lte('starts_at', end)
+  } else if (when === 'past') {
+    query = query.lt('starts_at', nowIso)
   } else {
-    query = query.gte('starts_at', new Date().toISOString())
+    query = query.gte('starts_at', nowIso)
   }
 
   // Location filter
@@ -106,13 +112,17 @@ export default async function EventsPage(
     events = events.filter((ev) => ev.session_type === 'free_clinic' || ev.session_type === 'paid_clinic')
   }
 
-  // Sort: clinics first, then by starts_at ASC within each group
-  events.sort((a, b) => {
-    const aIsClinic = (a.session_type === 'free_clinic' || a.session_type === 'paid_clinic') ? 0 : 1
-    const bIsClinic = (b.session_type === 'free_clinic' || b.session_type === 'paid_clinic') ? 0 : 1
-    if (aIsClinic !== bIsClinic) return aIsClinic - bIsClinic
-    return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
-  })
+  // Past sessions list newest-first; upcoming leads with clinics, then soonest first.
+  if (when === 'past') {
+    events.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())
+  } else {
+    events.sort((a, b) => {
+      const aIsClinic = (a.session_type === 'free_clinic' || a.session_type === 'paid_clinic') ? 0 : 1
+      const bIsClinic = (b.session_type === 'free_clinic' || b.session_type === 'paid_clinic') ? 0 : 1
+      if (aIsClinic !== bIsClinic) return aIsClinic - bIsClinic
+      return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+    })
+  }
 
   // Fetch locations for the filter dropdown
   const { data: locationData } = await supabase
@@ -161,6 +171,8 @@ export default async function EventsPage(
         </Link>
       </div>
 
+      <UpcomingPastToggle basePath="/play" searchParams={searchParams} when={when} />
+
       <Suspense>
         <EventFilters locations={locations} view={view} />
       </Suspense>
@@ -173,7 +185,7 @@ export default async function EventsPage(
         <>
           {events.length === 0 ? (
             <p className="text-sm text-brand-muted text-center py-12">
-              No sessions match your filters.
+              {when === 'past' ? 'No past sessions yet.' : 'No sessions match your filters.'}
             </p>
           ) : (
             <div className="space-y-3">
