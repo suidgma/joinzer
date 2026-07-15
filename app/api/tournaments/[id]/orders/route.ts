@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { createClient as createServiceClient, type User } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
 import { resolvePriceCents } from '@/lib/payments/priceTiers'
 import { computeBundle, normalizeMultiDivisionDiscount, type BundleItem } from '@/lib/payments/multiDivisionDiscount'
 import { reapAbandonedTournamentOrders } from '@/lib/payments/reapAbandonedOrders'
+import { createStub, listAllAuthUsers, normalizeEmail } from '@/lib/users/stubs'
 import { isDoublesFormat } from '@/lib/taxonomy/formats'
 
 // Gender-specific formats require both seats to match. Mirrors the single-division register route.
@@ -120,30 +121,57 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       regsByDiv.get(r.division_id)!.push(r)
     }
 
-    // Resolve each partner (must have an account, not the payer, not already registered, gender ok).
-    const partnerByDiv = new Map<string, { userId: string; email: string }>()
-    const profileByEmail = new Map<string, { id: string; gender: string | null } | null>()
+    // Resolve each partner email to a user id: an existing account, OR a fresh stub account
+    // if they're not on Joinzer yet (the webhook emails covered stubs a magic-link "claim your
+    // spot" after payment). Guards: not the payer, not already registered, gender-matched.
+    const emailToDivs = new Map<string, string[]>()
     for (const [divId, email] of partnerEmailByDiv) {
-      if (!profileByEmail.has(email)) {
-        const { data } = await service.from('profiles').select('id, gender').ilike('email', email).maybeSingle()
-        profileByEmail.set(email, (data as any) ?? null)
+      if (!emailToDivs.has(email)) emailToDivs.set(email, [])
+      emailToDivs.get(email)!.push(divId)
+    }
+
+    const partnerUserByEmail = new Map<string, string>()
+    let userByNormEmail: Map<string, User> | null = null // built lazily, only if a stub is needed
+    for (const [email, divIds] of emailToDivs) {
+      const { data: prof } = await service.from('profiles').select('id, gender').ilike('email', email).maybeSingle()
+      // The partner must satisfy the gender of every gender-specific division they'd join.
+      const needs = [...new Set(divIds.map((id) => GENDER_REQUIRED[divById.get(id)!.format]).filter(Boolean))]
+      if (needs.length > 1) {
+        return NextResponse.json({ error: `Your partner can't be in both a men's and a women's division.` }, { status: 400 })
       }
-      const prof = profileByEmail.get(email)!
-      const d = divById.get(divId)!
-      if (!prof) {
-        return NextResponse.json({ error: `No Joinzer account found for ${email}. They'll need an account, or you can register them separately.` }, { status: 404 })
+      const needGender = needs[0] ?? null
+
+      let partnerId: string
+      if (prof) {
+        partnerId = (prof as any).id
+        if (needGender && (prof as any).gender !== needGender) {
+          return NextResponse.json({ error: `Your partner doesn't meet the gender requirement.` }, { status: 400 })
+        }
+      } else {
+        // Not on Joinzer yet → create a stub. For a gender-specific division the partner must be
+        // that gender, so stamp it on the stub; a gender-neutral division leaves it unset.
+        if (!userByNormEmail) {
+          const allUsers = await listAllAuthUsers(service)
+          userByNormEmail = new Map(allUsers.map((u) => [normalizeEmail(u.email ?? ''), u]))
+        }
+        const { userId } = await createStub(service, email, userByNormEmail, needGender ? { gender: needGender } : {})
+        partnerId = userId
       }
-      if (prof.id === user.id) {
-        return NextResponse.json({ error: `You can't add yourself as your own partner in ${d.name}.` }, { status: 400 })
+
+      if (partnerId === user.id) {
+        return NextResponse.json({ error: `You can't add yourself as your own partner.` }, { status: 400 })
       }
-      if ((regsByDiv.get(divId) ?? []).some((r) => r.user_id === prof.id)) {
-        return NextResponse.json({ error: `Your partner is already registered for ${d.name}.` }, { status: 409 })
+      for (const divId of divIds) {
+        if ((regsByDiv.get(divId) ?? []).some((r) => r.user_id === partnerId)) {
+          return NextResponse.json({ error: `Your partner is already registered for ${divById.get(divId)!.name}.` }, { status: 409 })
+        }
       }
-      const need = GENDER_REQUIRED[d.format]
-      if (need && prof.gender !== need) {
-        return NextResponse.json({ error: `Your partner doesn't meet the gender requirement for ${d.name}.` }, { status: 400 })
-      }
-      partnerByDiv.set(divId, { userId: prof.id, email })
+      partnerUserByEmail.set(email, partnerId)
+    }
+
+    const partnerByDiv = new Map<string, { userId: string; email: string }>()
+    for (const [divId, email] of partnerEmailByDiv) {
+      partnerByDiv.set(divId, { userId: partnerUserByEmail.get(email)!, email })
     }
 
     // Payer eligibility + capacity per division.
