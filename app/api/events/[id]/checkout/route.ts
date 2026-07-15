@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
 import { resolvePriceCents } from '@/lib/payments/priceTiers'
+import { organizerCanCharge } from '@/lib/payments/paidEventGate'
 
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -19,7 +20,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: event } = await service
       .from('events')
-      .select('id, title, starts_at, price_cents, price_tiers, status, max_players, session_type, registration_closes_at')
+      .select('id, title, starts_at, price_cents, price_tiers, status, max_players, session_type, registration_closes_at, captain_user_id, creator_user_id')
       .eq('id', params.id)
       .single()
 
@@ -34,6 +35,12 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
 
     const priceCents = resolvePriceCents(event.price_cents ?? 0, (event as any).price_tiers, new Date())
     if (priceCents <= 0) return NextResponse.json({ error: 'This event is free — use the regular join flow' }, { status: 400 })
+
+    // Backstop: an unapproved organizer can't collect money even if a paid session slipped past the create/edit gate.
+    const eventOrganizerId = (event as any).captain_user_id ?? (event as any).creator_user_id
+    if (!(await organizerCanCharge(service, eventOrganizerId))) {
+      return NextResponse.json({ error: "This organizer isn't set up to accept payments yet." }, { status: 403 })
+    }
 
     // Check they haven't already paid
     const { data: existing } = await service

@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getSiteUrl } from '@/lib/utils/site-url'
 import { resolvePriceCents } from '@/lib/payments/priceTiers'
+import { organizerCanCharge } from '@/lib/payments/paidEventGate'
 
 const DOUBLES_FORMATS = ['mens_doubles', 'womens_doubles', 'mixed_doubles', 'coed_doubles']
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const { data: league } = await service
       .from('leagues')
-      .select('id, name, cost_cents, price_tiers, format, registration_status, registration_closes_at, max_players')
+      .select('id, name, cost_cents, price_tiers, format, registration_status, registration_closes_at, max_players, created_by')
       .eq('id', params.id)
       .single()
 
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const costCents = resolvePriceCents((league as any).cost_cents ?? 0, (league as any).price_tiers, new Date())
     if (costCents <= 0) return NextResponse.json({ error: 'This league is free — use the regular register flow' }, { status: 400 })
+
+    // Backstop: an unapproved organizer can't collect money even if a paid league slipped past the create/edit gate.
+    if (!(await organizerCanCharge(service, (league as any).created_by))) {
+      return NextResponse.json({ error: "This organizer isn't set up to accept payments yet." }, { status: 403 })
+    }
 
     const registrationType: 'team' | 'solo' = body.registration_type === 'solo' ? 'solo' : 'team'
     const isDoublesTeam = DOUBLES_FORMATS.includes(league.format) && registrationType === 'team'

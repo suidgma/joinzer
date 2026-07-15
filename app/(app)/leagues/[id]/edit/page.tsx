@@ -75,6 +75,12 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
     .order('sort_order', { ascending: true })
   const locations = (locationData ?? []) as LocationOption[]
 
+  let canCreatePaid = false
+  if (user) {
+    const { data: prof } = await supabase.from('profiles').select('can_create_paid_events').eq('id', user.id).single()
+    canCreatePaid = !!prof?.can_create_paid_events
+  }
+
   const navItems: ManageNavItem[] = [
     { label: 'Overview', href: `/leagues/${id}` },
     { label: 'Standings', href: `/leagues/${id}/standings` },
@@ -104,6 +110,7 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
         sessions={(sessionRows ?? []) as any[]}
         formatLocked={formatLocked}
         locations={locations}
+        canCreatePaid={canCreatePaid}
       />
     </DesktopShell>
   )

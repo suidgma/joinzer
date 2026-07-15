@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import EnablePaymentsCTA from '@/components/features/EnablePaymentsCTA'
 import PrizesEditor from '@/components/features/PrizesEditor'
 import { normalizePrizes, type Prize } from '@/lib/prizes'
 import TimeSelect from './TimeSelect'
@@ -38,6 +39,7 @@ type Props = {
     location_id: string | null
   }
   locations: LocationOption[]
+  canCreatePaid: boolean
 }
 
 function computeEndTime(startTime: string, durationMinutes: number): string {
@@ -71,7 +73,7 @@ function ptLocalToIso(local: string): string {
   return `${local}:00${ptOffset}`
 }
 
-export default function EditEventForm({ event, locations }: Props) {
+export default function EditEventForm({ event, locations, canCreatePaid }: Props) {
   const [title, setTitle] = useState(event.title)
   const [locationId, setLocationId] = useState(event.location_id ?? '')
   const [addNewLocation, setAddNewLocation] = useState(false)
@@ -352,10 +354,11 @@ export default function EditEventForm({ event, locations }: Props) {
               <p className="text-xs text-brand-muted mt-0.5">No charge — shown with a FREE CLINIC badge above regular sessions.</p>
             </div>
           </label>
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label className={`flex items-start gap-3 ${canCreatePaid ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
             <input
               type="checkbox"
               checked={clinicType === 'paid'}
+              disabled={!canCreatePaid}
               onChange={(e) => setClinicType(e.target.checked ? 'paid' : 'none')}
               className="mt-0.5 w-4 h-4 accent-amber-500"
             />
@@ -364,8 +367,9 @@ export default function EditEventForm({ event, locations }: Props) {
               <p className="text-xs text-brand-muted mt-0.5">For clinics, court reservation costs, or any session with a player fee.</p>
             </div>
           </label>
+          {!canCreatePaid && <EnablePaymentsCTA what="your session" className="mt-1" />}
         </div>
-        {clinicType === 'paid' && (
+        {canCreatePaid && clinicType === 'paid' && (
           <div className="pl-7 space-y-1">
             <label className="block text-sm font-medium text-brand-dark">Fee per person</label>
             <select
@@ -407,13 +411,15 @@ export default function EditEventForm({ event, locations }: Props) {
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          Early-bird pricing <span className="text-gray-400 font-normal">(optional)</span>
-        </label>
-        <p className="text-xs text-gray-400 mb-1">Charge less for earlier sign-ups; the fee above is the full price.</p>
-        <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
-      </div>
+      {canCreatePaid && (
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Early-bird pricing <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <p className="text-xs text-gray-400 mb-1">Charge less for earlier sign-ups; the fee above is the full price.</p>
+          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium mb-1">

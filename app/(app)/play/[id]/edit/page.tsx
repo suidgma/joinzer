@@ -31,13 +31,19 @@ export default async function EditEventPage(props: { params: Promise<{ id: strin
 
   const locations = (locationData ?? []) as LocationOption[]
 
+  let canCreatePaid = false
+  if (user) {
+    const { data: prof } = await supabase.from('profiles').select('can_create_paid_events').eq('id', user.id).single()
+    canCreatePaid = !!prof?.can_create_paid_events
+  }
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <Link href={`/play/${params.id}`} className="text-sm text-gray-500 hover:text-black">
         ← Back to play
       </Link>
       <h1 className="text-xl font-bold">Edit Play</h1>
-      <EditEventForm event={event} locations={locations} />
+      <EditEventForm event={event} locations={locations} canCreatePaid={canCreatePaid} />
     </main>
   )
 }
