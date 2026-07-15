@@ -100,9 +100,9 @@ export default function BoxFixtures({
 
       if (completesCycle) {
         const go = await confirm({
-          title: 'Cycle complete! 🎉',
-          body: 'Every match is scored. Advance to the next cycle now? This promotes the top and relegates the bottom of each box, then opens the next cycle.',
-          confirmLabel: 'Advance to next cycle',
+          title: 'Everyone’s played everyone 🎉',
+          body: 'Every player has faced everyone in their box. End the day to advance the cycle — the top of each box is promoted and the bottom relegated, then the next cycle opens.',
+          confirmLabel: '🏁 End the day & advance',
           cancelLabel: 'Not yet',
         })
         if (go) {

@@ -14,11 +14,11 @@ export default function BoxCycleBar({
 
   async function advance() {
     const ok = await confirm({
-      title: `Finish Cycle ${cycleNumber}?`,
+      title: 'End the day?',
       body: incomplete > 0
-        ? `${incomplete} match${incomplete === 1 ? '' : 'es'} still ${incomplete === 1 ? 'has' : 'have'} no score. Advancing closes this cycle using the current standings, promotes/relegates, and opens Cycle ${cycleNumber + 1}.`
-        : `Closes this cycle, promotes the top and relegates the bottom of each box, and opens Cycle ${cycleNumber + 1}.`,
-      confirmLabel: 'Advance',
+        ? `${incomplete} match${incomplete === 1 ? '' : 'es'} still ${incomplete === 1 ? 'has' : 'have'} no score. Ending the day closes this cycle using the current standings, promotes/relegates, and opens Cycle ${cycleNumber + 1}.`
+        : `Ends the day and closes this cycle — promotes the top and relegates the bottom of each box, then opens Cycle ${cycleNumber + 1}.`,
+      confirmLabel: 'End the day & advance',
     })
     if (!ok) return
     setBusy(true)
@@ -47,9 +47,9 @@ export default function BoxCycleBar({
     return (
       <div className="mb-4 flex items-center justify-between gap-3 flex-wrap bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-emerald-900">🎉 Cycle {cycleNumber} complete</p>
+          <p className="text-sm font-semibold text-emerald-900">🎉 Everyone’s played everyone</p>
           <p className="text-xs text-emerald-700">
-            Everyone has played everyone in their box. Advancing promotes the top and relegates the bottom of each box into Cycle {cycleNumber + 1}.
+            Every player has faced everyone in their box. End the day to advance — the top of each box is promoted and the bottom relegated into Cycle {cycleNumber + 1}.
           </p>
         </div>
         <button
@@ -57,7 +57,7 @@ export default function BoxCycleBar({
           disabled={busy}
           className="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
         >
-          {busy ? 'Advancing…' : 'Advance to next cycle →'}
+          {busy ? 'Ending…' : '🏁 End the day & advance →'}
         </button>
       </div>
     )
@@ -75,7 +75,7 @@ export default function BoxCycleBar({
           disabled={busy}
           className="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
         >
-          {busy ? 'Advancing…' : 'Advance to next cycle →'}
+          {busy ? 'Ending…' : '🏁 End the day early →'}
         </button>
       )}
     </div>
