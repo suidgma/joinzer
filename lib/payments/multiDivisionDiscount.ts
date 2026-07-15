@@ -2,9 +2,14 @@
 //
 // Given the per-division base prices (already tier-resolved) and the organizer's
 // bundle-discount config, computes the order subtotal, the bundle discount, an
-// optional stacked code discount, the final total, and — critically — each
-// division's ALLOCATED share of that total (`netCents`) so a later single-division
-// refund gives back exactly what that division contributed.
+// optional stacked code discount, the final total, and each division's pro-rata
+// share of that total (`netCents`) for receipts/accounting.
+//
+// NOTE ON REFUNDS: per-division cancels do NOT refund the stored `netCents` — a
+// static split is exploitable (cancel a deeply-discounted add-on and you'd shrink
+// what you paid for a division you keep). The cancel route instead uses
+// `bundleCancelRefundCents` (below), which recomputes the bundle over the divisions
+// that remain, so a cancel refunds only the *marginal* amount that division added.
 
 export type BundleItem = { divisionId: string; baseCents: number }
 
@@ -93,4 +98,29 @@ export function computeBundle(
     totalCents: total,
     items: allocate(items, total),
   }
+}
+
+// Refund for cancelling ONE division out of a bundle: the marginal amount that
+// division contributes at the bundle's current size, i.e.
+//   bundleTotal(divisions still active) − bundleTotal(those minus the cancelled one).
+// Recomputed (not the stored pro-rata `netCents`) so:
+//   - cancelling a deeply-discounted add-on refunds only its discounted price, and
+//   - dropping below `min_divisions` removes the discount from what remains, so a
+//     kept division is always repriced to its fair standalone/marginal price.
+// This closes the arbitrage in BOTH directions (cancel the add-on OR the anchor).
+// Only the payer's own bundled divisions go through here; partner "pay-for-both"
+// seats are full-price standalone items and refund their own base.
+export function bundleCancelRefundCents(
+  activeBaseCentsBefore: number[], // base_cents of every still-active payer division in the order (incl. the one being cancelled)
+  cancelledBaseCents: number,      // base_cents of the division being cancelled (one of the above)
+  discount: MultiDivisionDiscount | null | undefined,
+): number {
+  const toItems = (cents: number[]): BundleItem[] =>
+    cents.map((c, i) => ({ divisionId: String(i), baseCents: c }))
+  const before = computeBundle(toItems(activeBaseCentsBefore), discount).totalCents
+  const after = [...activeBaseCentsBefore]
+  const idx = after.indexOf(cancelledBaseCents)
+  if (idx >= 0) after.splice(idx, 1) // remove one matching base; identity doesn't matter, only the multiset
+  const afterTotal = computeBundle(toItems(after), discount).totalCents
+  return Math.max(0, before - afterTotal)
 }

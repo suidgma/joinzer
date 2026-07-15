@@ -5,6 +5,7 @@ import Stripe from 'stripe'
 import { sendEmail } from '@/lib/email/send'
 import { logAudit } from '@/lib/audit/log'
 import { getSiteUrl } from '@/lib/utils/site-url'
+import { normalizeMultiDivisionDiscount, bundleCancelRefundCents } from '@/lib/payments/multiDivisionDiscount'
 
 type Params = { params: Promise<{ id: string; regId: string }> }
 
@@ -32,7 +33,7 @@ export async function POST(_req: NextRequest, props: Params) {
   // registration_closes_at: deadline that gates the REFUND (not the cancellation).
   const { data: tournament } = await service
     .from('tournaments')
-    .select('id, name, organizer_id, registration_closes_at, no_refund_date')
+    .select('id, name, organizer_id, registration_closes_at, no_refund_date, multi_division_discount')
     .eq('id', params.id)
     .single()
 
@@ -64,18 +65,62 @@ export async function POST(_req: NextRequest, props: Params) {
     const withinDeadline = !cutoff || new Date() < cutoff
 
     if (withinDeadline) {
-      // A registration that's part of a multi-division ORDER shares one payment with
-      // its sibling divisions, so refund only THIS division's allocated share
-      // (net_cents). A standalone registration refunds the full payment.
+      // How much to refund:
+      //  - standalone reg (no order item) → the full payment (refundCents = null).
+      //  - payer's own bundled division → the MARGINAL bundle value it adds now,
+      //    recomputed over the divisions that remain (never the stored pro-rata
+      //    net_cents), so cancelling a discounted add-on can't shrink what you paid
+      //    for a division you keep, and dropping below the discount threshold reprices
+      //    what remains to its fair standalone price.
+      //  - partner "pay-for-both" seat (someone else's reg, full price) → its own share.
+      let refundCents: number | null = null // null = refund the whole PaymentIntent
+
       const { data: orderItem } = await service
         .from('tournament_order_items')
-        .select('net_cents')
+        .select('order_id, net_cents, base_cents')
         .eq('registration_id', params.regId)
         .maybeSingle()
-      const bundledCents: number | null = orderItem ? ((orderItem as any).net_cents ?? 0) : null
 
-      // Free bundled division (net 0) — nothing to refund; mark refunded and cancel below.
-      if (bundledCents !== null && bundledCents <= 0) {
+      if (orderItem) {
+        const { data: order } = await service
+          .from('tournament_orders')
+          .select('user_id, discount_config')
+          .eq('id', (orderItem as any).order_id)
+          .single()
+        const payerId = (order as any)?.user_id
+
+        if (order && reg.user_id === payerId) {
+          // Payer's own division — marginal recompute over the payer's still-active divisions.
+          const { data: siblingItems } = await service
+            .from('tournament_order_items')
+            .select('base_cents, registration_id')
+            .eq('order_id', (orderItem as any).order_id)
+          const regIds = (siblingItems ?? []).map((i: any) => i.registration_id).filter(Boolean)
+          const { data: siblingRegs } = await service
+            .from('tournament_registrations')
+            .select('id, user_id, status, payment_status')
+            .in('id', regIds)
+          const regById = new Map((siblingRegs ?? []).map((r: any) => [r.id, r]))
+          // Still-active = payer's own divisions not already cancelled/refunded (this reg
+          // is still 'registered' at this point, so it's included in the "before" set).
+          const activeBases: number[] = (siblingItems ?? [])
+            .filter((i: any) => {
+              const r = regById.get(i.registration_id)
+              return r && r.user_id === payerId && r.status !== 'cancelled' && r.payment_status !== 'refunded'
+            })
+            .map((i: any) => (i.base_cents ?? 0) as number)
+          const discount = normalizeMultiDivisionDiscount(
+            (order as any).discount_config ?? (tournament as any).multi_division_discount,
+          )
+          refundCents = bundleCancelRefundCents(activeBases, (orderItem as any).base_cents ?? 0, discount)
+        } else {
+          // Partner seat (full-price standalone item) — refund its own allocated share.
+          refundCents = (orderItem as any).net_cents ?? 0
+        }
+      }
+
+      // Zero-value refund — nothing to send to Stripe; mark refunded and cancel below.
+      if (refundCents !== null && refundCents <= 0) {
         await service
           .from('tournament_registrations')
           .update({ payment_status: 'refunded', refunded_at: new Date().toISOString() })
@@ -85,14 +130,14 @@ export async function POST(_req: NextRequest, props: Params) {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
         let stripeRefund: Stripe.Refund
         try {
-          if (bundledCents !== null) {
+          if (refundCents !== null) {
             // Partial refund of the shared payment; reverse the proportional Connect
             // transfer when this was a destination charge.
             const pi = await stripe.paymentIntents.retrieve(reg.stripe_payment_intent_id)
             const isConnect = !!(pi as any).transfer_data?.destination
             stripeRefund = await stripe.refunds.create({
               payment_intent: reg.stripe_payment_intent_id,
-              amount: bundledCents,
+              amount: refundCents,
               ...(isConnect ? { reverse_transfer: true } : {}),
             })
           } else {
