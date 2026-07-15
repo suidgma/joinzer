@@ -178,6 +178,10 @@ export async function POST(_req: NextRequest, props: Params) {
 
   // ── B11: clear partner link on the partner's row ──────────────────────────
   // Partner keeps their registered status — only the FK pointers are nulled.
+  // INTENTIONAL for multi-division "pay for both": if the payer cancels their OWN entry in a
+  // doubles division they covered both seats for, the partner's paid seat is NOT revoked or
+  // refunded — the entry was gifted to them and remains theirs (now unpaired). The partner (or
+  // organizer) can cancel that seat separately, which refunds its own item via the branch above.
   if (reg.partner_registration_id) {
     await service
       .from('tournament_registrations')
