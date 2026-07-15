@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
 import { normalizeTiers, type PriceTier } from '@/lib/payments/priceTiers'
+import EnablePaymentsCTA from '@/components/features/EnablePaymentsCTA'
 import PrizesEditor from '@/components/features/PrizesEditor'
 import { normalizePrizes, type Prize } from '@/lib/prizes'
 import type { LocationOption } from '@/lib/types'
@@ -49,7 +50,7 @@ function ptLocalToIso(local: string): string {
   return `${local}:00${ptOffset}`
 }
 
-export default function CreateLeagueForm({ locations }: { locations: LocationOption[] }) {
+export default function CreateLeagueForm({ locations, canCreatePaid }: { locations: LocationOption[]; canCreatePaid: boolean }) {
   const router = useRouter()
   const [name, setName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
@@ -270,7 +271,7 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
         points_to_win: pointsToWinNum,
         win_by: winBy,
         sub_credit_cap: parseInt(subCreditCap) || 7,
-        cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
+        cost_cents: canCreatePaid && costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
         refund_policy: refundPolicy.trim() || null,
         prizes: prizes.length ? prizes : null,
@@ -756,13 +757,17 @@ export default function CreateLeagueForm({ locations }: { locations: LocationOpt
               value={costDollars}
               onChange={(e) => setCostDollars(e.target.value)}
               placeholder="0"
-              className="w-full input pl-7"
+              disabled={!canCreatePaid}
+              className="w-full input pl-7 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
+          {!canCreatePaid && <EnablePaymentsCTA what="your league" className="mt-2" />}
         </FormRow>
-        <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
-          <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
-        </FormRow>
+        {canCreatePaid && (
+          <FormRow label="Early-bird pricing" helpText="Optional. Charge less for earlier sign-ups; the Entry fee above is the full price.">
+            <PriceTiersEditor value={priceTiers} onChange={setPriceTiers} />
+          </FormRow>
+        )}
         <FormRow
           label="No-refund date"
           htmlFor="no-refund-date"

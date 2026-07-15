@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react'
 import { ExternalLink } from 'lucide-react'
 import Link from 'next/link'
+import EnablePaymentsCTA from '@/components/features/EnablePaymentsCTA'
 
-type Status = { connected: boolean; chargesEnabled: boolean; accountId?: string } | null
+type Status = { connected: boolean; chargesEnabled: boolean; accountId?: string; canCreatePaid?: boolean } | null
 
 export default function PayoutsPage() {
   const [status, setStatus] = useState<Status>(null)
@@ -77,7 +78,12 @@ export default function PayoutsPage() {
 
         {loading && <p className="text-sm text-brand-muted">Loading…</p>}
 
-        {!loading && status && (
+        {/* Not approved for paid events yet → book a call instead of self-serve Connect. */}
+        {!loading && status && status.canCreatePaid === false && (
+          <EnablePaymentsCTA what="your events" />
+        )}
+
+        {!loading && status && status.canCreatePaid !== false && (
           <div className="space-y-3">
             {/* Status indicators */}
             <div className="bg-brand-surface rounded-xl p-4 space-y-2">

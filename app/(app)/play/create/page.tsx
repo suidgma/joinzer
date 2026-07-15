@@ -46,6 +46,12 @@ export default async function CreateEventPage(
 
   const locations = (locationsData ?? []) as LocationOption[]
 
+  let canCreatePaid = false
+  if (user) {
+    const { data: prof } = await supabase.from('profiles').select('can_create_paid_events').eq('id', user.id).single()
+    canCreatePaid = !!prof?.can_create_paid_events
+  }
+
   let defaults: EventDefaults | undefined
   if (sourceResult.data) {
     const src = sourceResult.data as any
@@ -76,7 +82,7 @@ export default async function CreateEventPage(
       {defaults && (
         <p className="text-sm text-brand-muted">All details copied — just pick a new date.</p>
       )}
-      <CreateEventForm locations={locations} defaults={defaults} />
+      <CreateEventForm locations={locations} defaults={defaults} canCreatePaid={canCreatePaid} />
     </main>
   )
 }
