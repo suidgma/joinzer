@@ -22,6 +22,11 @@ export const attendanceTopic = (occasionId: string) => `attendance:${occasionId}
 // reconciles by refetching its (authorized) server data. See RealtimeRefresh.
 export const leagueFixturesTopic = (leagueId: string) => `league-fixtures:${leagueId}`
 
+// Session host: server broadcast when a player-run session's host changes (claim / hand-off /
+// release). league_sessions.host_user_id isn't driving client reads, so a broadcast lets everyone
+// viewing the run screen re-derive who's hosting (via RealtimeRefresh) without a manual reload.
+export const sessionHostTopic = (sessionId: string) => `session-host:${sessionId}`
+
 // Per-user in-app notifications: server broadcast on create so the bell badge + a toast go
 // live (replacing the poll). notifications is created server-side, so broadcast fits (no
 // client SELECT needed on the table).
@@ -32,4 +37,5 @@ export const RealtimeEvents = {
   attendanceStatusChanged: 'player.status.changed',
   leagueFixturesChanged: 'league.fixtures.changed',
   notificationCreated: 'notification.created',
+  sessionHostChanged: 'session.host.changed',
 } as const

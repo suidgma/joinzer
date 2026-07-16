@@ -6,6 +6,8 @@ import LiveSessionManager from './LiveSessionManager'
 import ClaimHostButton from './ClaimHostButton'
 import HostControls from './HostControls'
 import RefreshButton from '@/components/ui/RefreshButton'
+import RealtimeRefresh from '@/components/ui/RealtimeRefresh'
+import { sessionHostTopic, RealtimeEvents } from '@/lib/realtime/topics'
 import { formatSessionDate } from '@/lib/utils/date'
 
 export default async function LiveSessionPage(
@@ -63,6 +65,7 @@ export default async function LiveSessionPage(
       }
       return (
         <main className="max-w-lg mx-auto p-4 space-y-4">
+          <RealtimeRefresh topic={sessionHostTopic(params.sessionId)} events={[RealtimeEvents.sessionHostChanged]} />
           <div className="flex items-center justify-between gap-2">
             <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← Back</Link>
             <RefreshButton />
@@ -281,6 +284,7 @@ export default async function LiveSessionPage(
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
+      {selfRun && <RealtimeRefresh topic={sessionHostTopic(params.sessionId)} events={[RealtimeEvents.sessionHostChanged]} />}
       <div className="flex items-center justify-between gap-2">
         <Link href={`/leagues/${params.id}/roster`} className="text-brand-muted text-sm">← Back</Link>
         <RefreshButton />

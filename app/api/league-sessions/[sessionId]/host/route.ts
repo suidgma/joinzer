@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { canOperateSession } from '@/lib/leagues/canOperateSession'
+import { broadcast } from '@/lib/realtime/serverBroadcast'
+import { sessionHostTopic, RealtimeEvents } from '@/lib/realtime/topics'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -129,6 +131,8 @@ export async function POST(req: NextRequest, props: Params) {
     if (!claimed || claimed.length === 0) {
       return NextResponse.json({ error: 'Someone just claimed hosting — refresh to see who.' }, { status: 409 })
     }
+    // Tell everyone viewing the run screen the host changed, so their "Claim host" flips live.
+    await broadcast(sessionHostTopic(params.sessionId), RealtimeEvents.sessionHostChanged, { hostUserId: user.id }).catch(() => {})
     return NextResponse.json({ host_user_id: user.id })
   }
 
@@ -138,5 +142,6 @@ export async function POST(req: NextRequest, props: Params) {
     .update({ host_user_id: target })
     .eq('id', params.sessionId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await broadcast(sessionHostTopic(params.sessionId), RealtimeEvents.sessionHostChanged, { hostUserId: target }).catch(() => {})
   return NextResponse.json({ host_user_id: target })
 }
