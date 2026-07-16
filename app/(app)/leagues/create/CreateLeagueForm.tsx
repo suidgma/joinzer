@@ -83,6 +83,7 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>([])
   const [standingsMethod, setStandingsMethod] = useState<'win_loss' | 'total_points'>('total_points')
   const [allowPlayerScores, setAllowPlayerScores] = useState(false)
+  const [selfRun, setSelfRun] = useState(false)
   const [noPlayDates, setNoPlayDates] = useState<string[]>([])
   const [noPlayInput, setNoPlayInput] = useState('')
   // League format (Phase 1). Box create is ENABLED on prod: create + box
@@ -120,6 +121,8 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
   const isFlex = formatKind === 'flex'
   // Box/ladder default player self-scoring ON (player-run); the organizer can uncheck it.
   useEffect(() => { setAllowPlayerScores(isBox || isLadder) }, [isBox, isLadder])
+  // Player-run is a round-robin-only concept — clear it if the organizer switches format.
+  useEffect(() => { if (formatKind !== 'session_rr') setSelfRun(false) }, [formatKind])
   // Period-based formats (box cycles, ladder sessions, team matchdays) don't generate
   // weekly league_sessions.
   const usesPeriods = isBox || isLadder || isTeam
@@ -278,6 +281,7 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
         price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         standings_method: standingsMethod,
         allow_player_scores: allowPlayerScores,
+        self_run: selfRun,
         no_play_dates: finalNoPlayDates,
         // Selectable league format. session_rr (default) keeps weekly-session
         // behavior; box and ladder store their knobs in format_settings_json and
@@ -490,6 +494,27 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
             ))}
           </select>
         </FormRow>
+        {formatKind === 'session_rr' && (
+          <FormRow label="Player-run league">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selfRun}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setSelfRun(on)
+                  // Gentle default: a self-run league should let players record scores.
+                  if (on && !allowPlayerScores) setAllowPlayerScores(true)
+                }}
+                className="w-4 h-4 accent-brand"
+              />
+              <div>
+                <p className="text-sm font-medium text-brand-dark">Player-run league (no court monitor needed)</p>
+                <p className="text-xs text-brand-muted">Players run the session themselves — a designated host (or the first player to show up) checks people in, generates each round, and records scores. Great for leagues without a dedicated organizer on-site.</p>
+              </div>
+            </label>
+          </FormRow>
+        )}
         <FormRow label="Player score entry">
           <label className="flex items-center gap-3 cursor-pointer">
             <input
