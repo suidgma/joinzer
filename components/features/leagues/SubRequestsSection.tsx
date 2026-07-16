@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 type SubRequest = {
   id: string
   league_id: string
@@ -14,7 +16,8 @@ type SubRequest = {
 
 type Props = {
   initialRequests: SubRequest[]
-  // Retained for call-site compatibility (Home passes it); unused while the claim action is paused.
+  // Retained for call-site compatibility (Home passes it). The server RPC is the authority on
+  // eligibility (incl. "can't accept your own"), so no client-side gating is needed here.
   currentUserId: string
 }
 
@@ -22,38 +25,98 @@ function dateStr(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-// Phase 1: read-only. The old "I can sub" claim wrote a 'claimed' status and never actually placed
-// the substitute; it is being replaced by the Phase 2 atomic accept-and-place flow. Until then this
-// keeps open requests visible (awareness) without offering a paused action. This whole section is
-// superseded by the Home "Needs Your Attention" Action Center in a later phase.
+// Phase 2: the "I can sub" action now calls the ATOMIC accept route, which claims the request and
+// places the substitute in one transaction (no organizer approval). This is a minimal, honest
+// surface — the full Home "Needs Your Attention" Action Center supersedes it in Phase 4.
 export default function SubRequestsSection({ initialRequests }: Props) {
-  if (initialRequests.length === 0) return null
+  const [requests, setRequests] = useState(initialRequests)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [doneName, setDoneName] = useState<string | null>(null)
+
+  async function accept(sr: SubRequest) {
+    setBusyId(sr.id)
+    setErrors((e) => ({ ...e, [sr.id]: '' }))
+    try {
+      const res = await fetch(`/api/league-sub-requests/${sr.id}/accept`, { method: 'POST' })
+      if (res.ok) {
+        setDoneName(sr.requesting_player?.name ?? sr.league?.name ?? 'your spot')
+        setRequests((rs) => rs.filter((r) => r.id !== sr.id))
+        return
+      }
+      const body = await res.json().catch(() => ({}))
+      setErrors((e) => ({ ...e, [sr.id]: body.error ?? 'Could not sub in. Try again.' }))
+    } catch {
+      setErrors((e) => ({ ...e, [sr.id]: 'Network error. Try again.' }))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  if (requests.length === 0) {
+    if (doneName) {
+      return (
+        <div className="space-y-3">
+          <div role="status" className="bg-brand-soft border border-brand-border rounded-2xl p-4 text-sm font-semibold text-brand-active">
+            You&apos;re in! You&apos;re covering {doneName}. See you on the court. 🎾
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
 
   return (
     <div className="space-y-3">
       <h2 className="font-heading text-base font-bold text-brand-dark">Open Sub Requests</h2>
 
+      {doneName && (
+        <div role="status" className="bg-brand-soft border border-brand-border rounded-2xl p-3 text-sm font-semibold text-brand-active">
+          You&apos;re in! You&apos;re covering {doneName}. 🎾
+        </div>
+      )}
+
       <div className="space-y-2">
-        {initialRequests.map((sr) => (
-          <div key={sr.id} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-brand-dark">
-                  {sr.requesting_player?.name ?? 'Someone'} needs a sub
-                </p>
-                <p className="text-xs text-brand-muted">
-                  {sr.league?.name}
-                  {sr.session && ` · Session ${sr.session.session_number} · ${dateStr(sr.session.session_date)}`}
-                </p>
-                {sr.notes && <p className="text-xs text-brand-body mt-1">{sr.notes}</p>}
+        {requests.map((sr) => {
+          const busy = busyId === sr.id
+          const err = errors[sr.id]
+          return (
+            <div key={sr.id} className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-brand-dark">
+                    {sr.requesting_player?.name ?? 'Someone'} needs a sub
+                  </p>
+                  <p className="text-xs text-brand-muted">
+                    {sr.league?.name}
+                    {sr.session && ` · Session ${sr.session.session_number} · ${dateStr(sr.session.session_date)}`}
+                  </p>
+                  {sr.notes && <p className="text-xs text-brand-body mt-1">{sr.notes}</p>}
+                </div>
+                <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-brand-soft text-brand-active">
+                  Open
+                </span>
               </div>
-              <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-brand-soft text-brand-active">
-                Open
-              </span>
+
+              <button
+                type="button"
+                onClick={() => accept(sr)}
+                disabled={busy}
+                aria-busy={busy}
+                aria-label={`Sub in for ${sr.requesting_player?.name ?? 'this player'}`}
+                className="w-full rounded-xl bg-brand-dark px-4 py-2 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-60"
+              >
+                {busy ? 'Confirming…' : 'I can sub'}
+              </button>
+
+              {err && (
+                <p role="alert" className="text-xs font-medium text-red-600">
+                  {err}
+                </p>
+              )}
             </div>
-            <p className="text-xs text-brand-muted">Substitute sign-up is being upgraded — back shortly.</p>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

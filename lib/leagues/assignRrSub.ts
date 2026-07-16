@@ -4,10 +4,12 @@ export type AssignRrSubResult =
   | { ok: true; subPlayer: Record<string, unknown> }
   | { ok: false; error: string; status: number }
 
-// Places a substitute into a round-robin session: finds-or-creates the sub's
-// league_session_players row and links it to the absent roster player. Optionally
-// marks the covered roster player 'has_sub'. Shared by the organizer assign-sub
-// route and the player self-sub flow so the placement lives in exactly one place.
+// Places a substitute into a round-robin session by delegating to the shared SQL placement
+// primitive `place_league_sub_rr` (migration 20260716000004) — the SINGLE source of truth for RR
+// substitute linkage. The same primitive backs the atomic open-pool acceptance RPC
+// (accept_sub_request), so organizer manual-assign, player self-sub, and open-pool accept can never
+// drift. Finds-or-creates the sub's league_session_players row, links it to the absent roster
+// player, and optionally flips the covered row to 'has_sub'. leagues.sub_credit_cap is unaffected.
 export async function assignRrSub(
   db: SupabaseClient,
   {
@@ -22,67 +24,21 @@ export async function assignRrSub(
     markCoveredHasSub?: boolean
   }
 ): Promise<AssignRrSubResult> {
-  // The covered player must belong to this session.
-  const { data: absentPlayer } = await db
-    .from('league_session_players')
-    .select('id')
-    .eq('id', absentPlayerId)
-    .eq('session_id', sessionId)
-    .single()
-  if (!absentPlayer) return { ok: false, error: 'Absent player not found in this session', status: 404 }
+  const { data, error } = await db.rpc('place_league_sub_rr', {
+    p_session_id: sessionId,
+    p_covered_session_player_id: absentPlayerId,
+    p_sub_user_id: subUserId,
+    p_mark_covered_has_sub: markCoveredHasSub,
+  })
 
-  const { data: subProfile } = await db
-    .from('profiles')
-    .select('id, name, joinzer_rating')
-    .eq('id', subUserId)
-    .single()
-  if (!subProfile) return { ok: false, error: 'Sub player profile not found', status: 404 }
-
-  // Find or create the sub's session row.
-  const { data: existingRow } = await db
-    .from('league_session_players')
-    .select('id')
-    .eq('session_id', sessionId)
-    .eq('user_id', subUserId)
-    .maybeSingle()
-
-  let subPlayer: Record<string, unknown>
-  if (existingRow) {
-    const { data, error } = await db
-      .from('league_session_players')
-      .update({ player_type: 'sub', actual_status: 'present', sub_for_session_player_id: absentPlayerId })
-      .eq('id', existingRow.id)
-      .select()
-      .single()
-    if (error) return { ok: false, error: error.message, status: 500 }
-    subPlayer = data
-  } else {
-    const { data, error } = await db
-      .from('league_session_players')
-      .insert({
-        session_id: sessionId,
-        user_id: subUserId,
-        display_name: subProfile.name,
-        player_type: 'sub',
-        expected_status: 'expected',
-        actual_status: 'present',
-        joinzer_rating: subProfile.joinzer_rating ?? 1000,
-        sub_for_session_player_id: absentPlayerId,
-      })
-      .select()
-      .single()
-    if (error) return { ok: false, error: error.message, status: 500 }
-    subPlayer = data
+  if (error) {
+    // The primitive raises machine-code messages; map the two "not found" cases to 404 to preserve
+    // the previous behavior, everything else to 500.
+    const code = (error.message ?? '').trim()
+    if (code === 'covered_not_in_session') return { ok: false, error: 'Absent player not found in this session', status: 404 }
+    if (code === 'sub_profile_not_found') return { ok: false, error: 'Sub player profile not found', status: 404 }
+    return { ok: false, error: error.message ?? 'Could not place the sub', status: 500 }
   }
 
-  // The player self-sub wants the covered player flipped to 'has_sub' atomically;
-  // the organizer flow leaves that to the attendance grid, so it's opt-in.
-  if (markCoveredHasSub) {
-    await db
-      .from('league_session_players')
-      .update({ actual_status: 'has_sub' })
-      .eq('id', absentPlayerId)
-  }
-
-  return { ok: true, subPlayer }
+  return { ok: true, subPlayer: (data ?? {}) as Record<string, unknown> }
 }

@@ -14,6 +14,14 @@ function admin() {
 // the member 'has_sub'. Fixture scores still credit the covered registration, so
 // standings / promotion-relegation stay correct. Organizer/co-admin only.
 //
+// NOTE (Phase 2 unification): the single-user placement here is functionally identical to the shared
+// SQL primitive `place_league_sub_attendance` (migration 20260716000004) that assignAttendanceSub +
+// the atomic open-pool accept use. It is NOT routed through that primitive because this route also
+// handles cases the primitive intentionally doesn't model: guest subs (no user_id), subbing an
+// existing attendance row (subAttendanceId), and doubles-pair clear-and-replace. Folding those into
+// the primitive is the Phase-3 "organizer assignment through the unified model" work; until then keep
+// the linkage columns (subbing_for_registration_id + covered status 'has_sub') in lockstep here.
+//
 // A doubles team is one entrant. Whole-team out → two choices; one player out →
 // one choice with the other slot left present. Each choice carries the specific
 // player registration it covers (`forRegistrationId`) so the team renders per slot
