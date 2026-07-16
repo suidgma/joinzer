@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { generateNextRound, applySubsToFixedPairs, type CompletedRound, type CompletedMatch, type SessionPlayer } from '@/lib/scheduling/leagueScheduler'
 import { isSinglesFormat, isMixedDoublesFormat } from '@/lib/taxonomy/formats'
 import { orderByServe, tallyFrom, type ServeTally } from '@/lib/scheduling/serveBalance'
+import { canOperateSession } from '@/lib/leagues/canOperateSession'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -32,7 +33,9 @@ export async function POST(req: NextRequest, props: Params) {
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
   const { data: league } = await db.from('leagues').select('created_by, partner_mode, format').eq('id', session.league_id).single()
-  if (!league || league.created_by !== user.id) {
+  if (!league) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  // Owner, co-admin, or (player-run leagues) the effective session host may generate rounds.
+  if (!(await canOperateSession(db, params.sessionId, user.id))) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
 

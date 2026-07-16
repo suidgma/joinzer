@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { broadcast } from '@/lib/realtime/serverBroadcast'
 import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
+import { canOperateSession } from '@/lib/leagues/canOperateSession'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -57,19 +58,8 @@ export async function POST(req: NextRequest, props: Params) {
   let effectiveUserId = user.id
   const db = admin()
   if (targetUserId && targetUserId !== user.id) {
-    const { data: session } = await db
-      .from('league_sessions')
-      .select('league_id')
-      .eq('id', params.sessionId)
-      .single()
-    if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-
-    const { data: league } = await db
-      .from('leagues')
-      .select('created_by')
-      .eq('id', session.league_id)
-      .single()
-    if (!league || league.created_by !== user.id) {
+    // Setting someone else's attendance is an operator action (owner / co-admin / player-run host).
+    if (!(await canOperateSession(db, params.sessionId, user.id))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     effectiveUserId = targetUserId

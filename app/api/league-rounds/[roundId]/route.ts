@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { canOperateRound } from '@/lib/leagues/canOperateSession'
 
 type Params = { params: Promise<{ roundId: string }> }
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
-async function assertManager(userId: string, roundId: string) {
-  const db = admin()
-  const { data: round } = await db.from('league_rounds').select('session_id').eq('id', roundId).single()
-  if (!round) return false
-  const { data: session } = await db.from('league_sessions').select('league_id').eq('id', round.session_id).single()
-  if (!session) return false
-  const { data: league } = await db.from('leagues').select('created_by').eq('id', session.league_id).single()
-  return league?.created_by === userId
 }
 
 // PATCH /api/league-rounds/[roundId]
@@ -27,11 +18,13 @@ export async function PATCH(req: NextRequest, props: Params) {
   const user = session?.user ?? null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const isManager = await assertManager(user.id, params.roundId)
-  if (!isManager) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  const db = admin()
+  // Owner, co-admin, or (player-run leagues) the effective session host may lock/complete rounds.
+  if (!(await canOperateRound(db, params.roundId, user.id))) {
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
 
   const { action } = await req.json()
-  const db = admin()
 
   const { data: round } = await db.from('league_rounds').select('status').eq('id', params.roundId).single()
   if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })

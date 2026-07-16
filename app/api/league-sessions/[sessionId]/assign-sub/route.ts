@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { assignRrSub } from '@/lib/leagues/assignRrSub'
+import { canOperateSession } from '@/lib/leagues/canOperateSession'
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -25,21 +26,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ sessionI
 
   const db = admin()
 
-  // Verify caller is the league organizer
+  // Owner, co-admin, or (player-run leagues) the effective session host may assign subs.
   const { data: session } = await db
     .from('league_sessions')
-    .select('league_id')
+    .select('id')
     .eq('id', params.sessionId)
     .single()
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
-  const { data: league } = await db
-    .from('leagues')
-    .select('created_by')
-    .eq('id', session.league_id)
-    .single()
-  if (!league || league.created_by !== user.id) {
-    return NextResponse.json({ error: 'Only the organizer can assign subs' }, { status: 403 })
+  if (!(await canOperateSession(db, params.sessionId, user.id))) {
+    return NextResponse.json({ error: 'Not authorized to assign subs' }, { status: 403 })
   }
 
   // Place the sub via the shared core (find-or-create the sub row, link to the

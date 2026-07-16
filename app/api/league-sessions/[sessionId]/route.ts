@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { canOperateSession } from '@/lib/leagues/canOperateSession'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
@@ -8,7 +9,8 @@ function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
-// PATCH /api/league-sessions/[sessionId] — update date or notes (league organizer only)
+// PATCH /api/league-sessions/[sessionId] — update date/notes/status.
+// Whoever may run the session (owner, co-admin, or player-run host) — so a host can end the day.
 export async function PATCH(req: NextRequest, props: Params) {
   const params = await props.params;
   const supabase = createClient()
@@ -18,17 +20,15 @@ export async function PATCH(req: NextRequest, props: Params) {
 
   const db = admin()
 
-  // Verify caller is the league organizer via join
   const { data: session } = await db
     .from('league_sessions')
-    .select('id, league_id, leagues(created_by)')
+    .select('id')
     .eq('id', params.sessionId)
     .single()
 
   if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const league = session.leagues as unknown as { created_by: string } | null
-  if (!league || league.created_by !== user.id) {
+  if (!(await canOperateSession(db, params.sessionId, user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
