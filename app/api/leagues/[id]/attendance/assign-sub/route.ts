@@ -63,6 +63,40 @@ export async function POST(req: NextRequest, props: Params) {
   const now = new Date().toISOString()
   const isPair = Array.isArray(body.subs)
 
+  // Unified path: a single Joinzer-user sub (not a pair, no guest, no existing-attendance-row reuse)
+  // goes through assign_organizer_sub_request — it creates the organizer_assigned request record AND
+  // places the sub in one transaction, via the shared primitive. Guests + doubles-pair + attendance-id
+  // reuse keep the existing placement below; their unified record is deferred (see the header note).
+  const single = !isPair && choices.length === 1 ? choices[0] : null
+  if (single && single.subUserId && !single.subAttendanceId && !single.subGuestName) {
+    const { data: result, error } = await db.rpc('assign_organizer_sub_request', {
+      p_actor_id: user.id,
+      p_league_id: params.id,
+      p_scope_kind: 'period',
+      p_scope_id: periodId,
+      p_covered_user_id: coveredReg.user_id,
+      p_covered_registration_id: coveredRegistrationId,
+      p_slot_registration_id: single.forRegistrationId ?? coveredRegistrationId,
+      p_sub_user_id: single.subUserId,
+      p_placed_with_override: body.override === true,
+    })
+    if (error) {
+      const code = (error.message ?? '').trim()
+      const map: Record<string, number> = {
+        accepter_ineligible: 403, gender_mismatch: 403, own_request: 403, already_covered: 409,
+        unsupported_format: 422, scope_mismatch: 422, covered_player_not_found: 404, league_not_found: 404,
+      }
+      const s = map[code] ?? 500
+      return NextResponse.json({ error: s === 500 ? (error.message ?? 'Could not assign the sub') : code, code }, { status: s })
+    }
+    // Return a client-compatible shape (BoxAttendanceManager reads data.sub.{id,registration_id,user_id,status}).
+    const subAttId = (result as { placement?: { sub_attendance_id?: string } }).placement?.sub_attendance_id
+    const { data: subRow } = subAttId
+      ? await db.from('league_attendance').select('id, registration_id, user_id, status').eq('id', subAttId).maybeSingle()
+      : { data: null }
+    return NextResponse.json({ ok: true, unified: true, sub: subRow, subs: subRow ? [subRow] : [], ...(result as Record<string, unknown>) })
+  }
+
   // For a doubles (re)assignment, clear existing covers on ALL of the team's slots
   // first so re-picking replaces rather than accumulates (and reducing 2→1 drops the
   // freed slot). Single assignment leaves other covers alone (there's only one).

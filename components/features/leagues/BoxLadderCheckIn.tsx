@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import AddSubForMe from '@/components/features/subs/AddSubForMe'
-import UndoSubButton from '@/components/features/subs/UndoSubButton'
+import SubDecisionSheet, { type CreatedRequest } from '@/components/features/leagues/SubDecisionSheet'
+import RequesterSubStatus, { type RequesterRequest } from '@/components/features/leagues/RequesterSubStatus'
 
 // league_attendance statuses a player can self-report.
 type Status = 'coming' | 'present' | 'late' | 'cannot_attend'
@@ -18,25 +18,28 @@ type Props = {
   leagueId: string
   periodId: string
   initialStatus: Status | null
-  // Self-sub allowed before the period's matches are generated.
+  // "Can I still request/change a sub?" — true only before the period's matches are generated.
   allowSelfSub?: boolean
   currentUserId?: string
+  activeSubRequest?: RequesterRequest | null
+  // Deprecated (Phase 3 replaced the sub_nominations self-sub); accepted for call-site compat, ignored.
   activeSelfSub?: { id: string; nomineeName: string } | null
 }
 
-// Player self-check-in + self-sub for box / ladder leagues (unified league_attendance
-// model). The player-run counterpart to the organizer's attendance grid.
+// Player self-check-in + unified sub request for box / ladder leagues (league_attendance model).
 export default function BoxLadderCheckIn({
   leagueId,
   periodId,
   initialStatus,
   allowSelfSub = false,
   currentUserId,
-  activeSelfSub = null,
+  activeSubRequest = null,
 }: Props) {
   const [status, setStatus] = useState<Status | null>(initialStatus)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [request, setRequest] = useState<RequesterRequest | null>(activeSubRequest)
+  const [showSheet, setShowSheet] = useState(false)
 
   async function handleStatusChange(newStatus: Status) {
     if (newStatus === status) return
@@ -55,7 +58,15 @@ export default function BoxLadderCheckIn({
     }
     setStatus(newStatus)
     setSaving(false)
+    if (newStatus === 'cannot_attend' && allowSelfSub && !request) setShowSheet(true)
   }
+
+  function onCreated(r: CreatedRequest) {
+    setRequest({ id: r.request_id, status: r.status, fulfillment_mode: r.fulfillment_mode, subName: r.subName })
+    setShowSheet(false)
+  }
+
+  const showSubArea = allowSelfSub && status === 'cannot_attend'
 
   return (
     <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
@@ -66,7 +77,7 @@ export default function BoxLadderCheckIn({
           <button
             key={s}
             onClick={() => handleStatusChange(s)}
-            disabled={saving || !!activeSelfSub}
+            disabled={saving}
             className={`py-2 rounded-xl border text-xs font-semibold transition-colors disabled:opacity-50 ${status === s ? active : inactive}`}
           >
             {label}
@@ -76,18 +87,28 @@ export default function BoxLadderCheckIn({
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
-      {/* Direct-pick self-sub (before the period's matches are generated) */}
-      {activeSelfSub ? (
-        <UndoSubButton nominationId={activeSelfSub.id} nomineeName={activeSelfSub.nomineeName} />
-      ) : (
-        allowSelfSub && status === 'cannot_attend' && (
-          <AddSubForMe
-            surface="league"
-            scope={{ leagueId, periodId }}
-            currentUserId={currentUserId}
-            caption="Your sub takes your spot for this session — your standing/credit stays with you."
-          />
+      {showSubArea && (
+        request ? (
+          <RequesterSubStatus request={request} onCancelled={() => setRequest(null)} />
+        ) : (
+          <button
+            onClick={() => setShowSheet(true)}
+            className="w-full py-2 rounded-xl border border-orange-300 bg-orange-50 text-orange-700 text-xs font-semibold hover:bg-orange-100 transition-colors"
+          >
+            Need a sub? →
+          </button>
         )
+      )}
+
+      {showSheet && (
+        <SubDecisionSheet
+          leagueId={leagueId}
+          scope={{ periodId }}
+          currentUserId={currentUserId}
+          onCreated={onCreated}
+          onJustAbsent={() => { /* already cannot_attend */ }}
+          onClose={() => setShowSheet(false)}
+        />
       )}
     </div>
   )

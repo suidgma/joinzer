@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import AddSubForMe from '@/components/features/subs/AddSubForMe'
-import UndoSubButton from '@/components/features/subs/UndoSubButton'
+import SubDecisionSheet, { type CreatedRequest } from '@/components/features/leagues/SubDecisionSheet'
+import RequesterSubStatus, { type RequesterRequest } from '@/components/features/leagues/RequesterSubStatus'
 
 type Status = 'planning_to_attend' | 'cannot_attend' | 'checked_in_present' | 'running_late' | 'not_responded'
 
@@ -19,9 +19,13 @@ type Props = {
   initialStatus: Status
   showSubRequest?: boolean
   leagueSkillLevel?: string | null
-  // Round-robin self-sub: allowed before the session's rounds are generated.
+  // "Can I still request/change a sub?" — true only before the session's rounds are generated.
   allowSelfSub?: boolean
   currentUserId?: string
+  // The requester's active unified sub request for this session (open/filled), if any.
+  activeSubRequest?: RequesterRequest | null
+  // Deprecated (Phase 3 replaced the sub_nominations self-sub with the unified flow). Accepted for
+  // call-site compatibility; ignored. The loaders' sub_nominations reads are dead code (Phase 6).
   activeSelfSub?: { id: string; nomineeName: string } | null
 }
 
@@ -30,17 +34,15 @@ export default function PlayerCheckIn({
   leagueId,
   initialStatus,
   showSubRequest = true,
-  leagueSkillLevel,
   allowSelfSub = false,
   currentUserId,
-  activeSelfSub = null,
+  activeSubRequest = null,
 }: Props) {
-  const [status, setStatus]           = useState<Status>(initialStatus)
-  const [saving, setSaving]           = useState(false)
-  const [error, setError]             = useState<string | null>(null)
-  const [subRequested, setSubRequested] = useState(false)
-  const [subLoading, setSubLoading]   = useState(false)
-  const [subError, setSubError]       = useState<string | null>(null)
+  const [status, setStatus]   = useState<Status>(initialStatus)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+  const [request, setRequest] = useState<RequesterRequest | null>(activeSubRequest)
+  const [showSheet, setShowSheet] = useState(false)
 
   async function handleStatusChange(newStatus: Status) {
     if (newStatus === status) return
@@ -54,7 +56,7 @@ export default function PlayerCheckIn({
     })
 
     if (!res.ok) {
-      const d = await res.json()
+      const d = await res.json().catch(() => ({}))
       setError(d.error ?? 'Failed to update')
       setSaving(false)
       return
@@ -62,36 +64,16 @@ export default function PlayerCheckIn({
 
     setStatus(newStatus)
     setSaving(false)
+    // "I can't make it" opens the decision sheet (unless a request already exists).
+    if (newStatus === 'cannot_attend' && showSubRequest && allowSelfSub && !request) setShowSheet(true)
   }
 
-  async function handleRequestSub() {
-    setSubLoading(true)
-    setSubError(null)
-
-    // First ensure attendance is set to cannot_attend
-    if (status !== 'cannot_attend') {
-      await handleStatusChange('cannot_attend')
-    }
-
-    const res = await fetch('/api/league-sub-requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        league_id: leagueId,
-        league_session_id: sessionId,
-        requested_skill_level: leagueSkillLevel ?? null,
-      }),
-    })
-
-    const d = await res.json()
-    if (!res.ok) {
-      // 409 = already requested, treat as success
-      if (res.status !== 409) { setSubError(d.error ?? 'Failed to create sub request'); setSubLoading(false); return }
-    }
-
-    setSubRequested(true)
-    setSubLoading(false)
+  function onCreated(r: CreatedRequest) {
+    setRequest({ id: r.request_id, status: r.status, fulfillment_mode: r.fulfillment_mode, subName: r.subName })
+    setShowSheet(false)
   }
+
+  const showSubArea = showSubRequest && status === 'cannot_attend' && allowSelfSub
 
   return (
     <div className="space-y-2 pt-2 border-t border-brand-border mt-2">
@@ -112,37 +94,28 @@ export default function PlayerCheckIn({
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
-      {/* Sub request */}
-      {showSubRequest && status === 'cannot_attend' && !subRequested && (
-        <button
-          onClick={handleRequestSub}
-          disabled={subLoading}
-          className="w-full py-2 rounded-xl border border-orange-300 bg-orange-50 text-orange-700 text-xs font-semibold hover:bg-orange-100 transition-colors disabled:opacity-50"
-        >
-          {subLoading ? 'Requesting…' : 'Need a sub? →'}
-        </button>
-      )}
-
-      {subRequested && (
-        <p className="text-xs text-brand-active font-medium">
-          ✓ Sub request sent. Your organizer has been notified.
-        </p>
-      )}
-
-      {subError && <p className="text-xs text-red-600">{subError}</p>}
-
-      {/* Direct-pick self-sub (round-robin, before rounds are generated) */}
-      {activeSelfSub ? (
-        <UndoSubButton nominationId={activeSelfSub.id} nomineeName={activeSelfSub.nomineeName} />
-      ) : (
-        allowSelfSub && status === 'cannot_attend' && (
-          <AddSubForMe
-            surface="league"
-            scope={{ leagueId, sessionId }}
-            currentUserId={currentUserId}
-            caption="Your sub takes your spot for this session — your standing/credit stays with you."
-          />
+      {showSubArea && (
+        request ? (
+          <RequesterSubStatus request={request} onCancelled={() => setRequest(null)} />
+        ) : (
+          <button
+            onClick={() => setShowSheet(true)}
+            className="w-full py-2 rounded-xl border border-orange-300 bg-orange-50 text-orange-700 text-xs font-semibold hover:bg-orange-100 transition-colors"
+          >
+            Need a sub? →
+          </button>
         )
+      )}
+
+      {showSheet && (
+        <SubDecisionSheet
+          leagueId={leagueId}
+          scope={{ sessionId }}
+          currentUserId={currentUserId}
+          onCreated={onCreated}
+          onJustAbsent={() => { /* already cannot_attend */ }}
+          onClose={() => setShowSheet(false)}
+        />
       )}
     </div>
   )
