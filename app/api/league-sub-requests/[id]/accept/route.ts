@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications/create'
 import { broadcast } from '@/lib/realtime/serverBroadcast'
 import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
+import { broadcastSubRequestsChanged } from '@/lib/subs/broadcast'
 
 // POST /api/league-sub-requests/[id]/accept — an eligible player accepts an OPEN league substitute
 // request. The claim (status open->filled) AND the substitute placement happen atomically inside the
@@ -89,6 +90,8 @@ async function fireSideEffects(requestId: string, accepterId: string, result: un
       status: 'present',
     }).catch(() => {})
   }
+  // The pool changed (this request left it) — refresh /subs + Home.
+  await broadcastSubRequestsChanged()
 
   if (!r.league_id) return
 

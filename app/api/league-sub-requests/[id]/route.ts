@@ -5,6 +5,7 @@ import { Resend } from 'resend'
 import { createNotification, createNotifications } from '@/lib/notifications/create'
 import { logAudit } from '@/lib/audit/log'
 import { withBrandHeader } from '@/lib/email/send'
+import { broadcastSubRequestsChanged } from '@/lib/subs/broadcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -89,6 +90,8 @@ export async function PATCH(req: NextRequest, props: Params) {
 
   // Send notifications (fire-and-forget)
   sendClaimNotification(sr, updated, action, user.id).catch(console.error)
+  // The pool changed (cancel removes an open opportunity) — refresh /subs + Home.
+  broadcastSubRequestsChanged().catch(() => {})
 
   return NextResponse.json(updated)
 }

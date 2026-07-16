@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { canOperateSession } from '@/lib/leagues/canOperateSession'
+import { broadcastSubRequestsChanged } from '@/lib/subs/broadcast'
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ sessionI
     return NextResponse.json({ error: status === 500 ? (error.message ?? 'Could not assign the sub') : code, code }, { status })
   }
 
+  broadcastSubRequestsChanged().catch(() => {})
   const r = result as { placement?: { sub_session_player_id?: string } }
   return NextResponse.json({ ok: true, subPlayerId: r.placement?.sub_session_player_id, ...(result as Record<string, unknown>) })
 }

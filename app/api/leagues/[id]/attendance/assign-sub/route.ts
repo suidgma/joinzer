@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { authorizeOrganizer } from '@/lib/leagues/attendanceWrite'
+import { broadcastSubRequestsChanged } from '@/lib/subs/broadcast'
 
 type Params = { params: Promise<{ id: string }> }
 function admin() {
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest, props: Params) {
     const { data: subRow } = subAttId
       ? await db.from('league_attendance').select('id, registration_id, user_id, status').eq('id', subAttId).maybeSingle()
       : { data: null }
+    broadcastSubRequestsChanged().catch(() => {})
     return NextResponse.json({ ok: true, unified: true, sub: subRow, subs: subRow ? [subRow] : [], ...(result as Record<string, unknown>) })
   }
 
