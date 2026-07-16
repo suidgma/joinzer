@@ -190,7 +190,7 @@ export default async function EventsPage(
           ) : (
             <div className="space-y-3">
               {events.map((event) => (
-                <EventCard key={event.id} event={event} />
+                <EventCard key={event.id} event={event} when={when} />
               ))}
             </div>
           )}
