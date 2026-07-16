@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import TournamentCard from './TournamentCard'
 import type { TournamentListItem } from '@/lib/types'
+import { useChatUnreadKeys } from '@/lib/realtime/ChatUnreadProvider'
 
 type Props = {
   tournaments: TournamentListItem[]
@@ -12,6 +13,7 @@ type Props = {
 export default function TournamentSearch({ tournaments, isLoggedIn }: Props) {
   const [q, setQ] = useState('')
   const [regFilter, setRegFilter] = useState<'all' | 'open'>('all')
+  const unreadKeys = useChatUnreadKeys()
 
   const filtered = useMemo(() => {
     return tournaments.filter((t) => {
@@ -52,7 +54,7 @@ export default function TournamentSearch({ tournaments, isLoggedIn }: Props) {
           No tournaments match your search.
         </p>
       ) : (
-        filtered.map((t) => <TournamentCard key={t.id} tournament={t} />)
+        filtered.map((t) => <TournamentCard key={t.id} tournament={t} hasUnread={unreadKeys.has(`tournament_messages:${t.id}`)} />)
       )}
     </div>
   )

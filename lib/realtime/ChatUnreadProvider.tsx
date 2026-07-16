@@ -25,7 +25,10 @@ const TABLE_SURFACE: Record<string, Surface> = {
 
 const readKey = (table: string, id: string) => `chat-read:${table}:${id}`
 
-const ChatUnreadContext = createContext<Record<Surface, number>>({ leagues: 0, tournaments: 0 })
+// Both the rolled-up per-surface counts (for the nav dot) and the raw per-entity unread keys
+// (`${table}:${entityId}`) so a list can show which specific league/tournament has unread chat.
+type ChatUnreadValue = { counts: Record<Surface, number>; keys: Set<string> }
+const ChatUnreadContext = createContext<ChatUnreadValue>({ counts: { leagues: 0, tournaments: 0 }, keys: new Set() })
 
 export function ChatUnreadProvider({ currentUserId, children }: { currentUserId: string | null; children: React.ReactNode }) {
   const { subscribe } = useRealtimeContext()
@@ -90,19 +93,26 @@ export function ChatUnreadProvider({ currentUserId, children }: { currentUserId:
     return () => window.removeEventListener('chat:read', onRead)
   }, [])
 
-  const counts = useMemo(() => {
+  const value = useMemo<ChatUnreadValue>(() => {
     const c: Record<Surface, number> = { leagues: 0, tournaments: 0 }
     for (const key of unread) {
       const table = key.split(':')[0]
       const surface = TABLE_SURFACE[table]
       if (surface) c[surface] += 1
     }
-    return c
+    return { counts: c, keys: unread }
   }, [unread])
 
-  return <ChatUnreadContext.Provider value={counts}>{children}</ChatUnreadContext.Provider>
+  return <ChatUnreadContext.Provider value={value}>{children}</ChatUnreadContext.Provider>
 }
 
+// Per-surface rolled-up counts (nav dot).
 export function useChatUnread(): Record<Surface, number> {
-  return useContext(ChatUnreadContext)
+  return useContext(ChatUnreadContext).counts
+}
+
+// Raw per-entity unread keys (`${table}:${entityId}`) — for checking a specific chat inside a
+// list without calling a hook per row.
+export function useChatUnreadKeys(): Set<string> {
+  return useContext(ChatUnreadContext).keys
 }
