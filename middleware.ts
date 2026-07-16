@@ -11,7 +11,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  let supabaseResponse = NextResponse.next({ request })
+  // Forward pathname + search to Server Components via the REQUEST headers so they're
+  // readable through headers(). Response headers are NOT visible to Server Components —
+  // setting them there (as this used to) left x-pathname empty, which defeated the
+  // setup-page guard in (app)/layout and looped stub users forever on /profile/setup.
+  // The search string also carries deep-link params like ?token= for partner invites.
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-pathname', request.nextUrl.pathname)
+  requestHeaders.set('x-search', request.nextUrl.search)
+
+  let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,9 +31,12 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          // Update request cookies so Route Handlers receive the refreshed token
+          // Update request cookies so Route Handlers receive the refreshed token, and
+          // keep the forwarded cookie header in sync so Server Components on this same
+          // request see the refreshed session too.
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
+          requestHeaders.set('cookie', request.cookies.toString())
+          supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
           // Also set on response so the browser stores the new tokens
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -68,11 +80,6 @@ export async function middleware(request: NextRequest) {
   if (user && pathname === '/login') {
     return NextResponse.redirect(new URL('/home', request.url))
   }
-
-  // Forward pathname + search so server layouts can read them via headers()
-  // (the search string carries things like ?token= for partner-invite deep links)
-  supabaseResponse.headers.set('x-pathname', request.nextUrl.pathname)
-  supabaseResponse.headers.set('x-search', request.nextUrl.search)
 
   return supabaseResponse
 }
