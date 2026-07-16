@@ -18,6 +18,16 @@ export default function TournamentCard({ tournament, hasUnread = false }: { tour
   const regOpen = tournament.registration_status === 'open'
   const isDraft = tournament.status === 'draft'
 
+  // Lifecycle status wins over registration status: a completed/cancelled tournament must not
+  // still read "Open".
+  const statusBadge = tournament.status === 'cancelled'
+    ? { label: 'Cancelled', cls: 'bg-red-100 text-red-700' }
+    : tournament.status === 'completed'
+    ? { label: 'Completed', cls: 'bg-brand-soft text-brand-muted' }
+    : regOpen
+    ? { label: 'Open', cls: 'bg-brand-soft text-brand-active' }
+    : { label: 'Closed', cls: 'bg-gray-100 text-gray-500' }
+
   const timeRange = tournament.estimated_end_time
     ? `${formatTime(tournament.start_time)} – ${formatTime(tournament.estimated_end_time)}`
     : formatTime(tournament.start_time)
@@ -38,10 +48,8 @@ export default function TournamentCard({ tournament, hasUnread = false }: { tour
               </span>
             )}
           </div>
-          <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-            regOpen ? 'bg-brand-soft text-brand-active' : 'bg-gray-100 text-gray-500'
-          }`}>
-            {regOpen ? 'Open' : 'Closed'}
+          <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge.cls}`}>
+            {statusBadge.label}
           </span>
         </div>
 
