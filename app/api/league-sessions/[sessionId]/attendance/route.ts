@@ -4,21 +4,12 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { broadcast } from '@/lib/realtime/serverBroadcast'
 import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
 import { canOperateSession } from '@/lib/leagues/canOperateSession'
+import { selfReportToActualStatus } from '@/lib/leagues/attendance'
 
 type Params = { params: Promise<{ sessionId: string }> }
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
-// Maps player self-reported status → organizer actual_status
-// Default assumption: player is present unless they actively say otherwise
-const ACTUAL_STATUS_MAP: Record<string, string> = {
-  checked_in_present: 'present',
-  planning_to_attend: 'present',
-  not_responded:      'present',
-  running_late:       'late',
-  cannot_attend:      'not_present',
 }
 
 // GET — all attendance records for this session
@@ -82,15 +73,13 @@ export async function POST(req: NextRequest, props: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Sync to organizer's attendance view in league_session_players
-  const mappedStatus = ACTUAL_STATUS_MAP[attendance_status]
-  if (mappedStatus) {
-    await db
-      .from('league_session_players')
-      .update({ actual_status: mappedStatus })
-      .eq('session_id', params.sessionId)
-      .eq('user_id', effectiveUserId)
-  }
+  // Sync to organizer's attendance view in league_session_players — faithfully, so a "Can't Come"
+  // self-report shows as "Can't Come" on the host grid (not "Not Here").
+  await db
+    .from('league_session_players')
+    .update({ actual_status: selfReportToActualStatus(attendance_status) })
+    .eq('session_id', params.sessionId)
+    .eq('user_id', effectiveUserId)
 
   // Live push to everyone viewing this session's "who's coming" list.
   await broadcast(attendanceTopic(params.sessionId), RealtimeEvents.attendanceStatusChanged, {

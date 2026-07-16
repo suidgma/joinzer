@@ -82,7 +82,6 @@ type Props = {
   initialScoredRounds: number[]
   initialMatchScores: MatchScoreData[]
   availableSubs: { id: string; name: string }[]
-  attendanceByUserId: Record<string, string>
   subRequests: SubRequest[]
   format: string
   teamByUserId?: Record<string, string>
@@ -97,13 +96,6 @@ function playerName(id: string | null, players: Player[]) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-const SELF_STATUS_BADGE: Record<string, string> = {
-  planning_to_attend: 'Cmg',
-  checked_in_present: 'Here',
-  running_late:       'Late',
-  cannot_attend:      'Out',
-}
 
 type Score = { t1: number; t2: number }
 
@@ -507,7 +499,6 @@ export default function LiveSessionManager({
   numberOfCourts,
   initialMatchScores,
   availableSubs,
-  attendanceByUserId,
   subRequests,
   format,
   teamByUserId = {},
@@ -878,30 +869,24 @@ export default function LiveSessionManager({
       p.user_id
   )
 
-  // Normalize session players into the shared AttendanceGrid's row shape.
-  const rosterRows: AttendeeRow[] = rosterPlayers.map(p => {
-    const selfStatus = p.user_id ? attendanceByUserId[p.user_id] : undefined
-    return {
-      id: p.id,
-      displayName: p.display_name,
-      kind: 'roster',
-      status: p.actual_status,
-      teamName: p.user_id ? teamByUserId[p.user_id] : undefined,
-      selfReportBadge: selfStatus ? SELF_STATUS_BADGE[selfStatus] : undefined,
-      subbedByName: subByAbsentId.get(p.id)?.display_name,
-    }
-  })
-  const subRows: AttendeeRow[] = subPlayers.map(p => {
-    const selfStatus = p.user_id ? attendanceByUserId[p.user_id] : undefined
-    return {
-      id: p.id,
-      displayName: p.display_name,
-      kind: p.player_type === 'sub' ? 'sub' : 'guest',
-      status: p.actual_status,
-      selfReportBadge: selfStatus ? SELF_STATUS_BADGE[selfStatus] : undefined,
-      coveringName: absentNameById.get(p.id),
-    }
-  })
+  // Normalize session players into the shared AttendanceGrid's row shape. No self-report badge
+  // under the name — the player's status is shown only by the radio columns (status = actual_status,
+  // which now faithfully reflects the self-report).
+  const rosterRows: AttendeeRow[] = rosterPlayers.map(p => ({
+    id: p.id,
+    displayName: p.display_name,
+    kind: 'roster',
+    status: p.actual_status,
+    teamName: p.user_id ? teamByUserId[p.user_id] : undefined,
+    subbedByName: subByAbsentId.get(p.id)?.display_name,
+  }))
+  const subRows: AttendeeRow[] = subPlayers.map(p => ({
+    id: p.id,
+    displayName: p.display_name,
+    kind: p.player_type === 'sub' ? 'sub' : 'guest',
+    status: p.actual_status,
+    coveringName: absentNameById.get(p.id),
+  }))
 
   // ─── Sync / connection status bar ────────────────────────────────────────────
   const syncBar = (() => {

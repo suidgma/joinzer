@@ -3,6 +3,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LiveSessionManager from './LiveSessionManager'
+import { selfReportToActualStatus } from '@/lib/leagues/attendance'
 import ClaimHostButton from './ClaimHostButton'
 import HostControls from './HostControls'
 import RefreshButton from '@/components/ui/RefreshButton'
@@ -124,14 +125,7 @@ export default async function LiveSessionPage(
     selfStatusMap[a.user_id as string] = a.attendance_status as string
   }
 
-  const resolveActualStatus = (userId: string): string => {
-    const self = selfStatusMap[userId]
-    if (self === 'checked_in_present') return 'present'
-    if (self === 'planning_to_attend') return 'coming'
-    if (self === 'running_late') return 'late'
-    if (self === 'cannot_attend') return 'cannot_attend'
-    return 'not_present'
-  }
+  const resolveActualStatus = (userId: string): string => selfReportToActualStatus(selfStatusMap[userId])
 
   // Insert any registered players not yet in session players
   const newRosterRows = (registrations ?? [])
@@ -204,16 +198,6 @@ export default async function LiveSessionPage(
     .eq('session_id', params.sessionId)
     .order('player_type')
     .order('display_name')
-
-  // --- Fetch player self-check-in statuses ---
-  const { data: attendanceRows } = await db
-    .from('league_session_attendance')
-    .select('user_id, attendance_status, checked_in_at')
-    .eq('league_session_id', params.sessionId)
-
-  const attendanceByUserId = Object.fromEntries(
-    (attendanceRows ?? []).map((a) => [a.user_id as string, a.attendance_status as string])
-  )
 
   // --- Fetch open sub requests for this session ---
   const { data: subRequests } = await db
@@ -316,7 +300,6 @@ export default async function LiveSessionPage(
         initialScoredRounds={scoredRoundNumbers}
         initialMatchScores={(matchScoreRows ?? []) as any[]}
         availableSubs={(availableProfiles ?? []).map(p => ({ id: p.id, name: p.name }))}
-        attendanceByUserId={attendanceByUserId}
         subRequests={(subRequests ?? []) as any[]}
         format={(league as any).format ?? 'mixed_doubles'}
         teamByUserId={teamByUserId}

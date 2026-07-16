@@ -1,5 +1,21 @@
 import type { LeagueAttendanceStatus } from '../types'
 
+// Player self-report (league_session_attendance.attendance_status) → organizer-grid actual_status
+// (league_session_players.actual_status). ONE faithful mapping so the self-report route and the
+// live-page seeding never drift again. A previous lossy variant collapsed cannot_attend →
+// not_present and planning_to_attend → present, so a player's "Can't Come" self-report showed as
+// "Not Here" on the organizer/host grid. Inverse of the actual_status → attendance map used when an
+// organizer changes a player's status.
+export function selfReportToActualStatus(selfStatus: string | null | undefined): string {
+  switch (selfStatus) {
+    case 'checked_in_present': return 'present'
+    case 'planning_to_attend': return 'coming'
+    case 'running_late':       return 'late'
+    case 'cannot_attend':      return 'cannot_attend'
+    default:                   return 'not_present' // not_responded / unknown
+  }
+}
+
 // The shared attendance model (docs/phases/unified-attendance.md). These types are
 // the contract between the data layer and the presentational AttendanceGrid, kept
 // in lib so both the grid and per-format data helpers depend on the same shape.
