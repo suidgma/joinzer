@@ -71,6 +71,26 @@ export default async function LeagueSchedulePage(props: { params: Promise<{ id: 
     }
   }
 
+  // The viewer's active unified sub requests (open/filled) per session, so each card can show the
+  // requester status line ("Looking for a sub…" / "Sub confirmed: X") on load.
+  let subRequestBySession: Record<string, { id: string; status: 'open' | 'filled' | 'cancelled' | 'expired'; fulfillment_mode: 'open_pool' | 'self_assigned' | 'organizer_assigned'; subName: string | null }> = {}
+  if (user && sessionIds.length > 0) {
+    const adminDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: reqs } = await adminDb
+      .from('league_sub_requests')
+      .select('id, league_session_id, status, fulfillment_mode, filled_by:profiles!filled_by_user_id(name)')
+      .eq('requesting_player_id', user.id)
+      .in('status', ['open', 'filled'])
+      .in('league_session_id', sessionIds)
+      .order('created_at', { ascending: false })
+    for (const r of (reqs ?? []) as any[]) {
+      const sid = r.league_session_id as string
+      if (sid && !subRequestBySession[sid]) {
+        subRequestBySession[sid] = { id: r.id, status: r.status, fulfillment_mode: r.fulfillment_mode, subName: (r.filled_by as any)?.name ?? null }
+      }
+    }
+  }
+
   const navItems = leagueNavItems(id, { canManage: false, formatKind: league.format_kind })
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
   const imminentSession = ((sessions ?? []) as { session_date: string; status: string }[])
@@ -124,6 +144,7 @@ export default async function LeagueSchedulePage(props: { params: Promise<{ id: 
           leagueSkillLevel={skillRangeToLevel(league.skill_min, league.skill_max)}
           currentUserId={user?.id}
           selfSubBySession={selfSubBySession}
+          subRequestBySession={subRequestBySession}
         />
         {nextSession && whoPlayers.length > 0 && (
           <WhoIsComing

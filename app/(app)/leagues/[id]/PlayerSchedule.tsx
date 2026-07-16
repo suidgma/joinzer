@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
+import type { RequesterRequest } from '@/components/features/leagues/RequesterSubStatus'
 
 type Session = {
   id: string
@@ -24,6 +25,7 @@ export default function PlayerSchedule({
   leagueSkillLevel,
   currentUserId,
   selfSubBySession = {},
+  subRequestBySession = {},
 }: {
   leagueId: string
   sessions: Session[]
@@ -33,6 +35,7 @@ export default function PlayerSchedule({
   leagueSkillLevel: string | null
   currentUserId?: string
   selfSubBySession?: Record<string, { id: string; nomineeName: string }>
+  subRequestBySession?: Record<string, RequesterRequest>
 }) {
   if (sessions.length === 0) {
     return <p className="text-sm text-brand-muted">No sessions scheduled yet.</p>
@@ -82,6 +85,7 @@ export default function PlayerSchedule({
             leagueSkillLevel={leagueSkillLevel}
             allowSelfSub={!scheduleSet.has(s.id)}
             currentUserId={currentUserId}
+            activeSubRequest={subRequestBySession[s.id] ?? null}
             activeSelfSub={selfSubBySession[s.id] ?? null}
           />
         )}
