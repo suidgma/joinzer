@@ -13,6 +13,8 @@ import ManageNav from '@/components/ui/manage-nav'
 import { leagueNavItems } from '@/lib/leagues/leagueNav'
 import AutoRefresh from '@/components/ui/AutoRefresh'
 import RefreshButton from '@/components/ui/RefreshButton'
+import RealtimeRefresh from '@/components/ui/RealtimeRefresh'
+import { sessionHostTopic, RealtimeEvents } from '@/lib/realtime/topics'
 import { getRunSessionAction } from '@/lib/leagues/runSession'
 import LadderPlayerCard from './LadderPlayerCard'
 import BoxLadderCheckIn from '@/components/features/leagues/BoxLadderCheckIn'
@@ -578,6 +580,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           )}
           {selfRunHost && (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
+              <RealtimeRefresh topic={sessionHostTopic(selfRunHost.sessionId)} events={[RealtimeEvents.sessionHostChanged]} />
               <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Player-run league</p>
               {selfRunHost.effectiveHostId == null ? (
                 <>
