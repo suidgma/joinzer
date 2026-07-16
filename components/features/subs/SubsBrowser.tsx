@@ -25,6 +25,24 @@ export default function SubsBrowser({
   const [tab, setTab] = useState<Tab>('open')
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [visibleCount, setVisibleCount] = useState(10)
+  const [withdrawn, setWithdrawn] = useState<Set<string>>(new Set())
+  const [confirmWithdraw, setConfirmWithdraw] = useState<string | null>(null)
+  const [busyWithdraw, setBusyWithdraw] = useState<string | null>(null)
+  const [withdrawErr, setWithdrawErr] = useState<Record<string, string>>({})
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+  async function withdraw(id: string) {
+    setBusyWithdraw(id); setWithdrawErr((e) => ({ ...e, [id]: '' }))
+    try {
+      const res = await fetch(`/api/league-sub-requests/${id}/withdraw`, { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setWithdrawErr((e) => ({ ...e, [id]: body.error ?? 'Could not withdraw.' }))
+        return
+      }
+      setWithdrawn((s) => new Set(s).add(id))
+    } catch { setWithdrawErr((e) => ({ ...e, [id]: 'Network error.' })) } finally { setBusyWithdraw(null); setConfirmWithdraw(null) }
+  }
 
   const openList = openOpps.filter((o) => !accepted.has(o.requestId))
   const shown = openList.slice(0, visibleCount)
@@ -75,16 +93,40 @@ export default function SubsBrowser({
           {mySubs.length === 0 ? (
             <p className="text-sm text-brand-muted py-6 text-center">You haven&apos;t subbed for anyone yet.</p>
           ) : (
-            mySubs.map((s) => (
-              <Link key={s.id} href={`/leagues/${s.leagueId}`} className="block rounded-2xl border border-brand-border bg-brand-surface p-4 hover:bg-brand-soft">
-                <p className="text-sm font-semibold text-brand-dark">{s.leagueName}</p>
-                <p className="text-xs text-brand-muted">
-                  {s.scopeType === 'session' && s.sessionNumber ? `Session ${s.sessionNumber} · ` : ''}{dateStr(s.date)}
-                  {s.requesterName ? ` · covering ${s.requesterName}` : ''}
-                </p>
-                <p className="text-[11px] font-semibold text-brand-active mt-1">✓ Confirmed{s.fulfillmentMode === 'organizer_assigned' ? ' by organizer' : ''}</p>
-              </Link>
-            ))
+            mySubs.map((s) => {
+              const gone = withdrawn.has(s.id)
+              const upcoming = !s.date || s.date >= today
+              return (
+                <div key={s.id} className="rounded-2xl border border-brand-border bg-brand-surface p-4">
+                  <Link href={`/leagues/${s.leagueId}`} className="block">
+                    <p className="text-sm font-semibold text-brand-dark">{s.leagueName}</p>
+                    <p className="text-xs text-brand-muted">
+                      {s.scopeType === 'session' && s.sessionNumber ? `Session ${s.sessionNumber} · ` : ''}{dateStr(s.date)}
+                      {s.requesterName ? ` · covering ${s.requesterName}` : ''}
+                    </p>
+                  </Link>
+                  {gone ? (
+                    <p className="text-[11px] font-semibold text-brand-muted mt-1">You withdrew — the request has reopened.</p>
+                  ) : (
+                    <>
+                      <p className="text-[11px] font-semibold text-brand-active mt-1">✓ Confirmed{s.fulfillmentMode === 'organizer_assigned' ? ' by organizer' : ''}</p>
+                      {upcoming && (confirmWithdraw === s.id ? (
+                        <div className="mt-1.5 space-y-1.5">
+                          <p className="text-[11px] text-brand-body">If you withdraw, this opportunity reopens and the organizer and player are notified.</p>
+                          <div className="flex gap-2">
+                            <button onClick={() => withdraw(s.id)} disabled={busyWithdraw === s.id} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60">{busyWithdraw === s.id ? 'Withdrawing…' : 'Withdraw'}</button>
+                            <button onClick={() => setConfirmWithdraw(null)} className="text-xs font-medium text-brand-muted">Never mind</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmWithdraw(s.id)} className="mt-1 text-xs font-semibold text-red-600 hover:text-red-700">Withdraw</button>
+                      ))}
+                    </>
+                  )}
+                  {withdrawErr[s.id] && <p role="alert" className="text-xs text-red-600 mt-1">{withdrawErr[s.id]}</p>}
+                </div>
+              )
+            })
           )}
         </div>
       )}
