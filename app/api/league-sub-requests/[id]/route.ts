@@ -44,30 +44,29 @@ export async function PATCH(req: NextRequest, props: Params) {
   const isOrganizer = league?.created_by === user.id
   const isRequester = sr.requesting_player_id === user.id
 
-  let update: Record<string, unknown> = { updated_at: new Date().toISOString() }
-
-  if (action === 'claim') {
-    if (sr.status !== 'open') return NextResponse.json({ error: 'Sub request is no longer open' }, { status: 409 })
-    if (isRequester) return NextResponse.json({ error: 'You cannot claim your own sub request' }, { status: 400 })
-    update = { ...update, status: 'claimed', claimed_by_user_id: user.id }
+  // Claim + organizer-approve are being replaced by the Phase 2 atomic accept-and-place flow
+  // (docs/phases/substitutions-implementation-plan.md). The legacy statuses ('claimed'/'approved')
+  // no longer exist, and the old claim never actually placed a substitute — so these actions are
+  // paused here (a clean 409) rather than writing an invalid state. Cancel remains fully functional.
+  if (action === 'claim' || action === 'approve') {
+    return NextResponse.json(
+      { error: 'Substitute claiming is being upgraded and will be back shortly.', code: 'UPGRADING' },
+      { status: 409 },
+    )
   }
 
-  if (action === 'approve') {
-    if (!isOrganizer) return NextResponse.json({ error: 'Only the organizer can approve sub requests' }, { status: 403 })
-    if (!['claimed', 'open'].includes(sr.status)) {
-      return NextResponse.json({ error: 'Sub request cannot be approved in its current state' }, { status: 409 })
-    }
-    update = { ...update, status: 'approved', approved_by_user_id: user.id }
+  // action === 'cancel'
+  if (!isRequester && !isOrganizer) {
+    return NextResponse.json({ error: 'Only the requester or organizer can cancel' }, { status: 403 })
   }
-
-  if (action === 'cancel') {
-    if (!isRequester && !isOrganizer) {
-      return NextResponse.json({ error: 'Only the requester or organizer can cancel' }, { status: 403 })
-    }
-    if (!['open', 'claimed'].includes(sr.status)) {
-      return NextResponse.json({ error: 'Sub request cannot be cancelled' }, { status: 409 })
-    }
-    update = { ...update, status: 'cancelled' }
+  if (sr.status !== 'open') {
+    return NextResponse.json({ error: 'Sub request cannot be cancelled' }, { status: 409 })
+  }
+  const update: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    status: 'cancelled',
+    cancelled_at: new Date().toISOString(),
+    cancelled_by_user_id: user.id,
   }
 
   const { data: updated, error } = await db
