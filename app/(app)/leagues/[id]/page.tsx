@@ -352,6 +352,15 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     }
   }
 
+  // Self-run round-robin: a registered player gets a direct entry to tonight's live session
+  // (to claim host or check in). The admin "Run Session" nav is admin-only, so without this a
+  // player has no way to reach the run screen in a player-run league.
+  let selfRunSessionHref: string | null = null
+  if ((league as any).self_run && (league as any).format_kind === 'session_rr' && user && myReg?.status === 'registered' && !isAdmin) {
+    const runnable = (sessions ?? []).find((s: any) => s.status === 'in_progress') ?? (sessions ?? []).find((s: any) => s.status === 'scheduled')
+    if (runnable) selfRunSessionHref = `/leagues/${league.id}/sessions/${runnable.id}/live`
+  }
+
   // Team leagues: a team captain gets their team's matchups (lineup + score) and roster
   // self-management right on the overview — the captain-run entry point.
   let captainMatchups: { id: string; oppName: string; status: string; matchday: number | null }[] = []
@@ -542,6 +551,16 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
               currentUserId={user?.id}
               activeSelfSub={boxLadderCheckIn.activeSelfSub}
             />
+          )}
+          {selfRunSessionHref && (
+            <Link
+              href={selfRunSessionHref}
+              className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:bg-brand-soft transition-colors"
+            >
+              <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Player-run league</p>
+              <p className="text-sm text-brand-dark mt-0.5 font-semibold">🎾 Run tonight&apos;s session</p>
+              <p className="text-xs text-brand-muted mt-0.5">This league runs without a court monitor — open the session to check in. If no one&apos;s hosting yet, you can start it for everyone.</p>
+            </Link>
           )}
           {captainMatchups.length > 0 && (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
