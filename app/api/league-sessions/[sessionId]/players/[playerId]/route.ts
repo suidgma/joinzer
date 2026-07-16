@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { broadcast } from '@/lib/realtime/serverBroadcast'
 import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
 import { createNotification } from '@/lib/notifications/create'
+import { canOperateSession } from '@/lib/leagues/canOperateSession'
 
 type Params = { params: Promise<{ sessionId: string; playerId: string }> }
 
@@ -48,14 +49,9 @@ export async function PATCH(req: NextRequest, props: Params) {
     .eq('id', session.league_id)
     .single()
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
-  if (league.created_by !== user.id) {
-    const { data: reg } = await db
-      .from('league_registrations')
-      .select('is_co_admin')
-      .eq('league_id', session.league_id)
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (!reg?.is_co_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Owner, co-admin, or (player-run leagues) the effective session host may change a player's status.
+  if (!(await canOperateSession(db, params.sessionId, user.id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const body = await req.json()

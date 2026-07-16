@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { canOperateRound } from '@/lib/leagues/canOperateSession'
 
 type Params = { params: Promise<{ roundId: string; matchId: string }> }
 
@@ -17,6 +18,10 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = admin()
+  // Owner, co-admin, or (player-run leagues) the effective session host may edit round matches.
+  if (!(await canOperateRound(db, params.roundId, user.id))) {
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
 
   const { data: round } = await db
     .from('league_rounds')
