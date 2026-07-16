@@ -46,11 +46,21 @@ const REG_BADGE: Record<string, { label: string; cls: string }> = {
   upcoming:      { label: 'Coming Soon',  cls: 'bg-brand-soft text-brand-muted' },
 }
 
+// Lifecycle status wins over registration status: a completed/cancelled (or otherwise wrapped-up)
+// league must not still read "Open". Falls back to the registration badge for active leagues.
+function leagueBadge(league: League, when: 'upcoming' | 'past'): { label: string; cls: string } {
+  if (league.status === 'cancelled') return { label: 'Cancelled', cls: 'bg-red-100 text-red-700' }
+  if (league.status === 'completed') return { label: 'Completed', cls: 'bg-brand-soft text-brand-muted' }
+  if (when === 'past') return { label: 'Ended', cls: 'bg-brand-soft text-brand-muted' }
+  return REG_BADGE[league.registration_status] ?? REG_BADGE.upcoming
+}
+
 
 type League = {
   id: string
   name: string
   format: string
+  status: string
   skill_min: number | null
   skill_max: number | null
   location_name: string | null
@@ -149,7 +159,7 @@ export default function CompeteClient({ leagues, isLoggedIn, when = 'upcoming' }
         ) : (
           <div className="space-y-3">
             {visibleLeagues.map((league) => {
-              const badge = REG_BADGE[league.registration_status] ?? REG_BADGE.upcoming
+              const badge = leagueBadge(league, when)
               const skillLabel = formatSkillRange(league.skill_min, league.skill_max)
               const hasUnread = unreadKeys.has(`league_messages:${league.id}`)
               return (

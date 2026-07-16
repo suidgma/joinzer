@@ -26,7 +26,7 @@ export default async function CompetePage(props: { searchParams: Promise<SearchP
 
   let query = supabase
     .from('leagues')
-    .select('id, name, format, skill_min, skill_max, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
+    .select('id, name, format, status, skill_min, skill_max, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
 
   // Past = wrapped up: completed, or an active season whose end_date has passed (excludes
   // cancelled); newest-ended first. Upcoming/current = active with no end_date or one still ahead.

@@ -12,6 +12,15 @@ export default function EventCard({ event }: { event: EventListItem }) {
   const isPaidClinic = event.session_type === 'paid_clinic'
   const isClinic     = isFreeClinic || isPaidClinic
 
+  // Lifecycle status wins over full/open: a completed/cancelled session must not still read "Open".
+  const statusBadge = event.status === 'cancelled'
+    ? { label: 'Cancelled', cls: 'bg-red-100 text-red-700' }
+    : event.status === 'completed'
+    ? { label: 'Completed', cls: 'bg-brand-soft text-brand-muted' }
+    : isFull
+    ? { label: 'Full', cls: 'bg-red-100 text-red-700' }
+    : { label: 'Open', cls: 'bg-brand-soft text-brand-active' }
+
   return (
     <Link href={`/play/${event.id}`} className="block group">
       {isClinic ? (
@@ -22,12 +31,8 @@ export default function EventCard({ event }: { event: EventListItem }) {
             <span className="text-[10px] font-extrabold tracking-widest px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 uppercase">
               Clinic
             </span>
-            <span
-              className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-                isFull ? 'bg-red-100 text-red-700' : 'bg-brand-soft text-brand-active'
-              }`}
-            >
-              {isFull ? 'Full' : 'Open'}
+            <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge.cls}`}>
+              {statusBadge.label}
             </span>
           </div>
 
@@ -78,12 +83,8 @@ export default function EventCard({ event }: { event: EventListItem }) {
             <h2 className="font-heading font-semibold text-sm text-brand-dark leading-tight">
               {event.title}
             </h2>
-            <span
-              className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-                isFull ? 'bg-red-100 text-red-700' : 'bg-brand-soft text-brand-active'
-              }`}
-            >
-              {isFull ? 'Full' : 'Open'}
+            <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge.cls}`}>
+              {statusBadge.label}
             </span>
           </div>
 
