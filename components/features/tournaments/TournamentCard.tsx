@@ -14,16 +14,18 @@ function formatTime(timeStr: string) {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`
 }
 
-export default function TournamentCard({ tournament, hasUnread = false }: { tournament: TournamentListItem; hasUnread?: boolean }) {
+export default function TournamentCard({ tournament, hasUnread = false, when = 'upcoming' }: { tournament: TournamentListItem; hasUnread?: boolean; when?: 'upcoming' | 'past' }) {
   const regOpen = tournament.registration_status === 'open'
   const isDraft = tournament.status === 'draft'
 
-  // Lifecycle status wins over registration status: a completed/cancelled tournament must not
-  // still read "Open".
+  // Lifecycle status wins over registration status: a completed/cancelled tournament (or any
+  // past-view tournament, already over even if not explicitly completed) must not read "Open".
   const statusBadge = tournament.status === 'cancelled'
     ? { label: 'Cancelled', cls: 'bg-red-100 text-red-700' }
     : tournament.status === 'completed'
     ? { label: 'Completed', cls: 'bg-brand-soft text-brand-muted' }
+    : when === 'past'
+    ? { label: 'Ended', cls: 'bg-brand-soft text-brand-muted' }
     : regOpen
     ? { label: 'Open', cls: 'bg-brand-soft text-brand-active' }
     : { label: 'Closed', cls: 'bg-gray-100 text-gray-500' }

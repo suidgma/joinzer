@@ -8,9 +8,10 @@ import { useChatUnreadKeys } from '@/lib/realtime/ChatUnreadProvider'
 type Props = {
   tournaments: TournamentListItem[]
   isLoggedIn: boolean
+  when?: 'upcoming' | 'past'
 }
 
-export default function TournamentSearch({ tournaments, isLoggedIn }: Props) {
+export default function TournamentSearch({ tournaments, isLoggedIn, when = 'upcoming' }: Props) {
   const [q, setQ] = useState('')
   const [regFilter, setRegFilter] = useState<'all' | 'open'>('all')
   const unreadKeys = useChatUnreadKeys()
@@ -54,7 +55,7 @@ export default function TournamentSearch({ tournaments, isLoggedIn }: Props) {
           No tournaments match your search.
         </p>
       ) : (
-        filtered.map((t) => <TournamentCard key={t.id} tournament={t} hasUnread={unreadKeys.has(`tournament_messages:${t.id}`)} />)
+        filtered.map((t) => <TournamentCard key={t.id} tournament={t} hasUnread={unreadKeys.has(`tournament_messages:${t.id}`)} when={when} />)
       )}
     </div>
   )

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { formatEventTime } from '@/lib/utils/date'
 import type { EventListItem } from '@/lib/types'
 
-export default function EventCard({ event }: { event: EventListItem }) {
+export default function EventCard({ event, when = 'upcoming' }: { event: EventListItem; when?: 'upcoming' | 'past' }) {
   const joinedCount = event.event_participants.filter(
     (p) => p.participant_status === 'joined'
   ).length
@@ -12,11 +12,14 @@ export default function EventCard({ event }: { event: EventListItem }) {
   const isPaidClinic = event.session_type === 'paid_clinic'
   const isClinic     = isFreeClinic || isPaidClinic
 
-  // Lifecycle status wins over full/open: a completed/cancelled session must not still read "Open".
+  // Lifecycle status wins over full/open: a completed/cancelled session (or any past-view session,
+  // which has already happened even if it was never explicitly marked completed) must not read "Open".
   const statusBadge = event.status === 'cancelled'
     ? { label: 'Cancelled', cls: 'bg-red-100 text-red-700' }
     : event.status === 'completed'
     ? { label: 'Completed', cls: 'bg-brand-soft text-brand-muted' }
+    : when === 'past'
+    ? { label: 'Ended', cls: 'bg-brand-soft text-brand-muted' }
     : isFull
     ? { label: 'Full', cls: 'bg-red-100 text-red-700' }
     : { label: 'Open', cls: 'bg-brand-soft text-brand-active' }

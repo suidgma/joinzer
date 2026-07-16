@@ -96,7 +96,7 @@ export default async function TournamentsPage(props: { searchParams: Promise<Sea
           )}
         </div>
       ) : (
-        <TournamentSearch tournaments={tournaments} isLoggedIn={isLoggedIn} />
+        <TournamentSearch tournaments={tournaments} isLoggedIn={isLoggedIn} when={when} />
       )}
     </main>
   )
