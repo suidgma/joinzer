@@ -1157,7 +1157,7 @@ export default function LiveSessionManager({
       {completedCount >= 1 && !activeRound && !showEndpointCard && (
         <section className="pt-2 border-t border-brand-border">
           <p className="text-xs text-brand-muted text-center mb-3">
-            {completedCount} round{completedCount !== 1 ? 's' : ''} played. Generate more above, or wrap up when you&apos;re done.
+            {`${completedCount} ${completedCount === 1 ? 'round' : 'rounds'} played. Generate more above, or wrap up when you're done.`}
           </p>
           <button
             onClick={handleEndDay}
