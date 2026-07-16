@@ -121,9 +121,27 @@ export default function ChatPanel({
     if (!newest) return
     setLastRead(newest)
     try { localStorage.setItem(readKey, newest) } catch {}
-    // Let the cross-app unread provider clear this chat's nav badge.
+    // Let the cross-app unread provider clear this chat's nav/list dot.
     try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
   }, [messages, readKey, table, entityId])
+
+  // Seeing the chat (it scrolls into view) counts as reading it — clears the "N new" badge and the
+  // cross-app unread dot even if the reader never clicks in. Previously read only fired on
+  // expand/focus/send, so someone who just read the inline preview kept a dot forever. Gated on real
+  // visibility so merely landing on a long page (chat far below the fold) doesn't pre-clear it.
+  const panelRef = useRef<HTMLDivElement>(null)
+  const markReadRef = useRef(markRead)
+  useEffect(() => { markReadRef.current = markRead }, [markRead])
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const obs = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) markReadRef.current() },
+      { threshold: 0.5 },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current
@@ -278,7 +296,7 @@ export default function ChatPanel({
   }
 
   return (
-    <div className={expanded ? 'fixed inset-0 z-50 bg-brand-page' : ''}>
+    <div ref={panelRef} className={expanded ? 'fixed inset-0 z-50 bg-brand-page' : ''}>
       <div
         className={
           expanded
