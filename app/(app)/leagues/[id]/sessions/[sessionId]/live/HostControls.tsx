@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 type Player = { id: string; name: string }
@@ -31,8 +31,25 @@ export default function HostControls({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState('')
+  const [present, setPresent] = useState<Player[]>(presentPlayers)
 
   const isHost = !!effectiveHostId && effectiveHostId === meId
+
+  // Present players change as the host checks people in (in the manager below), which doesn't
+  // re-render this strip. Refetch the hand-off list on mount and whenever the picker is opened,
+  // so it isn't stuck at whatever was present when the page first loaded.
+  const refreshPresent = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/league-sessions/${sessionId}/host`, { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json().catch(() => null)
+      if (json && Array.isArray(json.presentPlayers)) setPresent(json.presentPlayers as Player[])
+    } catch {
+      // keep the last-known list on a transient failure
+    }
+  }, [sessionId])
+
+  useEffect(() => { refreshPresent() }, [refreshPresent])
 
   async function setHost(target: string | null) {
     setBusy(true)
@@ -57,7 +74,7 @@ export default function HostControls({
     }
   }
 
-  const noPresent = presentPlayers.length === 0
+  const noPresent = present.length === 0
 
   return (
     <div className="rounded-xl border border-brand-border bg-brand-surface p-3 text-sm space-y-2">
@@ -88,11 +105,13 @@ export default function HostControls({
           <select
             value={selectedId}
             onChange={(e) => setSelectedId(e.target.value)}
-            disabled={busy || pending || noPresent}
+            onMouseDown={refreshPresent}
+            onFocus={refreshPresent}
+            disabled={busy || pending}
             className="rounded-lg border border-brand-border px-2 py-1 text-sm text-brand-dark disabled:opacity-60"
           >
-            <option value="">{noPresent ? 'No present players' : 'Select a player…'}</option>
-            {presentPlayers.map((p) => (
+            <option value="">{noPresent ? 'Check players in first…' : 'Select a player…'}</option>
+            {present.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>

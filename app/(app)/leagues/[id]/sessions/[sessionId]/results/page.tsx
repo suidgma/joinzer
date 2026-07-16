@@ -20,15 +20,17 @@ export default async function SessionResultsPage(
   if (!user) redirect('/login')
 
   const [{ data: league }, { data: session }, { data: myReg }] = await Promise.all([
-    supabase.from('leagues').select('id, name, created_by, points_to_win, allow_player_scores').eq('id', params.id).single(),
-    supabase.from('league_sessions').select('id, session_number, session_date, status, rounds_planned').eq('id', params.sessionId).single(),
+    supabase.from('leagues').select('id, name, created_by, points_to_win, allow_player_scores, self_run, season_host_user_id').eq('id', params.id).single(),
+    supabase.from('league_sessions').select('id, session_number, session_date, status, rounds_planned, host_user_id').eq('id', params.sessionId).single(),
     supabase.from('league_registrations').select('status, is_co_admin').eq('league_id', params.id).eq('user_id', user.id).maybeSingle(),
   ])
 
   if (!league || !session) notFound()
-  // Organizer / co-admin can enter scores; registered players get a read-only view
-  // (locked-round schedule + scores). Everyone else is bounced.
-  const canEdit = league.created_by === user.id || myReg?.is_co_admin === true
+  // Organizer / co-admin / (player-run) the effective session host can enter scores; other
+  // registered players get a read-only view (locked-round schedule + scores). Everyone else is bounced.
+  const effectiveHostId = (session as any).host_user_id ?? (league as any).season_host_user_id ?? null
+  const isSessionHost = !!(league as any).self_run && !!effectiveHostId && effectiveHostId === user.id
+  const canEdit = league.created_by === user.id || myReg?.is_co_admin === true || isSessionHost
   const canView = canEdit || myReg?.status === 'registered'
   if (!canView) redirect(`/leagues/${params.id}`)
 

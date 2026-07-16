@@ -9,10 +9,16 @@ import { useRouter } from 'next/navigation'
 export default function ClaimHostButton({
   sessionId,
   meId,
+  redirectTo,
+  label,
 }: {
   sessionId: string
   leagueId: string
   meId: string
+  // When set, navigate here on a successful claim (e.g. straight into the run screen from the
+  // league page). Otherwise just refresh in place (the live-page host gate).
+  redirectTo?: string
+  label?: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -30,9 +36,10 @@ export default function ClaimHostButton({
       })
       const json = await res.json().catch(() => ({}))
       if (res.ok) {
-        startTransition(() => router.refresh())
+        startTransition(() => (redirectTo ? router.push(redirectTo) : router.refresh()))
         return
       }
+      // 409 = someone else just claimed; refresh so the UI catches up to who's hosting.
       if (res.status === 409) startTransition(() => router.refresh())
       setError(json?.error ?? 'Could not claim hosting.')
     } catch {
@@ -50,7 +57,7 @@ export default function ClaimHostButton({
         disabled={busy || pending}
         className="bg-brand-active text-white rounded-xl px-4 py-2 font-semibold disabled:opacity-60"
       >
-        {busy ? 'Claiming…' : "Claim host — run tonight's session"}
+        {busy ? 'Claiming…' : (label ?? "Claim host — run tonight's session")}
       </button>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
