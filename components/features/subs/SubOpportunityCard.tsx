@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { X } from 'lucide-react'
+import CopyLinkButton from '@/components/features/subs/CopyLinkButton'
 import type { MatchedSubOpportunity } from '@/lib/subs/matching'
 
 function dateLabel(o: MatchedSubOpportunity): string {
@@ -88,12 +89,15 @@ export default function SubOpportunityCard({ opp, onAccepted, compact }: Props) 
         <p className="text-[11px] font-medium text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1">{opp.ratingWarning}</p>
       )}
 
-      <button
-        onClick={() => { setError(null); setOpen(true) }}
-        className="w-full rounded-xl bg-brand-dark px-4 py-2 text-sm font-bold text-white hover:bg-brand-hover"
-      >
-        I can sub
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => { setError(null); setOpen(true) }}
+          className="flex-1 rounded-xl bg-brand-dark px-4 py-2 text-sm font-bold text-white hover:bg-brand-hover"
+        >
+          I can sub
+        </button>
+        <CopyLinkButton path={`/subs/${opp.requestId}`} label="" className="shrink-0 inline-flex items-center gap-1 text-brand-muted hover:text-brand-dark p-2" />
+      </div>
       {error && <p role="alert" className="text-xs font-medium text-red-600">{error}</p>}
 
       {open && (

@@ -147,6 +147,78 @@ export async function loadOpenOpportunities(userId: string, opts: { limit?: numb
   return typeof opts.limit === 'number' ? out.slice(0, opts.limit) : out
 }
 
+// ── Single request, for the shared-link detail page (/subs/[requestId]) ───────
+// PII-safe (no requester contact/email). Eligibility for OPEN requests is re-derived via the
+// authoritative loader (the shared link is never proof of eligibility). Returns null if not found.
+export type SubRequestDetail = {
+  requestId: string
+  status: 'open' | 'filled' | 'cancelled' | 'expired'
+  leagueId: string
+  leagueName: string
+  leagueFormat: string | null
+  scopeType: 'session' | 'period'
+  date: string | null
+  startTime: string | null
+  venueName: string | null
+  recommended: string | null
+  userRating: number | null
+  ratingWarning: string | null
+  isRequester: boolean
+  eligible: boolean
+  canManage: boolean
+  subName: string | null
+}
+
+export async function loadOpportunityById(userId: string, requestId: string): Promise<SubRequestDetail | null> {
+  const db = admin()
+  const { data: req } = await db
+    .from('league_sub_requests')
+    .select(`id, status, league_id, league_session_id, league_period_id, requesting_player_id, skill: format,
+      league:leagues!league_id(name, format, skill_min, skill_max, location_id, created_by),
+      session:league_sessions!league_session_id(session_date, session_time),
+      filled_by:profiles!filled_by_user_id(name)`)
+    .eq('id', requestId)
+    .maybeSingle()
+  if (!req) return null
+  const r = req as any
+  const league = Array.isArray(r.league) ? r.league[0] : r.league
+  const session = Array.isArray(r.session) ? r.session[0] : r.session
+  const filledBy = Array.isArray(r.filled_by) ? r.filled_by[0] : r.filled_by
+  if (!league) return null
+
+  const skillMin = league.skill_min != null ? Number(league.skill_min) : null
+  const skillMax = league.skill_max != null ? Number(league.skill_max) : null
+  const [{ data: prof }, { data: loc }] = await Promise.all([
+    db.from('profiles').select('self_reported_rating').eq('id', userId).maybeSingle(),
+    league.location_id ? db.from('locations').select('name').eq('id', league.location_id).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+  const userRating = (prof as any)?.self_reported_rating != null ? Number((prof as any).self_reported_rating) : null
+  const recommended = skillMin != null && skillMax != null ? `Recommended rating: ${fmtNum(skillMin)}–${fmtNum(skillMax)}` : null
+  const mismatch = userRating != null && skillMin != null && skillMax != null && (userRating < skillMin - 0.5 || userRating > skillMax + 0.5)
+  const ratingWarning = mismatch ? `This league is rated ${fmtNum(skillMin!)}–${fmtNum(skillMax!)}; your rating is ${fmtNum(userRating!)}. You can still sub.` : null
+
+  let eligible = false
+  if (r.status === 'open') {
+    // Own request is excluded from loadOpenOpportunities, so a requester correctly reads eligible=false.
+    const opps = await loadOpenOpportunities(userId, { limit: 400 })
+    eligible = opps.some((o) => o.requestId === requestId)
+  }
+
+  return {
+    requestId: r.id, status: r.status, leagueId: r.league_id, leagueName: league.name ?? 'League',
+    leagueFormat: league.format ?? null, scopeType: r.league_session_id ? 'session' : 'period',
+    date: session?.session_date ?? null, startTime: session?.session_time ?? null,
+    venueName: (loc as any)?.name ?? null, recommended, userRating, ratingWarning,
+    isRequester: r.requesting_player_id === userId, eligible,
+    // Detail-page display gate only (league owner). The organizer-correct ROUTE fully authorizes
+    // co-admins + self-run hosts via canOperateSession/authorizeOrganizer — this is not the boundary.
+    canManage: league.created_by === userId,
+    subName: filledBy?.name ?? null,
+  }
+}
+
+function fmtNum(n: number): string { return Number.isInteger(n) ? `${n}.0` : `${n}` }
+
 // ── The viewer's own requests (My requests tab + Home own-request items) ──────
 export type OwnRequestSummary = {
   id: string
