@@ -617,20 +617,43 @@ export default function LiveSessionManager({
         byePlayerId: m.bye_player_id,
       })),
     }))
-  const sessionComplete = everyoneHasFacedEveryone(presentIds, completedForCheck)
+  // Need at least two present players for "everyone played everyone" to be meaningful (an empty
+  // present set is vacuously "complete" and would fire a false endpoint).
+  const sessionComplete = presentIds.length >= 2 && everyoneHasFacedEveryone(presentIds, completedForCheck)
   const showCompletionPrompt = sessionComplete && !activeRound
 
-  // The "everyone's played everyone" prompt is an INLINE card (below), not a modal. To stop it
-  // flickering out, it's LATCHED: turned on once we reach the endpoint and cleared ONLY when a new
-  // round actually starts (the organizer chose to keep playing). A transient re-render — the page's
-  // realtime refresh could momentarily flip `sessionComplete` via a stray player-status event — can
-  // no longer drop it, because we don't clear the latch when it goes false, only when a round begins.
-  const [endpointLatched, setEndpointLatched] = useState(false)
+  // The endpoint prompt is a MUST-ACKNOWLEDGE modal, and its latch is PERSISTED in sessionStorage.
+  // Why persisted (not plain useState): the page's realtime router.refresh() can re-seed players
+  // (momentarily flipping sessionComplete) and, the real culprit, REMOUNT this component — which
+  // resets plain state, and if sessionComplete happens to read false on that fresh render the latch
+  // never re-arms and the prompt is gone for good. sessionStorage survives both. Once we reach the
+  // endpoint the latch holds until the organizer acts: a new round starts (kept playing) or they
+  // pick "Not yet". Cleared on end-day too.
+  const latchKey = `jz-ep-latch:${sessionId}`
+  const dismissKey = `jz-ep-dismiss:${sessionId}`
+  const [endpointLatched, setEndpointLatchedState] = useState(false)
+  const [endpointDismissed, setEndpointDismissedState] = useState(false)
+  // Hydrate from sessionStorage after mount (kept out of the useState initializer to avoid an
+  // SSR/client hydration mismatch).
+  useEffect(() => {
+    try {
+      setEndpointLatchedState(sessionStorage.getItem(latchKey) === '1')
+      setEndpointDismissedState(sessionStorage.getItem(dismissKey) === '1')
+    } catch { /* sessionStorage unavailable — fall back to in-memory latch */ }
+  }, [latchKey, dismissKey])
+  const setEndpointLatched = useCallback((v: boolean) => {
+    setEndpointLatchedState(v)
+    try { if (v) sessionStorage.setItem(latchKey, '1'); else sessionStorage.removeItem(latchKey) } catch {}
+  }, [latchKey])
+  const setEndpointDismissed = useCallback((v: boolean) => {
+    setEndpointDismissedState(v)
+    try { if (v) sessionStorage.setItem(dismissKey, '1'); else sessionStorage.removeItem(dismissKey) } catch {}
+  }, [dismissKey])
   useEffect(() => {
     if (showCompletionPrompt) setEndpointLatched(true)
-    else if (activeRound) setEndpointLatched(false)
-  }, [showCompletionPrompt, activeRound])
-  const showEndpointCard = endpointLatched && !activeRound
+    else if (activeRound) { setEndpointLatched(false); setEndpointDismissed(false) }
+  }, [showCompletionPrompt, activeRound, setEndpointLatched, setEndpointDismissed])
+  const showEndpointPrompt = endpointLatched && !endpointDismissed && !activeRound
 
   // --- Quick court preview ---
   function courtsPreview() {
@@ -1022,29 +1045,41 @@ export default function LiveSessionManager({
         {/* Natural-endpoint decision prompt — a PERSISTENT inline card (replaces a modal that kept
             getting dropped by the page's realtime refresh). Stays visible until the organizer picks
             a next step: generate another round, or end the day. */}
-        {showEndpointCard && (
-          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-3">
-            <div>
-              <p className="text-base font-bold text-emerald-900">🎉 Everyone’s played everyone</p>
-              <p className="text-sm text-emerald-700 mt-0.5">
-                Every player here has faced each other at least once — a natural stopping point. What next?
-              </p>
-            </div>
-            <div className="space-y-2">
-              <button
-                onClick={() => handleGenerate(false)}
-                disabled={generating || eligibleCount < 2 || !!activeRound || currentRoundNeedsScores}
-                className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
-              >
-                {generating ? 'Generating…' : currentRoundNeedsScores ? 'Enter this round’s scores first' : 'Generate another round'}
-              </button>
-              <button
-                onClick={handleEndDay}
-                disabled={endingDay}
-                className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
-                {endingDay ? 'Ending…' : '🏁 End the day'}
-              </button>
+        {/* Natural-endpoint decision — a MUST-ACKNOWLEDGE modal (blocking overlay, no backdrop
+            dismiss). Its latch is persisted (see above), so a realtime refresh / remount can't drop
+            it. It stays until the organizer generates another round, ends the day, or picks "Not yet". */}
+        {showEndpointPrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+            <div className="w-full max-w-sm bg-white rounded-2xl border-2 border-emerald-300 p-5 space-y-4 shadow-xl">
+              <div>
+                <p className="text-lg font-bold text-emerald-900">🎉 Everyone’s played everyone</p>
+                <p className="text-sm text-emerald-700 mt-1">
+                  Every player here has faced each other at least once — a natural stopping point. What would you like to do?
+                </p>
+              </div>
+              <div className="space-y-2">
+                <button
+                  onClick={() => handleGenerate(false)}
+                  disabled={generating || eligibleCount < 2 || !!activeRound || currentRoundNeedsScores}
+                  className="w-full py-2.5 rounded-xl bg-brand text-brand-dark text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
+                >
+                  {generating ? 'Generating…' : currentRoundNeedsScores ? 'Enter this round’s scores first' : 'Generate another round'}
+                </button>
+                <button
+                  onClick={() => { setEndpointLatched(false); handleEndDay() }}
+                  disabled={endingDay}
+                  className="w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {endingDay ? 'Ending…' : '🏁 End the day'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEndpointDismissed(true)}
+                  className="w-full py-2 text-xs font-semibold text-brand-muted hover:text-brand-dark"
+                >
+                  Not yet — keep the session open
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1154,7 +1189,7 @@ export default function LiveSessionManager({
 
       {/* ── End the Day ───────────────────────────────────────── */}
       {/* Hidden at the natural endpoint — the decision card above already offers End the day. */}
-      {completedCount >= 1 && !activeRound && !showEndpointCard && (
+      {completedCount >= 1 && !activeRound && !showEndpointPrompt && (
         <section className="pt-2 border-t border-brand-border">
           <p className="text-xs text-brand-muted text-center mb-3">
             {`${completedCount} ${completedCount === 1 ? 'round' : 'rounds'} played. Generate more above, or wrap up when you're done.`}
