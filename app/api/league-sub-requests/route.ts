@@ -4,6 +4,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createNotification } from '@/lib/notifications/create'
 import { broadcast } from '@/lib/realtime/serverBroadcast'
 import { attendanceTopic, RealtimeEvents } from '@/lib/realtime/topics'
+import { broadcastSubRequestsChanged, notifyEligibleSubs } from '@/lib/subs/broadcast'
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -130,8 +131,9 @@ async function fireSideEffects(
   const requesterName = requester?.name ?? 'A player'
   const url = `/leagues/${leagueId}`
 
-  // Live attendance nudge (occasion topic) so grids / "who's coming" reflect the change.
+  // Live attendance nudge (occasion topic) + the discovery-pool "changed" signal (/subs + Home).
   await broadcast(attendanceTopic(scopeId), RealtimeEvents.attendanceStatusChanged, { userId: requesterId, status: 'cannot_attend' }).catch(() => {})
+  await broadcastSubRequestsChanged()
 
   if (r.fulfillment_mode === 'self_assigned' && r.filled_by_user_id) {
     const { data: sub } = await db.from('profiles').select('name').eq('id', r.filled_by_user_id).maybeSingle()
@@ -148,11 +150,22 @@ async function fireSideEffects(
     return
   }
 
-  // open_pool: let the organizer observe the request.
+  // open_pool: let the organizer observe the request, then proactively notify the top opted-in
+  // eligible substitutes (opt-in + eligibility + dedupe all enforced inside notifyEligibleSubs).
   if (league?.created_by && league.created_by !== requesterId) {
     await createNotification({
       recipientId: league.created_by, surface: 'league', surfaceId: leagueId, kind: 'league_sub_request',
       title: `Sub needed — ${leagueName}`, body: `${requesterName} is looking for a substitute.`, url,
     })
+  }
+  const r2 = (result ?? {}) as { request_id?: string; scope?: string }
+  if (r2.request_id) {
+    const { data: sess } = r2.scope === 'session'
+      ? await db.from('league_sessions').select('session_date').eq('id', scopeId).maybeSingle()
+      : { data: null }
+    const dateLabel = (sess as any)?.session_date
+      ? new Date((sess as any).session_date + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
+      : null
+    await notifyEligibleSubs(r2.request_id, { leagueId, leagueName, dateLabel })
   }
 }

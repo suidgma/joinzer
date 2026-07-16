@@ -28,6 +28,7 @@ type Profile = {
   preferred_side: string | null
   preferred_formats: string[] | null
   discoverable: boolean
+  open_to_subbing?: boolean
 }
 
 const FORMAT_OPTIONS: [string, string][] = [['singles', 'Singles'], ['doubles', 'Doubles'], ['mixed', 'Mixed Doubles']]
@@ -61,6 +62,7 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
   const [preferredSide, setPreferredSide] = useState<string | null>(profile.preferred_side ?? null)
   const [preferredFormats, setPreferredFormats] = useState<string[]>(profile.preferred_formats ?? [])
   const [discoverable, setDiscoverable] = useState(profile.discoverable ?? true)
+  const [openToSubbing, setOpenToSubbing] = useState(profile.open_to_subbing ?? false)
   const toggleFormat = (f: string) =>
     setPreferredFormats((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]))
   const [courtQuery, setCourtQuery] = useState('')
@@ -113,6 +115,7 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
         preferred_side: preferredSide,
         preferred_formats: preferredFormats.length ? preferredFormats : null,
         discoverable,
+        open_to_subbing: openToSubbing,
       })
       .eq('id', profile.id)
 
@@ -437,6 +440,24 @@ export default function ProfileEditForm({ profile, locations }: { profile: Profi
             List me in the Players directory
             <span className="block text-xs text-brand-muted">
               When off, you won&apos;t appear in player search and your public profile is hidden from other players.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Substitute opportunities</legend>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={openToSubbing}
+            onChange={(e) => setOpenToSubbing(e.target.checked)}
+            className="mt-0.5 accent-brand-active"
+          />
+          <span className="text-sm text-brand-body">
+            Open to substitute opportunities
+            <span className="block text-xs text-brand-muted">
+              Show me eligible substitute openings on Home and notify me when leagues need a substitute. You can always browse openings at /subs.
             </span>
           </span>
         </label>

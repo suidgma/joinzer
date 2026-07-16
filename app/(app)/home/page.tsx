@@ -2,7 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import Link from 'next/link'
 import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
-import SubRequestsSection from '@/components/features/leagues/SubRequestsSection'
+import NeedsYourAttention from '@/components/features/home/NeedsYourAttention'
+import { getHomeActionItems } from '@/lib/home/actionItems'
+import RealtimeRefresh from '@/components/ui/RealtimeRefresh'
+import { subRequestsTopic, RealtimeEvents } from '@/lib/realtime/topics'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import { formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
 import UpcomingEventsSection from '@/components/features/home/UpcomingEventsSection'
@@ -144,28 +147,15 @@ export default async function HomePage() {
 
   const sessionIds = (upcomingSessions ?? []).map((s) => s.id as string)
 
-  const [{ data: attendance }, { data: openSubRequests }] = await Promise.all([
+  const [{ data: attendance }, actionItems] = await Promise.all([
     sessionIds.length > 0
       ? db.from('league_session_attendance')
           .select('league_session_id, attendance_status')
           .eq('user_id', user.id)
           .in('league_session_id', sessionIds)
       : Promise.resolve({ data: [] }),
-    leagueIds.length > 0
-      ? db.from('league_sub_requests')
-          .select(`
-            id, league_id, league_session_id, status, notes,
-            requesting_player:profiles!requesting_player_id(name),
-            claimed_by:profiles!claimed_by_user_id(name),
-            session:league_sessions!league_session_id(session_date, session_number),
-            league:leagues!league_id(name)
-          `)
-          .in('league_id', leagueIds)
-          .eq('status', 'open')
-          .neq('requesting_player_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(5)
-      : Promise.resolve({ data: [] }),
+    // Home "Needs your attention": own sub requests/statuses + (opt-in-gated) matched opportunities.
+    getHomeActionItems(user.id),
   ])
 
   const homeCourt = (profile as any)?.home_court as { lat: number; lng: number } | null
@@ -311,6 +301,10 @@ export default async function HomePage() {
           </Link>
         )
       })}
+
+      {/* ── Needs your attention (Action Center) ── */}
+      <RealtimeRefresh topic={subRequestsTopic()} events={[RealtimeEvents.subRequestsChanged]} />
+      <NeedsYourAttention items={actionItems} />
 
       {/* ── My Schedule ── */}
       {hasSchedule && (
@@ -504,14 +498,6 @@ export default async function HomePage() {
         excludeEventIds={excludeEventIds}
         excludeTournamentIds={excludeTournamentIds}
       />
-
-      {/* ── Open sub requests in my leagues ── */}
-      {(openSubRequests ?? []).length > 0 && (
-        <SubRequestsSection
-          initialRequests={(openSubRequests ?? []) as any[]}
-          currentUserId={user.id}
-        />
-      )}
 
     </main>
   )

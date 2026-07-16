@@ -27,6 +27,12 @@ export const leagueFixturesTopic = (leagueId: string) => `league-fixtures:${leag
 // viewing the run screen re-derive who's hosting (via RealtimeRefresh) without a manual reload.
 export const sessionHostTopic = (sessionId: string) => `session-host:${sessionId}`
 
+// Substitute opportunities: league_sub_requests is deny-all-to-clients (SELECT own+filled only), so a
+// pool change (opened / filled / cancelled) can't reach the /subs + Home discovery views via
+// postgres_changes. The write routes emit a single coarse "changed" signal here; those views
+// re-derive from their (service-role) server loaders via RealtimeRefresh. Low-volume, so global.
+export const subRequestsTopic = () => 'sub-requests:changed'
+
 // Per-user in-app notifications: server broadcast on create so the bell badge + a toast go
 // live (replacing the poll). notifications is created server-side, so broadcast fits (no
 // client SELECT needed on the table).
@@ -38,4 +44,5 @@ export const RealtimeEvents = {
   leagueFixturesChanged: 'league.fixtures.changed',
   notificationCreated: 'notification.created',
   sessionHostChanged: 'session.host.changed',
+  subRequestsChanged: 'sub.requests.changed',
 } as const

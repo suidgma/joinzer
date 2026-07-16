@@ -122,9 +122,11 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           .eq('user_id', user.id)
           .eq('player_type', 'sub')
       : Promise.resolve({ data: [] }),
-    // Open sub requests in this league (not from current user)
+    // Open sub requests in this league (not from current user). Service-role read: league_sub_requests
+    // SELECT is now scoped to own+filled (migration 20260716000006), so the pool is server-loaded.
     user
-      ? supabase.from('league_sub_requests')
+      ? createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+          .from('league_sub_requests')
           .select(`
             id, league_id, league_session_id, status, notes,
             requesting_player:profiles!requesting_player_id(name),
