@@ -9,6 +9,51 @@ function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
+// GET /api/league-sessions/[sessionId]/host — current host + present players eligible for hand-off.
+// Operator-only (owner / co-admin / current host). Lets HostControls refresh the hand-off list live
+// instead of only at page load, so a player checked in after the page loaded still appears.
+export async function GET(_req: NextRequest, props: Params) {
+  const params = await props.params
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const db = admin()
+  if (!(await canOperateSession(db, params.sessionId, user.id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { data: session } = await db
+    .from('league_sessions')
+    .select('league_id, host_user_id')
+    .eq('id', params.sessionId)
+    .single()
+  if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+
+  const { data: league } = await db
+    .from('leagues')
+    .select('season_host_user_id')
+    .eq('id', (session as { league_id: string }).league_id)
+    .single()
+
+  const hostUserId =
+    (session as { host_user_id: string | null }).host_user_id ??
+    (league as { season_host_user_id: string | null } | null)?.season_host_user_id ??
+    null
+
+  const { data: players } = await db
+    .from('league_session_players')
+    .select('user_id, display_name, actual_status')
+    .eq('session_id', params.sessionId)
+    .eq('actual_status', 'present')
+
+  const presentPlayers = (players ?? [])
+    .filter((p) => (p as { user_id: string | null }).user_id && (p as { user_id: string }).user_id !== hostUserId)
+    .map((p) => ({ id: (p as { user_id: string }).user_id, name: (p as { display_name: string }).display_name ?? 'Player' }))
+
+  return NextResponse.json({ hostUserId, presentPlayers })
+}
+
 // POST /api/league-sessions/[sessionId]/host — set who hosts THIS session (player-run leagues only).
 // Body: { host_user_id: string | null }
 //   • a uuid → claim (for yourself) or assign/hand-off (if you're an operator)

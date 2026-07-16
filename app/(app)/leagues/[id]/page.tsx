@@ -25,6 +25,7 @@ import { captainTeamIds, rosteredRegistrationIds } from '@/lib/leagues/teamsServ
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { loadFlexMatches, type FlexMatchView } from '@/lib/leagues/flexView'
 import FlexPlayerMatches from './FlexPlayerMatches'
+import ClaimHostButton from './sessions/[sessionId]/live/ClaimHostButton'
 import LeagueSetupChecklist from './LeagueSetupChecklist'
 import OrganizerCreatedBanner from '@/components/features/OrganizerCreatedBanner'
 import ChatPanel from '@/components/features/ChatPanel'
@@ -86,7 +87,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
       .single(),
     supabase
       .from('league_sessions')
-      .select('id, session_date, session_number, status, notes')
+      .select('id, session_date, session_number, status, notes, host_user_id')
       .eq('league_id', params.id)
       .order('session_date', { ascending: true }),
     user
@@ -352,13 +353,36 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     }
   }
 
-  // Self-run round-robin: a registered player gets a direct entry to tonight's live session
-  // (to claim host or check in). The admin "Run Session" nav is admin-only, so without this a
-  // player has no way to reach the run screen in a player-run league.
-  let selfRunSessionHref: string | null = null
+  // Self-run round-robin: surface the hosting state directly on the league page so a registered
+  // player can claim + run the session right here (the "Claim host" button), rather than having to
+  // click through first. The admin "Run Session" nav is admin-only, so this is a player's only
+  // entry to the run screen in a player-run league.
+  let selfRunHost: {
+    sessionId: string
+    meId: string
+    href: string
+    effectiveHostId: string | null
+    hostName: string | null
+    iAmHost: boolean
+  } | null = null
   if ((league as any).self_run && (league as any).format_kind === 'session_rr' && user && myReg?.status === 'registered' && !isAdmin) {
     const runnable = (sessions ?? []).find((s: any) => s.status === 'in_progress') ?? (sessions ?? []).find((s: any) => s.status === 'scheduled')
-    if (runnable) selfRunSessionHref = `/leagues/${league.id}/sessions/${runnable.id}/live`
+    if (runnable) {
+      const effectiveHostId = (runnable as any).host_user_id ?? (league as any).season_host_user_id ?? null
+      let hostName: string | null = null
+      if (effectiveHostId && effectiveHostId !== user.id) {
+        const { data: hp } = await supabase.from('profiles').select('name').eq('id', effectiveHostId).maybeSingle()
+        hostName = (hp as any)?.name ?? null
+      }
+      selfRunHost = {
+        sessionId: runnable.id,
+        meId: user.id,
+        href: `/leagues/${league.id}/sessions/${runnable.id}/live`,
+        effectiveHostId,
+        hostName,
+        iAmHost: !!effectiveHostId && effectiveHostId === user.id,
+      }
+    }
   }
 
   // Team leagues: a team captain gets their team's matchups (lineup + score) and roster
@@ -552,15 +576,31 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
               activeSelfSub={boxLadderCheckIn.activeSelfSub}
             />
           )}
-          {selfRunSessionHref && (
-            <Link
-              href={selfRunSessionHref}
-              className="block bg-brand-surface border border-brand-border rounded-2xl p-4 hover:bg-brand-soft transition-colors"
-            >
+          {selfRunHost && (
+            <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
               <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Player-run league</p>
-              <p className="text-sm text-brand-dark mt-0.5 font-semibold">🎾 Run tonight&apos;s session</p>
-              <p className="text-xs text-brand-muted mt-0.5">This league runs without a court monitor — open the session to check in. If no one&apos;s hosting yet, you can start it for everyone.</p>
-            </Link>
+              {selfRunHost.effectiveHostId == null ? (
+                <>
+                  <p className="text-sm text-brand-dark">No one is running tonight&apos;s session yet — start it for everyone.</p>
+                  <ClaimHostButton
+                    sessionId={selfRunHost.sessionId}
+                    leagueId={league.id}
+                    meId={selfRunHost.meId}
+                    redirectTo={selfRunHost.href}
+                  />
+                </>
+              ) : selfRunHost.iAmHost ? (
+                <>
+                  <p className="text-sm font-semibold text-brand-dark">🎾 You&apos;re hosting tonight</p>
+                  <Link href={selfRunHost.href} className="inline-block text-sm font-semibold text-brand-active">Open the run screen →</Link>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-brand-dark">🎾 <span className="font-semibold">{selfRunHost.hostName ?? 'A player'}</span> is hosting tonight.</p>
+                  <Link href={selfRunHost.href} className="inline-block text-sm text-brand-muted">View session →</Link>
+                </>
+              )}
+            </div>
           )}
           {captainMatchups.length > 0 && (
             <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
