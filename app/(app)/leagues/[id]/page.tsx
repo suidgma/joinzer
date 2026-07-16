@@ -595,7 +595,7 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
               ) : selfRunHost.iAmHost ? (
                 <>
                   <p className="text-sm font-semibold text-brand-dark">🎾 You&apos;re hosting tonight</p>
-                  <Link href={selfRunHost.href} className="inline-block text-sm font-semibold text-brand-active">Open the run screen →</Link>
+                  <Link href={selfRunHost.href} className="inline-block bg-brand-active text-white rounded-xl px-4 py-2 font-semibold hover:opacity-90 transition-opacity">Open the run screen →</Link>
                 </>
               ) : (
                 <>
