@@ -14,7 +14,7 @@ function formatTime(timeStr: string) {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`
 }
 
-export default function TournamentCard({ tournament }: { tournament: TournamentListItem }) {
+export default function TournamentCard({ tournament, hasUnread = false }: { tournament: TournamentListItem; hasUnread?: boolean }) {
   const regOpen = tournament.registration_status === 'open'
   const isDraft = tournament.status === 'draft'
 
@@ -46,7 +46,14 @@ export default function TournamentCard({ tournament }: { tournament: TournamentL
         </div>
 
         {/* Name */}
-        <h2 className="font-heading font-semibold text-sm text-brand-dark leading-tight">
+        <h2 className="font-heading font-semibold text-sm text-brand-dark leading-tight flex items-center gap-1.5">
+          {hasUnread && (
+            <span
+              className="shrink-0 w-2 h-2 rounded-full bg-brand-dark"
+              aria-label="Unread chat messages"
+              title="Unread chat"
+            />
+          )}
           {tournament.name}
         </h2>
 

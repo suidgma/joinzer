@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { formatSessionDate } from '@/lib/utils/date'
 import { formatSkillRange } from '@/lib/taxonomy/formats'
+import { useChatUnreadKeys } from '@/lib/realtime/ChatUnreadProvider'
 
 const SKILL_TIERS = [
   'Beginner',
@@ -75,6 +76,7 @@ function fmtDate(d: string | null, year = false) {
 
 export default function CompeteClient({ leagues, isLoggedIn, when = 'upcoming' }: Props) {
   const [activeFilters, setActiveFilters] = useState<Set<SkillTier>>(new Set())
+  const unreadKeys = useChatUnreadKeys()
 
   function toggleTier(tier: SkillTier) {
     setActiveFilters((prev) => {
@@ -149,6 +151,7 @@ export default function CompeteClient({ leagues, isLoggedIn, when = 'upcoming' }
             {visibleLeagues.map((league) => {
               const badge = REG_BADGE[league.registration_status] ?? REG_BADGE.upcoming
               const skillLabel = formatSkillRange(league.skill_min, league.skill_max)
+              const hasUnread = unreadKeys.has(`league_messages:${league.id}`)
               return (
                 <Link
                   key={league.id}
@@ -157,7 +160,16 @@ export default function CompeteClient({ leagues, isLoggedIn, when = 'upcoming' }
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-semibold text-brand-dark truncate">{league.name}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {hasUnread && (
+                          <span
+                            className="shrink-0 w-2 h-2 rounded-full bg-brand-dark"
+                            aria-label="Unread chat messages"
+                            title="Unread chat"
+                          />
+                        )}
+                        <p className="font-semibold text-brand-dark truncate">{league.name}</p>
+                      </div>
                       <p className="text-xs text-brand-muted mt-0.5">
                         {FORMAT_LABELS[league.format] ?? league.format}{skillLabel ? ` · ${skillLabel}` : ''}
                       </p>
