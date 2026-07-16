@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PriceTiersEditor from '@/components/features/PriceTiersEditor'
@@ -106,6 +106,7 @@ type Props = {
   formatLocked: boolean
   locations: LocationOption[]
   canCreatePaid: boolean
+  rosterPlayers: { id: string; name: string }[]
 }
 
 export default function EditLeagueForm({
@@ -118,6 +119,7 @@ export default function EditLeagueForm({
   formatLocked,
   locations,
   canCreatePaid,
+  rosterPlayers,
 }: Props) {
   const router = useRouter()
 
@@ -156,6 +158,8 @@ export default function EditLeagueForm({
     (d.standings_method as 'win_loss' | 'total_points') ?? 'total_points'
   )
   const [allowPlayerScores, setAllowPlayerScores] = useState<boolean>((d.allow_player_scores as boolean) ?? false)
+  const [selfRun, setSelfRun] = useState<boolean>((d.self_run as boolean) ?? false)
+  const [seasonHostUserId, setSeasonHostUserId] = useState<string>((d.season_host_user_id as string) ?? '')
   const [pointsToWin, setPointsToWin] = useState(d.points_to_win?.toString() ?? '11')
   const [winBy, setWinBy] = useState<1 | 2>((d.win_by as 1 | 2) ?? 1)
   const [subCreditCap, setSubCreditCap] = useState(d.sub_credit_cap?.toString() ?? '7')
@@ -186,6 +190,8 @@ export default function EditLeagueForm({
   const usesPeriods = isBox || isLadder || isTeam
   const noWeeklySessions = usesPeriods || isFlex
   const doublesFixed = usesPeriods || isFlex
+  // Player-run is a round-robin-only concept — clear it if the organizer switches format.
+  useEffect(() => { if (formatKind !== 'session_rr') setSelfRun(false) }, [formatKind])
   const hasRegistrants = registrantCount > 0
   const generatedDates = generateDates(startDate, parseInt(playDays) || 0)
   const lastDate = generatedDates[generatedDates.length - 1] ?? ''
@@ -255,6 +261,8 @@ export default function EditLeagueForm({
         price_tiers: priceTiers.filter((t) => t.until).length ? priceTiers.filter((t) => t.until) : null,
         standings_method: standingsMethod,
         allow_player_scores: allowPlayerScores,
+        self_run: selfRun,
+        season_host_user_id: seasonHostUserId || null,
         points_to_win: pointsToWinNum,
         win_by: winBy,
         partner_mode: teamType !== 'doubles' ? 'rotating' : (doublesFixed ? 'fixed' : partnerMode),
@@ -455,6 +463,47 @@ export default function EditLeagueForm({
             </button>
           </div>
         </FormRow>
+        {formatKind === 'session_rr' && (
+          <FormRow label="Player-run league">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selfRun}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setSelfRun(on)
+                  // Gentle default: a self-run league should let players record scores.
+                  if (on && !allowPlayerScores) setAllowPlayerScores(true)
+                }}
+                className="w-4 h-4 accent-brand"
+              />
+              <div>
+                <p className="text-sm font-medium text-brand-dark">Player-run league (no court monitor needed)</p>
+                <p className="text-xs text-brand-muted">Players run the session themselves — a designated host (or the first player to show up) checks people in, generates each round, and records scores. Great for leagues without a dedicated organizer on-site.</p>
+              </div>
+            </label>
+          </FormRow>
+        )}
+        {formatKind === 'session_rr' && selfRun && (
+          <FormRow
+            label="Season host (optional)"
+            htmlFor="season-host"
+            width="md"
+            helpText="This player runs every session by default. They can hand off to another player for any single night."
+          >
+            <select
+              id="season-host"
+              value={seasonHostUserId}
+              onChange={(e) => setSeasonHostUserId(e.target.value)}
+              className="w-full input"
+            >
+              <option value="">— No fixed host (first player to arrive runs it) —</option>
+              {rosterPlayers.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </FormRow>
+        )}
         <FormRow label="Player score entry">
           <label className="flex items-center gap-3 cursor-pointer">
             <input

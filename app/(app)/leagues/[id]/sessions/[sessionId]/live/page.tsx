@@ -3,6 +3,8 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import LiveSessionManager from './LiveSessionManager'
+import ClaimHostButton from './ClaimHostButton'
+import HostControls from './HostControls'
 import RefreshButton from '@/components/ui/RefreshButton'
 import { formatSessionDate } from '@/lib/utils/date'
 
@@ -22,20 +24,71 @@ export default async function LiveSessionPage(
   )
 
   const [{ data: league }, { data: session }] = await Promise.all([
-    db.from('leagues').select('id, name, created_by, format, partner_mode').eq('id', params.id).single(),
-    db.from('league_sessions').select('id, session_number, session_date, status, number_of_courts, rounds_planned').eq('id', params.sessionId).single(),
+    db.from('leagues').select('id, name, created_by, format, partner_mode, self_run, season_host_user_id').eq('id', params.id).single(),
+    db.from('league_sessions').select('id, session_number, session_date, status, number_of_courts, rounds_planned, host_user_id').eq('id', params.sessionId).single(),
   ])
 
   if (!league || !session) notFound()
 
-  if (league.created_by !== user.id) {
-    const { data: regRow } = await db
-      .from('league_registrations')
-      .select('is_co_admin')
-      .eq('league_id', params.id)
-      .eq('user_id', user.id)
-      .single()
-    if (!regRow?.is_co_admin) redirect(`/leagues/${params.id}`)
+  const dateStr = formatSessionDate(session.session_date, { weekday: 'long', month: 'long', day: 'numeric' })
+
+  // --- Host context (player-run leagues) ---
+  const selfRun = !!(league as any).self_run
+  const effectiveHostId = (session as any).host_user_id ?? (league as any).season_host_user_id ?? null
+  const isOwner = league.created_by === user.id
+
+  const { data: regRow } = await db
+    .from('league_registrations')
+    .select('is_co_admin')
+    .eq('league_id', params.id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const isCoAdmin = !!(regRow as { is_co_admin?: boolean } | null)?.is_co_admin
+  const isRosterMember = !!regRow
+
+  const canOperate = isOwner || isCoAdmin || (selfRun && !!effectiveHostId && effectiveHostId === user.id)
+
+  if (!canOperate) {
+    // A roster member of a player-run league who isn't operating sees a HostGate:
+    // claim the empty seat, or a "who's hosting" screen when it's taken.
+    if (selfRun && isRosterMember) {
+      let hostName: string | null = null
+      if (effectiveHostId) {
+        const { data: hostProfile } = await db
+          .from('profiles')
+          .select('name')
+          .eq('id', effectiveHostId)
+          .maybeSingle()
+        hostName = (hostProfile as { name?: string } | null)?.name ?? 'Someone'
+      }
+      return (
+        <main className="max-w-lg mx-auto p-4 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <Link href={`/leagues/${params.id}`} className="text-brand-muted text-sm">← Back</Link>
+            <RefreshButton />
+          </div>
+
+          <div>
+            <h1 className="font-heading text-xl font-bold text-brand-dark">League Play Manager</h1>
+            <p className="text-sm text-brand-muted">{league.name} · Session {session.session_number} · {dateStr}</p>
+          </div>
+
+          {effectiveHostId ? (
+            <div className="rounded-xl border border-brand-border bg-brand-surface p-4 space-y-2">
+              <p className="text-brand-dark font-medium">🎾 {hostName} is hosting tonight&apos;s session.</p>
+              <p className="text-sm text-brand-muted">You&apos;ll be able to see live scores on the league page.</p>
+              <Link href={`/leagues/${params.id}`} className="inline-block text-sm font-semibold text-brand-active">← Back to league</Link>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-brand-border bg-brand-surface p-4 space-y-3">
+              <p className="text-brand-dark">No one is hosting yet — start the session for everyone.</p>
+              <ClaimHostButton sessionId={params.sessionId} leagueId={params.id} meId={user.id} />
+            </div>
+          )}
+        </main>
+      )
+    }
+    redirect(`/leagues/${params.id}`)
   }
 
   // --- Sync session players: seed missing roster players on every load ---
@@ -215,7 +268,16 @@ export default async function LiveSessionPage(
     }
   }
 
-  const dateStr = formatSessionDate(session.session_date, { weekday: 'long', month: 'long', day: 'numeric' })
+  // Present players eligible to receive the host role (self-run only): exclude rows
+  // without a user_id and the current effective host.
+  const presentPlayers = selfRun
+    ? (players ?? [])
+        .filter((p: any) => p.actual_status === 'present' && p.user_id && p.user_id !== effectiveHostId)
+        .map((p: any) => ({ id: p.user_id as string, name: (p.display_name as string) ?? 'Player' }))
+    : []
+  const currentHostName = effectiveHostId
+    ? ((players ?? []).find((p: any) => p.user_id === effectiveHostId)?.display_name ?? null)
+    : null
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
@@ -228,6 +290,18 @@ export default async function LiveSessionPage(
         <h1 className="font-heading text-xl font-bold text-brand-dark">League Play Manager</h1>
         <p className="text-sm text-brand-muted">{league.name} · Session {session.session_number} · {dateStr}</p>
       </div>
+
+      {selfRun && (
+        <HostControls
+          sessionId={params.sessionId}
+          leagueId={params.id}
+          effectiveHostId={effectiveHostId}
+          meId={user.id}
+          isManager={isOwner || isCoAdmin}
+          hostName={currentHostName}
+          presentPlayers={presentPlayers}
+        />
+      )}
 
       <LiveSessionManager
         sessionId={params.sessionId}

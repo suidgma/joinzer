@@ -67,6 +67,24 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
     .from('league_boxes').select('id', { count: 'exact', head: true }).eq('league_id', id)
   const formatLocked = (sessionCount ?? 0) > 0 || (boxCount ?? 0) > 0
 
+  // Registered players for the optional season-host picker (player-run RR leagues).
+  const { data: rosterRows } = await admin
+    .from('league_registrations')
+    .select('user_id, profile:profiles!user_id(id, name)')
+    .eq('league_id', id)
+    .eq('status', 'registered')
+  const rosterPlayers = Array.from(
+    new Map(
+      (rosterRows ?? [])
+        .map((row: any) => {
+          const prof = Array.isArray(row.profile) ? row.profile[0] : row.profile
+          return prof ? { id: prof.id as string, name: (prof.name as string) ?? 'Unnamed' } : null
+        })
+        .filter((p): p is { id: string; name: string } => p !== null)
+        .map((p) => [p.id, p] as const)
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name))
+
   const { data: locationData } = await supabase
     .from('locations')
     .select('id, name, court_count, access_type, subarea, address, city, state, zip_code, country')
@@ -111,6 +129,7 @@ export default async function EditLeaguePage(props: { params: Promise<{ id: stri
         formatLocked={formatLocked}
         locations={locations}
         canCreatePaid={canCreatePaid}
+        rosterPlayers={rosterPlayers}
       />
     </DesktopShell>
   )
