@@ -65,13 +65,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'You must be registered for this league to request a sub' }, { status: 403 })
   }
 
-  // Prevent duplicates for the same player+session
+  // Prevent duplicates for the same player+session. Only 'open' is an active request now
+  // (claimed/approved were retired in Phase 1); the partial-unique index is the hard DB guarantee.
   const { data: existing } = await db
     .from('league_sub_requests')
     .select('id, status')
     .eq('league_session_id', league_session_id)
     .eq('requesting_player_id', user.id)
-    .in('status', ['open', 'claimed', 'approved'])
+    .eq('status', 'open')
     .maybeSingle()
   if (existing) {
     return NextResponse.json({ error: 'You already have an open sub request for this session' }, { status: 409 })
