@@ -41,6 +41,14 @@ Joinzer is a mobile-first pickleball platform with four product surfaces sharing
 | `metrics-and-kpis.md` | What success is measured by, stage by stage |
 | `operating-constraints.md` | The solo-builder reality that bounds every recommendation |
 
+**Playbooks — action tools (use and mark up):**
+
+| Doc | What it's for |
+|---|---|
+| `first-organizer-outreach-kit.md` | Landing the first organizer: target list, offer, messages, demo, objections |
+
+_(`project-custom-instructions.md` also lives here — it's the paste-in text for the Claude Project's instruction field, not a knowledge doc.)_
+
 ## Confidence legend
 
 Because most of the business context is not yet market-tested, docs label claims:
