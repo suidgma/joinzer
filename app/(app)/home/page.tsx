@@ -118,7 +118,7 @@ export default async function HomePage() {
           .order('session_date', { ascending: true })
           .limit(15)
       : Promise.resolve({ data: [] }),
-    db.from('profiles').select('name, dupr_rating, estimated_rating, rating_source, gender, signup_intent, home_court:locations!home_court_id(lat, lng)').eq('id', user.id).single(),
+    db.from('profiles').select('name, dupr_rating, estimated_rating, rating_source, gender, signup_intent, home_court:locations!home_court_id(lat, lng, city, state)').eq('id', user.id).single(),
     db.from('event_participants')
       .select(`
         event:events!event_id (
@@ -158,7 +158,7 @@ export default async function HomePage() {
     getHomeActionItems(user.id),
   ])
 
-  const homeCourt = (profile as any)?.home_court as { lat: number; lng: number } | null
+  const homeCourt = (profile as any)?.home_court as { lat: number | null; lng: number | null; city: string | null; state: string | null } | null
 
   const attendanceMap = Object.fromEntries(
     (attendance ?? []).map((a) => [a.league_session_id as string, a.attendance_status as string])

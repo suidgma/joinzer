@@ -23,30 +23,41 @@ function distanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): 
   return R * 2 * Math.asin(Math.sqrt(a))
 }
 
+type Geo = { lat: number | null; lng: number | null; city: string | null; state: string | null } | null
+
+// Proximity to the player's home court (0–40, the dominant ranking factor). Prefers exact distance;
+// when either side lacks coordinates it falls back to a city match (same city ≈ 25) then a state
+// match (≈ 8) — so a home court set only to a city still drives ranking.
+function proximityScore(venue: Geo, home: Geo): number {
+  if (!home) return 0
+  if (home.lat != null && home.lng != null && venue && venue.lat != null && venue.lng != null) {
+    return Math.max(0, 40 - distanceMiles(home.lat, home.lng, venue.lat, venue.lng) * 1.6)
+  }
+  const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase()
+  if (venue?.city && home.city && norm(venue.city) === norm(home.city)) return 25
+  if (venue?.state && home.state && norm(venue.state) === norm(home.state)) return 8
+  return 0
+}
+
+// Relevance score (higher = shown first). Weight hierarchy:
+//   1. Proximity to home court   0–40  (exact distance, or a city/state fallback)
+//   2. Skill fit                 0–30  (strong when the range overlaps your comfort band)
+//   3. Urgency to decide         0–12  (small tertiary nudge; capped so it never overpowers fit,
+//                                       wide window so far-out tournaments aren't penalized)
 function scoreItem(
   dateStr: string | null,
-  lat: number | null,
-  lng: number | null,
+  venue: Geo,
   skillMin: number | null,
   skillMax: number | null,
   skillRange: { lo: number; hi: number } | null,
-  homeCourt: { lat: number; lng: number } | null,
+  homeCourt: Geo,
 ): number {
-  let score = 0
+  let score = proximityScore(venue, homeCourt)
 
-  // 1. Proximity to home court — the dominant signal (0–40). Same court ≈ 40; ~25 mi away ≈ 0.
-  if (homeCourt && lat != null && lng != null) {
-    const miles = distanceMiles(homeCourt.lat, homeCourt.lng, lat, lng)
-    score += Math.max(0, 40 - miles * 1.6)
-  }
-
-  // 2. Skill fit — the item's range overlaps the user's ±1-tier comfort window (0–30).
   if (skillRange && skillMin != null && skillMax != null && skillMax >= skillRange.lo && skillMin <= skillRange.hi) {
     score += 30
   }
 
-  // 3. Urgency to decide — a small, capped tertiary nudge (0–12) with a WIDE window, so far-out
-  // tournaments (people register for those weeks ahead) aren't penalized for their start date.
   if (dateStr) {
     const daysAway = (new Date(dateStr).getTime() - Date.now()) / 86400000
     if (daysAway >= 0 && daysAway <= 7) score += 12
@@ -74,7 +85,7 @@ type UpcomingItem =
 interface Props {
   viewerGender: string | null
   skillRange: { lo: number; hi: number } | null
-  homeCourt: { lat: number; lng: number } | null
+  homeCourt: Geo
   excludeLeagueIds: string[]
   excludeEventIds: string[]
   excludeTournamentIds: string[]
@@ -146,13 +157,13 @@ export default async function UpcomingEventsSection({
 
     const [{ data: openSessions }, { data: upcomingTournaments }, leagueResult] = await Promise.all([
       db.from('events')
-        .select('id, title, starts_at, max_players, skill_min, skill_max, location:locations!location_id(name, lat, lng), event_participants!event_id(participant_status)')
+        .select('id, title, starts_at, max_players, skill_min, skill_max, location:locations!location_id(name, lat, lng, city, state), event_participants!event_id(participant_status)')
         .eq('status', 'open')
         .gte('starts_at', now)
         .order('starts_at', { ascending: true })
         .limit(20),
       db.from('tournaments')
-        .select('id, name, start_date, location:locations!location_id(name, lat, lng)')
+        .select('id, name, start_date, location:locations!location_id(name, lat, lng, city, state)')
         .eq('status', 'published')
         .eq('visibility', 'public')
         .gte('start_date', today)
@@ -162,7 +173,7 @@ export default async function UpcomingEventsSection({
         // Skill is a SOFT ranking signal (scoreItem), not a hard filter — a slightly-off league still
         // appears, just ranked lower. Gender is filtered in the loop below (hard, leagues only).
         let q = db.from('leagues')
-          .select('id, name, format, skill_min, skill_max, location_name, registration_status, start_date, location:locations!location_id(lat, lng)')
+          .select('id, name, format, skill_min, skill_max, location_name, registration_status, start_date, location:locations!location_id(lat, lng, city, state)')
           .in('registration_status', ['open', 'waitlist_only'])
           .order('start_date', { ascending: true, nullsFirst: false })
           .limit(30)
@@ -182,8 +193,7 @@ export default async function UpcomingEventsSection({
       const loc = ev.location as any
       let s = scoreItem(
         ev.starts_at as string,
-        loc?.lat ?? null,
-        loc?.lng ?? null,
+        loc ?? null,
         (ev as any).skill_min ?? null,
         (ev as any).skill_max ?? null,
         skillRange,
@@ -199,7 +209,7 @@ export default async function UpcomingEventsSection({
       scored.push({
         kind: 'tournament',
         data: t,
-        score: scoreItem(t.start_date as string, loc?.lat ?? null, loc?.lng ?? null, null, null, skillRange, homeCourt),
+        score: scoreItem(t.start_date as string, loc ?? null, null, null, skillRange, homeCourt),
       })
     }
 
@@ -211,8 +221,7 @@ export default async function UpcomingEventsSection({
         data: l,
         score: scoreItem(
           (l as any).start_date ?? null,
-          loc?.lat ?? null,
-          loc?.lng ?? null,
+          loc ?? null,
           (l as any).skill_min ?? null,
           (l as any).skill_max ?? null,
           skillRange,
