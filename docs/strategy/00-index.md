@@ -33,6 +33,14 @@ Joinzer is a mobile-first pickleball platform with four product surfaces sharing
 | `decision-log.md` | The "why" behind foundational technical & product choices (ADRs) |
 | `glossary.md` | The shared vocabulary and domain model |
 
+**Tier 3 — ongoing capture (thin now, grows with usage):**
+
+| Doc | What it answers |
+|---|---|
+| `user-research.md` | Real organizer/player input as it arrives (interview template + synthesis) |
+| `metrics-and-kpis.md` | What success is measured by, stage by stage |
+| `operating-constraints.md` | The solo-builder reality that bounds every recommendation |
+
 ## Confidence legend
 
 Because most of the business context is not yet market-tested, docs label claims:
