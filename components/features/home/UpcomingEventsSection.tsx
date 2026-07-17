@@ -34,25 +34,36 @@ function scoreItem(
 ): number {
   let score = 0
 
-  // +30 if item's skill range overlaps the user's ±1-tier comfort window
-  if (skillRange && skillMin != null && skillMax != null) {
-    if (skillMax >= skillRange.lo && skillMin <= skillRange.hi) score += 30
-  }
-
-  // 0–20 pts based on distance; each mile away loses 1 pt
-  if (homeCourt && lat && lng) {
+  // 1. Proximity to home court — the dominant signal (0–40). Same court ≈ 40; ~25 mi away ≈ 0.
+  if (homeCourt && lat != null && lng != null) {
     const miles = distanceMiles(homeCourt.lat, homeCourt.lng, lat, lng)
-    score += Math.max(0, 20 - miles)
+    score += Math.max(0, 40 - miles * 1.6)
   }
 
-  // Recency bonus: items within 7 days score highest
+  // 2. Skill fit — the item's range overlaps the user's ±1-tier comfort window (0–30).
+  if (skillRange && skillMin != null && skillMax != null && skillMax >= skillRange.lo && skillMin <= skillRange.hi) {
+    score += 30
+  }
+
+  // 3. Urgency to decide — a small, capped tertiary nudge (0–12) with a WIDE window, so far-out
+  // tournaments (people register for those weeks ahead) aren't penalized for their start date.
   if (dateStr) {
-    const daysAway = (new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    if (daysAway >= 0 && daysAway <= 7) score += 10
-    else if (daysAway > 7 && daysAway <= 14) score += 5
+    const daysAway = (new Date(dateStr).getTime() - Date.now()) / 86400000
+    if (daysAway >= 0 && daysAway <= 7) score += 12
+    else if (daysAway <= 30) score += 6
+    else if (daysAway <= 60) score += 3
   }
 
   return score
+}
+
+// Leagues encode gender in their format (mens_/womens_); mixed/open/coed are for everyone. A player
+// only sees a gender-specific league if it matches their profile gender. Unknown gender ⇒ show it
+// (don't hide inventory over missing data). Tournaments (multi-division) + Play (open) aren't filtered.
+function leagueGenderOk(format: string | null, viewerGender: string | null): boolean {
+  const needed = !format ? null : format.startsWith('mens_') ? 'male' : format.startsWith('womens_') ? 'female' : null
+  if (!needed || !viewerGender) return true
+  return viewerGender === needed
 }
 
 type UpcomingItem =
@@ -61,6 +72,7 @@ type UpcomingItem =
   | { kind: 'league'; data: any; score: number }
 
 interface Props {
+  viewerGender: string | null
   skillRange: { lo: number; hi: number } | null
   homeCourt: { lat: number; lng: number } | null
   excludeLeagueIds: string[]
@@ -69,6 +81,7 @@ interface Props {
 }
 
 export default async function UpcomingEventsSection({
+  viewerGender,
   skillRange,
   homeCourt,
   excludeLeagueIds,
@@ -122,7 +135,7 @@ export default async function UpcomingEventsSection({
         items.push({ kind: 'session', data: sMap[f.event_id as string], score: 0 })
       } else if (f.event_type === 'tournament' && tMap[f.event_id as string]) {
         items.push({ kind: 'tournament', data: tMap[f.event_id as string], score: 0 })
-      } else if (f.event_type === 'league' && lMap[f.event_id as string]) {
+      } else if (f.event_type === 'league' && lMap[f.event_id as string] && leagueGenderOk(lMap[f.event_id as string].format, viewerGender)) {
         items.push({ kind: 'league', data: lMap[f.event_id as string], score: 0 })
       }
     }
@@ -146,13 +159,14 @@ export default async function UpcomingEventsSection({
         .order('start_date', { ascending: true })
         .limit(20),
       (() => {
+        // Skill is a SOFT ranking signal (scoreItem), not a hard filter — a slightly-off league still
+        // appears, just ranked lower. Gender is filtered in the loop below (hard, leagues only).
         let q = db.from('leagues')
           .select('id, name, format, skill_min, skill_max, location_name, registration_status, start_date, location:locations!location_id(lat, lng)')
           .in('registration_status', ['open', 'waitlist_only'])
           .order('start_date', { ascending: true, nullsFirst: false })
-          .limit(20)
+          .limit(30)
         if (excludeLeagueIds.length > 0) q = q.not('id', 'in', `(${excludeLeagueIds.join(',')})`)
-        if (skillRange) q = (q as any).lte('skill_min', skillRange.hi).gte('skill_max', skillRange.lo)
         return q
       })(),
     ])
@@ -163,21 +177,20 @@ export default async function UpcomingEventsSection({
       if (excludeEventSet.has(ev.id as string)) continue
       const participants = (ev.event_participants as any[]) ?? []
       const joinedCount = participants.filter((p: any) => p.participant_status === 'joined').length
-      if (joinedCount >= (ev.max_players as number ?? Infinity)) continue
+      const spotsLeft = (ev.max_players as number ?? Infinity) - joinedCount
+      if (spotsLeft <= 0) continue
       const loc = ev.location as any
-      scored.push({
-        kind: 'session',
-        data: { ...ev, joinedCount },
-        score: scoreItem(
-          ev.starts_at as string,
-          loc?.lat ?? null,
-          loc?.lng ?? null,
-          (ev as any).skill_min ?? null,
-          (ev as any).skill_max ?? null,
-          skillRange,
-          homeCourt,
-        ),
-      })
+      let s = scoreItem(
+        ev.starts_at as string,
+        loc?.lat ?? null,
+        loc?.lng ?? null,
+        (ev as any).skill_min ?? null,
+        (ev as any).skill_max ?? null,
+        skillRange,
+        homeCourt,
+      )
+      if (spotsLeft <= 2) s += 5 // scarcity: nearly-full sessions nudge up ("act now")
+      scored.push({ kind: 'session', data: { ...ev, joinedCount }, score: s })
     }
 
     for (const t of upcomingTournaments ?? []) {
@@ -191,6 +204,7 @@ export default async function UpcomingEventsSection({
     }
 
     for (const l of leagueResult.data ?? []) {
+      if (!leagueGenderOk((l as any).format, viewerGender)) continue // hard: gender-specific leagues
       const loc = (l as any).location
       scored.push({
         kind: 'league',

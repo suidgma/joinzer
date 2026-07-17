@@ -498,6 +498,7 @@ export default async function HomePage() {
 
       {/* ── Upcoming Events — always shown, featured override or personalized ── */}
       <UpcomingEventsSection
+        viewerGender={(profile as any)?.gender ?? null}
         skillRange={skillRange}
         homeCourt={homeCourt}
         excludeLeagueIds={leagueIds}
