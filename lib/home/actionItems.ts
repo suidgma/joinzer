@@ -18,11 +18,13 @@ export type OwnOpenRequestItem = { requestId: string; leagueId: string; leagueNa
 export type SubstituteFoundItem = { requestId: string; leagueId: string; leagueName: string; subName: string | null; byOrganizer: boolean; date: string | null }
 export type AttendanceNeededItem = { sessionId: string; leagueId: string; leagueName: string; date: string; sessionNumber: number | null }
 export type IncompletePaymentItem = { kind: 'event' | 'tournament_order'; refId: string; title: string; amountCents: number; href: string }
+export type ScoreConfirmItem = { leagueId: string; leagueName: string }
 
 export type ActionItem =
   | { type: 'incomplete_payment'; id: string; priority: number; payment: IncompletePaymentItem }
   | { type: 'own_open_sub_request'; id: string; priority: number; request: OwnOpenRequestItem }
   | { type: 'attendance_needed'; id: string; priority: number; attendance: AttendanceNeededItem }
+  | { type: 'score_confirmation'; id: string; priority: number; score: ScoreConfirmItem }
   | { type: 'substitute_found'; id: string; priority: number; request: SubstituteFoundItem }
   | { type: 'matched_sub_opportunity'; id: string; priority: number; opportunity: MatchedSubOpportunity }
 
@@ -39,7 +41,7 @@ export async function getHomeActionItems(userId: string): Promise<ActionItem[]> 
   const db = admin()
   const today = pacificToday()
 
-  const [{ data: profile }, { data: myReqs }, attendance, payments] = await Promise.all([
+  const [{ data: profile }, { data: myReqs }, attendance, payments, scoreConfirms] = await Promise.all([
     db.from('profiles').select('open_to_subbing').eq('id', userId).maybeSingle(),
     db.from('league_sub_requests')
       .select(`id, status, fulfillment_mode, filled_at, league_id, league_session_id,
@@ -48,6 +50,7 @@ export async function getHomeActionItems(userId: string): Promise<ActionItem[]> 
       .eq('requesting_player_id', userId).in('status', ['open', 'filled']).order('created_at', { ascending: false }).limit(20),
     loadAttendanceNeeded(db, userId, today),
     loadIncompletePayments(db, userId),
+    loadScoreConfirmations(db, userId),
   ])
 
   const items: ActionItem[] = []
@@ -82,6 +85,11 @@ export async function getHomeActionItems(userId: string): Promise<ActionItem[]> 
   // Attendance needed — session today/tomorrow the player hasn't responded to (today ranks higher).
   for (const a of attendance) {
     items.push({ type: 'attendance_needed', id: `att-${a.sessionId}`, priority: a.date <= today ? 2 : 2.5, attendance: a })
+  }
+
+  // Flex-league score awaiting the player's confirmation (their opponent reported a result).
+  for (const s of scoreConfirms) {
+    items.push({ type: 'score_confirmation', id: `score-${s.leagueId}`, priority: 2.7, score: s })
   }
 
   // Matched opportunities — only when opted in (open_to_subbing gates Home surfacing, not /subs).
@@ -158,6 +166,34 @@ async function loadIncompletePayments(db: Db, userId: string): Promise<Incomplet
     if (t) out.push({ kind: 'tournament_order', refId: o.id, title: t.name ?? 'Tournament', amountCents: o.total_cents ?? 0, href: `/tournaments/${t.id}` })
   }
   return out
+}
+
+// Flex leagues where an opponent reported a match result the player still needs to confirm.
+// (Flex is behind a feature flag + rare, so this is naturally empty when unused. One card per league.)
+async function loadScoreConfirmations(db: Db, userId: string): Promise<ScoreConfirmItem[]> {
+  const { data: regs } = await db
+    .from('league_registrations')
+    .select('id, league_id, league:leagues!league_id(name, format_kind)')
+    .eq('user_id', userId).eq('status', 'registered')
+  const flexLeagues = new Map<string, string>()
+  const myRegIds = new Set<string>()
+  for (const r of (regs ?? []) as any[]) {
+    const l = Array.isArray(r.league) ? r.league[0] : r.league
+    if (l?.format_kind === 'flex') { flexLeagues.set(r.league_id, l.name ?? 'League'); myRegIds.add(r.id) }
+  }
+  if (flexLeagues.size === 0) return []
+
+  const { data: fx } = await db
+    .from('league_fixtures')
+    .select('league_id, team_1_registration_id, team_2_registration_id, reported_by')
+    .in('league_id', [...flexLeagues.keys()]).eq('status', 'in_progress')
+  const needing = new Set<string>()
+  for (const f of (fx ?? []) as any[]) {
+    const iAmIn = myRegIds.has(f.team_1_registration_id) || myRegIds.has(f.team_2_registration_id)
+    // Opponent reported (someone else) and it's awaiting confirmation → my action.
+    if (iAmIn && f.reported_by && f.reported_by !== userId) needing.add(f.league_id)
+  }
+  return [...needing].map((leagueId) => ({ leagueId, leagueName: flexLeagues.get(leagueId) ?? 'League' }))
 }
 
 function daysFrom(a: string, b: string): number {
