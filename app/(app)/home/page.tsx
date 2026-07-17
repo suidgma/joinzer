@@ -205,7 +205,7 @@ export default async function HomePage() {
   }
 
   scheduleItems.sort((a, b) => new Date(a.sortKey).getTime() - new Date(b.sortKey).getTime())
-  const visibleSchedule = scheduleItems.slice(0, 5)
+  const visibleSchedule = scheduleItems.slice(0, 3)
 
   const firstName = (profile?.name as string | null)?.split(' ')[0] ?? 'there'
   const hasSchedule = visibleSchedule.length > 0

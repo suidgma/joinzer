@@ -54,6 +54,18 @@ export default function NeedsYourAttention({ items }: { items: ActionItem[] }) {
               </Link>
             )
           }
+          if (item.type === 'score_confirmation') {
+            const s = item.score
+            return (
+              <Link key={item.id} href={`/leagues/${s.leagueId}`} className="flex items-center justify-between gap-2 rounded-2xl border border-brand-border bg-brand-surface p-4 hover:bg-brand-soft">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-brand-dark">Confirm a match result</p>
+                  <p className="text-xs text-brand-muted">{s.leagueName} — your opponent reported a score.</p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-brand-active">Review →</span>
+              </Link>
+            )
+          }
           if (item.type === 'matched_sub_opportunity') {
             return <SubOpportunityCard key={item.id} opp={item.opportunity} compact onAccepted={() => drop(item.id)} />
           }
