@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useRealtimeChannel } from '@/lib/realtime/hooks'
-import type { ChannelStatus } from '@/lib/realtime/channelManager'
+import type { ChannelStatus, PgChangeConfig } from '@/lib/realtime/channelManager'
 
 // Realtime-triggered server refresh. Subscribes to a broadcast topic and calls
 // router.refresh() when an event arrives — an RSC refetch that reconciles in place
@@ -15,7 +15,7 @@ import type { ChannelStatus } from '@/lib/realtime/channelManager'
 // deferred until it's visible again; and on a realtime reconnect (error → subscribed) it
 // refreshes once to reconcile any broadcast missed while the socket was down (broadcast is
 // ephemeral, so a disconnect otherwise loses those updates).
-export default function RealtimeRefresh({ topic, events, private: isPrivate }: { topic: string; events: string[]; private?: boolean }) {
+export default function RealtimeRefresh({ topic, events = [], private: isPrivate, postgresChanges }: { topic: string; events?: string[]; private?: boolean; postgresChanges?: PgChangeConfig[] }) {
   const router = useRouter()
   const pending = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -32,13 +32,15 @@ export default function RealtimeRefresh({ topic, events, private: isPrivate }: {
     }, 400)
   }, [router])
 
-  useRealtimeChannel({ topic, broadcast: events, private: isPrivate }, (evt) => {
+  useRealtimeChannel({ topic, broadcast: events, private: isPrivate, postgresChanges }, (evt) => {
     if (evt.kind === 'status') {
       if (prevStatus.current === 'error' && evt.status === 'subscribed') scheduleRefresh()
       prevStatus.current = evt.status
       return
     }
-    if (evt.kind === 'broadcast') scheduleRefresh()
+    // Either delivery mechanism (a broadcast signal, or a postgres_changes row event on a
+    // public-readable table) triggers the same debounced RSC refresh.
+    if (evt.kind === 'broadcast' || evt.kind === 'postgres_changes') scheduleRefresh()
   })
 
   useEffect(() => {
