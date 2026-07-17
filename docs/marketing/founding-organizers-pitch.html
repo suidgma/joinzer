@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joinzer for Organizers — Founding Organizer Pitch</title>
+<meta name="description" content="Run your next pickleball league or tournament without the spreadsheet. I'll set up and run your first event on Joinzer, free.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏓</text></svg>">
+<!--
+  ALTERNATE DESIGN — "editorial court-teal" treatment of the founding-organizers pitch.
+  Kept alongside the shipped, on-domain, lime-brand version at:
+      app/foundingorganizers/page.tsx  →  https://www.joinzer.com/foundingorganizers
+  This file is standalone + self-contained: open it directly in a browser to view.
+  Also published as a claude.ai artifact (same content): claude.ai/code/artifact/ec9b2773-a4b3-4102-bb3b-b1ffe925d5b1
+-->
+<style>
+  :root {
+    --ground: #F6F8F5;
+    --surface: #FFFFFF;
+    --court: #0C6B5A;
+    --court-deep: #08483C;
+    --ink: #0B221E;
+    --muted: #5E7A73;
+    --line: #D3DFD8;
+    --ball: #B9CE12;
+    --ball-soft: #EAF1B8;
+    --shadow: 12px 14px 0 rgba(12,107,90,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #071A16;
+      --surface: #0D2A23;
+      --court: #2FB89E;
+      --court-deep: #0B4034;
+      --ink: #EAF2EE;
+      --muted: #8FB0A6;
+      --line: #1C3A32;
+      --ball: #CFE22C;
+      --ball-soft: #24382a;
+      --shadow: 12px 14px 0 rgba(0,0,0,.30);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #F6F8F5; --surface: #FFFFFF; --court: #0C6B5A; --court-deep: #08483C;
+    --ink: #0B221E; --muted: #5E7A73; --line: #D3DFD8; --ball: #B9CE12; --ball-soft: #EAF1B8;
+    --shadow: 12px 14px 0 rgba(12,107,90,.10);
+  }
+  :root[data-theme="dark"] {
+    --ground: #071A16; --surface: #0D2A23; --court: #2FB89E; --court-deep: #0B4034;
+    --ink: #EAF2EE; --muted: #8FB0A6; --line: #1C3A32; --ball: #CFE22C; --ball-soft: #24382a;
+    --shadow: 12px 14px 0 rgba(0,0,0,.30);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .wrap {
+    --sans: "Helvetica Neue", Helvetica, Arial, "Segoe UI", system-ui, sans-serif;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100%;
+  }
+  .col { max-width: 680px; margin: 0 auto; padding: 0 22px; }
+
+  /* ---- eyebrow / labels ---- */
+  .eyebrow {
+    font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--court); margin: 0 0 18px;
+    display: inline-flex; align-items: center; gap: 9px;
+  }
+  .eyebrow::before {
+    content: ""; width: 26px; height: 2px; background: var(--ball); display: inline-block;
+  }
+
+  /* ---- hero ---- */
+  .hero { padding: 54px 0 40px; position: relative; overflow: hidden; }
+  .hero-inner { position: relative; z-index: 2; animation: rise .7s cubic-bezier(.2,.7,.2,1) both; }
+  h1 {
+    font-size: clamp(34px, 8.5vw, 58px); line-height: 1.02; letter-spacing: -.02em;
+    font-weight: 800; margin: 0 0 20px; text-wrap: balance;
+  }
+  h1 .pop {
+    color: var(--court);
+    box-shadow: inset 0 -.24em 0 var(--ball-soft);
+  }
+  .lede { font-size: clamp(17px, 4.4vw, 20px); color: var(--muted); margin: 0 0 30px; max-width: 33em; }
+  .lede strong { color: var(--ink); font-weight: 700; }
+
+  .ball {
+    position: absolute; right: -34px; top: 26px; width: 190px; height: 190px; z-index: 1;
+    opacity: .9;
+  }
+  @media (max-width: 560px) { .ball { width: 120px; height: 120px; right: -26px; top: 8px; opacity: .55; } }
+
+  /* ---- buttons ---- */
+  .cta {
+    display: inline-flex; align-items: center; gap: 11px;
+    background: var(--ball); color: #0B221E;
+    font-weight: 800; font-size: 16px; letter-spacing: -.01em;
+    padding: 15px 26px; border-radius: 2px; text-decoration: none;
+    box-shadow: var(--shadow); border: 2px solid var(--ink);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .cta:hover { transform: translate(3px, 3px); box-shadow: 6px 7px 0 rgba(12,107,90,.12); }
+  .cta:focus-visible { outline: 3px solid var(--court); outline-offset: 3px; }
+  .cta .arrow { font-size: 18px; }
+  .reassure { display: block; margin-top: 13px; font-size: 13.5px; color: var(--muted); font-weight: 600; }
+
+  /* ---- court-line divider ---- */
+  .rule { border: 0; height: 1px; background: var(--line); position: relative; margin: 0; }
+  .rule::after {
+    content: ""; position: absolute; left: 50%; top: -3px; width: 7px; height: 7px;
+    transform: translateX(-50%) rotate(45deg); background: var(--ball);
+  }
+
+  /* ---- generic section ---- */
+  .band { padding: 48px 0; }
+  h2 { font-size: clamp(24px, 6vw, 32px); line-height: 1.08; letter-spacing: -.015em; font-weight: 800; margin: 0 0 16px; text-wrap: balance; }
+  .body { font-size: 16.5px; color: var(--muted); margin: 0; max-width: 34em; }
+  .body strong { color: var(--ink); font-weight: 700; }
+
+  /* ---- capability grid ---- */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-top: 30px; background: var(--line); border: 1px solid var(--line); }
+  @media (max-width: 540px) { .grid { grid-template-columns: 1fr; } }
+  .cell { background: var(--surface); padding: 22px 20px; }
+  .cell .tick { display: block; width: 22px; height: 3px; background: var(--court); margin-bottom: 13px; }
+  .cell h3 { font-size: 16px; font-weight: 800; margin: 0 0 6px; letter-spacing: -.01em; }
+  .cell p { font-size: 14px; color: var(--muted); margin: 0; line-height: 1.45; }
+
+  /* ---- the offer ---- */
+  .offer { background: var(--court); color: #F3FBF7; border-radius: 3px; padding: 40px 30px; margin: 8px 0; box-shadow: var(--shadow); }
+  .offer .eyebrow { color: var(--ball); }
+  .offer .eyebrow::before { background: var(--ball); }
+  .offer h2 { color: #FFFFFF; }
+  .offer h2 .u { box-shadow: inset 0 -.16em 0 rgba(185,206,18,.55); }
+  .offer p { color: #CDE7DF; font-size: 16.5px; margin: 0 0 14px; max-width: 36em; }
+  .offer .ask { font-size: 14.5px; color: var(--ball); font-weight: 700; margin: 6px 0 0; }
+
+  /* ---- founder note ---- */
+  .note { padding: 46px 0; }
+  .note blockquote {
+    font-family: var(--serif); font-size: clamp(18px, 4.6vw, 21px); line-height: 1.55;
+    color: var(--ink); margin: 0; font-style: italic; max-width: 32em;
+    border-left: 3px solid var(--ball); padding-left: 22px;
+  }
+  .sig { font-family: var(--sans); font-style: normal; font-weight: 800; font-size: 14px; color: var(--court); margin-top: 18px; letter-spacing: .01em; }
+  .sig span { display: block; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+
+  /* ---- final CTA + contact ---- */
+  .end { padding: 50px 0 20px; }
+  .contact {
+    margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line);
+    font-size: 14px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline;
+  }
+  .contact .brand { font-weight: 800; color: var(--ink); letter-spacing: -.01em; }
+  .contact a { color: var(--court); font-weight: 700; text-decoration: none; }
+  .contact a:hover { color: var(--ink); }
+  footer { padding: 30px 0 44px; color: var(--muted); font-size: 12px; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .hero-inner { animation: none; } .cta { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="col hero-inner">
+      <p class="eyebrow">Pickleball leagues &amp; tournaments · Las Vegas</p>
+      <h1>Run your next league <span class="pop">without the spreadsheet.</span></h1>
+      <p class="lede">Joinzer handles the roster, the schedule, live scoring, standings, subs, and the money — with <strong>payouts straight to your account.</strong> One app. On your phone. On the court.</p>
+      <a class="cta" href="https://calendly.com/martysuidgeest/30-minute-zoom-with-marty"><span>Book my free first event</span><span class="arrow" aria-hidden="true">→</span></a>
+      <span class="reassure">No cost. No setup work. I run it with you.</span>
+    </div>
+    <svg class="ball" viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="46" fill="var(--ball)"/>
+      <g fill="rgba(11,34,30,.22)">
+        <circle cx="50" cy="24" r="5"/><circle cx="68" cy="34" r="5"/><circle cx="72" cy="55" r="5"/>
+        <circle cx="58" cy="70" r="5"/><circle cx="37" cy="68" r="5"/><circle cx="28" cy="48" r="5"/>
+        <circle cx="34" cy="30" r="5"/><circle cx="52" cy="48" r="5"/>
+      </g>
+    </svg>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- PROBLEM -->
+  <section class="band">
+    <div class="col">
+      <p class="eyebrow">The reality</p>
+      <h2>You didn't sign up to run a spreadsheet.</h2>
+      <p class="body">Right now your league lives in five places — a group text, a spreadsheet, a bracket site, Venmo, and your head. You chase subs by text, tally standings by hand, and hope nothing falls apart on game day. That's not organizing. That's data entry.</p>
+    </div>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- CAPABILITIES -->
+  <section class="band">
+    <div class="col">
+      <p class="eyebrow">What Joinzer does</p>
+      <h2>Everything your event needs, in one place.</h2>
+      <div class="grid">
+        <div class="cell"><span class="tick"></span><h3>Rosters &amp; registration</h3><p>Players sign up, pay, and land on your roster automatically.</p></div>
+        <div class="cell"><span class="tick"></span><h3>Scheduling &amp; live scoring</h3><p>Generate rounds or a bracket, then score from your phone, courtside.</p></div>
+        <div class="cell"><span class="tick"></span><h3>Standings that keep themselves</h3><p>Every result updates the table instantly. No spreadsheet, ever.</p></div>
+        <div class="cell"><span class="tick"></span><h3>Substitutes, handled</h3><p>Players line up their own subs — you approve nothing and nothing breaks.</p></div>
+        <div class="cell"><span class="tick"></span><h3>Payments &amp; payouts</h3><p>Take entry fees, get paid straight to your bank. Refunds built in.</p></div>
+        <div class="cell"><span class="tick"></span><h3>Ratings that follow players</h3><p>Every player earns a rating and a record that carries season to season.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE OFFER -->
+  <section class="band">
+    <div class="col">
+      <div class="offer">
+        <p class="eyebrow">The founding-organizer offer</p>
+        <h2>Let me run your next event. <span class="u">Free.</span></h2>
+        <p>I'll set your league or tournament up in Joinzer, and I'll be there on event day to make sure it runs. You don't pay a thing, and you don't do the setup. If it makes your life easier, you keep it. If it doesn't, you've lost nothing but a couple of hours.</p>
+        <p class="ask">All I ask: one real event, and your honest feedback.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOUNDER NOTE -->
+  <section class="note">
+    <div class="col">
+      <blockquote>
+        I built Joinzer here in the Las Vegas area because I watched organizers do an incredible amount of invisible work to keep local pickleball running. I'm looking for a few founding organizers to build this around — and if you're one of them, you get me, personally, in your corner.
+      </blockquote>
+      <p class="sig">Marty Suidgeest<span>Founder, Joinzer</span></p>
+    </div>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- FINAL CTA -->
+  <section class="end">
+    <div class="col">
+      <p class="eyebrow">Your move</p>
+      <h2>Ready to run your next one the easy way?</h2>
+      <p class="body" style="margin-bottom:26px;">Fifteen minutes, no pressure. I'll show you exactly how your event would run — and if it's a fit, we'll pick a date.</p>
+      <a class="cta" href="https://calendly.com/martysuidgeest/30-minute-zoom-with-marty"><span>Book a 15-minute call</span><span class="arrow" aria-hidden="true">→</span></a>
+      <div class="contact">
+        <span class="brand">Joinzer</span>
+        <span>Marty Suidgeest, founder</span>
+        <a href="tel:+17022660013">702-266-0013</a>
+        <a href="mailto:marty@joinzer.com">marty@joinzer.com</a>
+        <a href="https://www.joinzer.com/organizers">joinzer.com/organizers</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="col">Joinzer — pickleball leagues, tournaments &amp; play, in one app. Las Vegas.</div>
+  </footer>
+
+</div>
+
+</body>
+</html>
