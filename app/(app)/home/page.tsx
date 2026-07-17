@@ -5,7 +5,7 @@ import PlayerCheckIn from '@/components/features/leagues/PlayerCheckIn'
 import NeedsYourAttention from '@/components/features/home/NeedsYourAttention'
 import { getHomeActionItems } from '@/lib/home/actionItems'
 import RealtimeRefresh from '@/components/ui/RealtimeRefresh'
-import { subRequestsTopic, RealtimeEvents } from '@/lib/realtime/topics'
+import { subRequestsTopic, notificationsTopic, RealtimeEvents } from '@/lib/realtime/topics'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
 import { skillRangeToLevel } from '@/lib/taxonomy/formats'
 import UpcomingEventsSection from '@/components/features/home/UpcomingEventsSection'
@@ -276,7 +276,11 @@ export default async function HomePage() {
       </div>
 
       {/* ── Needs your attention (Action Center) — most urgent items first, above the minor nudges ── */}
+      {/* Live: sub-pool changes + the user's own notification stream (payment confirmed, substitute
+          found, score reported, etc. all notify) keep the Action Center + schedule honest without a
+          manual reload. Notifications is a private per-user channel (RLS on realtime.messages). */}
       <RealtimeRefresh topic={subRequestsTopic()} events={[RealtimeEvents.subRequestsChanged]} />
+      <RealtimeRefresh topic={notificationsTopic(user.id)} events={[RealtimeEvents.notificationCreated]} private />
       <NeedsYourAttention items={actionItems} />
 
       {/* Waiting-on-partner states (transient, event-specific) rank above the evergreen
