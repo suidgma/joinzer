@@ -199,16 +199,16 @@ export default async function LiveSessionPage(
     .order('player_type')
     .order('display_name')
 
-  // --- Fetch open sub requests for this session ---
+  // --- Fetch active sub requests for this session (open + filled) ---
   const { data: subRequests } = await db
     .from('league_sub_requests')
     .select(`
-      id, status, requesting_player_id, claimed_by_user_id,
+      id, status, fulfillment_mode, requesting_player_id,
       requesting_player:profiles!requesting_player_id(name),
-      claimed_by:profiles!claimed_by_user_id(name)
+      filled_by:profiles!filled_by_user_id(name)
     `)
     .eq('league_session_id', params.sessionId)
-    .in('status', ['open', 'claimed', 'approved'])
+    .in('status', ['open', 'filled'])
 
   // --- Fetch profiles not already in this session (for Add Sub dropdown) ---
   const existingUserIds = (players ?? []).map(p => p.user_id).filter(Boolean) as string[]

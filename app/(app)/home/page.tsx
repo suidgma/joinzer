@@ -306,6 +306,12 @@ export default async function HomePage() {
       <RealtimeRefresh topic={subRequestsTopic()} events={[RealtimeEvents.subRequestsChanged]} />
       <NeedsYourAttention items={actionItems} />
 
+      {/* Persistent entry to substitute opportunities — always visible, independent of open_to_subbing. */}
+      <Link href="/subs" className="flex items-center justify-between gap-2 rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 hover:bg-brand-soft transition-colors">
+        <span className="text-sm font-semibold text-brand-dark">🎾 Sub opportunities</span>
+        <span className="text-xs text-brand-active">Find a league to sub →</span>
+      </Link>
+
       {/* ── My Schedule ── */}
       {hasSchedule && (
         <section className="space-y-3">

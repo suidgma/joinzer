@@ -24,7 +24,6 @@ export default function PlayerSchedule({
   isRegistered,
   leagueSkillLevel,
   currentUserId,
-  selfSubBySession = {},
   subRequestBySession = {},
 }: {
   leagueId: string
@@ -34,7 +33,6 @@ export default function PlayerSchedule({
   isRegistered: boolean
   leagueSkillLevel: string | null
   currentUserId?: string
-  selfSubBySession?: Record<string, { id: string; nomineeName: string }>
   subRequestBySession?: Record<string, RequesterRequest>
 }) {
   if (sessions.length === 0) {
@@ -86,7 +84,6 @@ export default function PlayerSchedule({
             allowSelfSub={!scheduleSet.has(s.id)}
             currentUserId={currentUserId}
             activeSubRequest={subRequestBySession[s.id] ?? null}
-            activeSelfSub={selfSubBySession[s.id] ?? null}
           />
         )}
       </div>

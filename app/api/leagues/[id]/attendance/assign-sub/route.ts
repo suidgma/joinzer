@@ -192,6 +192,68 @@ export async function POST(req: NextRequest, props: Params) {
     covered = data
   }
 
+  // Unified record for each covered slot (guest + doubles-pair path). Best-effort — the placement
+  // above is authoritative; this gives every organizer assignment a league_sub_requests record so no
+  // Joinzer-user OR guest substitute is represented only in attendance. Reuses the covered player's
+  // open request where present. (The single-Joinzer-user path already returned atomically via the RPC.)
+  await recordOrganizerSlotAssignments(db, {
+    leagueId: params.id, periodId, actorId: user.id,
+    slots: choices.map((c, i) => ({
+      forReg: c.forRegistrationId ?? coveredRegistrationId,
+      subUserId: c.subUserId ?? null,
+      subGuestName: c.subGuestName ?? null,
+      placedRow: subs[i] as { user_id?: string | null; guest_name?: string | null } | undefined,
+    })),
+  }).catch((e) => console.error('[assign-sub] unified record write failed:', e))
+
+  broadcastSubRequestsChanged().catch(() => {})
   // Back-compat: single callers read `sub`; pair callers read `subs`.
   return NextResponse.json({ sub: subs[0], subs, covered })
+}
+
+// Create/reuse an organizer_assigned filled league_sub_requests record per covered slot.
+async function recordOrganizerSlotAssignments(
+  db: ReturnType<typeof admin>,
+  args: {
+    leagueId: string; periodId: string; actorId: string
+    slots: { forReg: string; subUserId: string | null; subGuestName: string | null; placedRow?: { user_id?: string | null; guest_name?: string | null } }[]
+  },
+) {
+  for (const s of args.slots) {
+    // The covered player = the slot registration's owner.
+    const { data: slotReg } = await db.from('league_registrations').select('user_id').eq('id', s.forReg).maybeSingle()
+    const coveredUserId = (slotReg as any)?.user_id as string | undefined
+    if (!coveredUserId) continue // guest-covering-guest etc. — no covered Joinzer registration to key on
+
+    const filledByUserId = s.subUserId ?? s.placedRow?.user_id ?? null
+    const guestName = s.subGuestName ?? (filledByUserId ? null : (s.placedRow?.guest_name ?? null))
+
+    // Reuse the covered player's existing open OR filled record for this period (so clear-and-replace
+    // updates in place instead of duplicating); else create one.
+    const { data: existingOpen } = await db.from('league_sub_requests').select('id')
+      .eq('league_period_id', args.periodId).eq('requesting_player_id', coveredUserId)
+      .in('status', ['open', 'filled']).order('created_at', { ascending: false }).limit(1).maybeSingle()
+
+    const patch = {
+      fulfillment_mode: 'organizer_assigned', status: 'filled',
+      filled_by_user_id: filledByUserId, filled_by_guest_name: guestName,
+      covered_registration_id: s.forReg, filled_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }
+    let requestId: string | undefined
+    if (existingOpen) {
+      await db.from('league_sub_requests').update(patch).eq('id', (existingOpen as any).id)
+      requestId = (existingOpen as any).id
+    } else {
+      const { data: ins } = await db.from('league_sub_requests').insert({
+        league_id: args.leagueId, league_period_id: args.periodId, requesting_player_id: coveredUserId, ...patch,
+      }).select('id').maybeSingle()
+      requestId = (ins as any)?.id
+    }
+    if (requestId) {
+      await db.from('audit_log').insert({
+        actor_id: args.actorId, entity_type: 'league_sub_request', entity_id: requestId, action: 'sub_request_assigned',
+        after: { status: 'filled', fulfillment_mode: 'organizer_assigned', scope: 'period', requesting_player_id: coveredUserId, filled_by_user_id: filledByUserId, filled_by_guest_name: guestName },
+      })
+    }
+  }
 }

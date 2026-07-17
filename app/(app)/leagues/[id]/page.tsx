@@ -320,7 +320,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
     periodId: string
     initialStatus: 'coming' | 'present' | 'late' | 'cannot_attend' | null
     allowSelfSub: boolean
-    activeSelfSub: { id: string; nomineeName: string } | null
     activeSubRequest: { id: string; status: 'open' | 'filled' | 'cancelled' | 'expired'; fulfillment_mode: 'open_pool' | 'self_assigned' | 'organizer_assigned'; subName: string | null } | null
   } | null = null
   {
@@ -337,10 +336,9 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
         .limit(1)
         .maybeSingle()
       if (period) {
-        const [{ data: att }, { data: fx }, { data: noms }, { data: myReq }] = await Promise.all([
+        const [{ data: att }, { data: fx }, { data: myReq }] = await Promise.all([
           clDb.from('league_attendance').select('status').eq('period_id', period.id).eq('registration_id', myReg.id).maybeSingle(),
           clDb.from('league_fixtures').select('id').eq('period_id', period.id).limit(1),
-          clDb.from('sub_nominations').select('id, nominated_user_id').eq('surface', 'league').eq('league_period_id', period.id).eq('requesting_user_id', user.id).eq('status', 'approved').limit(1),
           clDb.from('league_sub_requests').select('id, status, fulfillment_mode, filled_by:profiles!filled_by_user_id(name)').eq('league_period_id', period.id).eq('requesting_player_id', user.id).in('status', ['open', 'filled']).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         ])
         const rawStatus = (att as any)?.status as string | undefined
@@ -348,17 +346,11 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
           rawStatus === 'coming' || rawStatus === 'present' || rawStatus === 'late' || rawStatus === 'cannot_attend'
             ? rawStatus
             : null
-        let activeSelfSub: { id: string; nomineeName: string } | null = null
-        const nomRow = noms?.[0] as any
-        if (nomRow) {
-          const { data: prof } = await clDb.from('profiles').select('name').eq('id', nomRow.nominated_user_id).maybeSingle()
-          activeSelfSub = { id: nomRow.id, nomineeName: (prof as any)?.name ?? 'Your sub' }
-        }
         const reqRow = myReq as any
         const activeSubRequest = reqRow
           ? { id: reqRow.id, status: reqRow.status, fulfillment_mode: reqRow.fulfillment_mode, subName: (reqRow.filled_by as any)?.name ?? null }
           : null
-        boxLadderCheckIn = { periodId: period.id, initialStatus, allowSelfSub: !(fx && fx.length > 0), activeSelfSub, activeSubRequest }
+        boxLadderCheckIn = { periodId: period.id, initialStatus, allowSelfSub: !(fx && fx.length > 0), activeSubRequest }
       }
     }
   }
@@ -584,7 +576,6 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
               allowSelfSub={boxLadderCheckIn.allowSelfSub}
               currentUserId={user?.id}
               activeSubRequest={boxLadderCheckIn.activeSubRequest}
-              activeSelfSub={boxLadderCheckIn.activeSelfSub}
             />
           )}
           {selfRunHost && (

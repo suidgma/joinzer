@@ -57,10 +57,10 @@ type Round = {
 type SubRequest = {
   id: string
   status: string
+  fulfillment_mode: string
   requesting_player_id: string
-  claimed_by_user_id: string | null
   requesting_player: { name: string } | null
-  claimed_by: { name: string } | null
+  filled_by: { name: string } | null
 }
 
 type MatchScoreData = {
@@ -518,7 +518,6 @@ export default function LiveSessionManager({
   const [sendingReminder, setSendingReminder] = useState(false)
   const [reminderSent, setReminderSent] = useState(false)
   const [localSubRequests, setLocalSubRequests] = useState<SubRequest[]>(subRequests)
-  const [approvingSubId, setApprovingSubId] = useState<string | null>(null)
 
   type SyncStatus = 'synced' | 'saving' | 'saved_locally' | 'syncing' | 'sync_failed'
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced')
@@ -833,18 +832,9 @@ export default function LiveSessionManager({
     else { const d = await res.json(); setError(d.error ?? 'Failed to send reminder') }
   }
 
-  // --- Approve sub ---
-  async function handleApproveSub(subRequestId: string) {
-    setApprovingSubId(subRequestId)
-    const res = await fetch(`/api/league-sub-requests/${subRequestId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'approve' }),
-    })
-    setApprovingSubId(null)
-    if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Failed to approve sub'); return }
-    setLocalSubRequests(prev => prev.map(sr => sr.id === subRequestId ? { ...sr, status: 'approved' } : sr))
-  }
+  // (Substitute acceptance/assignment/correction now live in the unified system — the atomic accept
+  // route, the organizer assign/correct routes, and the /subs/[id] detail controls. The legacy
+  // claim/approve flow was removed in Phase 6.)
 
   // --- Handle sub assignment ---
   function handleSubAssigned(subPlayer: Player) {
@@ -986,36 +976,22 @@ export default function LiveSessionManager({
           </div>
         </div>
 
-        {/* Sub requests panel */}
-        {localSubRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).length > 0 && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-3">
-            <p className="text-xs font-semibold text-orange-800 uppercase tracking-wide">Sub Requests</p>
-            {localSubRequests.filter(sr => ['open', 'claimed'].includes(sr.status)).map(sr => (
-              <div key={sr.id} className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-brand-dark">
-                    <span className="font-medium">{sr.requesting_player?.name ?? 'Unknown'}</span>
-                    <span className="text-brand-muted"> needs a sub</span>
-                  </p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                    sr.status === 'claimed' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'
-                  }`}>
-                    {sr.status === 'claimed'
-                      ? `${sr.claimed_by?.name ?? 'Someone'} volunteered`
-                      : 'Open'}
-                  </span>
-                </div>
-                {sr.status === 'claimed' && (
-                  <button
-                    onClick={() => handleApproveSub(sr.id)}
-                    disabled={approvingSubId === sr.id}
-                    className="w-full py-1.5 rounded-lg text-xs font-semibold bg-brand text-brand-dark hover:bg-brand-hover disabled:opacity-50 transition-colors"
-                  >
-                    {approvingSubId === sr.id ? 'Approving…' : `Approve ${sr.claimed_by?.name ?? 'Sub'}`}
-                  </button>
-                )}
-              </div>
+        {/* Substitute requests panel — open + filled, each links to the unified detail controls. */}
+        {localSubRequests.filter(sr => ['open', 'filled'].includes(sr.status)).length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-orange-800 uppercase tracking-wide">Substitute Requests</p>
+            {localSubRequests.filter(sr => ['open', 'filled'].includes(sr.status)).map(sr => (
+              <a key={sr.id} href={`/subs/${sr.id}`} className="flex items-center justify-between gap-2 rounded-lg bg-white/60 px-2.5 py-1.5 hover:bg-white">
+                <p className="text-sm text-brand-dark min-w-0 truncate">
+                  <span className="font-medium">{sr.requesting_player?.name ?? 'Player'}</span>
+                  <span className="text-brand-muted">{sr.status === 'filled' ? ` — covered by ${sr.filled_by?.name ?? 'a sub'}` : ' needs a sub'}</span>
+                </p>
+                <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${sr.status === 'filled' ? 'bg-brand-soft text-brand-active' : 'bg-orange-100 text-orange-700'}`}>
+                  {sr.status === 'filled' ? (sr.fulfillment_mode === 'organizer_assigned' ? 'Assigned' : 'Filled') : 'Open'}
+                </span>
+              </a>
             ))}
+            <p className="text-[10px] text-brand-muted">Tap a request to assign, replace, reopen, or cancel a substitute.</p>
           </div>
         )}
 
