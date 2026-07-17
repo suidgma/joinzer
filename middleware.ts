@@ -52,6 +52,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/' ||
     pathname === '/for-players' ||
     pathname === '/organizers' ||
+    pathname === '/foundingorganizers' ||
     pathname === '/login' ||
     pathname === '/about' ||
     pathname === '/contact' ||
