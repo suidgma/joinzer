@@ -13,6 +13,8 @@ Joinzer is a mobile-first pickleball platform with four product surfaces sharing
 
 ## The documents
 
+**Tier 1 — strategy & business (the gaps the codebase can't fill):**
+
 | Doc | What it answers |
 |---|---|
 | `vision-and-strategy.md` | What Joinzer is, the wedge, and what winning looks like |
@@ -21,6 +23,15 @@ Joinzer is a mobile-first pickleball platform with four product surfaces sharing
 | `business-model-and-pricing.md` | How money flows today and the open pricing questions |
 | `go-to-market.md` | How we land the first organizer and grow from there |
 | `open-decisions.md` | The live, unresolved calls — where to push |
+
+**Tier 2 — context & reference (distilled from the repo):**
+
+| Doc | What it answers |
+|---|---|
+| `product-overview.md` | A narrative, phase-level snapshot of what's shipped vs. not |
+| `brand-and-voice.md` | How Joinzer talks — positioning, tone, do/don't |
+| `decision-log.md` | The "why" behind foundational technical & product choices (ADRs) |
+| `glossary.md` | The shared vocabulary and domain model |
 
 ## Confidence legend
 
