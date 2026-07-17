@@ -15,7 +15,7 @@ import type { ChannelStatus } from '@/lib/realtime/channelManager'
 // deferred until it's visible again; and on a realtime reconnect (error → subscribed) it
 // refreshes once to reconcile any broadcast missed while the socket was down (broadcast is
 // ephemeral, so a disconnect otherwise loses those updates).
-export default function RealtimeRefresh({ topic, events }: { topic: string; events: string[] }) {
+export default function RealtimeRefresh({ topic, events, private: isPrivate }: { topic: string; events: string[]; private?: boolean }) {
   const router = useRouter()
   const pending = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -32,7 +32,7 @@ export default function RealtimeRefresh({ topic, events }: { topic: string; even
     }, 400)
   }, [router])
 
-  useRealtimeChannel({ topic, broadcast: events }, (evt) => {
+  useRealtimeChannel({ topic, broadcast: events, private: isPrivate }, (evt) => {
     if (evt.kind === 'status') {
       if (prevStatus.current === 'error' && evt.status === 'subscribed') scheduleRefresh()
       prevStatus.current = evt.status
