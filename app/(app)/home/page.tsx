@@ -43,6 +43,13 @@ function eventDateLabel(isoStr: string) {
   return formatTimestamp(isoStr)
 }
 
+// Small imminence pill for My Schedule. Returns null for anything past tomorrow.
+function dayBadge(dateYmd: string, today: string, tomorrow: string): { label: string; cls: string } | null {
+  if (dateYmd === today) return { label: 'Today', cls: 'bg-brand text-brand-dark' }
+  if (dateYmd === tomorrow) return { label: 'Tomorrow', cls: 'bg-brand-soft text-brand-dark border border-brand-border' }
+  return null
+}
+
 // Haversine distance in miles between two lat/lng points
 function distanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8
@@ -67,6 +74,7 @@ export default async function HomePage() {
 
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const today = new Date().toISOString().slice(0, 10)
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
   const now = new Date().toISOString()
 
   // Leagues user is registered in or organizes
@@ -239,33 +247,8 @@ export default async function HomePage() {
       <RealtimeRefresh topic={subRequestsTopic()} events={[RealtimeEvents.subRequestsChanged]} />
       <NeedsYourAttention items={actionItems} />
 
-      {/* Profile completeness nudges */}
-      {ratingMissing && (
-        <Link
-          href="/profile/edit"
-          className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 hover:border-amber-300 transition-colors"
-        >
-          <span className="text-amber-500 text-lg flex-shrink-0">⚠</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-amber-800">Add your skill rating</p>
-            <p className="text-xs text-amber-700">Helps us show you the right leagues and sessions.</p>
-          </div>
-          <span className="text-amber-400 text-sm flex-shrink-0">→</span>
-        </Link>
-      )}
-      {homeCourtMissing && (
-        <Link
-          href="/profile/edit"
-          className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 hover:border-amber-300 transition-colors"
-        >
-          <span className="text-amber-500 text-lg flex-shrink-0">⚠</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-amber-800">Set your home court</p>
-            <p className="text-xs text-amber-700">Helps us surface nearby events first.</p>
-          </div>
-          <span className="text-amber-400 text-sm flex-shrink-0">→</span>
-        </Link>
-      )}
+      {/* Waiting-on-partner states (transient, event-specific) rank above the evergreen
+          profile-setup nudge below — urgent-first applied to the amber zone too. */}
       {(pendingPartnerRegs ?? []).map((reg: any) => {
         const leagueName = reg.leagues?.name ?? 'your league'
         return (
@@ -306,6 +289,24 @@ export default async function HomePage() {
         )
       })}
 
+      {/* Profile-setup nudge — evergreen, low-urgency: one soft card (not alarming amber),
+          listing only what's still missing. De-ranked below the transient states above. */}
+      {(ratingMissing || homeCourtMissing) && (
+        <Link
+          href="/profile/edit"
+          className="flex items-center gap-3 rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 hover:bg-brand-soft transition-colors"
+        >
+          <span className="text-brand-muted text-lg flex-shrink-0">✨</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Finish setting up your profile</p>
+            <p className="text-xs text-brand-muted">
+              Add your {[ratingMissing && 'skill rating', homeCourtMissing && 'home court'].filter(Boolean).join(' and ')} so we can show you the right games nearby.
+            </p>
+          </div>
+          <span className="text-brand-muted text-sm flex-shrink-0">→</span>
+        </Link>
+      )}
+
       {/* Persistent entry to substitute opportunities — always visible, independent of open_to_subbing. */}
       <Link href="/subs" className="flex items-center justify-between gap-2 rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 hover:bg-brand-soft transition-colors">
         <span className="text-sm font-semibold text-brand-dark">🎾 Sub opportunities</span>
@@ -331,7 +332,10 @@ export default async function HomePage() {
                         <span className="text-brand-muted">League:</span> {league?.name ?? 'League'}
                         <span className="ml-1.5 text-brand-muted font-normal">· Session {s.session_number as number}</span>
                       </p>
-                      <p className="text-xs text-brand-muted">{sessionDateLabel(s.session_date as string)}</p>
+                      <p className="text-xs text-brand-muted flex items-center gap-1.5">
+                        {(() => { const b = dayBadge(s.session_date as string, today, tomorrow); return b && <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${b.cls}`}>{b.label}</span> })()}
+                        {sessionDateLabel(s.session_date as string)}
+                      </p>
                       {league?.location_name && (
                         <p className="text-xs text-brand-muted">{league.location_name as string}</p>
                       )}
@@ -374,7 +378,10 @@ export default async function HomePage() {
                     <span className="text-brand-muted">Tournament:</span> {t.name}
                   </p>
                   {t.location?.name && <p className="text-xs text-brand-muted">{t.location.name}</p>}
-                  <p className="text-xs text-brand-muted">{formatSessionDate(t.start_date)}</p>
+                  <p className="text-xs text-brand-muted flex items-center gap-1.5">
+                    {(() => { const b = dayBadge(t.start_date as string, today, tomorrow); return b && <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${b.cls}`}>{b.label}</span> })()}
+                    {formatSessionDate(t.start_date)}
+                  </p>
                 </Link>
               )
             }
@@ -392,7 +399,10 @@ export default async function HomePage() {
                   <span className="text-brand-muted">Play:</span> {ev.title}
                 </p>
                 {ev.location?.name && <p className="text-xs text-brand-muted">{ev.location.name}</p>}
-                <p className="text-xs text-brand-muted">{eventDateLabel(ev.starts_at)}</p>
+                <p className="text-xs text-brand-muted flex items-center gap-1.5">
+                  {(() => { const b = dayBadge((ev.starts_at as string).slice(0, 10), today, tomorrow); return b && <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${b.cls}`}>{b.label}</span> })()}
+                  {eventDateLabel(ev.starts_at)}
+                </p>
                 <p className="text-xs text-brand-muted">{joinedCount} / {ev.max_players} players</p>
               </Link>
             )
