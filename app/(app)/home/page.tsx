@@ -235,6 +235,10 @@ export default async function HomePage() {
         </p>
       </div>
 
+      {/* ── Needs your attention (Action Center) — most urgent items first, above the minor nudges ── */}
+      <RealtimeRefresh topic={subRequestsTopic()} events={[RealtimeEvents.subRequestsChanged]} />
+      <NeedsYourAttention items={actionItems} />
+
       {/* Profile completeness nudges */}
       {ratingMissing && (
         <Link
@@ -301,10 +305,6 @@ export default async function HomePage() {
           </Link>
         )
       })}
-
-      {/* ── Needs your attention (Action Center) ── */}
-      <RealtimeRefresh topic={subRequestsTopic()} events={[RealtimeEvents.subRequestsChanged]} />
-      <NeedsYourAttention items={actionItems} />
 
       {/* Persistent entry to substitute opportunities — always visible, independent of open_to_subbing. */}
       <Link href="/subs" className="flex items-center justify-between gap-2 rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 hover:bg-brand-soft transition-colors">
