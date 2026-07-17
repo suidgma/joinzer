@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import SubOpportunityCard from '@/components/features/subs/SubOpportunityCard'
 import RequesterSubStatus from '@/components/features/leagues/RequesterSubStatus'
-import type { ActionItem } from '@/lib/home/actionItems'
+import type { ActionItem, AttendanceNeededItem } from '@/lib/home/actionItems'
 
 function dateStr(d: string | null): string {
   return d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
@@ -14,10 +15,62 @@ function money(cents: number): string {
 }
 const todayPacific = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
+// The attendance nudge is answerable in place — "Yes, I'll be there" one-taps the self check-in
+// endpoint and clears the card (no bounce to the league page). "Can't make it" still routes to the
+// league so the sub-request flow (decision sheet) is available. On confirm we also router.refresh()
+// so the session reconciles into My Schedule with its new status.
+function AttendanceQuickCard({ a, onConfirmed }: { a: AttendanceNeededItem; onConfirmed: () => void }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const when = a.date <= todayPacific() ? 'today' : dateStr(a.date)
+
+  async function confirm() {
+    setSaving(true)
+    setError(null)
+    const res = await fetch(`/api/league-sessions/${a.sessionId}/attendance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attendance_status: 'planning_to_attend' }),
+    })
+    if (!res.ok) {
+      setError('Could not save — try again')
+      setSaving(false)
+      return
+    }
+    onConfirmed()
+  }
+
+  return (
+    <div className="rounded-2xl border border-brand-border bg-brand-surface p-4 space-y-2">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-brand-dark">Are you playing {when}?</p>
+        <p className="text-xs text-brand-muted">{a.leagueName}{a.sessionNumber ? ` · Session ${a.sessionNumber}` : ''}</p>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={confirm}
+          disabled={saving}
+          className="flex-1 py-2 rounded-xl bg-brand text-brand-dark text-xs font-semibold hover:bg-brand-hover transition-colors disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : "Yes, I'll be there"}
+        </button>
+        <Link
+          href={`/leagues/${a.leagueId}`}
+          className="flex-1 py-2 rounded-xl border border-brand-border text-brand-dark text-xs font-semibold text-center hover:bg-brand-soft transition-colors"
+        >
+          Can&apos;t make it
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 // Home "Needs your attention" — renders the server-derived ActionItem[]. Compact; renders nothing
 // when empty (no large empty card). Own requests/statuses always show; matched opportunities appear
 // only when getHomeActionItems included them (gated there by open_to_subbing).
 export default function NeedsYourAttention({ items }: { items: ActionItem[] }) {
+  const router = useRouter()
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const visible = items.filter((i) => !dismissed.has(i.id))
   if (visible.length === 0) return null
@@ -66,16 +119,12 @@ export default function NeedsYourAttention({ items }: { items: ActionItem[] }) {
             )
           }
           if (item.type === 'attendance_needed') {
-            const a = item.attendance
-            const when = a.date <= todayPacific() ? 'today' : dateStr(a.date)
             return (
-              <Link key={item.id} href={`/leagues/${a.leagueId}`} className="flex items-center justify-between gap-2 rounded-2xl border border-brand-border bg-brand-surface p-4 hover:bg-brand-soft">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-brand-dark">Are you playing {when}?</p>
-                  <p className="text-xs text-brand-muted">{a.leagueName}{a.sessionNumber ? ` · Session ${a.sessionNumber}` : ''} — let your organizer know.</p>
-                </div>
-                <span className="shrink-0 text-xs font-semibold text-brand-active">Check in →</span>
-              </Link>
+              <AttendanceQuickCard
+                key={item.id}
+                a={item.attendance}
+                onConfirmed={() => { drop(item.id); router.refresh() }}
+              />
             )
           }
           if (item.type === 'score_confirmation') {
