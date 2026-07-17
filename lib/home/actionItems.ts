@@ -19,29 +19,37 @@ export type SubstituteFoundItem = { requestId: string; leagueId: string; leagueN
 export type AttendanceNeededItem = { sessionId: string; leagueId: string; leagueName: string; date: string; sessionNumber: number | null }
 export type IncompletePaymentItem = { kind: 'event' | 'tournament_order'; refId: string; title: string; amountCents: number; href: string }
 export type ScoreConfirmItem = { leagueId: string; leagueName: string }
+// Organizer operational items.
+export type RunSessionItem = { sessionId: string; leagueId: string; leagueName: string; sessionNumber: number | null }
+export type DraftEventItem = { tournamentId: string; name: string }
 
 export type ActionItem =
+  | { type: 'run_session_today'; id: string; priority: number; run: RunSessionItem }
   | { type: 'incomplete_payment'; id: string; priority: number; payment: IncompletePaymentItem }
   | { type: 'own_open_sub_request'; id: string; priority: number; request: OwnOpenRequestItem }
   | { type: 'attendance_needed'; id: string; priority: number; attendance: AttendanceNeededItem }
   | { type: 'score_confirmation'; id: string; priority: number; score: ScoreConfirmItem }
   | { type: 'substitute_found'; id: string; priority: number; request: SubstituteFoundItem }
+  | { type: 'draft_event'; id: string; priority: number; draft: DraftEventItem }
   | { type: 'matched_sub_opportunity'; id: string; priority: number; opportunity: MatchedSubOpportunity }
 
 const MAX_ITEMS = 4
 const MAX_MATCHED = 2
 
 // Priority = lower sorts first. Ordering (documented):
-//   0    incomplete payment      (money / expiring reservation — most time-sensitive)
-//   1    own open sub request    (your unresolved ask; near-start ⇒ smaller number)
-//   2    attendance needed       (session today/tomorrow, unconfirmed; today < tomorrow)
-//   3    substitute found        (awareness)
-//   5    matched sub opportunity (rank folded in as a fractional tiebreak)
+//   0    run session today (organizer) — happening tonight, players depend on it
+//   0.5  incomplete payment            — money / expiring reservation
+//   1    own open sub request          — your unresolved ask (near-start ⇒ smaller)
+//   2    attendance needed             — session today/tomorrow, unconfirmed (today < tomorrow)
+//   2.7  score confirmation            — a reported flex result awaiting your confirm
+//   3    substitute found              — awareness
+//   3.5  draft event (organizer)       — you started setup but never published (no deadline)
+//   5    matched sub opportunity       — rank folded in as a fractional tiebreak
 export async function getHomeActionItems(userId: string): Promise<ActionItem[]> {
   const db = admin()
   const today = pacificToday()
 
-  const [{ data: profile }, { data: myReqs }, attendance, payments, scoreConfirms] = await Promise.all([
+  const [{ data: profile }, { data: myReqs }, attendance, payments, scoreConfirms, runToday, drafts] = await Promise.all([
     db.from('profiles').select('open_to_subbing').eq('id', userId).maybeSingle(),
     db.from('league_sub_requests')
       .select(`id, status, fulfillment_mode, filled_at, league_id, league_session_id,
@@ -51,13 +59,20 @@ export async function getHomeActionItems(userId: string): Promise<ActionItem[]> 
     loadAttendanceNeeded(db, userId, today),
     loadIncompletePayments(db, userId),
     loadScoreConfirmations(db, userId),
+    loadRunTodaySessions(db, userId, today),
+    loadDraftTournaments(db, userId),
   ])
 
   const items: ActionItem[] = []
 
-  // Incomplete payments — top priority.
+  // Organizer: a round-robin session TODAY you run — the most time-critical thing on the screen.
+  for (const r of runToday) items.push({ type: 'run_session_today', id: `run-${r.sessionId}`, priority: 0, run: r })
+  // Organizer: a draft tournament you never published (completion nudge, no deadline).
+  for (const d of drafts) items.push({ type: 'draft_event', id: `draft-${d.tournamentId}`, priority: 3.5, draft: d })
+
+  // Incomplete payments.
   for (const p of payments) {
-    items.push({ type: 'incomplete_payment', id: `pay-${p.kind}-${p.refId}`, priority: 0, payment: p })
+    items.push({ type: 'incomplete_payment', id: `pay-${p.kind}-${p.refId}`, priority: 0.5, payment: p })
   }
 
   for (const r of (myReqs ?? []) as any[]) {
@@ -166,6 +181,30 @@ async function loadIncompletePayments(db: Db, userId: string): Promise<Incomplet
     if (t) out.push({ kind: 'tournament_order', refId: o.id, title: t.name ?? 'Tournament', amountCents: o.total_cents ?? 0, href: `/tournaments/${t.id}` })
   }
   return out
+}
+
+// Organizer: round-robin sessions dated TODAY in a league the user OWNS (created_by) that are still
+// scheduled — "run tonight's session." (Co-admins/self-run hosts also see today's session in My
+// Schedule; owner is the clear operator for this top-of-screen prompt.)
+async function loadRunTodaySessions(db: Db, userId: string, today: string): Promise<RunSessionItem[]> {
+  const { data } = await db
+    .from('league_sessions')
+    .select('id, league_id, session_number, league:leagues!league_id(name, created_by, format_kind, status)')
+    .eq('session_date', today).eq('status', 'scheduled')
+  const out: RunSessionItem[] = []
+  for (const s of (data ?? []) as any[]) {
+    const l = Array.isArray(s.league) ? s.league[0] : s.league
+    if (l?.created_by === userId && l?.format_kind === 'session_rr' && l?.status === 'active') {
+      out.push({ sessionId: s.id, leagueId: s.league_id, leagueName: l.name ?? 'League', sessionNumber: s.session_number ?? null })
+    }
+  }
+  return out
+}
+
+// Organizer: tournaments the user created that are still in draft — "finish setting up."
+async function loadDraftTournaments(db: Db, userId: string): Promise<DraftEventItem[]> {
+  const { data } = await db.from('tournaments').select('id, name').eq('organizer_id', userId).eq('status', 'draft').limit(5)
+  return ((data ?? []) as any[]).map((t) => ({ tournamentId: t.id, name: t.name ?? 'Tournament' }))
 }
 
 // Flex leagues where an opponent reported a match result the player still needs to confirm.

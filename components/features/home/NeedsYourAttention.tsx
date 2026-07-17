@@ -29,6 +29,30 @@ export default function NeedsYourAttention({ items }: { items: ActionItem[] }) {
       <h2 className="font-heading text-base font-bold text-brand-dark">Needs your attention</h2>
       <div className="space-y-2">
         {visible.map((item) => {
+          if (item.type === 'run_session_today') {
+            const r = item.run
+            return (
+              <Link key={item.id} href={`/leagues/${r.leagueId}/sessions/${r.sessionId}/live`} className="flex items-center justify-between gap-2 rounded-2xl border border-brand-border bg-brand-soft p-4 hover:bg-brand-surface">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-brand-dark">🎾 Run tonight&apos;s session</p>
+                  <p className="text-xs text-brand-muted">{r.leagueName}{r.sessionNumber ? ` · Session ${r.sessionNumber}` : ''} — players are counting on you.</p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-brand-active">Open →</span>
+              </Link>
+            )
+          }
+          if (item.type === 'draft_event') {
+            const d = item.draft
+            return (
+              <Link key={item.id} href={`/tournaments/${d.tournamentId}`} className="flex items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 hover:border-amber-300">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-amber-800">Finish setting up your tournament</p>
+                  <p className="text-xs text-amber-700">{d.name} — not published yet.</p>
+                </div>
+                <span className="shrink-0 text-amber-500 text-sm">→</span>
+              </Link>
+            )
+          }
           if (item.type === 'incomplete_payment') {
             const p = item.payment
             return (
