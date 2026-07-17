@@ -9,6 +9,10 @@ import type { ActionItem } from '@/lib/home/actionItems'
 function dateStr(d: string | null): string {
   return d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
 }
+function money(cents: number): string {
+  return `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`
+}
+const todayPacific = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
 
 // Home "Needs your attention" — renders the server-derived ActionItem[]. Compact; renders nothing
 // when empty (no large empty card). Own requests/statuses always show; matched opportunities appear
@@ -25,6 +29,31 @@ export default function NeedsYourAttention({ items }: { items: ActionItem[] }) {
       <h2 className="font-heading text-base font-bold text-brand-dark">Needs your attention</h2>
       <div className="space-y-2">
         {visible.map((item) => {
+          if (item.type === 'incomplete_payment') {
+            const p = item.payment
+            return (
+              <Link key={item.id} href={p.href} className="flex items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 hover:border-amber-300">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-amber-800">Finish your payment — {p.title}</p>
+                  <p className="text-xs text-amber-700">{money(p.amountCents)} {p.kind === 'tournament_order' ? 'reserved — pay to keep your spot' : 'due for your session'}</p>
+                </div>
+                <span className="shrink-0 text-amber-500 text-sm">→</span>
+              </Link>
+            )
+          }
+          if (item.type === 'attendance_needed') {
+            const a = item.attendance
+            const when = a.date <= todayPacific() ? 'today' : dateStr(a.date)
+            return (
+              <Link key={item.id} href={`/leagues/${a.leagueId}`} className="flex items-center justify-between gap-2 rounded-2xl border border-brand-border bg-brand-surface p-4 hover:bg-brand-soft">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-brand-dark">Are you playing {when}?</p>
+                  <p className="text-xs text-brand-muted">{a.leagueName}{a.sessionNumber ? ` · Session ${a.sessionNumber}` : ''} — let your organizer know.</p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-brand-active">Check in →</span>
+              </Link>
+            )
+          }
           if (item.type === 'matched_sub_opportunity') {
             return <SubOpportunityCard key={item.id} opp={item.opportunity} compact onAccepted={() => drop(item.id)} />
           }
