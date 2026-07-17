@@ -89,6 +89,8 @@ interface Props {
   excludeLeagueIds: string[]
   excludeEventIds: string[]
   excludeTournamentIds: string[]
+  title?: string
+  limit?: number
 }
 
 export default async function UpcomingEventsSection({
@@ -98,6 +100,8 @@ export default async function UpcomingEventsSection({
   excludeLeagueIds,
   excludeEventIds,
   excludeTournamentIds,
+  title = 'Upcoming Events',
+  limit = 8,
 }: Props) {
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const now = new Date().toISOString()
@@ -230,15 +234,16 @@ export default async function UpcomingEventsSection({
       })
     }
 
-    items = scored.sort((a, b) => b.score - a.score).slice(0, 8)
+    items = scored.sort((a, b) => b.score - a.score)
   }
 
+  items = items.slice(0, limit)
   if (items.length === 0) return null
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-base font-bold text-brand-dark">Upcoming Events</h2>
+        <h2 className="font-heading text-base font-bold text-brand-dark">{title}</h2>
         <div className="flex items-center gap-3 text-xs text-brand-active">
           <Link href="/play" className="hover:underline">Play →</Link>
           <Link href="/leagues" className="hover:underline">Leagues →</Link>

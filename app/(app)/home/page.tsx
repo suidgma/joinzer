@@ -7,18 +7,8 @@ import { getHomeActionItems } from '@/lib/home/actionItems'
 import RealtimeRefresh from '@/components/ui/RealtimeRefresh'
 import { subRequestsTopic, RealtimeEvents } from '@/lib/realtime/topics'
 import { formatSessionDate, formatTimestamp } from '@/lib/utils/date'
-import { formatSkillRange, skillRangeToLevel } from '@/lib/taxonomy/formats'
+import { skillRangeToLevel } from '@/lib/taxonomy/formats'
 import UpcomingEventsSection from '@/components/features/home/UpcomingEventsSection'
-
-const FORMAT_LABELS: Record<string, string> = {
-  individual_round_robin: 'Individual RR',
-  mens_doubles: "Men's Doubles",
-  womens_doubles: "Women's Doubles",
-  mixed_doubles: 'Mixed Doubles',
-  coed_doubles: 'Coed Doubles',
-  singles: 'Singles',
-  custom: 'Custom',
-}
 
 // Returns the ±1-tier skill range window for the discover query.
 // Leagues whose [skill_min, skill_max] overlaps [lo, hi] are surfaced.
@@ -50,17 +40,6 @@ function dayBadge(dateYmd: string, today: string, tomorrow: string): { label: st
   return null
 }
 
-// Haversine distance in miles between two lat/lng points
-function distanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 3958.8
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.asin(Math.sqrt(a))
-}
-
 // Unified schedule item for chronological sort
 type ScheduleItem =
   | { kind: 'session'; sortKey: string; data: any; league: any; myStatus: string; isManager: boolean }
@@ -77,8 +56,19 @@ export default async function HomePage() {
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
   const now = new Date().toISOString()
 
-  // Leagues user is registered in or organizes
-  const [{ data: registrations }, { data: organizedLeagues }, { data: organizedTournaments }, { data: pendingPartnerRegs }, { data: pendingTournamentInvites }] = await Promise.all([
+  // Wave 1 — everything that needs only the user id, run concurrently (incl. the profile,
+  // joined events, tournament regs, and the Action Center, which no longer wait on the league ids).
+  const [
+    { data: registrations },
+    { data: organizedLeagues },
+    { data: organizedTournaments },
+    { data: pendingPartnerRegs },
+    { data: pendingTournamentInvites },
+    { data: profile },
+    { data: joinedEventRows },
+    { data: tournamentRegistrations },
+    actionItems,
+  ] = await Promise.all([
     db.from('league_registrations').select('league_id').eq('user_id', user.id).eq('status', 'registered'),
     db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').eq('created_by', user.id),
     db.from('tournaments').select('id').eq('organizer_id', user.id).limit(1),
@@ -98,34 +88,6 @@ export default async function HomePage() {
       `)
       .eq('status', 'pending')
       .eq('inviter_reg.user_id', user.id),
-  ])
-
-  const registeredLeagueIds = (registrations ?? []).map((r) => r.league_id as string)
-  const myLeagueIdSet = new Set([
-    ...registeredLeagueIds,
-    ...((organizedLeagues ?? []).map((l) => l.id as string)),
-  ])
-  const leagueIds = Array.from(myLeagueIdSet)
-
-  const [
-    { data: registeredLeagueRows },
-    { data: upcomingSessions },
-    { data: profile },
-    { data: joinedEventRows },
-    { data: tournamentRegistrations },
-  ] = await Promise.all([
-    registeredLeagueIds.length > 0
-      ? db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').in('id', registeredLeagueIds)
-      : Promise.resolve({ data: [] }),
-    leagueIds.length > 0
-      ? db.from('league_sessions')
-          .select('id, league_id, session_number, session_date, status')
-          .in('league_id', leagueIds)
-          .gte('session_date', today)
-          .in('status', ['scheduled', 'in_progress'])
-          .order('session_date', { ascending: true })
-          .limit(15)
-      : Promise.resolve({ data: [] }),
     db.from('profiles').select('name, dupr_rating, estimated_rating, rating_source, gender, signup_intent, home_court:locations!home_court_id(lat, lng, city, state)').eq('id', user.id).single(),
     db.from('event_participants')
       .select(`
@@ -146,6 +108,31 @@ export default async function HomePage() {
       `)
       .eq('user_id', user.id)
       .in('status', ['registered', 'confirmed', 'approved']),
+    // Home "Needs your attention": own sub requests/statuses + (opt-in-gated) matched opportunities.
+    getHomeActionItems(user.id),
+  ])
+
+  const registeredLeagueIds = (registrations ?? []).map((r) => r.league_id as string)
+  const myLeagueIdSet = new Set([
+    ...registeredLeagueIds,
+    ...((organizedLeagues ?? []).map((l) => l.id as string)),
+  ])
+  const leagueIds = Array.from(myLeagueIdSet)
+
+  // Wave 2 — needs the league ids from wave 1.
+  const [{ data: registeredLeagueRows }, { data: upcomingSessions }] = await Promise.all([
+    registeredLeagueIds.length > 0
+      ? db.from('leagues').select('id, name, format, skill_min, skill_max, location_name, created_by').in('id', registeredLeagueIds)
+      : Promise.resolve({ data: [] }),
+    leagueIds.length > 0
+      ? db.from('league_sessions')
+          .select('id, league_id, session_number, session_date, status')
+          .in('league_id', leagueIds)
+          .gte('session_date', today)
+          .in('status', ['scheduled', 'in_progress'])
+          .order('session_date', { ascending: true })
+          .limit(15)
+      : Promise.resolve({ data: [] }),
   ])
 
   const skillRange = matchingSkillRange(
@@ -155,16 +142,13 @@ export default async function HomePage() {
 
   const sessionIds = (upcomingSessions ?? []).map((s) => s.id as string)
 
-  const [{ data: attendance }, actionItems] = await Promise.all([
-    sessionIds.length > 0
-      ? db.from('league_session_attendance')
-          .select('league_session_id, attendance_status')
-          .eq('user_id', user.id)
-          .in('league_session_id', sessionIds)
-      : Promise.resolve({ data: [] }),
-    // Home "Needs your attention": own sub requests/statuses + (opt-in-gated) matched opportunities.
-    getHomeActionItems(user.id),
-  ])
+  // Wave 3 — needs the session ids from wave 2.
+  const { data: attendance } = sessionIds.length > 0
+    ? await db.from('league_session_attendance')
+        .select('league_session_id, attendance_status')
+        .eq('user_id', user.id)
+        .in('league_session_id', sessionIds)
+    : { data: [] as any[] }
 
   const homeCourt = (profile as any)?.home_court as { lat: number | null; lng: number | null; city: string | null; state: string | null } | null
 
@@ -213,11 +197,34 @@ export default async function HomePage() {
   }
 
   scheduleItems.sort((a, b) => new Date(a.sortKey).getTime() - new Date(b.sortKey).getTime())
-  const visibleSchedule = scheduleItems.slice(0, 3)
+
+  // Sessions already surfaced in "Needs your attention" (run-tonight / check-in) are hidden from
+  // My Schedule so the same session doesn't appear twice. Only what's actually shown up top is
+  // suppressed — a session that lost the Action Center cap still lists here.
+  const actionSessionIds = new Set<string>()
+  for (const it of actionItems) {
+    if (it.type === 'run_session_today') actionSessionIds.add(it.run.sessionId)
+    if (it.type === 'attendance_needed') actionSessionIds.add(it.attendance.sessionId)
+  }
+  const renderSchedule = scheduleItems.filter(
+    (i) => !(i.kind === 'session' && actionSessionIds.has(i.data.id as string)),
+  )
+  const visibleSchedule = renderSchedule.slice(0, 3)
+
+  // Imminence for the greeting — derived from the FULL footprint (a today session handled in the
+  // Action Center still makes the greeting say "playing today").
+  const itemYmd = (i: ScheduleItem) =>
+    i.kind === 'session' ? (i.data.session_date as string)
+    : i.kind === 'tournament' ? (i.data.start_date as string)
+    : (i.data.starts_at as string).slice(0, 10)
+  const hostingToday = scheduleItems.some((i) => i.kind === 'session' && i.isManager && itemYmd(i) === today)
+  const hasTodayItem = scheduleItems.some((i) => itemYmd(i) === today)
+  const hasTomorrowItem = scheduleItems.some((i) => itemYmd(i) === tomorrow)
 
   const firstName = (profile?.name as string | null)?.split(' ')[0] ?? 'there'
-  const hasSchedule = visibleSchedule.length > 0
-  const scheduleIsSparse = scheduleItems.length < 3
+  const hasAnyUpcoming = scheduleItems.length > 0
+  const hasSchedule = renderSchedule.length > 0
+  const scheduleIsSparse = renderSchedule.length < 3
   const ratingSource = (profile as any)?.rating_source as string | null
 
   const excludeEventIds = (joinedEventRows ?? [])
@@ -233,14 +240,39 @@ export default async function HomePage() {
   // to the guided create-first-event flow instead of the generic Play/Organize card.
   const declaredOrganizer = (profile as any)?.signup_intent === 'organize' && !isOrganizer
 
+  // Greeting ties into the imminence we surface elsewhere: today > tomorrow > generic.
+  const greetingSubline = hostingToday
+    ? "You're hosting today 🎾"
+    : hasTodayItem
+    ? "You're playing today 🎾"
+    : hasTomorrowItem
+    ? "You've got something on tomorrow."
+    : hasSchedule
+    ? "Here's what's coming up."
+    : "Nothing on your schedule yet — here's what's available near you."
+
+  // A brand-new player (no footprint, not a declared organizer) sees real nearby games pulled up
+  // above the onboarding card; everyone else gets the full list at the bottom.
+  const isNewPlayer = !hasAnyUpcoming && !declaredOrganizer
+  const upcomingSection = (
+    <UpcomingEventsSection
+      viewerGender={(profile as any)?.gender ?? null}
+      skillRange={skillRange}
+      homeCourt={homeCourt}
+      excludeLeagueIds={leagueIds}
+      excludeEventIds={excludeEventIds}
+      excludeTournamentIds={excludeTournamentIds}
+      title={isNewPlayer ? 'Games near you' : 'Upcoming Events'}
+      limit={isNewPlayer ? 4 : 8}
+    />
+  )
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-6">
       {/* Greeting */}
       <div>
         <h1 className="font-heading text-xl font-bold text-brand-dark">Hey, {firstName} 👋</h1>
-        <p className="text-sm text-brand-muted">
-          {hasSchedule ? "Here's what's coming up." : "Nothing on your schedule yet — check out what's available below."}
-        </p>
+        <p className="text-sm text-brand-muted">{greetingSubline}</p>
       </div>
 
       {/* ── Needs your attention (Action Center) — most urgent items first, above the minor nudges ── */}
@@ -410,8 +442,12 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Brand-new player: pull real nearby games up above the onboarding card so the first
+          thing on an empty home screen is something they can actually join. */}
+      {isNewPlayer && upcomingSection}
+
       {/* ── Declared organizer, nothing created yet → guided first-event CTA ── */}
-      {!hasSchedule && declaredOrganizer && (
+      {!hasAnyUpcoming && declaredOrganizer && (
         <section className="bg-brand-soft border border-brand-border rounded-2xl p-5 text-center space-y-3">
           <span className="text-2xl block">📋</span>
           <p className="text-sm font-semibold text-brand-dark">Ready to run your first event?</p>
@@ -429,7 +465,7 @@ export default async function HomePage() {
       )}
 
       {/* ── First-event onboarding — shown only on a completely empty home screen ── */}
-      {!hasSchedule && !declaredOrganizer && (
+      {isNewPlayer && (
         <section className="bg-brand-soft border border-brand-border rounded-2xl p-5 space-y-3">
           <p className="text-sm font-semibold text-brand-dark">What do you want to do?</p>
           <div className="grid grid-cols-2 gap-3">
@@ -506,15 +542,8 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ── Upcoming Events — always shown, featured override or personalized ── */}
-      <UpcomingEventsSection
-        viewerGender={(profile as any)?.gender ?? null}
-        skillRange={skillRange}
-        homeCourt={homeCourt}
-        excludeLeagueIds={leagueIds}
-        excludeEventIds={excludeEventIds}
-        excludeTournamentIds={excludeTournamentIds}
-      />
+      {/* ── Upcoming Events — pulled up above for brand-new players, else here at the bottom ── */}
+      {!isNewPlayer && upcomingSection}
 
     </main>
   )
