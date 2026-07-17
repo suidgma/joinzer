@@ -41,11 +41,16 @@ Joinzer is a mobile-first pickleball platform with four product surfaces sharing
 | `metrics-and-kpis.md` | What success is measured by, stage by stage |
 | `operating-constraints.md` | The solo-builder reality that bounds every recommendation |
 
-**Playbooks — action tools (use and mark up):**
+**Playbooks & outreach assets — action tools (use and mark up):**
 
-| Doc | What it's for |
-|---|---|
-| `first-organizer-outreach-kit.md` | Landing the first organizer: target list, offer, messages, demo, objections |
+The first-organizer push has a playbook plus a set of ready assets. The playbook lives here; the assets live where they run.
+
+| Asset | What it's for | Where it lives |
+|---|---|---|
+| First-organizer outreach kit | The playbook: target-list scoring, the founding-organizer offer, cold messages, demo + discovery flow, objection handling, follow-up | `first-organizer-outreach-kit.md` |
+| Demo environment seeder | A clean, realistic demo set (organizer + 20 players + a mid-season league with live standings + an in-progress tournament) so a live demo looks full, not empty | `scripts/seed-demo.mjs` — run `node scripts/seed-demo.mjs` |
+| Founding-organizers pitch — on-domain | The share-by-link pitch on your domain (lime brand, noindex) — the default to send | `app/foundingorganizers/page.tsx` → `joinzer.com/foundingorganizers` |
+| Founding-organizers pitch — editorial | Alternate court-teal + optic-yellow design of the same pitch; standalone HTML, also a claude.ai artifact | `docs/marketing/founding-organizers-pitch.html` |
 
 _(`project-custom-instructions.md` also lives here — it's the paste-in text for the Claude Project's instruction field, not a knowledge doc.)_
 
