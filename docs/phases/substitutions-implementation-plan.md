@@ -1,6 +1,20 @@
 # Substitutions — Implementation Plan (post-decision)
 
-> Implementation-ready. **No code yet.** Builds on the audit in `substitutions-action-center.md` (don't re-audit). Encodes the locked product decisions: one unified system built on `league_sub_requests`, two fulfillment paths, no organizer approval by default, atomic accept **+** placement in one transaction, RR/box/ladder first, Action Center on Home, `sub_nominations` consolidated.
+> **✅ SHIPPED — Phases 1–6 complete (July 16 2026).** This plan is now the design record for a
+> live system; the below is history + rationale. **Final shipped state:**
+> - **Authoritative model:** `league_sub_requests` — league-only, `league_session_id` (round-robin) **XOR** `league_period_id` (box/ladder). Statuses `open | filled | cancelled | expired` (no others). Fulfillment `open_pool | self_assigned | organizer_assigned`. Guest substitutes = `filled_by_user_id` NULL + `filled_by_guest_name` (no fake account, no guest table). Doubles = one request per covered registration slot.
+> - **Placement/reversal primitives (SQL, service_role only):** `place_league_sub_rr` / `place_league_sub_attendance` and their inverses `reverse_league_sub_rr` / `reverse_league_sub_attendance` are the single source of truth for linkage.
+> - **Transactional RPCs (one txn each):** `accept_sub_request` (P2), `create_player_sub_request` + `assign_organizer_sub_request` (P3), `withdraw_sub_request` + `reclaim_sub_request` + `organizer_correct_sub_request` (reopen/cancel/replace) + `expire_sub_requests` (P5). Status + participation can never diverge.
+> - **Discovery (P4):** one matching core (`lib/subs/matching.ts`: hard eligibility + transparent ranking + rating warnings — rating is never a gate) → Home "Needs your attention" (`ActionItem[]`, no table) + `/subs` (Open / My substitutions / My requests) + `/subs/[requestId]` shared links (PII-safe, eligibility re-derived). `open_to_subbing` (default false) gates Home surfacing + proactive notifications only; `/subs` is open to every eligible player.
+> - **Notifications:** `notification_generation` (reopen re-notifies without deleting history) + `sub_request_notifications` dedupe `(request, user, generation)`; withdrawing sub excluded from the reopen wave. Realtime via `sub-requests:changed` + `attendanceTopic`.
+> - **RLS:** `league_sub_requests` SELECT = own + filled only; the pool + organizer views are service-role server loaders. `sub_nominations` = Play + tournament ONLY (league branch removed in P6).
+> - **Known limitations:** post-start generated-state mutation unsupported (organizer gets a clear error); box/ladder period time granularity (no clock → no period schedule-conflict); geography = home-court-id match only; expiration cron is daily (Hobby tier); team/flex substitution + tournament/Play substitution remain separate systems; multi-slot doubles organizer assignment is per-slot best-effort (not both-or-neither atomic) via the existing box/ladder route.
+>
+> ---
+>
+> _Original plan below (design rationale + locked decisions)._
+
+> Implementation-ready. Builds on the audit in `substitutions-action-center.md` (don't re-audit). Encodes the locked product decisions: one unified system built on `league_sub_requests`, two fulfillment paths, no organizer approval by default, atomic accept **+** placement in one transaction, RR/box/ladder first, Action Center on Home, `sub_nominations` consolidated.
 >
 > Firm answers to the two "make a recommendation" asks up front:
 > - **Table generalization:** **Extend `league_sub_requests` in place, generalized league-only across `league_session_id` XOR `league_period_id` (session vs period scope). Do NOT add a generic `surface`/`occasion` model now.** RR uses `league_sessions`; box/ladder use `league_periods` — those two scopes cover the entire first release. Tournament/Play have *different* placement targets (`tournament_registrations`, `event_participants`) and already-working mechanics; a `surface` column today is a leaky abstraction with no near-term payoff. Add `surface` later, additively, when those domains join.

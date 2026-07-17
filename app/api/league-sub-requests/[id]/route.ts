@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { Resend } from 'resend'
-import { createNotification, createNotifications } from '@/lib/notifications/create'
 import { logAudit } from '@/lib/audit/log'
-import { withBrandHeader } from '@/lib/email/send'
 import { broadcastSubRequestsChanged } from '@/lib/subs/broadcast'
 
 type Params = { params: Promise<{ id: string }> }
@@ -13,211 +10,59 @@ function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
-// PATCH — claim | approve | cancel
-// Body: { action: 'claim' | 'approve' | 'cancel' }
+// PATCH — cancel an OPEN substitute request (requester or organizer).
+// Body: { action: 'cancel' }
+// Acceptance is the atomic accept route; organizer assignment/correction is the unified organizer
+// route/RPC; the legacy claim/approve actions were removed in Phase 6 (they never placed a sub).
 export async function PATCH(req: NextRequest, props: Params) {
-  const params = await props.params;
+  const params = await props.params
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { action } = await req.json().catch(() => ({ action: null }))
-  if (!['claim', 'approve', 'cancel'].includes(action)) {
-    return NextResponse.json({ error: 'action must be claim, approve, or cancel' }, { status: 400 })
+  if (action !== 'cancel') {
+    return NextResponse.json({ error: 'Only cancel is supported here.' }, { status: 400 })
   }
 
   const db = admin()
 
-  // Fetch the sub request + league to check permissions
   const { data: sr } = await db
     .from('league_sub_requests')
-    .select(`
-      id, status, requesting_player_id, claimed_by_user_id, league_id,
-      league:leagues!league_id(name, created_by),
-      session:league_sessions!league_session_id(session_date, session_number)
-    `)
+    .select('id, status, requesting_player_id, league_id, league:leagues!league_id(created_by)')
     .eq('id', params.id)
     .single()
-
   if (!sr) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const league = sr.league as unknown as { name: string; created_by: string } | null
+  const league = sr.league as unknown as { created_by: string } | null
   const isOrganizer = league?.created_by === user.id
   const isRequester = sr.requesting_player_id === user.id
-
-  // Claim + organizer-approve are being replaced by the Phase 2 atomic accept-and-place flow
-  // (docs/phases/substitutions-implementation-plan.md). The legacy statuses ('claimed'/'approved')
-  // no longer exist, and the old claim never actually placed a substitute — so these actions are
-  // paused here (a clean 409) rather than writing an invalid state. Cancel remains fully functional.
-  if (action === 'claim' || action === 'approve') {
-    return NextResponse.json(
-      { error: 'Substitute claiming is being upgraded and will be back shortly.', code: 'UPGRADING' },
-      { status: 409 },
-    )
-  }
-
-  // action === 'cancel'
   if (!isRequester && !isOrganizer) {
     return NextResponse.json({ error: 'Only the requester or organizer can cancel' }, { status: 403 })
   }
   if (sr.status !== 'open') {
-    return NextResponse.json({ error: 'Sub request cannot be cancelled' }, { status: 409 })
-  }
-  const update: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-    status: 'cancelled',
-    cancelled_at: new Date().toISOString(),
-    cancelled_by_user_id: user.id,
+    return NextResponse.json({ error: 'Only an open request can be cancelled here.' }, { status: 409 })
   }
 
+  const now = new Date().toISOString()
   const { data: updated, error } = await db
     .from('league_sub_requests')
-    .update(update)
+    .update({ updated_at: now, status: 'cancelled', cancelled_at: now, cancelled_by_user_id: user.id })
     .eq('id', params.id)
     .select()
     .single()
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await logAudit({
     actorId: user.id,
     entityType: 'league_registration',
     entityId: params.id,
-    action: `sub_request_${action}d`,
+    action: 'sub_request_cancelled',
     before: { status: sr.status },
     after: { status: updated.status },
   })
-
-  // Send notifications (fire-and-forget)
-  sendClaimNotification(sr, updated, action, user.id).catch(console.error)
   // The pool changed (cancel removes an open opportunity) — refresh /subs + Home.
   broadcastSubRequestsChanged().catch(() => {})
 
   return NextResponse.json(updated)
-}
-
-async function sendClaimNotification(
-  sr: Record<string, unknown>,
-  updated: Record<string, unknown>,
-  action: string,
-  actorId: string
-) {
-  const db = admin()
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  const league = sr.league as { name: string; created_by: string }
-  const session = sr.session as { session_date: string; session_number: number }
-
-  const dateStr = session
-    ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' })
-    : ''
-
-  const leagueUrl = `https://joinzer.com/leagues/${sr.league_id}`
-
-  if (action === 'claim') {
-    // Notify requester + organizer
-    const [{ data: requester }, { data: claimer }, { data: organizer }] = await Promise.all([
-      db.from('profiles').select('email, name').eq('id', sr.requesting_player_id as string).single(),
-      db.from('profiles').select('name').eq('id', actorId).single(),
-      db.from('profiles').select('email').eq('id', league.created_by).single(),
-    ])
-
-    const claimerName = claimer?.name ?? 'Someone'
-    const emails = []
-
-    if (requester?.email) {
-      emails.push({
-        from: 'Joinzer <support@joinzer.com>', to: requester.email, replyTo: 'martyfit50@gmail.com',
-        subject: `Sub claimed: ${league.name} Session ${session.session_number}`,
-        html: emailHtml(`${claimerName} can sub for you!`,
-          `${claimerName} has volunteered to sub for you in <strong>${league.name}</strong>${dateStr ? ` on ${dateStr}` : ''}. Your organizer will confirm.`,
-          leagueUrl, 'View League'),
-      })
-    }
-    if (organizer?.email) {
-      emails.push({
-        from: 'Joinzer <support@joinzer.com>', to: organizer.email, replyTo: 'martyfit50@gmail.com',
-        subject: `Sub volunteer: ${league.name}`,
-        html: emailHtml('Sub volunteer',
-          `${claimerName} has volunteered to sub in <strong>${league.name}</strong>${dateStr ? ` on ${dateStr}` : ''}. Approve them in the roster.`,
-          `${leagueUrl}/roster`, 'View Roster'),
-      })
-    }
-    if (emails.length) await resend.batch.send(emails).catch(console.error)
-
-    // In-app: notify the requester their sub request was claimed
-    await createNotification({
-      recipientId: sr.requesting_player_id as string,
-      surface: 'league',
-      surfaceId: sr.league_id as string,
-      kind: 'league_sub_claimed',
-      title: `${claimerName} can cover your spot`,
-      body: `${league.name}${dateStr ? ` — ${dateStr}` : ''}. Waiting for organizer approval.`,
-      url: `/leagues/${sr.league_id}`,
-    })
-  }
-
-  if (action === 'approve') {
-    const [{ data: claimer }, { data: requester }] = await Promise.all([
-      updated.claimed_by_user_id
-        ? db.from('profiles').select('email, name').eq('id', updated.claimed_by_user_id as string).single()
-        : Promise.resolve({ data: null }),
-      db.from('profiles').select('email, name').eq('id', sr.requesting_player_id as string).single(),
-    ])
-
-    const emails = []
-    if (claimer?.email) {
-      emails.push({
-        from: 'Joinzer <support@joinzer.com>', to: claimer.email, replyTo: 'martyfit50@gmail.com',
-        subject: `You're approved to sub: ${league.name}`,
-        html: emailHtml("You're approved!", `Your sub spot in <strong>${league.name}</strong>${dateStr ? ` on ${dateStr}` : ''} has been confirmed by the organizer.`, leagueUrl, 'View League'),
-      })
-    }
-    if (requester?.email) {
-      emails.push({
-        from: 'Joinzer <support@joinzer.com>', to: requester.email, replyTo: 'martyfit50@gmail.com',
-        subject: `Sub confirmed: ${league.name}`,
-        html: emailHtml('Sub confirmed', `Your sub has been approved for <strong>${league.name}</strong>${dateStr ? ` on ${dateStr}` : ''}. You're all set!`, leagueUrl, 'View League'),
-      })
-    }
-    if (emails.length) await resend.batch.send(emails).catch(console.error)
-
-    // In-app: notify claimer they're approved + notify requester their sub is set
-    const inAppNotifications = []
-    if (updated.claimed_by_user_id) {
-      inAppNotifications.push({
-        recipientId: updated.claimed_by_user_id as string,
-        surface: 'league' as const,
-        surfaceId: sr.league_id as string,
-        kind: 'league_sub_approved',
-        title: `You're confirmed to sub — ${league.name}`,
-        body: dateStr || undefined,
-        url: `/leagues/${sr.league_id}`,
-      })
-    }
-    inAppNotifications.push({
-      recipientId: sr.requesting_player_id as string,
-      surface: 'league' as const,
-      surfaceId: sr.league_id as string,
-      kind: 'league_sub_confirmed',
-      title: `Sub confirmed — ${league.name}`,
-      body: `Your absence${dateStr ? ` on ${dateStr}` : ''} is covered.`,
-      url: `/leagues/${sr.league_id}`,
-    })
-    await createNotifications(inAppNotifications)
-  }
-}
-
-function emailHtml(heading: string, body: string, ctaUrl: string, ctaLabel: string) {
-  return withBrandHeader(`
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
-      <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
-        <h1 style="margin:0;font-size:20px;color:#012D0B">${heading}</h1>
-      </div>
-      <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
-        <p style="margin:0 0 24px;font-size:14px;color:#374151">${body}</p>
-        <a href="${ctaUrl}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">${ctaLabel}</a>
-        <p style="margin-top:24px;font-size:12px;color:#9ca3af">You're receiving this from Joinzer.</p>
-      </div>
-    </div>
-  `)
 }

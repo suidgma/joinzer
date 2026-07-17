@@ -22,8 +22,6 @@ type Props = {
   allowSelfSub?: boolean
   currentUserId?: string
   activeSubRequest?: RequesterRequest | null
-  // Deprecated (Phase 3 replaced the sub_nominations self-sub); accepted for call-site compat, ignored.
-  activeSelfSub?: { id: string; nomineeName: string } | null
 }
 
 // Player self-check-in + unified sub request for box / ladder leagues (league_attendance model).

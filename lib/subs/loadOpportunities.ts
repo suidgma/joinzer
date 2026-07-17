@@ -10,6 +10,8 @@ import {
   evaluateEligibility,
   toOpportunity,
 } from '@/lib/subs/matching'
+import { canOperateSession } from '@/lib/leagues/canOperateSession'
+import { authorizeOrganizer } from '@/lib/leagues/attendanceWrite'
 
 function admin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -173,7 +175,7 @@ export async function loadOpportunityById(userId: string, requestId: string): Pr
   const db = admin()
   const { data: req } = await db
     .from('league_sub_requests')
-    .select(`id, status, league_id, league_session_id, league_period_id, requesting_player_id, skill: format,
+    .select(`id, status, league_id, league_session_id, league_period_id, requesting_player_id, skill: format, filled_by_guest_name,
       league:leagues!league_id(name, format, skill_min, skill_max, location_id, created_by),
       session:league_sessions!league_session_id(session_date, session_time),
       filled_by:profiles!filled_by_user_id(name)`)
@@ -204,16 +206,20 @@ export async function loadOpportunityById(userId: string, requestId: string): Pr
     eligible = opps.some((o) => o.requestId === requestId)
   }
 
+  // Organizer-control display gate — the SAME authoritative permissions the organizer-correct route
+  // enforces (session operator incl. co-admin / self-run host, or league organizer for periods).
+  const canManage = r.league_session_id
+    ? await canOperateSession(db, r.league_session_id, userId)
+    : (await authorizeOrganizer(db, r.league_id, userId)).ok
+
   return {
     requestId: r.id, status: r.status, leagueId: r.league_id, leagueName: league.name ?? 'League',
     leagueFormat: league.format ?? null, scopeType: r.league_session_id ? 'session' : 'period',
     date: session?.session_date ?? null, startTime: session?.session_time ?? null,
     venueName: (loc as any)?.name ?? null, recommended, userRating, ratingWarning,
     isRequester: r.requesting_player_id === userId, eligible,
-    // Detail-page display gate only (league owner). The organizer-correct ROUTE fully authorizes
-    // co-admins + self-run hosts via canOperateSession/authorizeOrganizer — this is not the boundary.
-    canManage: league.created_by === userId,
-    subName: filledBy?.name ?? null,
+    canManage,
+    subName: filledBy?.name ?? r.filled_by_guest_name ?? null,
   }
 }
 

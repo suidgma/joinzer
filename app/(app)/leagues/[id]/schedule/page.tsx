@@ -47,30 +47,6 @@ export default async function LeagueSchedulePage(props: { params: Promise<{ id: 
     : { data: [] as { session_id: string }[] }
   const sessionsWithSchedule = [...new Set(((viewableRounds ?? []) as { session_id: string }[]).map((r) => r.session_id))]
 
-  // The viewer's active round-robin self-subs (deny-all table → service role), so
-  // the Schedule tab can offer an Undo instead of "Add a sub for me".
-  let selfSubBySession: Record<string, { id: string; nomineeName: string }> = {}
-  if (user && sessionIds.length > 0) {
-    const adminDb = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: noms } = await adminDb
-      .from('sub_nominations')
-      .select('id, league_session_id, nominated_user_id')
-      .eq('surface', 'league')
-      .eq('requesting_user_id', user.id)
-      .eq('status', 'approved')
-      .in('league_session_id', sessionIds)
-    if (noms && noms.length > 0) {
-      const nomineeIds = [...new Set(noms.map((n) => n.nominated_user_id))]
-      const { data: profs } = await adminDb.from('profiles').select('id, name').in('id', nomineeIds)
-      for (const n of noms) {
-        selfSubBySession[n.league_session_id as string] = {
-          id: n.id as string,
-          nomineeName: (profs ?? []).find((p) => p.id === n.nominated_user_id)?.name ?? 'Your sub',
-        }
-      }
-    }
-  }
-
   // The viewer's active unified sub requests (open/filled) per session, so each card can show the
   // requester status line ("Looking for a sub…" / "Sub confirmed: X") on load.
   let subRequestBySession: Record<string, { id: string; status: 'open' | 'filled' | 'cancelled' | 'expired'; fulfillment_mode: 'open_pool' | 'self_assigned' | 'organizer_assigned'; subName: string | null }> = {}
@@ -143,7 +119,6 @@ export default async function LeagueSchedulePage(props: { params: Promise<{ id: 
           isRegistered={(myReg as { status?: string } | null)?.status === 'registered'}
           leagueSkillLevel={skillRangeToLevel(league.skill_min, league.skill_max)}
           currentUserId={user?.id}
-          selfSubBySession={selfSubBySession}
           subRequestBySession={subRequestBySession}
         />
         {nextSession && whoPlayers.length > 0 && (

@@ -24,9 +24,6 @@ type Props = {
   currentUserId?: string
   // The requester's active unified sub request for this session (open/filled), if any.
   activeSubRequest?: RequesterRequest | null
-  // Deprecated (Phase 3 replaced the sub_nominations self-sub with the unified flow). Accepted for
-  // call-site compatibility; ignored. The loaders' sub_nominations reads are dead code (Phase 6).
-  activeSelfSub?: { id: string; nomineeName: string } | null
 }
 
 export default function PlayerCheckIn({
