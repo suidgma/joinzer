@@ -101,6 +101,8 @@ The demo's job is to make them think *"this would save me hours."* The conversat
 
 **Demo flow (keep it under 15 min):** create a league → add players (show CSV import) → run a session (generate rounds, score a match live) → show standings updating → show taking a payment + the payout going to *them*. Use seeded data so brackets/standings look full, not empty.
 
+> **Ready-made demo environment:** run `node scripts/seed-demo.mjs` from the repo root. It creates a clean, professional demo set — a demo organizer, 20 realistic players, a mid-season round-robin league (live standings) and an in-progress single-elim tournament (bracket with round 1 done, semis set) — clearly separated from test junk. Log in as the demo organizer (credentials print when the script runs) to show the organizer side; log in as any player to show the player side. Re-run anytime to reset it clean; `--reset` tears it down. Use this so the "here's it running" moment looks real.
+
 **Then shut up and ask** (natural version of `customers-and-personas.md`'s validation questions — capture answers in `user-research.md`):
 1. Walk me through how you run your events today — where does it hurt most?
 2. How do you handle money — fees, refunds, paying yourself?
