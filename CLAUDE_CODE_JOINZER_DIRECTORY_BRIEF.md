@@ -1,201 +1,118 @@
-# Build Brief — Joinzer Public Court Directory
+# Claude Code Brief — Joinzer Court Directory
 
-> **For Claude Code.** Read this entire file first. Follow the phases in order.
-> **Do not write or modify any code until the GO-GATE in Phase 2 and I approve your plan.**
->
-> This **supersedes** the earlier "Directory Master" website and pipeline briefs — those
-> targeted a different, throwaway codebase. The directory is now a surface of **Joinzer itself**.
+_Last updated: July 20, 2026 · Replaces prior version (Arizona-scoped). Supersedes it entirely._
+
+> **For Claude Code:** This brief is the source of truth for the directory workstream. Follow CC session discipline: mandatory investigation phase, then a **hard go-gate** — no code or DDL until Marty explicitly approves the plan. Small slices, scope fences respected, grep-before-delete. The **two-form-factor workstream is off-limits** during directory sessions.
 
 ---
 
-## 0. Context
+## 1. What we're building
 
-Joinzer is my pickleball platform (Next.js 14 App Router, TypeScript strict, Tailwind,
-Supabase: Postgres + Auth + RLS + Realtime). It has four surfaces (Coordination, Leagues,
-Tournaments, Players) and is **entirely auth-gated today** — which is a top-of-funnel and
-network-effect problem.
+A public, SEO-oriented **nationwide directory of pickleball courts** living inside Joinzer (not a separate app). Server-rendered public pages per facility (and later per city/metro), designed as an organic-acquisition channel (see `docs/strategy/go-to-market.md` — per-court SEO pages).
 
-This work adds a **public, SEO-indexable pickleball court directory** as a new Joinzer
-surface. Goal: rank for "pickleball courts in [city]" and similar, give un-gated public browse
-pages, and funnel visitors into signup for the gated app. It is built **into the Joinzer
-codebase and Supabase**, not a separate app.
+**Phasing (important):**
+- **Ingest: nationwide, once.** The raw OSM pull is cheap; do the whole US in one pipeline.
+- **Enrichment + public UI: Phoenix first.** Prove enrichment quality and the page template on one metro before turning the crank elsewhere. Do NOT enrich nationwide in v1.
 
-The target data model is a 94-field pickleball-facility schema (see the field-schema doc):
-Layer 1 core location/contact, L2 import/publish control, L3 domain (court counts, surface,
-access, schedules…), L4 AI enrichment (44 fields: HTML body, speakable, quickfacts, type-
-branched Q&A), L5 Google Places (place_id, rating, reviews), L6 freshness/tracking, L7
-monetization (ship empty). Most of these don't exist in any data yet and must be generated.
+## 2. Decisions locked (do not re-litigate in-session)
 
-I already have ~204 raw Arizona facilities from OpenStreetMap (name, lat/lng, court_count,
-access) staged as seed data; **Phoenix is the proof city**, then the rest of Arizona.
+1. **Directory lives in the Joinzer app/repo.** Same Next.js project, same Supabase.
+2. **Separate `facility_listings` table** — real columns for queryable/SEO fields + a JSONB blob for enrichment. **Greenfield: this table does not exist yet** (verified against production 2026-07-20).
+3. **`locations` stays untouched as the operational table.** Nullable FK from `facility_listings.location_id` → `locations.id`; a facility is "promoted" only when a real event uses it. Never bulk-insert scraped data into `locations`.
+4. **OSM is the only bulk-ingest source.** Google Places is **per-record enrichment only**. Aggregators (Pickleheads, Places2Play, etc.) are **off-limits** — do not scrape them.
+5. **Gemini is the v1 LLM enrichment generator**, behind a one-file-swap wrapper so the provider can change later.
+6. **No stored Google Maps URL.** Derive at render time: `https://www.google.com/maps/search/?api=1&query={lat},{lng}&query_place_id={place_id}` when `google_place_id` is present; lat/lng-only fallback otherwise.
 
-### Working assumptions — validate in Phase 1, confirm/override at the GO-GATE
+## 3. Current database reality (verified 2026-07-20, production)
 
-- **Data home:** a **separate, public-readable listing table** (e.g. `facility_listings`) for
-  directory facilities + their enrichment, **keyed so it can later link to the operational
-  `locations` table** (e.g. a nullable `location_id`). Do **not** bolt the 94 marketing/SEO
-  fields onto the live `locations` table — keep operational venue data and public directory
-  data separate but linkable.
-- **Facility ↔ venue:** directory facilities are their own records for now; linking them to
-  operational Joinzer venues (so a listing can show real sessions/leagues there) is a **later**
-  growth-loop step, not part of this build.
-- **Geography:** start with Phoenix/Arizona seed data. Existing operational courts are Las
-  Vegas — do **not** merge or migrate those here; reconcile later if ever.
-- **Public vs gated:** directory routes are **public, server-rendered, indexable**, and must
-  render with **no authenticated session** — outside the auth-gated app shell.
-- **LLM generator:** reuse the same LLM approach we use elsewhere; route every LLM call
-  through one wrapper so the model is a one-file swap.
+- `facility_listings`: **does not exist.**
+- `locations`: 64 rows, all Las Vegas metro. 63/64 have coords, 54/64 have addresses. Columns: `id, name, metro_area (default 'Las Vegas'), subarea, court_count, access_type, notes, is_active, address, city, category, source_url, sort_order (default 999), lat, lng, "Phone", state, zip_code, country (default 'US'), created_by, status (default 'approved'), short_code`.
+- ⚠️ `"Phone"` is a capitalized quoted identifier. **Session 1 includes renaming it to `phone`** — grep the codebase for every reference (`"Phone"`, `.Phone`, select strings) before the migration; migration + code change ship together, migration applied to Supabase first per ADR-10.
 
----
+## 4. Target schema — `facility_listings` (Session 1 designs the final DDL; this is the spec)
 
-## 1. Phase 1 — Investigation (READ ONLY, no changes)
+**Identity & ingest provenance**
+- `id uuid pk default gen_random_uuid()`
+- `osm_id text unique` — the idempotent upsert key for re-runs (store OSM type+id, e.g. `way/123456`)
+- `source text not null default 'osm'`
+- `last_synced_at timestamptz`
 
-Verify against the real codebase and DB — do not trust docs over code. Report back before proposing anything.
+**Queryable / SEO columns (real columns, indexed as needed)**
+- `name text not null`
+- `slug text unique not null` — URL identity for `/courts/[slug]`
+- `lat double precision`, `lng double precision`
+- `address text`, `city text`, `state text`, `zip text`, `country text default 'US'`
+- `metro_area text` — derived/assigned; nullable (most of the country won't map to a Joinzer metro)
+- `court_count integer` — nullable (OSM often has it; don't fake a default)
+- `access_type text` — normalize to a small enum-ish set (public / private / membership / school / hoa / unknown)
+- `indoor boolean`, `lighting boolean`, `surface text` — nullable, from OSM tags where present
+- `status text not null default 'draft'` — `draft` → `published`; only published rows render publicly
 
-1. **Locations / venue schema:** find the operational `locations` (courts) table, its columns,
-   and everywhere it's used (play sessions, leagues, tournaments). Confirm whether a separate
-   public listing table is the right call vs. extending it. Report the schema.
-2. **Auth & routing:** how is the app auth-gated (middleware, layout, route groups)? Where
-   would a **public, unauthenticated, SSR** route group live so it bypasses the gated shell?
-   Find any existing public routes.
-3. **Supabase / RLS:** how are tables, policies, and migrations managed in this repo? What's
-   the pattern for a **public-read** policy (so only `published` facilities are world-readable)
-   and for server-only writes (service role never in the client)?
-4. **Marketing/site structure:** there's a planned marketing restructure (thin role-router at
-   `/`, organizer + player landing pages). Determine how the directory should coordinate with
-   it — is `/courts` a sibling public surface? Report what exists and flag collisions (note the
-   known `/players` public-vs-authenticated route-collision precedent).
-5. **Existing LLM + external API usage:** how are LLM calls and any external APIs configured
-   and keyed today? What env-var conventions are used? We'll also need a Google Places key.
-6. **Secrets:** confirm `.env*` is gitignored and the Supabase service role key is server-only.
-   **If any secret is hardcoded in source, STOP and flag it.**
-7. **The in-flight refactor:** the two-form-factor refactor (slices 4/5/6 + chrome-fix) is
-   active. Identify those surfaces so this work does **not** collide with them.
+**Google (ToS-compliant)**
+- `google_place_id text` — the **only** Places datum stored permanently. Ratings/hours/phone from Places are refresh-on-render or ≤30-day cache, never permanent columns.
 
-Output a written summary, then propose a plan (Phase 2).
+**Enrichment**
+- `enrichment jsonb` — Gemini output: description, amenities, "what to know", nearby context, FAQs
+- `enriched_at timestamptz`, `enrichment_version text`
 
----
+**Operational link**
+- `location_id uuid null references locations(id)` — set only on promotion
 
-## 2. Phase 2 — Plan & GO-GATE 🚦
+**RLS (per ADR-03):** deny-all; all reads via service role in server components/routes for v1 (simplest, keeps the boundary in the route). Revisit a `status='published'` public-read policy only if a concrete need appears.
 
-Write a short plan: the data-model decision (with your recommendation), the public-route
-strategy, files to create/modify (one line each), the field-key contract, migration plan,
-external cost/risk notes, and open questions. **Then STOP and wait for my explicit approval
-before writing any code.** Revise and wait again if I ask for changes.
+## 5. Data pipeline — three layers
 
----
+**Layer 1 — OSM bulk ingest (nationwide).**
+- Overpass API queries for `leisure=pitch` + `sport=pickleball` (plus `sport~"pickleball"` multi-sport values, and `leisure=sports_centre` / `club=sport` variants tagged pickleball).
+- Chunk by state (or bbox grid for big states) to respect Overpass rate/size limits; polite delays; retry with backoff.
+- Normalize: nodes → lat/lng directly; ways/relations → centroid. Map OSM tags → columns (`capacity`/`courts` → court_count; `access` → access_type; `lit` → lighting; `surface`; `indoor`).
+- Upsert on `osm_id`. Re-runnable at any time. Runs as a **local script** (`scripts/` in repo, Node, ES modules) — not a cron, not an edge function.
+- Fill city/state gaps by reverse-geocoding from OSM/Nominatim data where address tags are absent (batch, polite rate limits) — or defer gap-fill to Layer 3 for enriched metros only. Prefer defer.
+- Slug generation: `{name}-{city}-{state}` kebab-case with collision suffix.
 
-## 3. Scope (after approval) — three separable builds
+**Layer 2 — deterministic derivation (code only, free).** Maps link derivation (see §2.6), slugging, state/metro normalization. No external services.
 
-Each is its own focused CC session. Build in order; don't start the next without the previous validated.
+**Layer 3 — enrichment (Phoenix only in v1).**
+- **Google Places:** text/nearby match per facility → store `place_id`; use Details for transient display data under caching rules.
+- **Gemini wrapper:** generate the JSONB enrichment per facility. Budget-capped, batchable, resumable; store `enrichment_version` so regeneration is targeted.
+- Publish gate: a facility flips `draft → published` only when it has coords + slug + minimally viable enrichment (or is manually approved).
 
-### 3A. Data model + RLS
-- Create the public listing table(s) per the approved decision. Use **real columns** for
-  queryable/SEO fields (name, listing_type, city, state, lat/lng, court_count, access_type,
-  `published`, `slug`, `location_id` nullable) and a **JSONB column** for the enrichment blob
-  (listing_content, speakable, quickfacts, the 40 Q&A, Google Places reviews, monetization).
-- RLS: public can read **only** `published = true` rows; all writes server-side only.
-- Migration committed in the repo's normal migration pattern. No changes to operational tables.
+## 6. Licensing & compliance (hard constraints)
 
-### 3B. Enrichment pipeline (writes to Supabase, server-side)
-Staged, idempotent, Phoenix-first:
-- **Stage A (deterministic, no LLM):** geocode/reverse-geocode address parts + county/zip;
-  Google Places match → place_id, rating, review count, phone, website, one photo URL for the
-  image; set L6 tracking; leave L7 empty. Apply the schema's "if missing" rules.
-- **Stage B (LLM, behind one wrapper):** generate L3 selects where source data is absent;
-  `listing_content` (200–400 words, `<p>`-only HTML, includes a trust signal); 3 speakable +
-  4 quickfact blocks; **40 Q&A branched on `listing_type`** (Q1–10 universal; Q11–20 differ for
-  Indoor / Outdoor / Private Club / Public Park).
-- **Validation + publish gate:** `<p>`-only HTML, allowed select values, correct Q&A set for
-  the type, word counts in range; required L1 fields present **and** image non-empty →
-  `published = true`, else write the row `published = false` and log why. Never silently publish
-  a failed row.
-- **Runner:** dry-run-to-JSON default (no DB write), `--limit 1` / single-facility flag,
-  idempotent upsert keyed on source id, batching + rate limiting on Google Places and the LLM,
-  per-facility logging. Default to **Phoenix only**; explicit flag to run the rest of Arizona.
+- **ODbL (OSM):** attribute "© OpenStreetMap contributors" on directory pages; the ingested dataset carries share-alike obligations. Include attribution in the page footer/component from day one.
+- **Google Places ToS:** `place_id` may be stored permanently; most other Places data may not be cached beyond 30 days. Never bulk-scrape Places.
+- **Aggregators:** no scraping Pickleheads/Places2Play/etc. under any framing.
 
-### 3C. Public directory UI (SSR, indexable)
-- Public route group (e.g. `/courts`) rendered **without auth**, server-side, with proper
-  metadata. Browse/search/filter page: facility cards (name, type, city, court_count, rating),
-  text search, filter by listing_type / access / indoor-outdoor, sort by court_count and name,
-  empty state.
-- Facility detail page (by `slug`): full content, court/surface/access details, hours, image,
-  keyless OpenStreetMap embed when lat/lng exist, Google rating + reviews (per the terms note
-  in §6), and an **FAQ accordion + schema.org `FAQPage`/`speakable` JSON-LD** from the Q&A and
-  speakable fields (this is the SEO payoff).
-- A clear **signup CTA** funneling directory visitors into the gated Joinzer app.
-- Tailwind only, reusing existing Joinzer components/design where they fit.
+## 7. CC sessions (each: investigate → go-gate → build)
 
----
+**Session 1 — Data model & migration.**
+Scope: `facility_listings` DDL per §4, RLS, indexes (slug, osm_id, state+city, geo if needed), the `"Phone"` → `phone` rename (with full-codebase reference sweep), and — if trivial — a backfill mapping existing `locations` rows to listing rows via the FK. Migration applied to Supabase before dependent code deploys (ADR-10).
+Out of scope: any ingest code, any UI.
 
-## 4. Out of scope (do not touch)
+**Session 2 — Ingest pipeline.**
+Scope: Overpass query strategy + `scripts/ingest-osm-courts.mjs` (chunked, resumable, idempotent upsert, dry-run mode, per-state progress log), tag normalization, slugging. Run nationwide. **Also decide the timezone strategy for `facility_listings`** (see §9) — the directory is national, so this can't stay implicitly Pacific.
+Out of scope: enrichment, UI, any `locations` writes.
 
-- The auth system, sessions, or any change to who can access the gated app.
-- Operational surfaces and logic: play sessions, leagues, tournaments, the operational
-  `locations` table, and **all surfaces in the active two-form-factor refactor (slices 4/5/6 +
-  chrome-fix)**. Do not refactor or "tidy" these.
-- The marketing-site restructure itself (coordinate with it; don't execute it here).
-- Linking facilities to operational venues / showing live activity on listings (later phase).
-- Monetization wiring (L7 ships empty).
-- **Never** commit `.env*`, secrets, the Supabase service role key, or seed dumps.
+**Session 3 — Enrichment + public SSR directory UI (Phoenix).**
+Scope: Places match (place_id), Gemini wrapper + batch enrichment for Phoenix-metro rows, `/courts/[slug]` SSR page + minimal city index, OSM attribution, sitemap entries, publish gate.
+Out of scope: nationwide enrichment, map views, filters beyond basics.
 
----
+## 8. Constraints reminders
 
-## 5. Engineering rules
+- Solo builder; small shippable slices; no new fixed-cost dependencies.
+- Vercel Hobby: no sub-daily crons — ingest and enrichment are on-demand local scripts, not scheduled infra.
+- Stack rules per ADR-01/02: no new libraries beyond what the task truly requires; Tailwind only; lucide-react; ES modules; env vars for all keys (Gemini, Google Places) — never in code.
 
-- Read existing Joinzer code before editing; match its patterns (route groups, Supabase
-  client usage, component conventions). Reuse, don't reinvent.
-- Small, focused changes; show diffs as you go. No sweeping rewrites.
-- Don't delete code you think is unused without grepping for references **and** confirming with me.
-- Code style: ES modules, `async/await`, 2-space indent, descriptive names, comment *why* not
-  *what*, modular files.
-- **Supabase/RLS:** public-read only on `published` rows; service role key server-side only;
-  never expose secrets to the client.
-- **Secrets:** env vars only; confirm `.env*` gitignored; stop and warn on any exposed secret.
-- Run typecheck/build (and lint if configured) before declaring done; never declare done on a
-  red build.
-- Stay clear of the in-flight refactor surfaces; if your change would touch one, stop and ask.
-- If a request seems wrong or there's a better approach, say so before proceeding.
+## 9. Deferred design notes — multi-sport & timezone (added 2026-07-20, Session 1 follow-up)
 
----
+Captured for later; **not** in scope for Sessions 1–3 unless called out. Session 1 verified there is currently **no sport/activity dimension anywhere** (sport is implicitly pickleball), and `locations.category` is messy ownership/access free-text — *not* a sport field.
 
-## 6. Cost & terms — surface these, don't barrel ahead
+**Timezone — the near-term one (decide in Session 2).** `facility_listings` is nationwide (~6 US timezones), so the single-Pacific assumption breaks the moment scheduling/reminders/"starts today" logic touches a non-Pacific facility. Two options: **store a `timezone` column** on `facility_listings`, or **derive from lat/lng at render** (tz lookup). Storing is simpler for scheduling logic; deriving avoids a column. The operational `locations` table will need the same the day a non-Pacific organizer onboards (separate, later).
 
-- **Google Places costs per call**, 200+ facilities and growing — recommend the minimal call
-  pattern and make persistence of expensive fields configurable.
-- **Review caching:** storing Google review text/author long-term may conflict with Google's
-  terms. Make persisting review fields a config flag, default conservative, and flag the risk —
-  don't assume it's fine.
-- **LLM volume:** 44 generated fields × hundreds of rows is real spend. Default to **Phoenix
-  only**; require an explicit flag for the rest of Arizona.
+**Multi-sport / activities — when a real 2nd sport exists, not before.** The rating engine is already "activity-aware"; the venue model follows the same discipline (defer the DB expansion until a concrete second sport lands). When it does:
+- A venue is inherently multi-sport, so **sport is not a scalar** — do NOT add `sport text` or per-sport scalar columns (`court_count` is pickleball-implied and would need per-sport values → columns explode).
+- Start with **`activities text[]`** for tagging/filtering/SEO; graduate to a **child table** (`facility_activities`: facility × activity → court_count, surface, indoor) only when per-sport attributes are actually needed.
+- Put it on **`facility_listings` first** (the discovery surface — per-sport pages/filters), not `locations` (which infers its sport from its events).
+- Use the **"activity"** vocabulary, consistent with the rating engine.
 
----
-
-## 7. Manual test plan
-
-1. **Build/typecheck passes.**
-2. **Pipeline single-facility dry-run** (`--limit 1`, no DB write): JSON has all layers;
-   `listing_content` is valid `<p>`-only HTML in range; selects within allowed values; Q&A set
-   matches the facility's `listing_type`; tracking set; monetization empty.
-3. **Publish gate:** a facility with no image is written `published = false` with a logged
-   reason, not published.
-4. **Phoenix run to DB:** rows upsert into the listing table with the enrichment JSONB
-   populated; re-running Phoenix updates in place (idempotent, no duplicates).
-5. **RLS:** an unauthenticated/public client can read **only** `published` rows and cannot read
-   drafts or write anything.
-6. **Public UI while logged out:** `/courts` browse + a detail page render correctly with **no
-   session**, search/filters/sort work, empty state appears, OSM map shows when coords exist.
-7. **SEO:** page metadata is set and the detail page emits valid `FAQPage`/`speakable` JSON-LD.
-8. **No regressions:** the gated app, existing surfaces, and the refactor-in-progress areas
-   still load (non-destructive check).
-
-Report what you tested and the outcome.
-
----
-
-## 8. First action
-
-Begin with **Phase 1 only.** Investigate the real Joinzer codebase and DB, summarize, and
-propose a plan — including your data-model recommendation. Then stop at the GO-GATE and wait
-for approval. The plan should prove the whole thing on **Phoenix** and hand-validate field
-quality before scaling to the rest of **Arizona**.
+**Adjacent cleanup (unrelated).** `locations.category` overlaps `access_type` (both encode ownership/access) — a fold/retire candidate if `locations` is ever normalized. Not urgent.
