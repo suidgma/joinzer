@@ -75,3 +75,6 @@ Thumbs.db
 /scripts/set-dummy-avatars-batch.mjs
 /scripts/verify-labels.mjs
 /test-import-singles.csv
+
+# OSM ingest local progress log (Session 2)
+scripts/.osm-ingest-progress.json
