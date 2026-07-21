@@ -78,3 +78,6 @@ Thumbs.db
 
 # OSM ingest local progress log (Session 2)
 scripts/.osm-ingest-progress.json
+
+# Phoenix venue-count working data (count-only scope; Places place_id+coords only, never ingested)
+/phoenix-count/
