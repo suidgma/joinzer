@@ -37,22 +37,33 @@ function isGenericName(name) {
   return t.length < 3
 }
 
-// All rows in the metro that pass the hard gate (coords + slug + enrichment).
+// All rows in the metro that pass the hard gate (coords + city + slug + enrichment).
+// city IS NOT NULL added Session 3d-0: a listing with no city isn't publishable (breaks the
+// city index page + reads as incomplete). Reverse-geocode fills it first.
 const { data: gated, error } = await db.from('facility_listings')
   .select('id, name, status')
   .eq('metro_area', METRO)
-  .not('lat', 'is', null).not('lng', 'is', null).not('slug', 'is', null).not('enrichment_version', 'is', null)
+  .not('lat', 'is', null).not('lng', 'is', null).not('city', 'is', null).not('slug', 'is', null).not('enrichment_version', 'is', null)
 if (error) { console.error('select failed:', error.message); process.exit(1) }
 
-const shouldBePublic = gated.filter((r) => !isGenericName(r.name))
-const shouldNotBePublic = gated.filter((r) => isGenericName(r.name))
-const toPublish = shouldBePublic.filter((r) => r.status !== 'published')
-const toDraft = shouldNotBePublic.filter((r) => r.status === 'published') // generic ones currently live → pull
+// Eligible = passes the hard gate AND has a non-generic name.
+const eligible = gated.filter((r) => !isGenericName(r.name))
+const eligibleIds = new Set(eligible.map((r) => r.id))
+
+// Gate-authoritative reconcile: pull ANY currently-published row that isn't eligible — whether it
+// fails the hard gate (e.g. no city) or is generic. (The old logic only saw generic rows inside the
+// gated set, so a published row failing the hard gate was invisible and stayed live.)
+const { data: publishedRows, error: pErr } = await db.from('facility_listings')
+  .select('id, name').eq('metro_area', METRO).eq('status', 'published')
+if (pErr) { console.error('published select failed:', pErr.message); process.exit(1) }
+
+const toPublish = eligible.filter((r) => r.status !== 'published')
+const toDraft = publishedRows.filter((r) => !eligibleIds.has(r.id))
 
 console.log(`Publish gate (reconcile) — ${DRY_RUN ? 'DRY RUN' : 'LIVE'} — metro=${METRO}`)
-console.log(`  gated rows: ${gated.length} · should be public: ${shouldBePublic.length} · generic (excluded): ${shouldNotBePublic.length}\n`)
+console.log(`  eligible (gate-passing): ${eligible.length} · currently published: ${publishedRows.length}\n`)
 console.log(`PUBLISH (${toPublish.length}):`); toPublish.forEach((r) => console.log(`  + ${r.name}`))
-console.log(`UN-PUBLISH generic (${toDraft.length}):`); toDraft.forEach((r) => console.log(`  - ${r.name}`))
+console.log(`UN-PUBLISH not-eligible (${toDraft.length}):`); toDraft.forEach((r) => console.log(`  - ${r.name}`))
 
 if (!DRY_RUN) {
   if (toPublish.length) {
@@ -65,4 +76,4 @@ if (!DRY_RUN) {
   }
 }
 
-console.log(`\n${DRY_RUN ? 'DRY RUN' : 'DONE'} — ${METRO}: ${shouldBePublic.length} public, ${shouldNotBePublic.length} held back (generic names)`)
+console.log(`\n${DRY_RUN ? 'DRY RUN' : 'DONE'} — ${METRO}: ${eligible.length} eligible/public${DRY_RUN ? '' : ` (published +${toPublish.length}, drafted -${toDraft.length})`}`)
