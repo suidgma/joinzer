@@ -26,13 +26,18 @@ export default async function CompetePage(props: { searchParams: Promise<SearchP
 
   let query = supabase
     .from('leagues')
-    .select('id, name, format, status, skill_min, skill_max, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
+    .select('id, name, format, status, visibility, created_by, skill_min, skill_max, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
+
+  // Visibility gate (mirrors tournaments): everyone sees published (active) + public leagues; the
+  // owner ALSO sees their own drafts/private ones so they can find and publish them.
+  const publicGate = 'and(status.neq.draft,status.neq.cancelled,visibility.eq.public)'
+  query = query.or(user ? `${publicGate},created_by.eq.${user.id}` : publicGate)
 
   // Past = wrapped up: completed, or an active season whose end_date has passed (excludes
-  // cancelled); newest-ended first. Upcoming/current = active with no end_date or one still ahead.
+  // cancelled); newest-ended first. Upcoming/current = draft or active, still ahead.
   query = when === 'past'
     ? query.or(`status.eq.completed,and(status.eq.active,end_date.lt.${today})`).order('end_date', { ascending: false, nullsFirst: false })
-    : query.eq('status', 'active').or(`end_date.is.null,end_date.gte.${today}`).order('start_date', { ascending: true })
+    : query.neq('status', 'completed').neq('status', 'cancelled').or(`end_date.is.null,end_date.gte.${today}`).order('start_date', { ascending: true })
 
   if (!showTest) query = query.eq('dummy', false)
 

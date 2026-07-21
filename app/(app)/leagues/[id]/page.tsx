@@ -479,7 +479,17 @@ export default async function LeagueDetailPage(props: { params: Promise<{ id: st
 
       {/* Details card */}
       <div className="bg-brand-surface border border-brand-border rounded-2xl p-4 space-y-2">
-        {(league as any).creator?.name && <Row label="Organizer" value={(league as any).creator.name} />}
+        {((league as any).contact_name || (league as any).creator?.name) && (
+          <Row label="Organizer" value={(league as any).contact_name || (league as any).creator.name} />
+        )}
+        {(league as any).contact_email && (
+          <div className="flex gap-2">
+            <span className="text-xs text-brand-muted w-28 flex-shrink-0 pt-0.5">Contact</span>
+            <a href={`mailto:${(league as any).contact_email}`} className="text-sm text-brand-active hover:underline break-all">
+              {(league as any).contact_email}
+            </a>
+          </div>
+        )}
         <Row label="League Format" value={FORMAT_KIND_LABELS[(league as any).format_kind ?? 'session_rr'] ?? 'Round Robin'} />
         {teamTypeLabel(league.format) && <Row label="Team Type" value={teamTypeLabel(league.format)!} />}
         {categoryLabel(league.format) && <Row label="Category" value={categoryLabel(league.format)!} />}

@@ -46,10 +46,11 @@ const REG_OPTIONS = [
   { value: 'closed', label: 'Closed' },
 ]
 const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'active', label: 'Published' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
-]
+] as const
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -147,7 +148,10 @@ export default function EditLeagueForm({
   const [playDays, setPlayDays] = useState(d.play_days?.toString() ?? '')
   const [maxPlayers, setMaxPlayers] = useState(d.max_players?.toString() ?? '')
   const [registrationStatus, setRegistrationStatus] = useState(d.registration_status ?? 'upcoming')
-  const [status, setStatus] = useState(d.status ?? 'active')
+  const [status, setStatus] = useState<'draft' | 'active' | 'completed' | 'cancelled'>((d.status ?? 'active') as 'draft' | 'active' | 'completed' | 'cancelled')
+  const [visibility, setVisibility] = useState<'public' | 'private'>((((d as any).visibility ?? 'public')) as 'public' | 'private')
+  const [contactName, setContactName] = useState((d as any).contact_name ?? '')
+  const [contactEmail, setContactEmail] = useState((d as any).contact_email ?? '')
   const [description, setDescription] = useState(d.description ?? '')
   const [costDollars, setCostDollars] = useState(d.cost_cents ? String(d.cost_cents / 100) : '')
   const [noRefundDate, setNoRefundDate] = useState((d as any).no_refund_date ?? '')
@@ -253,6 +257,9 @@ export default function EditLeagueForm({
         registration_status: registrationStatus,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         status,
+        visibility,
+        contact_name: contactName.trim() || null,
+        contact_email: contactEmail.trim() || null,
         description: description.trim() || null,
         cost_cents: costDollars ? Math.round(parseFloat(costDollars) * 100) : 0,
         no_refund_date: noRefundDate || null,
@@ -645,7 +652,7 @@ export default function EditLeagueForm({
             )}
             {noPlayDates.some(d => existingSessionDates.includes(d)) && (
               <p className="text-xs text-red-600">
-                ⚠ One or more skip dates overlap with existing sessions. Those sessions won't be removed automatically — delete them from the Session Manager if needed.
+                ⚠ One or more skip dates overlap with existing sessions. Those sessions won&apos;t be removed automatically — delete them from the Session Manager if needed.
               </p>
             )}
           </div>
@@ -708,7 +715,7 @@ export default function EditLeagueForm({
               <option value="rating">By rating / skill</option>
               <option value="registration">Registration order</option>
               <option value="random">Random</option>
-              <option value="manual">Manual (I'll set it)</option>
+              <option value="manual">Manual (I&apos;ll set it)</option>
             </select>
           </FormRow>
         </FormSection>
@@ -725,7 +732,7 @@ export default function EditLeagueForm({
       )}
 
       <FormSection title="Registration" defaultOpen>
-        <FormRow label="Status" width="sm">
+        <FormRow label="Registration" width="sm" helpText="Whether players can sign up yet. Separate from Draft/Published below.">
           <select value={registrationStatus} onChange={(e) => setRegistrationStatus(e.target.value)} className="w-full input">
             {REG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -809,11 +816,43 @@ export default function EditLeagueForm({
         </div>
       </FormSection>
 
-      <FormSection title="Publishing" defaultOpen>
-        <FormRow label="League status" width="sm">
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full input">
-            {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+      <FormSection title="Visibility & Publishing" defaultOpen>
+        <FormRow label="Status" width="md">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {STATUS_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setStatus(o.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${status === o.value ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Visibility" width="sm">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {(['public', 'private'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVisibility(v)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${visibility === v ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'}`}
+              >
+                {v === 'public' ? 'Public' : 'Private'}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        {status === 'draft' && (
+          <p className="text-xs text-brand-muted px-1 pb-2">Draft leagues are only visible to you. Set to Published to make it public.</p>
+        )}
+        <FormRow label="Organizer info" helpText="Shown publicly so players can contact the organizer.">
+          <div className="space-y-2">
+            <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Organizer name" className="w-full input" />
+            <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="yourname@email.com" className="w-full input" />
+          </div>
         </FormRow>
       </FormSection>
 

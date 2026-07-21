@@ -72,6 +72,11 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
   const [playDays, setPlayDays] = useState('7')
   const [maxPlayers, setMaxPlayers] = useState('')
   const [registrationStatus, setRegistrationStatus] = useState('upcoming')
+  // Publishing (parity with tournaments): draft = only you see it; 'active' is the published/live value.
+  const [status, setStatus] = useState<'draft' | 'active'>('draft')
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public')
+  const [contactName, setContactName] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
   const [description, setDescription] = useState('')
   const [pointsToWin, setPointsToWin] = useState('11')
   const [winBy, setWinBy] = useState<1 | 2>(1)
@@ -269,6 +274,10 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
         play_days: playDays ? parseInt(playDays) : null,
         max_players: maxPlayers ? parseInt(maxPlayers) : null,
         registration_status: registrationStatus,
+        status,
+        visibility,
+        contact_name: contactName.trim() || null,
+        contact_email: contactEmail.trim() || null,
         registration_closes_at: registrationClosesAt ? ptLocalToIso(registrationClosesAt) : null,
         description: description.trim() || null,
         points_to_win: pointsToWinNum,
@@ -693,7 +702,7 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
               <option value="rating">By rating / skill</option>
               <option value="registration">Registration order</option>
               <option value="random">Random</option>
-              <option value="manual">Manual (I'll set it)</option>
+              <option value="manual">Manual (I&apos;ll set it)</option>
             </select>
           </FormRow>
         </FormSection>
@@ -741,7 +750,7 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
             className="w-full input"
           />
         </FormRow>
-        <FormRow label="Status" width="sm">
+        <FormRow label="Registration" width="sm" helpText="Whether players can sign up yet. Separate from Draft/Published below.">
           <select value={registrationStatus} onChange={(e) => setRegistrationStatus(e.target.value)} className="w-full input">
             {REG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -824,6 +833,46 @@ export default function CreateLeagueForm({ locations, canCreatePaid }: { locatio
         <div className="py-4">
           <PrizesEditor value={prizes} onChange={setPrizes} />
         </div>
+      </FormSection>
+
+      <FormSection title="Visibility & Publishing" defaultOpen>
+        <FormRow label="Status" width="sm">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {([{ value: 'draft', label: 'Draft' }, { value: 'active', label: 'Published' }] as const).map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => setStatus(s.value)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${status === s.value ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'}`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Visibility" width="sm">
+          <div className="flex rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+            {(['public', 'private'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVisibility(v)}
+                className={`flex-1 py-2 text-xs font-semibold transition-colors ${visibility === v ? 'bg-brand-dark text-white' : 'text-brand-muted hover:text-brand-dark'}`}
+              >
+                {v === 'public' ? 'Public' : 'Private'}
+              </button>
+            ))}
+          </div>
+        </FormRow>
+        {status === 'draft' && (
+          <p className="text-xs text-brand-muted px-1 pb-2">Draft leagues are only visible to you. Set to Published to make it public.</p>
+        )}
+        <FormRow label="Organizer info" helpText="Shown publicly so players can contact the organizer.">
+          <div className="space-y-2">
+            <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Organizer name" className="w-full input" />
+            <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="yourname@email.com" className="w-full input" />
+          </div>
+        </FormRow>
       </FormSection>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

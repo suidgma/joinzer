@@ -23,7 +23,7 @@ function admin() {
 async function getLeague(id: string) {
   const { data } = await admin()
     .from('leagues')
-    .select('id, name, format, format_kind, format_settings_json, sub_credit_cap, standings_method, partner_mode, public_standings, status, location_name')
+    .select('id, name, format, format_kind, format_settings_json, sub_credit_cap, standings_method, partner_mode, public_standings, status, visibility, location_name')
     .eq('id', id)
     .maybeSingle()
   return data as any
@@ -56,8 +56,8 @@ export default async function PublicLeagueStandingsPage({ params, searchParams }
   const { id } = await params
   const sp = await searchParams
   const league = await getLeague(id)
-  // Only accessible when the organizer has opted in and the league is live.
-  if (!league || league.public_standings !== true || league.status !== 'active') notFound()
+  // Only accessible when the organizer has opted in and the league is live + public (not draft/private).
+  if (!league || league.public_standings !== true || league.status !== 'active' || league.visibility !== 'public') notFound()
 
   const db = admin()
   const settings = (league.format_settings_json ?? null) as Record<string, unknown> | null

@@ -138,6 +138,7 @@ export default async function UpcomingEventsSection({
         ? db.from('leagues')
             .select('id, name, format, skill_min, skill_max, location_name, registration_status, start_date')
             .in('id', leagueIds)
+            .eq('status', 'active').eq('visibility', 'public')
         : Promise.resolve({ data: [] as any[] }),
     ])
 
@@ -179,6 +180,7 @@ export default async function UpcomingEventsSection({
         let q = db.from('leagues')
           .select('id, name, format, skill_min, skill_max, location_name, registration_status, start_date, location:locations!location_id(lat, lng, city, state)')
           .in('registration_status', ['open', 'waitlist_only'])
+          .eq('status', 'active').eq('visibility', 'public')
           .order('start_date', { ascending: true, nullsFirst: false })
           .limit(30)
         if (excludeLeagueIds.length > 0) q = q.not('id', 'in', `(${excludeLeagueIds.join(',')})`)
