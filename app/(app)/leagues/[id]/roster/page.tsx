@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import LeagueRosterManager from './LeagueRosterManager'
@@ -67,9 +68,14 @@ export default async function LeagueRosterPage(props: { params: Promise<{ id: st
   }
 
   // ── Manager (management) roster ──────────────────────────────────────────────
+  // payment_status is manager-only. Its anon/authenticated column grant was revoked
+  // (migration 20260721000004), so the registrations read here goes through the service
+  // role — authorization is the canManage gate above, and the query's eq('league_id') is
+  // now the only row boundary since service-role bypasses RLS.
+  const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const runSessionAction = await getRunSessionAction(params.id, true, (league as any).format_kind)
   const [{ data: registrations }, { data: subInterest }, { data: allProfiles }] = await Promise.all([
-    supabase
+    admin
       .from('league_registrations')
       .select('id, status, payment_status, registered_at, sort_order, is_co_admin, user_id, partner_user_id, partner_registration_id, profile:profiles!user_id(id, name, profile_photo_url, dupr_rating, estimated_rating, rating_source, self_reported_rating, self_reported_scale, dupr_verified)')
       .eq('league_id', params.id)
