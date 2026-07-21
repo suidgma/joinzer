@@ -32,6 +32,7 @@ export default async function BrowsePage() {
         .from('leagues')
         .select('id, name, format, skill_min, skill_max, location_name, start_date, end_date, max_players, registration_status, creator:profiles!created_by (name)')
         .eq('status', 'active')
+        .eq('visibility', 'public')
         .eq('dummy', false)
         .order('start_date', { ascending: true }),
 
