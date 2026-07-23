@@ -41,13 +41,21 @@ function isGenericName(name) {
 // city IS NOT NULL added Session 3d-0: a listing with no city isn't publishable (breaks the
 // city index page + reads as incomplete). Reverse-geocode fills it first.
 const { data: gated, error } = await db.from('facility_listings')
-  .select('id, name, status')
+  .select('id, name, status, enrichment_version, verified_by, name_source_url')
   .eq('metro_area', METRO)
-  .not('lat', 'is', null).not('lng', 'is', null).not('city', 'is', null).not('slug', 'is', null).not('enrichment_version', 'is', null)
+  .not('lat', 'is', null).not('lng', 'is', null).not('city', 'is', null).not('slug', 'is', null)
 if (error) { console.error('select failed:', error.message); process.exit(1) }
 
-// Eligible = passes the hard gate AND has a non-generic name.
-const eligible = gated.filter((r) => !isGenericName(r.name))
+// Eligible = coords + city + slug (above) + a non-generic name AND a trust signal — EITHER Gemini
+// enrichment (enrichment_version) OR a human review sign-off (verified_by). The verified path lets
+// the 3d-5 human-review batches (e.g. source 'az-review-2026-07') stay published before enrichment
+// runs, instead of this reconcile pass drafting them back.
+//   NOTE: verified_by alone is the trust signal — NOT verified_by+name_source_url — because ~6 of the
+//   first AZ batch are genuine approved parks that lack a primary-source URL (a review-sheet gap).
+//   Once those are backfilled, this can tighten to also require name_source_url (see migration
+//   20260721000005: "publish gate will require it"). name_source_url is selected for that future step.
+const isVerified = (r) => r.verified_by != null
+const eligible = gated.filter((r) => !isGenericName(r.name) && (r.enrichment_version != null || isVerified(r)))
 const eligibleIds = new Set(eligible.map((r) => r.id))
 
 // Gate-authoritative reconcile: pull ANY currently-published row that isn't eligible — whether it
