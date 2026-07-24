@@ -62,6 +62,8 @@ A public, SEO-oriented **nationwide directory of pickleball courts** living insi
 
 ## 5. Data pipeline — three layers
 
+**Candidate staging — `facility_candidates` is the single source of truth for in-progress candidates (2026-07-24).** Discovery (Stage 1) lands rows here; verify/enrich research (Stage 2) is written here *directly* by Claude, Claude Code, and ChatGPT-Work via service role — no more Google-Sheet/CSV masters (they caused week-long sync drift). Row lifecycle is `research_status` (`pending → verified/probable/unresolved/duplicate/not_venue/not_pickleball/held → published`). The **publish importer reads candidates with `research_status='verified'`**, promotes them into `facility_listings`, and on success sets `published_listing_id` + flips `research_status='published'`. `existing_listing_id` links a candidate to a pre-existing listing found at discovery. **Spreadsheets, if used at all, are disposable exports keyed on `candidate_key`, never masters.** Seeded with the 481-row Phoenix batch (`batch='az-review-2026-07'`) on 2026-07-24 (migration `…000003` + `scripts/seed-facility-candidates.mjs`). RLS deny-all, service-role only (ADR-03). FK-only reference to `facility_listings` — the promotion flow (`locations.facility_listing_id`) is Phase 3.
+
 **Layer 1 — OSM bulk ingest (nationwide).**
 - Overpass API queries for `leisure=pitch` + `sport=pickleball` (plus `sport~"pickleball"` multi-sport values, and `leisure=sports_centre` / `club=sport` variants tagged pickleball).
 - Chunk by state (or bbox grid for big states) to respect Overpass rate/size limits; polite delays; retry with backoff.
