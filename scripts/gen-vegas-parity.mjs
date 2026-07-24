@@ -1,0 +1,105 @@
+/**
+ * Directory — generate the Vegas parity backfill migration (ADR-13 #4, Phase 3A part B).
+ * Reads the Las Vegas `locations` rows, applies the gate-approved access_type mapping, excludes the
+ * junk "AAA Test" row, generates unique `{name}-{city}-nv` slugs (a `-2` suffix is a RED FLAG and
+ * aborts), and EMITS an atomic migration: INSERT one draft facility_listings row per location +
+ * a single UPDATE linking locations.facility_listing_id — both in one transaction.
+ *
+ * Read-only against the DB (SELECT locations + existing slugs); writes only the .sql file.
+ *   node scripts/gen-vegas-parity.mjs
+ */
+import { readFileSync, writeFileSync } from 'node:fs'
+import { createClient } from '@supabase/supabase-js'
+
+const env = Object.fromEntries(
+  readFileSync('.env.local', 'utf8').split(/\r?\n/).filter((l) => l.includes('=') && !l.startsWith('#'))
+    .map((l) => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, '')] })
+)
+const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+const BATCH = 'vegas-parity-2026-07'
+const OUT = 'supabase/migrations/20260724000005_vegas_parity_backfill.sql'
+const migratedAt = new Date().toISOString()
+
+// slug helpers — copied verbatim from scripts/ingest-osm-courts.mjs (parity with existing slugs)
+function kebab(s) {
+  return (s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+}
+const baseSlug = (name, city, state) => [name, city, state].map(kebab).filter(Boolean).join('-') || 'court'
+
+// gate-approved mapping: access_type answers WHO can play; fee_type answers COST; indoor separate.
+function mapAccess(a) {
+  switch (a) {
+    case 'public':        return { access_type: 'public',  fee_type: null,  indoor: null, note: null }
+    case 'private':       return { access_type: 'private', fee_type: null,  indoor: null, note: null }
+    case 'fee_based':     return { access_type: 'public',  fee_type: 'fee', indoor: null, note: null }   // walk-in commercial: public access, paid
+    case 'indoor_public': return { access_type: 'public',  fee_type: null,  indoor: true, note: null }
+    case 'resort':        return { access_type: 'public',  fee_type: 'fee', indoor: null, note: 'Resort' } // provisional; Verify confirms guest-only→private
+    case 'semi_private':  return { access_type: 'private', fee_type: null,  indoor: null, note: null }    // resident/guest-gated
+    case 'hoa':           return { access_type: 'hoa',     fee_type: null,  indoor: null, note: null }
+    default:              return { access_type: 'unknown', fee_type: null,  indoor: null, note: null }
+  }
+}
+
+const sql = (v) => v == null ? 'null' : `'${String(v).replace(/'/g, "''")}'`
+const rawNum = (v) => (v == null || v === '' ? 'null' : Number(v))
+const boolS = (v) => (v == null ? 'null' : v ? 'true' : 'false')
+
+const { data: locs, error } = await db.from('locations')
+  .select('id, name, address, city, state, zip_code, lat, lng, court_count, access_type, category')
+  .eq('metro_area', 'Las Vegas').order('name')
+if (error) { console.error('locations read failed:', error.message); process.exit(1) }
+const { data: existing, error: e2 } = await db.from('facility_listings').select('slug')
+if (e2) { console.error('slug read failed:', e2.message); process.exit(1) }
+const slugSet = new Set(existing.map((r) => r.slug))
+
+const excluded = []
+const rows = []
+const accDist = {}, feeDist = {}
+let dashTwo = 0
+for (const l of locs) {
+  if (l.name.trim().toLowerCase() === 'aaa test') { excluded.push(l.name); continue }
+  const m = mapAccess(l.access_type)
+  const state = l.state || 'NV'                                  // Las Vegas metro ⇒ NV (fills the 1 null-state real row)
+  const base = baseSlug(l.name, l.city, state)
+  let slug = base, i = 2
+  while (slugSet.has(slug)) { slug = `${base}-${i++}`; dashTwo++ }
+  slugSet.add(slug)
+  accDist[m.access_type] = (accDist[m.access_type] || 0) + 1
+  if (m.fee_type) feeDist[m.fee_type] = (feeDist[m.fee_type] || 0) + 1
+  rows.push({ l, m, state, slug })
+}
+
+// ---- emit atomic migration ----
+const cols = 'name, slug, source, status, lat, lng, address, city, state, zip, country, metro_area, court_count, access_type, fee_type, indoor, public_notes, provenance'
+const values = rows.map(({ l, m, state, slug }) => {
+  const prov = `'${JSON.stringify({ origin: 'locations', location_id: l.id, migrated_at: migratedAt }).replace(/'/g, "''")}'::jsonb`
+  return `  (${sql(l.name)}, ${sql(slug)}, ${sql(BATCH)}, 'draft', ${rawNum(l.lat)}, ${rawNum(l.lng)}, ${sql(l.address)}, ${sql(l.city)}, ${sql(state)}, ${sql(l.zip_code)}, 'US', 'Las Vegas', ${rawNum(l.court_count)}, ${sql(m.access_type)}, ${sql(m.fee_type)}, ${boolS(m.indoor)}, ${sql(m.note)}, ${prov})`
+}).join(',\n')
+
+const migration = `-- Directory — Vegas parity backfill (ADR-13 #4, Phase 3A part B). Generated by scripts/gen-vegas-parity.mjs.
+-- One draft facility_listings row per Las Vegas locations row (${rows.length}; "AAA Test" excluded), batch-tagged
+-- source='${BATCH}' (rollback = delete by source), provenance origin='locations'. access_type mapped to the
+-- unified vocab + fee_type/indoor per the gate decision. Rows stay DRAFT (no name_source_url/verified_at) —
+-- Vegas Verify/Enrich publishes them later; the publish gate is untouched. Insert + link run in one transaction.
+
+insert into public.facility_listings (${cols})
+values
+${values};
+
+-- link each operational location to its new directory record (same transaction as the insert)
+update public.locations l
+  set facility_listing_id = fl.id
+  from public.facility_listings fl
+  where fl.source = '${BATCH}' and (fl.provenance->>'location_id')::uuid = l.id;
+`
+
+writeFileSync(OUT, migration)
+console.log(`=== Vegas parity generator ===`)
+console.log(`locations (Las Vegas): ${locs.length} · excluded (junk): ${excluded.length} ${excluded.length ? '→ ' + excluded.join(', ') : ''}`)
+console.log(`rows to insert: ${rows.length}`)
+console.log(`access_type mapping: ${JSON.stringify(accDist)}`)
+console.log(`fee_type set: ${JSON.stringify(feeDist)} · indoor=true: ${rows.filter((r) => r.m.indoor).length} · public_notes 'Resort': ${rows.filter((r) => r.m.note).length}`)
+console.log(`slug collisions requiring -N suffix (MUST be 0): ${dashTwo}`)
+console.log(`no-coord rows (draft, coords at Verify): ${rows.filter((r) => r.l.lat == null || r.l.lng == null).map((r) => r.l.name).join(', ') || 'none'}`)
+console.log(`\nwrote ${OUT} (${migration.length} bytes)`)
