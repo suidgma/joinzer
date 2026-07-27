@@ -119,6 +119,7 @@ function normalize(el, state) {
     name,
     lat, lng,
     address,
+    address_source: address ? 'osm' : null,   // ToS: OSM addr:* tags are ODbL, storable (ADR-12)
     city: t['addr:city'] || null,
     state,                         // always known from the queried chunk (decision b)
     zip: t['addr:postcode'] || null,
