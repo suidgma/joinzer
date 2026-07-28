@@ -63,6 +63,12 @@ export async function middleware(request: NextRequest) {
     pathname === '/reset-password' ||
     pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js' ||
+    // Crawler-facing files. The matcher's exclusion list only skips image extensions, so .xml/.txt
+    // DO reach this middleware — without these two lines both 307 to /login for anonymous requests
+    // (i.e. every search engine), which silently de-indexes every published /courts page.
+    // Exact equality, not startsWith: these are single fixed routes with no subtree to expose.
+    pathname === '/sitemap.xml' ||
+    pathname === '/robots.txt' ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/leagues') ||
     pathname.startsWith('/l/') ||
