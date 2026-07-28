@@ -1,6 +1,6 @@
 # Joinzer — Decision Log (ADRs)
 
-_Last updated: July 17, 2026_
+_Last updated: July 28, 2026_
 
 > The **why** behind Joinzer's foundational choices, so they don't get re-litigated and so recommendations respect the constraints. Each entry: the decision, the context, and the consequences. These are ✅ decided (in effect today) unless marked otherwise. Genuinely *unresolved* calls live in `open-decisions.md`, not here.
 
@@ -69,3 +69,15 @@ _Last updated: July 17, 2026_
 **Decision:** wherever possible, let captains and players do the work, not just organizers — self-substitutions, self-scoring, captain-run team leagues, player-run round-robin sessions.
 **Context:** organizer time is the scarce resource; reducing their load is both a product and a retention strategy. Flex league is the model (fully player-driven).
 **Consequences:** new features should ask "can the player/captain do this themselves?" — with the organizer retaining override.
+
+## ADR-12 — Address provenance under Google Places ToS
+
+**Decision:** every `facility_listings.address` carries an `address_source` drawn from a pinned six-value vocabulary (`official_page | osm | county_open_data | manual_research | organizer | unknown_legacy`). A Places `formatted_address` is **not** a storable source — addresses traceable only to Places are **nulled and stamped `unknown_legacy`**. Every future address write must set the column.
+**Context:** GMP Places ToS §3.2.3(a)-(b) permits storing `place_id` but not caching most other Places data; a formatted address is not ours to keep. The column had also been created in the dashboard out-of-band — the same drift class as `lat`/`lng`/`sort_order` — so a rebuild-from-migrations wouldn't have reproduced it.
+**Consequences:** address provenance is auditable and ToS-defensible. The CHECK constraint pins the vocabulary so a seventh value is a deliberate schema change rather than a silent write. (`supabase/migrations/20260724000007_formalize_address_source.sql`; companion column `address_verified_at`.)
+
+## ADR-13 — Venue schema: `facility_listings` canonical, `locations` operational
+
+**Decision:** `facility_listings` is the **canonical venue record**; `locations` remains the **operational** table and links to it through a nullable `facility_listing_id` bridge. The legacy overloaded `locations.access_type` is **frozen** — new venue writes use the unified vocabulary on the canonical record (`access_type` in `public/private/membership/school/hoa/unknown`, plus `fee_type` and `indoor`). `locations.category`, `source_url`, `notes` and `phone` are **deprecated, marked, not dropped**.
+**Context:** the legacy `access_type` conflated access, fee, indoor and category into one enum (`resort`, `fee_based`, `business`, `indoor_public`, `semi_private`…), which cannot support a queryable public directory. The directory needs clean SEO-facing fields without breaking the live operational path.
+**Consequences:** strictly additive and non-destructive — no drops, no deletes, no lossy rewrites of `locations` rows. **Phase 3A (schema) is done; Phase 3B (read-path and write-path cutover) is still pending** — the deprecated columns are still read today. Migrations applied to Supabase before dependent code, per ADR-10. (`supabase/migrations/20260724000001` through `…000005`.)
