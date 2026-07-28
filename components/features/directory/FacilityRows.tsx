@@ -1,0 +1,45 @@
+import Link from 'next/link'
+import type { FacilityListItem } from '@/lib/directory/loadFacilities'
+
+const ACCESS_LABEL: Record<string, string> = {
+  public: 'Public', private: 'Private', membership: 'Membership', school: 'School', hoa: 'HOA', unknown: '',
+}
+
+const FEE_LABEL: Record<string, string> = {
+  free: 'Free', fee: 'Pay to play', membership: 'Membership', unknown: '',
+}
+
+/**
+ * Row summary chips. Only affirmative facts are rendered — an absent or 'unknown' value produces no
+ * text at all rather than a "no"/"none" label, matching the filter rule (lib/directory/facets.ts).
+ */
+function summary(f: FacilityListItem): string {
+  const parts = [
+    f.indoor === true ? 'Indoor' : f.indoor === false ? 'Outdoor' : null,
+    ACCESS_LABEL[f.access_type ?? ''] || null,
+    FEE_LABEL[f.fee_type ?? ''] || null,
+  ]
+  return parts.filter(Boolean).join(' · ')
+}
+
+export default function FacilityRows({ facilities, showCourtCount = false }: { facilities: FacilityListItem[]; showCourtCount?: boolean }) {
+  return (
+    <ul className="divide-y divide-brand-border">
+      {facilities.map((f) => (
+        <li key={f.slug}>
+          <Link href={`/courts/${f.slug}`} className="flex items-start justify-between gap-3 py-3 group">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-brand-dark group-hover:text-brand-active transition-colors">{f.name}</span>
+              {showCourtCount && f.court_count != null && (
+                <span className="block text-xs text-brand-muted mt-0.5">
+                  {f.court_count} court{f.court_count === 1 ? '' : 's'}
+                </span>
+              )}
+            </span>
+            <span className="shrink-0 text-xs text-brand-muted text-right">{summary(f)}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
