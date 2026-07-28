@@ -81,3 +81,8 @@ scripts/.osm-ingest-progress.json
 
 # Phoenix venue-count working data (count-only scope; Places place_id+coords only, never ingested)
 /phoenix-count/
+
+# Reno-Sparks merged research artifacts (input to scripts/import-reno-merged.mjs). Untracked for the
+# same reason as phoenix-count: research working data, and it carries tier-4 aggregator source URLs
+# which are a private research input under ADR-14 and must never be republished.
+/reno-count/

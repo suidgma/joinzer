@@ -3,6 +3,18 @@ import { createClient } from '@supabase/supabase-js'
 // facility_listings is deny-all RLS, so the directory reads via the service role and renders ONLY
 // status='published' rows — that filter IS the publish gate / trust boundary. All columns here are
 // non-PII (it's court data), so public rendering is safe.
+//
+// RENDER-RESTRICTED COLUMNS — do not add these to any select below without a deliberate decision:
+//   provenance, website, name_source_url — these carry research source URLs, some of them tier-4
+//   aggregator hosts (Pickleheads, 55places, …). ADR-14 permits aggregators as a private research
+//   input but bars displaying or republishing them on Joinzer pages. scripts/import-reno-merged.mjs
+//   asserts that no aggregator URL reaches website/name_source_url on a PUBLISHED row, but
+//   `provenance` carries them by design (it is the evidence trail) — so provenance must never be
+//   rendered. (public_notes is operator-sourced and safe; it simply isn't surfaced yet.)
+//
+// ODbL: rows whose coordinate came from OSM carry provenance.coordinate.licence = 'ODbL…'. Any page
+// rendering them must show OpenStreetMap attribution — components/features/directory/
+// OsmAttribution.tsx is mounted on both /courts and /courts/[slug]. Don't remove it.
 function admin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }

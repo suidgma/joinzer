@@ -1,6 +1,6 @@
 # Claude Code Brief — Joinzer Court Directory
 
-_Last updated: July 20, 2026 · Replaces prior version (Arizona-scoped). Supersedes it entirely._
+_Last updated: July 28, 2026 · Replaces prior version (Arizona-scoped). Supersedes it entirely._
 
 > **For Claude Code:** This brief is the source of truth for the directory workstream. Follow CC session discipline: mandatory investigation phase, then a **hard go-gate** — no code or DDL until Marty explicitly approves the plan. Small slices, scope fences respected, grep-before-delete. The **two-form-factor workstream is off-limits** during directory sessions.
 
@@ -19,7 +19,7 @@ A public, SEO-oriented **nationwide directory of pickleball courts** living insi
 1. **Directory lives in the Joinzer app/repo.** Same Next.js project, same Supabase.
 2. **Separate `facility_listings` table** — real columns for queryable/SEO fields + a JSONB blob for enrichment. **Greenfield: this table does not exist yet** (verified against production 2026-07-20).
 3. **`locations` stays untouched as the operational table.** Nullable FK from `facility_listings.location_id` → `locations.id`; a facility is "promoted" only when a real event uses it. Never bulk-insert scraped data into `locations`.
-4. **OSM is the only bulk-ingest source.** Google Places is **per-record enrichment only**. Aggregators (Pickleheads, Places2Play, etc.) are **off-limits** — do not scrape them.
+4. **OSM is the only bulk-ingest source.** Google Places is **per-record enrichment only**. Aggregators (Pickleheads, Places2Play, etc.) are permitted as a **discovery-stage lead source** and as **evidence at tier 4 of 5** — below (1) current official venue/operator info, (2) current municipal/county info, (3) current association/program info, and above (5) general third-party directories/older sources — never as a bulk-ingest source. A venue cannot reach `research_status='verified'` on aggregator evidence alone; verified still requires a **controlling-entity source** (the city that owns the courts, the operator that runs the facility, or the association that runs play there) — aggregator-only venues sit at `research_status='probable'` instead. Aggregator-sourced field values are populated at **medium confidence**, source tier noted. *(Aggregator policy reversed 2026-07-28, ADR-14.)*
 5. **Gemini is the v1 LLM enrichment generator**, behind a one-file-swap wrapper so the provider can change later.
 6. **No stored Google Maps URL.** Derive at render time: `https://www.google.com/maps/search/?api=1&query={lat},{lng}&query_place_id={place_id}` when `google_place_id` is present; lat/lng-only fallback otherwise.
 
@@ -64,6 +64,12 @@ A public, SEO-oriented **nationwide directory of pickleball courts** living insi
 
 **Candidate staging — `facility_candidates` is the single source of truth for in-progress candidates (2026-07-24).** Discovery (Stage 1) lands rows here; verify/enrich research (Stage 2) is written here *directly* by Claude, Claude Code, and ChatGPT-Work via service role — no more Google-Sheet/CSV masters (they caused week-long sync drift). Row lifecycle is `research_status` (`pending → verified/probable/unresolved/duplicate/not_venue/not_pickleball/held → published`). The **publish importer reads candidates with `research_status='verified'`**, promotes them into `facility_listings`, and on success sets `published_listing_id` + flips `research_status='published'`. `existing_listing_id` links a candidate to a pre-existing listing found at discovery. **Spreadsheets, if used at all, are disposable exports keyed on `candidate_key`, never masters.** Seeded with the 481-row Phoenix batch (`batch='az-review-2026-07'`) on 2026-07-24 (migration `…000003` + `scripts/seed-facility-candidates.mjs`). RLS deny-all, service-role only (ADR-03). FK-only reference to `facility_listings` — the promotion flow (`locations.facility_listing_id`) is Phase 3.
 
+**Second metro — Reno–Sparks (`batch='reno-merged-2026-07-28'`, imported 2026-07-28 via `scripts/import-reno-merged.mjs`).** 36 merged research venues → 36 candidates + 36 listings; **29 published, 7 draft**. Four things this batch pinned that the next metro inherits:
+- **The publish gate is `coordinate present + coordinate precision ≠ low + slug + access_type ≠ unknown + candidate research_status='verified'`.** `court_count` is **not** a condition — a non-null count was an extra research-side rule, never Joinzer's, and it was removed to realign with the Layer-3 gate below. Don't re-add it (including in `publish-facilities.mjs`, which now guards on research-status + coordinate precision only).
+- **`facility_listings.source` must be set explicitly to the batch tag** (`reno-merged-2026-07-28`, matching `az-review-2026-07` / `vegas-parity-2026-07`). It is `NOT NULL DEFAULT 'osm'`, so omitting it mislabels the batch as OSM-ingested. The dataset *kind* goes in `provenance.method`. The batch tag is also the rollback handle: `update facility_listings set status='draft' where source='<batch>'` un-publishes a whole batch in one non-destructive statement.
+- **Per-field provenance has exactly one home: `facility_listings.provenance`.** `facility_candidates` has no jsonb and no venue-fact columns (`court_count`, `indoor`, `fee_type`, `website`, `phone`, `public_notes`), so a candidates-only import silently loses them. Give every venue a listing row — gate-failers land `draft` (invisible; `loadFacilities` filters `status='published'`) with **`verified_by` left NULL** so the reconcile gate can't publish them later. Candidate ↔ listing link is `provenance.candidate_key` in both directions, plus `published_listing_id` on published rows only.
+- **ADR-14 containment:** aggregator URLs may sit in `provenance` (private evidence) but never in a rendered column. The importer asserts none reach `website`/`name_source_url` on a published row, and `lib/directory/loadFacilities.ts` records `provenance`/`website`/`name_source_url` as render-restricted.
+
 **Venue schema Phase 3A — bridge + Vegas parity + enum freeze (2026-07-24, ADR-13; migrations `…000004`/`…000005`).** The bridge column **`locations.facility_listing_id`** is the canonical link from an operational location to its directory record (set on promotion / parity). **Las Vegas parity**: 64 draft `facility_listings` mirrored from the 65 Vegas `locations` (junk "AAA Test" skipped, not deleted), `source='vegas-parity-2026-07'`, `provenance.origin='locations'`, each linked back via the bridge. They stay **draft** (no `name_source_url`) — the **Vegas Verify queue is exactly**:
 ```sql
 select * from facility_listings
@@ -91,7 +97,7 @@ Work/Cowork research + publish these next (same routing as Phoenix). The overloa
 
 - **ODbL (OSM):** attribute "© OpenStreetMap contributors" on directory pages; the ingested dataset carries share-alike obligations. Include attribution in the page footer/component from day one.
 - **Google Places ToS:** `place_id` may be stored permanently; most other Places data may not be cached beyond 30 days. Never bulk-scrape Places.
-- **Aggregators:** no scraping Pickleheads/Places2Play/etc. under any framing.
+- **Aggregators:** permitted as tier-4 discovery/evidence (see §2.4, ADR-14) — never a bulk-ingest or bulk-scrape source, under any framing; treat lookups as per-record checks, same posture as Google Places. Never display or republish aggregator-sourced content directly on Joinzer pages — it's a private research input, not user-facing content.
 
 ## 7. CC sessions (each: investigate → go-gate → build)
 
