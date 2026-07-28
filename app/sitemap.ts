@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next'
-import { loadPublishedSlugs } from '@/lib/directory/loadFacilities'
+import { loadPublishedSlugs, loadPublishedMetros } from '@/lib/directory/loadFacilities'
 
 // Dynamic so it reflects newly-published courts without a rebuild (pages are force-dynamic too).
 export const dynamic = 'force-dynamic'
@@ -17,6 +17,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/courts`, changeFrequency: 'weekly', priority: 0.7 },
   ]
 
+  // Metro landing pages, derived from the published metro_area values — a newly published metro
+  // appears here with no deploy. Only the clean metro URL is listed; filtered views (?fee=…) are
+  // noindex and deliberately absent, since faceted permutations are a crawl trap.
+  let metros: MetadataRoute.Sitemap = []
+  try {
+    const rows = await loadPublishedMetros()
+    metros = rows.map((m) => ({
+      url: `${BASE}/courts/in/${m.slug}`,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    }))
+  } catch {
+    // Fall through — a metro read failure must not cost us the facility URLs below.
+  }
+
   let courts: MetadataRoute.Sitemap = []
   try {
     const rows = await loadPublishedSlugs()
@@ -30,5 +45,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // If the DB read fails at build/request time, still serve the static portion.
   }
 
-  return [...staticPages, ...courts]
+  return [...staticPages, ...metros, ...courts]
 }
