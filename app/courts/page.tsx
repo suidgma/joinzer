@@ -3,31 +3,31 @@ import Link from 'next/link'
 import LandingNav from '@/components/landing/LandingNav'
 import LandingFooter from '@/components/landing/LandingFooter'
 import OsmAttribution from '@/components/features/directory/OsmAttribution'
-import { loadPublishedFacilities } from '@/lib/directory/loadFacilities'
+import FacilityRows from '@/components/features/directory/FacilityRows'
+import { loadPublishedMetros, loadPublishedFacilitiesWithoutMetro } from '@/lib/directory/loadFacilities'
+import { metroLabel } from '@/lib/directory/metros'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Pickleball Court Directory | Joinzer',
-  description: 'Find pickleball courts and facilities — locations, amenities, and directions.',
+  description: 'Find pickleball courts and facilities by metro — locations, access, fees, and directions.',
   alternates: { canonical: '/courts' },
 }
 
-const ACCESS_LABEL: Record<string, string> = {
-  public: 'Public', private: 'Private', membership: 'Membership', school: 'School', hoa: 'HOA', unknown: '',
-}
-
+// Metro hub. Previously this rendered all 205 published rows in one flat list, which mixed metros
+// together and gave search engines a single undifferentiated page. Facilities now live under their
+// metro (/courts/in/[metro]) — every facility is one click from its metro page and two from here,
+// and the sitemap still lists all of them directly.
 export default async function CourtsIndexPage() {
-  const facilities = await loadPublishedFacilities()
+  const [metros, orphans] = await Promise.all([
+    loadPublishedMetros(),
+    // Zero rows today. Rendered anyway so a published row lacking metro_area can never fall out of
+    // the index — the one way this hub restructure could silently orphan a page.
+    loadPublishedFacilitiesWithoutMetro(),
+  ])
 
-  // Group by city (nulls last) for a scannable index.
-  const groups = new Map<string, typeof facilities>()
-  for (const f of facilities) {
-    const key = f.city || 'Other'
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(f)
-  }
-  const cities = [...groups.keys()].sort((a, b) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)))
+  const total = metros.reduce((n, m) => n + m.count, 0) + orphans.length
 
   return (
     <div className="min-h-screen bg-white">
@@ -36,28 +36,37 @@ export default async function CourtsIndexPage() {
         <p className="text-brand-active text-xs font-semibold uppercase tracking-widest mb-3">Court directory</p>
         <h1 className="font-heading text-3xl md:text-4xl font-extrabold text-brand-dark leading-tight mb-3">Pickleball courts</h1>
         <p className="text-brand-muted text-base mb-10">
-          {facilities.length > 0
-            ? `${facilities.length} ${facilities.length === 1 ? 'facility' : 'facilities'} — locations, amenities, and directions.`
+          {total > 0
+            ? `${total} ${total === 1 ? 'facility' : 'facilities'} — locations, amenities, and directions.`
             : 'Courts are being added — check back soon.'}
         </p>
 
-        {cities.map((city) => (
-          <section key={city} className="mb-8">
-            <h2 className="font-heading text-lg font-bold text-brand-dark mb-3 pb-2 border-b border-brand-border">{city}</h2>
+        {metros.length > 0 && (
+          <section className="mb-10">
+            <h2 className="font-heading text-lg font-bold text-brand-dark mb-3 pb-2 border-b border-brand-border">Browse by metro</h2>
             <ul className="divide-y divide-brand-border">
-              {groups.get(city)!.map((f) => (
-                <li key={f.slug}>
-                  <Link href={`/courts/${f.slug}`} className="flex items-center justify-between gap-3 py-3 group">
-                    <span className="text-sm font-semibold text-brand-dark group-hover:text-brand-active transition-colors">{f.name}</span>
+              {metros.map((metro) => (
+                <li key={metro.slug}>
+                  <Link href={`/courts/in/${metro.slug}`} className="flex items-center justify-between gap-3 py-4 group">
+                    <span className="text-base font-semibold text-brand-dark group-hover:text-brand-active transition-colors">
+                      Pickleball courts in {metroLabel(metro)}
+                    </span>
                     <span className="shrink-0 text-xs text-brand-muted">
-                      {[f.indoor === true ? 'Indoor' : f.indoor === false ? 'Outdoor' : null, ACCESS_LABEL[f.access_type ?? ''] || null].filter(Boolean).join(' · ')}
+                      {metro.count} {metro.count === 1 ? 'facility' : 'facilities'} →
                     </span>
                   </Link>
                 </li>
               ))}
             </ul>
           </section>
-        ))}
+        )}
+
+        {orphans.length > 0 && (
+          <section className="mb-8">
+            <h2 className="font-heading text-lg font-bold text-brand-dark mb-3 pb-2 border-b border-brand-border">Other</h2>
+            <FacilityRows facilities={orphans} />
+          </section>
+        )}
 
         <div className="border-t border-brand-border pt-5 mt-6">
           <OsmAttribution />

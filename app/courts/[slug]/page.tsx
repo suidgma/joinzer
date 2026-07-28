@@ -6,8 +6,11 @@ import LandingFooter from '@/components/landing/LandingFooter'
 import OsmAttribution from '@/components/features/directory/OsmAttribution'
 import { loadPublishedFacility } from '@/lib/directory/loadFacilities'
 import { mapsUrl } from '@/lib/directory/mapsUrl'
+import { metroSlug } from '@/lib/directory/metros'
 
 export const dynamic = 'force-dynamic'
+
+const BASE = 'https://www.joinzer.com'
 
 const ACCESS_LABEL: Record<string, string> = {
   public: 'Public', private: 'Private', membership: 'Membership', school: 'School', hoa: 'HOA', unknown: 'Access varies',
@@ -61,12 +64,35 @@ export default async function CourtPage({ params }: Params) {
   const maps = mapsUrl(f.lat, f.lng, f.google_place_id)
   const e = f.enrichment ?? {}
 
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Pickleball courts', item: `${BASE}/courts` },
+      ...(f.metro_area
+        ? [{ '@type': 'ListItem', position: 2, name: f.metro_area, item: `${BASE}/courts/in/${metroSlug(f.metro_area)}` }]
+        : []),
+      { '@type': 'ListItem', position: f.metro_area ? 3 : 2, name: f.name, item: `${BASE}/courts/${slug}` },
+    ],
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <LandingNav />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 md:py-14">
         <nav className="text-xs text-brand-muted mb-5">
           <Link href="/courts" className="hover:text-brand-dark">Courts</Link>
+          {/* Links the metro when the row has one — closes the hub → metro → facility loop instead
+              of leaving every facility page a dead end for crawlers and readers alike. */}
+          {f.metro_area && (
+            <>
+              <span> · </span>
+              <Link href={`/courts/in/${metroSlug(f.metro_area)}`} className="hover:text-brand-dark">
+                {f.metro_area}
+              </Link>
+            </>
+          )}
           {where && <span> · {where}</span>}
         </nav>
 
