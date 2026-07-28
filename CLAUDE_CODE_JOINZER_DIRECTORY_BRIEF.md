@@ -1,6 +1,6 @@
 # Claude Code Brief — Joinzer Court Directory
 
-_Last updated: July 20, 2026 · Replaces prior version (Arizona-scoped). Supersedes it entirely._
+_Last updated: July 28, 2026 · Replaces prior version (Arizona-scoped). Supersedes it entirely._
 
 > **For Claude Code:** This brief is the source of truth for the directory workstream. Follow CC session discipline: mandatory investigation phase, then a **hard go-gate** — no code or DDL until Marty explicitly approves the plan. Small slices, scope fences respected, grep-before-delete. The **two-form-factor workstream is off-limits** during directory sessions.
 
@@ -19,7 +19,7 @@ A public, SEO-oriented **nationwide directory of pickleball courts** living insi
 1. **Directory lives in the Joinzer app/repo.** Same Next.js project, same Supabase.
 2. **Separate `facility_listings` table** — real columns for queryable/SEO fields + a JSONB blob for enrichment. **Greenfield: this table does not exist yet** (verified against production 2026-07-20).
 3. **`locations` stays untouched as the operational table.** Nullable FK from `facility_listings.location_id` → `locations.id`; a facility is "promoted" only when a real event uses it. Never bulk-insert scraped data into `locations`.
-4. **OSM is the only bulk-ingest source.** Google Places is **per-record enrichment only**. Aggregators (Pickleheads, Places2Play, etc.) are **off-limits** — do not scrape them.
+4. **OSM is the only bulk-ingest source.** Google Places is **per-record enrichment only**. Aggregators (Pickleheads, Places2Play, etc.) are permitted as a **discovery-stage lead source** and as **evidence at tier 4 of 5** — below (1) current official venue/operator info, (2) current municipal/county info, (3) current association/program info, and above (5) general third-party directories/older sources — never as a bulk-ingest source. A venue cannot reach `research_status='verified'` on aggregator evidence alone; verified still requires a **controlling-entity source** (the city that owns the courts, the operator that runs the facility, or the association that runs play there) — aggregator-only venues sit at `research_status='probable'` instead. Aggregator-sourced field values are populated at **medium confidence**, source tier noted. *(Aggregator policy reversed 2026-07-28, ADR-14.)*
 5. **Gemini is the v1 LLM enrichment generator**, behind a one-file-swap wrapper so the provider can change later.
 6. **No stored Google Maps URL.** Derive at render time: `https://www.google.com/maps/search/?api=1&query={lat},{lng}&query_place_id={place_id}` when `google_place_id` is present; lat/lng-only fallback otherwise.
 
@@ -91,7 +91,7 @@ Work/Cowork research + publish these next (same routing as Phoenix). The overloa
 
 - **ODbL (OSM):** attribute "© OpenStreetMap contributors" on directory pages; the ingested dataset carries share-alike obligations. Include attribution in the page footer/component from day one.
 - **Google Places ToS:** `place_id` may be stored permanently; most other Places data may not be cached beyond 30 days. Never bulk-scrape Places.
-- **Aggregators:** no scraping Pickleheads/Places2Play/etc. under any framing.
+- **Aggregators:** permitted as tier-4 discovery/evidence (see §2.4, ADR-14) — never a bulk-ingest or bulk-scrape source, under any framing; treat lookups as per-record checks, same posture as Google Places. Never display or republish aggregator-sourced content directly on Joinzer pages — it's a private research input, not user-facing content.
 
 ## 7. CC sessions (each: investigate → go-gate → build)
 
