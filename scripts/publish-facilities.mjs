@@ -41,10 +41,36 @@ function isGenericName(name) {
 // city IS NOT NULL added Session 3d-0: a listing with no city isn't publishable (breaks the
 // city index page + reads as incomplete). Reverse-geocode fills it first.
 const { data: gated, error } = await db.from('facility_listings')
-  .select('id, name, status, enrichment_version, verified_by, name_source_url')
+  .select('id, name, status, enrichment_version, verified_by, name_source_url, provenance')
   .eq('metro_area', METRO)
   .not('lat', 'is', null).not('lng', 'is', null).not('city', 'is', null).not('slug', 'is', null)
 if (error) { console.error('select failed:', error.message); process.exit(1) }
+
+// Research-status guard (added with the Reno-Sparks batch, 2026-07-28). A listing whose staging row
+// is deliberately NOT verified — held, probable, duplicate, not_venue… — must never be published by
+// this reconcile pass, whatever trust signal it carries. Without this, a future enrichment run over
+// Reno would stamp enrichment_version on the 7 intentionally-held drafts and this gate would publish
+// them. Deliberately permissive when there is NO candidate row (raw OSM drafts, Vegas parity, the 8
+// Phoenix rows carrying no candidate key): absence of a staging row is not evidence against a
+// listing, and blocking on it would silently un-publish live Phoenix rows. Verified against
+// production before shipping — this guard un-publishes 0 currently-published rows in either metro.
+//   NOTE: court_count is intentionally NOT a condition here. Brief §5's gate is coords + slug +
+//   enrichment/approval; a non-null court_count was never Joinzer's requirement (owner ruling
+//   2026-07-28) and re-introducing it here would contradict scripts/import-reno-merged.mjs.
+const BLOCKING_RESEARCH_STATUS = new Set(['pending', 'probable', 'unresolved', 'unresolved_unnamed', 'duplicate', 'not_venue', 'not_pickleball', 'held'])
+const candidateKeyOf = (r) => r.provenance?.candidate_key ?? r.provenance?.candidate_id ?? null
+const candidateKeys = [...new Set(gated.map(candidateKeyOf).filter(Boolean))]
+const statusByKey = new Map()
+if (candidateKeys.length) {
+  const { data: cands, error: cErr } = await db.from('facility_candidates').select('candidate_key, research_status').in('candidate_key', candidateKeys)
+  if (cErr) { console.error('candidate status read failed:', cErr.message); process.exit(1) }
+  for (const c of cands) statusByKey.set(c.candidate_key, c.research_status)
+}
+const researchBlocked = (r) => { const s = statusByKey.get(candidateKeyOf(r)); return s != null && BLOCKING_RESEARCH_STATUS.has(s) }
+
+// Coordinate-precision guard: a coordinate the research pass itself marked `low` (e.g. a golf-course
+// relation centroid standing in for a clubhouse) is not good enough to drop a pin on a public page.
+const lowPrecision = (r) => (r.provenance?.coordinate?.precision ?? null) === 'low'
 
 // Eligible = coords + city + slug (above) + a non-generic name AND a trust signal — EITHER Gemini
 // enrichment (enrichment_version) OR a human review sign-off (verified_by). The verified path lets
@@ -55,7 +81,8 @@ if (error) { console.error('select failed:', error.message); process.exit(1) }
 //   Once those are backfilled, this can tighten to also require name_source_url (see migration
 //   20260721000005: "publish gate will require it"). name_source_url is selected for that future step.
 const isVerified = (r) => r.verified_by != null
-const eligible = gated.filter((r) => !isGenericName(r.name) && (r.enrichment_version != null || isVerified(r)))
+const eligible = gated.filter((r) =>
+  !isGenericName(r.name) && (r.enrichment_version != null || isVerified(r)) && !researchBlocked(r) && !lowPrecision(r))
 const eligibleIds = new Set(eligible.map((r) => r.id))
 
 // Gate-authoritative reconcile: pull ANY currently-published row that isn't eligible — whether it
@@ -69,7 +96,8 @@ const toPublish = eligible.filter((r) => r.status !== 'published')
 const toDraft = publishedRows.filter((r) => !eligibleIds.has(r.id))
 
 console.log(`Publish gate (reconcile) — ${DRY_RUN ? 'DRY RUN' : 'LIVE'} — metro=${METRO}`)
-console.log(`  eligible (gate-passing): ${eligible.length} · currently published: ${publishedRows.length}\n`)
+console.log(`  eligible (gate-passing): ${eligible.length} · currently published: ${publishedRows.length}`)
+console.log(`  held back by guards — research_status: ${gated.filter(researchBlocked).length} · low-precision coordinate: ${gated.filter(lowPrecision).length}\n`)
 console.log(`PUBLISH (${toPublish.length}):`); toPublish.forEach((r) => console.log(`  + ${r.name}`))
 console.log(`UN-PUBLISH not-eligible (${toDraft.length}):`); toDraft.forEach((r) => console.log(`  - ${r.name}`))
 
