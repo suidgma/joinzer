@@ -265,6 +265,11 @@ export type FacetView = {
  * A facet with fewer than two options that have a non-zero count is dropped: a control that can only
  * ever return one bucket is noise. This is data-driven, so a metro with thin coverage (Reno's
  * fee_type is 48% filled vs Phoenix's 100%) adapts on its own, with no per-metro code.
+ *
+ * EXCEPT when the facet holds a selection. Dropping a control the user is actively using hides
+ * applied state — the panel ships collapsed at 375px, so the user may never have seen it applied in
+ * the first place. A retained group renders its selected option at its real count (often zero),
+ * which is honest and lets the filter be changed in place rather than only cleared from the bar.
  */
 export function buildFacetViews(
   facilities: FacilityListItem[],
@@ -281,7 +286,7 @@ export function buildFacetViews(
       selected: (selection[facet.key] ?? []).includes(option.value),
     }))
     const usable = options.filter((o) => o.count > 0 || o.selected)
-    if (usable.filter((o) => o.count > 0).length < 2) continue
+    if (usable.filter((o) => o.count > 0).length < 2 && !usable.some((o) => o.selected)) continue
     views.push({
       key: facet.key,
       label: facet.label,

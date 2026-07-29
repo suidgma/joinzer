@@ -176,6 +176,34 @@ describe('facet counts', () => {
     expect(views.map((v) => v.key)).toEqual([])
   })
 
+  test('but a facet holding a selection is kept, so applied state is never hidden', () => {
+    // Same rows as above, which on their own collapse every facet. With fee=free applied, the Cost
+    // control must survive: the panel ships collapsed at 375px, so a dropped group means the user
+    // can neither see nor change a filter they may never have watched being applied.
+    const uniform = [facility({ slug: 'p' }), facility({ slug: 'q' })]
+    const views = buildFacetViews(uniform, { fee: ['free'] }, facetsFor(uniform))
+
+    const fee = views.find((v) => v.key === 'fee')
+    expect(fee, 'the selected facet is retained').toBeTruthy()
+    expect(fee!.options.find((o) => o.value === 'free')).toMatchObject({ selected: true, count: 2 })
+    // Facets with no selection still follow the ordinary drop rule.
+    expect(views.map((v) => v.key)).toEqual(['fee'])
+  })
+
+  test('a retained facet reports its selected option at its real count, even when zero', () => {
+    // The empty-result shape: two Anthem rows, neither free, with fee=free applied.
+    const noneFree = [
+      facility({ slug: 'p', fee_type: 'fee', city: 'Anthem' }),
+      facility({ slug: 'q', fee_type: 'fee', city: 'Anthem' }),
+    ]
+    const views = buildFacetViews(noneFree, { fee: ['free'] }, facetsFor(noneFree))
+
+    const fee = views.find((v) => v.key === 'fee')!
+    expect(fee.options.find((o) => o.value === 'free')).toMatchObject({ selected: true, count: 0 })
+    // A zero count is the honest number here, and the sibling option shows the way out.
+    expect(fee.options.find((o) => o.value === 'fee')).toMatchObject({ selected: false, count: 2 })
+  })
+
   test('thin-coverage metro keeps facets that still discriminate', () => {
     // Reno shape: fee_type 48% filled, but the filled rows span three values.
     const reno = [
@@ -204,16 +232,17 @@ describe('active filters come from the selection, never from the views', () => {
   ]
   const uniformFacets = facetsFor(uniformFee)
 
-  test('a selected value still yields a chip when its facet is dropped from the views', () => {
-    const selection = { fee: ['free'] }
-
-    const views = buildFacetViews(uniformFee, selection, uniformFacets)
+  test('a selected value yields a chip even on rows that collapse its facet', () => {
+    // Precondition stated with an EMPTY selection on purpose: buildFacetViews now retains a facet
+    // that holds a selection, so asking it with the selection applied would mask the very shape
+    // this fixture exists to reproduce. With no selection these rows drop Cost outright.
     expect(
-      views.map((v) => v.key),
+      buildFacetViews(uniformFee, {}, uniformFacets).map((v) => v.key),
       'precondition: these rows collapse the Cost facet, which is what caused the bug'
     ).not.toContain('fee')
 
-    expect(activeFilterChips(selection, uniformFacets)).toEqual([
+    // The chip is derived from the selection, so it exists regardless of what the views decided.
+    expect(activeFilterChips({ fee: ['free'] }, uniformFacets)).toEqual([
       { key: 'fee', value: 'free', label: 'Free' },
     ])
   })
