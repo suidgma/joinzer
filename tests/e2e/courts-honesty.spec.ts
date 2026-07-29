@@ -3,6 +3,7 @@ import {
   VIEWPORTS, FACET_LABELS, METROS, metroPath,
   facetPanel, openFilters, facetGroup, readChips, readCoverage, presentFacetLabels,
   readResults, facilityRows, rowSummaries, chipParam, activeFilterBar, readRobots,
+  type FormFactor,
 } from './helpers/directory'
 
 /**
@@ -140,6 +141,57 @@ for (const { form, viewport } of VIEWPORTS) {
       }
     })
 
+    test('every applied filter stays visible and removable, even when its facet is dropped', async ({ page }) => {
+      // THE REGRESSION THIS GUARDS.
+      //
+      // buildFacetViews drops a facet once fewer than two of its options have a non-zero count.
+      // ActiveFilters used to map over those views, so a filter narrow enough to collapse its own
+      // facet lost its chip: the user saw an empty page holding a filter they could neither see nor
+      // clear individually, and only "Clear all" recovered. Measured on production 2026-07-28,
+      // /courts/in/phoenix?fee=free&city=anthem rendered ONE chip (Anthem) for TWO applied filters.
+      //
+      // The bar is now built from the SELECTION, so it cannot depend on which facets survived.
+      // Asserted against the bar only, never the panel — this must hold no matter what the panel's
+      // own drop rule decides to render.
+      const base = metroPath(METROS.phoenix.slug)
+      const cities = await citiesWithNoFreeCourts(page, base, form)
+
+      // Several candidates rather than one: whether a given city collapses the Cost facet is a
+      // property of that city's rows. Sweeping a handful keeps this a real control as data grows.
+      for (const city of cities.slice(0, 5)) {
+        await page.goto(`${base}?fee=free&city=${city.slug}`, { waitUntil: 'commit' })
+        await page.waitForLoadState('networkidle')
+
+        expect((await readResults(page)).matched, `${city.label} has no free courts on record`).toBe(0)
+
+        const bar = activeFilterBar(page)
+        await expect(bar.label).toBeVisible()
+
+        const chipTexts = await bar.chips.allInnerTexts()
+        expect(
+          chipTexts,
+          `${city.label}: two filters are applied, so two removable chips must render — ` +
+            `got ${chipTexts.length}: ${chipTexts.join(' | ')}`
+        ).toHaveLength(2)
+        expect(chipTexts.join(' | '), 'the fee filter must be visible').toContain('Free')
+        expect(chipTexts.join(' | '), 'the city filter must be visible').toContain(city.label)
+
+        // Each chip must remove exactly its own filter and leave the other intact — a chip that
+        // clears everything is no more useful than the "Clear all" link beside it.
+        const hrefs = await bar.chips.evaluateAll((links) =>
+          links.map((link) => link.getAttribute('href') ?? '')
+        )
+        expect(
+          hrefs.some((href) => hasOnlyParam(href, 'city', city.slug)),
+          `no chip removes just the fee filter (hrefs: ${hrefs.join(' | ')})`
+        ).toBe(true)
+        expect(
+          hrefs.some((href) => hasOnlyParam(href, 'fee', 'free')),
+          `no chip removes just the city filter (hrefs: ${hrefs.join(' | ')})`
+        ).toBe(true)
+      }
+    })
+
     test('an unrecognized facet value is dropped, not honored', async ({ page }) => {
       // 'unknown' is a real stored value, so this is the shape of the mistake that would expose it:
       // parseSelection() validates against the facet definitions and drops anything unrecognized.
@@ -167,7 +219,7 @@ test.describe('Honesty rule — empty state (375px, the design target)', () => {
 
   test('empty-state copy is about the filters, never a claim about the world', async ({ page }) => {
     const base = metroPath(METROS.phoenix.slug)
-    const { citySlug, cityLabel } = await findCityWithNoFreeCourts(page, base)
+    const [{ slug: citySlug, label: cityLabel }] = await citiesWithNoFreeCourts(page, base, 'mobile')
 
     await page.goto(`${base}?fee=free&city=${citySlug}`, { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
@@ -201,24 +253,42 @@ test.describe('Honesty rule — empty state (375px, the design target)', () => {
 })
 
 /**
- * A city with zero free courts, derived rather than hardcoded: the set of cities offered on the
+ * Cities with zero free courts, derived rather than hardcoded: the set of cities offered on the
  * unfiltered page minus the set still offered under ?fee=free. Counts never lie on this surface —
  * a zero-count chip is dropped — so an empty result is not reachable by clicking, only by URL.
+ *
+ * Form-factor aware because chips live inside the panel, which renders in two branches and hides
+ * one with `display`. innerText on a hidden branch returns '', so reading the wrong one yields
+ * silently empty results rather than an error. See helpers/directory.ts.
  */
-async function findCityWithNoFreeCourts(page: Page, base: string) {
+async function citiesWithNoFreeCourts(
+  page: Page,
+  base: string,
+  form: FormFactor
+): Promise<{ slug: string; label: string }[]> {
   const cityChips = async (url: string) => {
     await page.goto(url, { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
-    await openFilters(page, 'mobile')
-    return readChips(facetGroup(facetPanel(page, 'mobile'), FACET_LABELS.city))
+    await openFilters(page, form)
+    return readChips(facetGroup(facetPanel(page, form), FACET_LABELS.city))
   }
 
   const all = await cityChips(base)
   const withFree = new Set((await cityChips(`${base}?fee=free`)).map((chip) => chip.label))
-  const target = all.find((chip) => !withFree.has(chip.label))
 
-  expect(target, 'expected at least one city with no free courts on record').toBeTruthy()
-  const citySlug = chipParam(target!.href, 'city')
-  expect(citySlug, `city chip "${target!.label}" has no city param: ${target!.href}`).toBeTruthy()
-  return { citySlug: citySlug!, cityLabel: target!.label }
+  const candidates = all
+    .filter((chip) => !withFree.has(chip.label))
+    .map((chip) => ({ slug: chipParam(chip.href, 'city'), label: chip.label }))
+
+  expect(candidates.length, 'expected at least one city with no free courts on record').toBeGreaterThan(0)
+  for (const candidate of candidates) {
+    expect(candidate.slug, `city chip "${candidate.label}" has no city param`).toBeTruthy()
+  }
+  return candidates as { slug: string; label: string }[]
+}
+
+/** True when the href carries exactly one query param, and it is this key/value. */
+function hasOnlyParam(href: string, key: string, value: string): boolean {
+  const params = new URL(href, 'http://localhost').searchParams
+  return [...params.entries()].length === 1 && params.get(key) === value
 }

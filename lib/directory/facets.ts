@@ -193,6 +193,34 @@ export function hrefFor(basePath: string, selection: Selection, facets: FacetDef
   return qs ? `${basePath}?${qs}` : basePath
 }
 
+export type ActiveFilterChip = { key: FacetKey; value: string; label: string }
+
+/**
+ * The applied filters, derived from the SELECTION — never from the rendered facet views.
+ *
+ * buildFacetViews below drops a facet once fewer than two of its options have a non-zero count, so
+ * a filter narrow enough to collapse its own facet used to vanish from the active-filter bar along
+ * with it. The user was left on an empty page holding a filter they could neither see nor clear
+ * individually; only "Clear all" recovered. An applied filter is a fact about the URL, not about
+ * what the panel had room to render, so it is read from the selection and cannot go missing.
+ *
+ * Ordering mirrors toQueryString(): facets in definition order, and options in definition order
+ * within each facet. Same filter set ⇒ same chip order ⇒ same URL, regardless of click order.
+ *
+ * A value with no matching option yields no chip. parseSelection() validates against these same
+ * definitions, so that cannot arrive from a URL — but a chip with no honest label would be worse
+ * than no chip, and this keeps 'unknown' unrepresentable here as it is everywhere else in the file.
+ */
+export function activeFilterChips(selection: Selection, facets: FacetDef[]): ActiveFilterChip[] {
+  return facets.flatMap((facet) => {
+    const picked = selection[facet.key] ?? []
+    if (picked.length === 0) return []
+    return facet.options
+      .filter((option) => picked.includes(option.value))
+      .map((option) => ({ key: facet.key, value: option.value, label: option.label }))
+  })
+}
+
 // ---------- filtering + counting ----------
 
 function matchesFacet(facility: FacilityListItem, facet: FacetDef, picked: string[]): boolean {

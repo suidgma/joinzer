@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import {
-  hrefFor, toggle, countFilters,
+  hrefFor, toggle, countFilters, activeFilterChips,
   type FacetDef, type FacetView, type Selection, type SortKey,
 } from '@/lib/directory/facets'
 
@@ -97,15 +97,23 @@ export default function FacetPanel({
 /**
  * Active filters, rendered above the results so selection is never hidden behind a collapsed panel
  * on mobile. Each chip removes itself; "Clear all" returns to the canonical unfiltered URL.
+ *
+ * Built from the SELECTION, not from the facet views. A facet can be dropped from the panel above
+ * (fewer than two non-zero options) while its filter is still applied — reading the views here left
+ * that filter invisible AND unremovable. See activeFilterChips() in lib/directory/facets.ts.
+ *
+ * Chips carry no count, deliberately. A chip's claim is "this filter is applied — tap to remove",
+ * which makes no numeric assertion and so cannot make a false one. The panel already shows the
+ * honest count wherever its facet survives; duplicating it here would only create two numbers that
+ * could disagree. Note also that whenever the result set is empty and each facet holds one value,
+ * every chip's count is necessarily zero — so a count would disambiguate nothing anyway.
  */
 export function ActiveFilters({
-  basePath, views, selection, facets, sort,
+  basePath, selection, facets, sort,
 }: {
-  basePath: string; views: FacetView[]; selection: Selection; facets: FacetDef[]; sort: SortKey
+  basePath: string; selection: Selection; facets: FacetDef[]; sort: SortKey
 }) {
-  const active = views.flatMap((view) =>
-    view.options.filter((o) => o.selected).map((o) => ({ key: view.key, ...o }))
-  )
+  const active = activeFilterChips(selection, facets)
   if (active.length === 0) return null
 
   return (

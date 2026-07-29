@@ -102,7 +102,7 @@ export default async function MetroCourtsPage({ params, searchParams }: Props) {
         </p>
 
         <FacetPanel basePath={basePath} views={views} selection={selection} facets={facets} sort={sort} />
-        <ActiveFilters basePath={basePath} views={views} selection={selection} facets={facets} sort={sort} />
+        <ActiveFilters basePath={basePath} selection={selection} facets={facets} sort={sort} />
 
         {/* Results header states only what is true of the matched rows. It never characterizes the
             rows that did NOT match — those are excluded for lack of a confirmed value as often as
