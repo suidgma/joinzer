@@ -3,7 +3,7 @@ import type { FacilityListItem } from '../loadFacilities'
 import {
   STATIC_FACETS, facetsFor, buildCityFacet, parseSelection, parseSort, toQueryString, toggle,
   hrefFor, applySelection, buildFacetViews, sortFacilities, groupByCity, hasFilters, countFilters,
-  citySlug, type FacetDef,
+  citySlug, activeFilterChips, type FacetDef,
 } from '../facets'
 import { metroSlug, findMetro, metroLabel, type MetroSummary } from '../metros'
 
@@ -176,6 +176,34 @@ describe('facet counts', () => {
     expect(views.map((v) => v.key)).toEqual([])
   })
 
+  test('but a facet holding a selection is kept, so applied state is never hidden', () => {
+    // Same rows as above, which on their own collapse every facet. With fee=free applied, the Cost
+    // control must survive: the panel ships collapsed at 375px, so a dropped group means the user
+    // can neither see nor change a filter they may never have watched being applied.
+    const uniform = [facility({ slug: 'p' }), facility({ slug: 'q' })]
+    const views = buildFacetViews(uniform, { fee: ['free'] }, facetsFor(uniform))
+
+    const fee = views.find((v) => v.key === 'fee')
+    expect(fee, 'the selected facet is retained').toBeTruthy()
+    expect(fee!.options.find((o) => o.value === 'free')).toMatchObject({ selected: true, count: 2 })
+    // Facets with no selection still follow the ordinary drop rule.
+    expect(views.map((v) => v.key)).toEqual(['fee'])
+  })
+
+  test('a retained facet reports its selected option at its real count, even when zero', () => {
+    // The empty-result shape: two Anthem rows, neither free, with fee=free applied.
+    const noneFree = [
+      facility({ slug: 'p', fee_type: 'fee', city: 'Anthem' }),
+      facility({ slug: 'q', fee_type: 'fee', city: 'Anthem' }),
+    ]
+    const views = buildFacetViews(noneFree, { fee: ['free'] }, facetsFor(noneFree))
+
+    const fee = views.find((v) => v.key === 'fee')!
+    expect(fee.options.find((o) => o.value === 'free')).toMatchObject({ selected: true, count: 0 })
+    // A zero count is the honest number here, and the sibling option shows the way out.
+    expect(fee.options.find((o) => o.value === 'fee')).toMatchObject({ selected: false, count: 2 })
+  })
+
   test('thin-coverage metro keeps facets that still discriminate', () => {
     // Reno shape: fee_type 48% filled, but the filled rows span three values.
     const reno = [
@@ -189,6 +217,63 @@ describe('facet counts', () => {
     expect(fee.options.map((o) => o.value)).toEqual(['free', 'fee'])
     expect(fee.knownCount).toBe(2)
     expect(fee.totalCount).toBe(4)
+  })
+})
+
+describe('active filters come from the selection, never from the views', () => {
+  // THE BUG THESE PIN. buildFacetViews drops a facet with fewer than two non-zero options, and the
+  // active-filter bar used to map over those views — so a filter narrow enough to collapse its own
+  // facet became invisible AND individually unremovable. Only "Clear all" recovered.
+  // Live example, production 2026-07-28: /courts/in/phoenix?fee=free&city=anthem showed one chip
+  // (Anthem) for two applied filters, on a page with zero results.
+  const uniformFee = [
+    facility({ slug: 'p', fee_type: 'fee', city: 'Anthem' }),
+    facility({ slug: 'q', fee_type: 'fee', city: 'Anthem' }),
+  ]
+  const uniformFacets = facetsFor(uniformFee)
+
+  test('a selected value yields a chip even on rows that collapse its facet', () => {
+    // Precondition stated with an EMPTY selection on purpose: buildFacetViews now retains a facet
+    // that holds a selection, so asking it with the selection applied would mask the very shape
+    // this fixture exists to reproduce. With no selection these rows drop Cost outright.
+    expect(
+      buildFacetViews(uniformFee, {}, uniformFacets).map((v) => v.key),
+      'precondition: these rows collapse the Cost facet, which is what caused the bug'
+    ).not.toContain('fee')
+
+    // The chip is derived from the selection, so it exists regardless of what the views decided.
+    expect(activeFilterChips({ fee: ['free'] }, uniformFacets)).toEqual([
+      { key: 'fee', value: 'free', label: 'Free' },
+    ])
+  })
+
+  test('every applied filter gets exactly one chip', () => {
+    const selection = { fee: ['free', 'fee'], access: ['public'], city: ['mesa'] }
+    expect(activeFilterChips(selection, FACETS)).toHaveLength(countFilters(selection))
+  })
+
+  test('chips follow definition order, not selection order', () => {
+    // Same set, entered backwards: city before fee, membership before free.
+    const clickOrder = { city: ['mesa'], fee: ['membership', 'free'] }
+    expect(activeFilterChips(clickOrder, FACETS).map((c) => `${c.key}:${c.value}`))
+      .toEqual(['fee:free', 'fee:membership', 'city:mesa'])
+  })
+
+  test('labels come from the facet definitions, so a chip cannot invent one', () => {
+    expect(activeFilterChips({ play: ['drop-in'] }, FACETS)).toEqual([
+      { key: 'play', value: 'drop-in', label: 'Drop-in play' },
+    ])
+  })
+
+  test('no selection yields no chips', () => {
+    expect(activeFilterChips({}, FACETS)).toEqual([])
+  })
+
+  test("an unrecognized value yields no chip — 'unknown' stays unrepresentable here too", () => {
+    expect(activeFilterChips({ fee: ['unknown'] }, FACETS)).toEqual([])
+    expect(activeFilterChips({ fee: ['free', 'bogus'] }, FACETS)).toEqual([
+      { key: 'fee', value: 'free', label: 'Free' },
+    ])
   })
 })
 
