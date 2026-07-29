@@ -4,7 +4,7 @@
 > external Supabase Auth config that lives outside the repo. When that config
 > drifts, the flow breaks *silently* — the invitee lands on `/home` with no error.
 > This doc exists so that failure has a written cause and fix.
-> Last revised: June 1, 2026.
+> Last revised: July 29, 2026 — host moved from the apex to `www`.
 
 ---
 
@@ -15,8 +15,11 @@ authenticates, Supabase redirects to a `redirectTo` URL that carries a `next`
 query param pointing at the accept page:
 
 ```
-https://joinzer.com/auth/callback?next=%2Fleagues%2F<id>%2Fpartner-accept%3Ftoken%3D<token>
+https://www.joinzer.com/auth/callback?next=%2Fleagues%2F<id>%2Fpartner-accept%3Ftoken%3D<token>
 ```
+
+The host comes from `getSiteUrl()` (`lib/utils/site-url.ts`), which is **`www`**, not
+the apex. The apex 307-redirects to `www` at the Vercel edge, so `www` is canonical.
 
 Supabase only honors a `redirectTo` if it matches the project's **Redirect URLs
 allowlist**. If the allowlist does not cover this URL *including its query
@@ -28,15 +31,22 @@ page.
 
 | Setting | Value |
 |---|---|
-| **Site URL** | `https://joinzer.com` |
-| **Redirect URLs** | `https://joinzer.com/**` (wildcard — covers `/auth/callback` + any `next`) |
+| **Site URL** | `https://www.joinzer.com` |
+| **Redirect URLs** | `https://www.joinzer.com/**` (wildcard — covers `/auth/callback` + any `next`) |
+| **Redirect URLs** | `https://joinzer.com/**` — keep the apex entry too |
 
 For local/preview testing also add the relevant origin, e.g.
 `http://localhost:3000/**` and the Vercel preview domain `https://*.vercel.app/**`.
 
 > The `/**` wildcard is what lets the query string (`?next=...`) survive. A bare
-> `https://joinzer.com/auth/callback` entry will **not** match the URL once the
+> `https://www.joinzer.com/auth/callback` entry will **not** match the URL once the
 > `next` param is appended, and the flow breaks.
+
+> **Changing the host in `getSiteUrl()` requires the matching allowlist entry to
+> exist FIRST.** This is the same sequencing rule as migration-before-code: deploy
+> the code before the allowlist is updated and every magic link silently loses its
+> `next` param. Keep the apex entry when adding `www` — it costs nothing, and it
+> means old links already in inboxes keep working.
 
 ---
 

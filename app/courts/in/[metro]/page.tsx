@@ -12,6 +12,7 @@ import {
   facetsFor, parseSelection, parseSort, applySelection, buildFacetViews, sortFacilities,
   groupByCity, hasFilters, hrefFor, citySlug,
 } from '@/lib/directory/facets'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 // Route is /courts/in/[metro], not /courts/[metro] — see lib/directory/metros.ts for why the
 // namespace is kept separate from facility slugs. Middleware already allowlists all of /courts.
@@ -22,7 +23,9 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-const BASE = 'https://www.joinzer.com'
+// JSON-LD carries absolute URLs of its own — metadataBase resolves Metadata fields only, not raw
+// schema.org output — so the host comes from the one source instead of being hardcoded again here.
+const BASE = getSiteUrl()
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { metro: slug } = await params

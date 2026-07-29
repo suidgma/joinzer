@@ -7,10 +7,13 @@ import OsmAttribution from '@/components/features/directory/OsmAttribution'
 import { loadPublishedFacility } from '@/lib/directory/loadFacilities'
 import { mapsUrl } from '@/lib/directory/mapsUrl'
 import { metroSlug } from '@/lib/directory/metros'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 export const dynamic = 'force-dynamic'
 
-const BASE = 'https://www.joinzer.com'
+// JSON-LD carries absolute URLs of its own — metadataBase resolves Metadata fields only, not raw
+// schema.org output — so the host comes from the one source instead of being hardcoded again here.
+const BASE = getSiteUrl()
 
 const ACCESS_LABEL: Record<string, string> = {
   public: 'Public', private: 'Private', membership: 'Membership', school: 'School', hoa: 'HOA', unknown: 'Access varies',

@@ -1,10 +1,14 @@
 import type { MetadataRoute } from 'next'
 import { loadPublishedSlugs, loadPublishedMetros } from '@/lib/directory/loadFacilities'
+import { getSiteUrl } from '@/lib/utils/site-url'
 
 // Dynamic so it reflects newly-published courts without a rebuild (pages are force-dynamic too).
 export const dynamic = 'force-dynamic'
 
-const BASE = 'https://www.joinzer.com'
+// One source for the host, shared with metadataBase, robots.ts and the directory JSON-LD. This
+// file used to hold its own hardcoded copy — it happened to be right while metadataBase was
+// wrong, which is precisely how the two drifted apart without anyone noticing.
+const BASE = getSiteUrl()
 
 // The site had no sitemap before this. Covers the key public pages + every published court page
 // (the directory's SEO surface). Runs server-side; reads published slugs via the service role.
