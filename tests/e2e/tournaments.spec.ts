@@ -98,7 +98,33 @@ test.describe('Tournament flows', () => {
     await page.getByRole('button', { name: '+ Add Division' }).click()
     await expect(page.getByText('New Division')).toBeVisible()
 
-    await page.getByPlaceholder(/auto-generated if blank/i).fill('Mixed 3.5')
+    // Division Name has no id/htmlFor label association (same gap as the play-session
+    // date field in play.spec.ts), and since commit 75e18f0 (2026-06-12, "bracket
+    // inline scoring, division UX...") its placeholder is a *live* auto-generated
+    // preview (buildAutoName(fCategory, fTeamType, fSkill, ageSegment, fBracketType))
+    // rather than the static "auto-generated if blank" hint the old selector matched
+    // — so neither getByLabel nor getByPlaceholder(/auto-generated/) can find it
+    // anymore. Scope to the "New Division" form (unique — exactly one <form>
+    // containing that heading); within it every other field is a
+    // select/number/checkbox/radio, so its lone input[type="text"] is unambiguous
+    // without being positional.
+    const newDivisionForm = page.locator('form', { has: page.getByRole('heading', { name: 'New Division' }) })
+    const divisionNameInput = newDivisionForm.locator('input[type="text"]')
+
+    // Before typing, fNameDirty is false and the field mirrors the live fAutoName
+    // preview (e.g. "Mixed — Doubles — Round Robin") — assert that real state exists
+    // before triggering the fNameDirty transition below, not just that the input is
+    // present.
+    const liveAutoName = await divisionNameInput.inputValue()
+    expect(liveAutoName.length).toBeGreaterThan(0)
+    expect(liveAutoName).not.toBe('Mixed 3.5')
+
+    // Typing flips fNameDirty true, swapping the field's value source from the live
+    // fAutoName preview to the organizer's typed fName — a real state transition,
+    // not just a fill-and-move-on.
+    await divisionNameInput.fill('Mixed 3.5')
+    await expect(divisionNameInput).toHaveValue('Mixed 3.5')
+
     await page.getByRole('button', { name: /create division/i }).click()
 
     await expect(page.getByText('Mixed 3.5').first()).toBeVisible({ timeout: 8_000 })
@@ -112,7 +138,24 @@ test.describe('Tournament flows', () => {
 
     await page.getByRole('link', { name: /edit/i }).first().click()
     await page.waitForURL(/\/tournaments\/.*\/edit/)
-    await expect(page.getByText(/edit tournament/i)).toBeVisible()
+
+    // `getByText(/edit tournament/i)` resolves to 3 elements: the page's own
+    // breadcrumb (`DesktopShell` header, "← Back / Edit Tournament"), plus
+    // `WizardOutline`'s title rendered twice in the rail — once for its mobile
+    // progress-bar view (`lg:hidden`), once for its desktop sticky-outline view
+    // (`hidden lg:block`) — both present in the DOM at once regardless of viewport
+    // (same both-branches-render pattern as the court-directory FacetPanel). Scoping
+    // by an ancestor container doesn't help — `hasText` matches on any descendant
+    // text, so every wrapping div up to the page root (including ones that also
+    // wrap the aside) "has" both the breadcrumb text and the rail text, and a
+    // container-based filter excludes nothing (verified empirically — same 3-element
+    // violation even scoped to a "← Back"-containing div).
+    //
+    // Better signal anyway: instead of chasing ambient chrome text, assert the
+    // actual edit form loaded pre-populated with this tournament's data — `#name`
+    // is uniquely identified (id-based, properly `htmlFor`-associated via FormRow,
+    // unlike the DivisionsSection fields above) and only exists on this page.
+    await expect(page.locator('#name')).toHaveValue('Playwright Test Tournament')
   })
 
   test('organizer can open Staff & Roles page', async ({ page }) => {
@@ -143,8 +186,23 @@ test.describe('Tournament flows', () => {
     await page.goto(`/tournaments/${createdTournamentId}`, { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
 
+    // getByRole('button', { name: /delete/i }) now resolves to 2 elements: the
+    // tournament-level DeleteTournamentButton, plus the "Mixed 3.5" division's own
+    // Delete button (DivisionsSection renders inside id="tournament-divisions") —
+    // ambiguity that only appeared once the "organizer can add a division" test
+    // above genuinely creates a division instead of timing out. Scope out the
+    // divisions section to reach the tournament-level button specifically.
+    //
+    // NOTE — this is expected to still fail, but for the KNOWN, separate reason:
+    // DeleteTournamentButton calls useDialog().confirm() (DialogProvider — a custom
+    // React modal), not window.confirm(), so this dialog handler never fires and
+    // waitForURL below times out. That's a real product-surface gap (test can't
+    // drive a non-native confirm dialog without a matching selector for the modal's
+    // own confirm button), not a test-selector problem — reported verbatim, not
+    // fixed here.
     page.on('dialog', dialog => dialog.accept())
-    await page.getByRole('button', { name: /delete/i }).click()
+    const tournamentDeleteButton = page.locator('button:not(#tournament-divisions button)', { hasText: /^delete$/i })
+    await tournamentDeleteButton.click()
 
     await page.waitForURL(/\/tournaments$/, { timeout: 10_000 })
   })
