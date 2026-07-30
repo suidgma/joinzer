@@ -41,7 +41,7 @@ function isGenericName(name) {
 // city IS NOT NULL added Session 3d-0: a listing with no city isn't publishable (breaks the
 // city index page + reads as incomplete). Reverse-geocode fills it first.
 const { data: gated, error } = await db.from('facility_listings')
-  .select('id, name, status, enrichment_version, verified_by, name_source_url, provenance')
+  .select('id, name, status, enrichment_version, verified_by, name_source_url, provenance, google_place_id, address')
   .eq('metro_area', METRO)
   .not('lat', 'is', null).not('lng', 'is', null).not('city', 'is', null).not('slug', 'is', null)
 if (error) { console.error('select failed:', error.message); process.exit(1) }
@@ -100,6 +100,20 @@ console.log(`  eligible (gate-passing): ${eligible.length} · currently publishe
 console.log(`  held back by guards — research_status: ${gated.filter(researchBlocked).length} · low-precision coordinate: ${gated.filter(lowPrecision).length}\n`)
 console.log(`PUBLISH (${toPublish.length}):`); toPublish.forEach((r) => console.log(`  + ${r.name}`))
 console.log(`UN-PUBLISH not-eligible (${toDraft.length}):`); toDraft.forEach((r) => console.log(`  - ${r.name}`))
+
+// Advisory only — NEVER a gate condition (owner ruling 2026-07-30). google_place_id is what lets
+// lib/directory/mapsUrl.ts link straight to the venue's Google Maps card; without it the link
+// degrades to a text query, or for a row with no address to an anonymous dropped pin. That is a
+// quality signal, not a publishability test: making it blocking here would un-publish 31 live rows
+// across two entire metros on the next reconcile pass, because this script drafts anything that
+// stops being eligible. Surface the number, let the operator decide, run scripts/backfill-place-ids.mjs.
+const noPid = eligible.filter((r) => !r.google_place_id)
+if (noPid.length) {
+  const noAddr = noPid.filter((r) => !r.address)
+  console.log(`\n⚠ ADVISORY (non-blocking) — ${noPid.length} of ${eligible.length} eligible row(s) have no google_place_id.`)
+  console.log(`  Their Maps link falls back to a text query${noAddr.length ? `, and for ${noAddr.length} with no address to a bare coordinate pin` : ''}.`)
+  console.log(`  Fix: node scripts/backfill-place-ids.mjs --metro=${METRO} --dry-run`)
+}
 
 if (!DRY_RUN) {
   if (toPublish.length) {
