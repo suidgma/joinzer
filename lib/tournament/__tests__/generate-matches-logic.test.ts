@@ -1,7 +1,9 @@
 /**
  * Route-logic test for generate-matches doubles handling.
- * Uses exact fixture data from staging branch rwvfsziihpqnizdyovkf,
+ * Uses exact fixture data captured from the staging branch rwvfsziihpqnizdyovkf,
  * division 'Mens Doubles MG' (f581defd-eb8e-406c-8692-7cf7bb884264).
+ * That branch was deleted 2026-07-29 — the ref is dead and the fixtures below
+ * are the only surviving copy. Do not treat them as re-derivable.
  *
  * Executes the real TypeScript functions — not a SQL model.
  * Mirrors the route at app/api/tournaments/[id]/divisions/[divisionId]/generate-matches/route.ts

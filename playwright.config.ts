@@ -22,7 +22,7 @@ export default defineConfig({
   // Run `npm run build` before `npm test` (or use `npm run test:e2e`).
   // reuseExistingServer: true allows local iteration if `next start --port 3001` is already running.
   webServer: {
-    command: 'npx next start --port 3001',
+    command: `npx cross-env NEXT_PUBLIC_SUPABASE_URL=${process.env.NEXT_PUBLIC_SUPABASE_URL} NEXT_PUBLIC_SUPABASE_ANON_KEY=${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY} npx next start --port 3001`,
     url: 'http://localhost:3001',
     reuseExistingServer: true,
     timeout: 120_000,

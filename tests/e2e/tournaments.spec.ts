@@ -1,9 +1,23 @@
 import { test, expect } from '@playwright/test'
 import { login } from './helpers/auth'
+import { deleteTestRow, markDummy } from './helpers/cleanup'
 
 let createdTournamentId: string | null = null
 
 test.describe('Tournament flows', () => {
+  // Backstop cleanup — runs regardless of whether the in-suite "delete created
+  // tournament" test below actually removed the row. Deletes only the exact row
+  // this run created (re-verified by id + owner + exact title), never a pattern.
+  test.afterAll(async () => {
+    if (!createdTournamentId) return
+    await deleteTestRow({
+      table: 'tournaments',
+      id: createdTournamentId,
+      ownerColumn: 'organizer_id',
+      titleColumn: 'name',
+      expectedTitle: 'Playwright Test Tournament',
+    })
+  })
 
   test('tournament listing page loads and shows tournaments', async ({ page }) => {
     await login(page)
@@ -51,8 +65,16 @@ test.describe('Tournament flows', () => {
     await page.waitForURL(url => !url.pathname.includes('/create'), { timeout: 30_000, waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
     const finalUrl = page.url()
-    const match = finalUrl.match(/\/tournaments\/([^/]+)$/)
-    if (match) createdTournamentId = match[1]
+    // Explicit UUID match, not [^/]+ up to end-of-string — the redirect can carry a
+    // query string (e.g. ?created=1), which [^/]+$ swallowed whole, producing a
+    // non-uuid id that broke both markDummy() and the afterAll delete below.
+    const match = finalUrl.match(/\/tournaments\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
+    if (match) {
+      createdTournamentId = match[1]
+      // Mark as test data immediately — if this run crashes before teardown runs,
+      // the row is still identifiable and sweepable, not just a bare title string.
+      await markDummy(createdTournamentId)
+    }
 
     await expect(page.getByText('Playwright Test Tournament')).toBeVisible()
   })
