@@ -186,24 +186,39 @@ test.describe('Tournament flows', () => {
     await page.goto(`/tournaments/${createdTournamentId}`, { waitUntil: 'commit' })
     await page.waitForLoadState('networkidle')
 
-    // getByRole('button', { name: /delete/i }) now resolves to 2 elements: the
-    // tournament-level DeleteTournamentButton, plus the "Mixed 3.5" division's own
-    // Delete button (DivisionsSection renders inside id="tournament-divisions") —
-    // ambiguity that only appeared once the "organizer can add a division" test
-    // above genuinely creates a division instead of timing out. Scope out the
-    // divisions section to reach the tournament-level button specifically.
-    //
-    // NOTE — this is expected to still fail, but for the KNOWN, separate reason:
-    // DeleteTournamentButton calls useDialog().confirm() (DialogProvider — a custom
-    // React modal), not window.confirm(), so this dialog handler never fires and
-    // waitForURL below times out. That's a real product-surface gap (test can't
-    // drive a non-native confirm dialog without a matching selector for the modal's
-    // own confirm button), not a test-selector problem — reported verbatim, not
-    // fixed here.
-    page.on('dialog', dialog => dialog.accept())
+    // getByRole('button', { name: /delete/i }) resolves to 2 elements outside the
+    // modal: the tournament-level DeleteTournamentButton, plus the "Mixed 3.5"
+    // division's own Delete button (DivisionsSection renders inside
+    // id="tournament-divisions"). Scope out the divisions section to reach the
+    // tournament-level trigger specifically.
     const tournamentDeleteButton = page.locator('button:not(#tournament-divisions button)', { hasText: /^delete$/i })
     await tournamentDeleteButton.click()
 
+    // DeleteTournamentButton opens DialogProvider's custom confirm modal
+    // (components/ui/DialogProvider.tsx) via useDialog().confirm() — not
+    // window.confirm() — so a page.on('dialog', ...) handler never fires (no
+    // native dialog is ever raised); one was here previously and was dead,
+    // misleading code, since removed. The modal has role="dialog" +
+    // aria-modal="true" and renders its confirm button with the caller's
+    // confirmLabel ('Delete' here, danger-styled) — scope to the dialog and click
+    // that real control instead.
+    const confirmDialog = page.getByRole('dialog')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.getByRole('button', { name: 'Delete', exact: true }).click()
+
     await page.waitForURL(/\/tournaments$/, { timeout: 10_000 })
+
+    // Prove the tournament was actually deleted — not just that the modal closed
+    // and the URL changed. A direct navigation to its detail page must now 404
+    // (app/(app)/tournaments/[id]/page.tsx calls notFound() when the row is
+    // missing — the most authoritative signal available from the UI layer, since
+    // it comes straight from the server's own row lookup), and it must no longer
+    // appear in the tournaments listing.
+    const detailResponse = await page.goto(`/tournaments/${createdTournamentId}`, { waitUntil: 'commit' })
+    expect(detailResponse?.status()).toBe(404)
+
+    await page.goto('/tournaments', { waitUntil: 'commit' })
+    await page.waitForLoadState('networkidle')
+    await expect(page.getByText('Playwright Test Tournament')).not.toBeVisible()
   })
 })

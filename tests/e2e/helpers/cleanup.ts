@@ -97,7 +97,14 @@ export async function deleteTestRow(target: TestRowTarget): Promise<void> {
     console.warn(`[e2e cleanup] could not verify ${target.table}/${target.id} before delete: ${selectError.message}`)
     return
   }
-  if (!row) return // already gone (e.g. a UI delete step already removed it) — nothing to do
+  if (!row) {
+    // Already gone — e.g. the test's own UI delete step already removed it (the
+    // common case: this backstop is a safety net, not the primary cleanup path).
+    // Logged, not silent, so a real run's cleanup trail is legible; still a clean
+    // no-op, same as every other guarded-return path in this function.
+    console.log(`[e2e cleanup] ${target.table}/${target.id} already gone — no-op`)
+    return
+  }
 
   const owner = (row as Record<string, unknown>)[target.ownerColumn]
   const title = (row as Record<string, unknown>)[target.titleColumn]
