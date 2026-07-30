@@ -7,7 +7,15 @@ import FacilityRows from '@/components/features/directory/FacilityRows'
 import { loadPublishedMetros, loadPublishedFacilitiesWithoutMetro } from '@/lib/directory/loadFacilities'
 import { metroLabel } from '@/lib/directory/metros'
 
-export const dynamic = 'force-dynamic'
+// No searchParams, no dynamic segment, and nothing in this tree reads cookies()/headers() (LandingNav
+// is a client component). Genuinely static — ISR instead of force-dynamic cuts this from a
+// per-request Function Invocation to a cached page regenerated at most every 6 hours.
+//
+// Must be a literal, not an import of DIRECTORY_CACHE_SECONDS (lib/directory/loadFacilities.ts) —
+// Next statically parses route segment config exports at build time without executing the module, so
+// an imported identifier fails the build ("Invalid segment configuration export detected"). Keep this
+// number in sync with DIRECTORY_CACHE_SECONDS by hand.
+export const revalidate = 21600 // 6 hours
 
 export const metadata: Metadata = {
   title: 'Pickleball Court Directory | Joinzer',
