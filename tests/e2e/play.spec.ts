@@ -1,9 +1,23 @@
 import { test, expect } from '@playwright/test'
 import { login } from './helpers/auth'
+import { deleteTestRow } from './helpers/cleanup'
 
 let createdEventId: string | null = null
 
 test.describe('Play session (coordination) flows', () => {
+  // Backstop cleanup — deletes only the exact row this run created (re-verified by
+  // id + owner + exact title). `events` has no delete UI/route, so this direct,
+  // RLS-scoped delete is the only cleanup mechanism available for this table.
+  test.afterAll(async () => {
+    if (!createdEventId) return
+    await deleteTestRow({
+      table: 'events',
+      id: createdEventId,
+      ownerColumn: 'captain_user_id',
+      titleColumn: 'title',
+      expectedTitle: 'Playwright Test Session',
+    })
+  })
 
   test('play listing page loads', async ({ page }) => {
     await login(page)
@@ -31,13 +45,19 @@ test.describe('Play session (coordination) flows', () => {
     // Use today's date so session appears in today's listing
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' })
       .format(new Date())
-    // Use nativeInputValueSetter to reliably update React's controlled date input state
-    await page.locator('input[type="date"]').evaluate((el: HTMLInputElement, val: string) => {
+    // Use nativeInputValueSetter to reliably update React's controlled date input state.
+    // Scoped to [required] — CreateEventForm renders a second, optional date input
+    // ("No-refund date", added 2026-07-14) with no id/label association to key off,
+    // so `input[type="date"]` alone now resolves to 2 elements (strict-mode violation).
+    // `required` is the one attribute that uniquely — and meaningfully — identifies the
+    // mandatory session Date field vs. the optional one.
+    const sessionDateInput = page.locator('input[type="date"][required]')
+    await sessionDateInput.evaluate((el: HTMLInputElement, val: string) => {
       Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set?.call(el, val)
       el.dispatchEvent(new Event('input', { bubbles: true }))
       el.dispatchEvent(new Event('change', { bubbles: true }))
     }, todayStr)
-    await expect(page.locator('input[type="date"]')).toHaveValue(todayStr)
+    await expect(sessionDateInput).toHaveValue(todayStr)
 
     // TimeSelect: 3 selects (hour, minute, AM/PM) — use 11 PM so session is always future
     const selects = page.locator('select')
@@ -50,7 +70,11 @@ test.describe('Play session (coordination) flows', () => {
     // After creation, router.push('/play/<id>') — wait for event detail page
     await page.waitForURL(url => url.pathname.startsWith('/play/') && !url.pathname.includes('/create'), { timeout: 15_000 })
     const url = page.url()
-    const match = url.match(/\/events\/([^/]+)$/)
+    // Was matching /\/events\/.../ against a /play/<id> URL — never matched, so
+    // createdEventId was always null and the test below always silently skipped.
+    // Explicit UUID match, not [^/]+ up to end-of-string — same class of bug as
+    // tournaments.spec.ts: [^/]+$ would swallow a trailing query string whole.
+    const match = url.match(/\/play\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
     if (match) createdEventId = match[1]
   })
 
