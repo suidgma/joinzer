@@ -86,3 +86,7 @@ scripts/.osm-ingest-progress.json
 # same reason as phoenix-count: research working data, and it carries tier-4 aggregator source URLs
 # which are a private research input under ADR-14 and must never be republished.
 /reno-count/
+
+# Daytona/Volusia research artifacts (input to scripts/import-daytona-merged.mjs). Same rationale as
+# reno-count: research working data carrying tier-4 aggregator source URLs (ADR-14 private input).
+/daytona-count/
