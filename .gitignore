@@ -90,3 +90,8 @@ scripts/.osm-ingest-progress.json
 # Daytona/Volusia research artifacts (input to scripts/import-daytona-merged.mjs). Same rationale as
 # reno-count: research working data carrying tier-4 aggregator source URLs (ADR-14 private input).
 /daytona-count/
+
+# Greensboro-High Point research artifacts (input to scripts/import-greensboro-merged.mjs). Same
+# rationale: research working data, and the workbook's held-back candidate set is sourced partly to
+# playtimescheduler.com — a tier-4 aggregator, ADR-14 private research input, never republished.
+/greensboro-count/
