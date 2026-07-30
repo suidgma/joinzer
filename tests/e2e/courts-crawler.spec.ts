@@ -69,7 +69,14 @@ test.describe('Crawler reachability (anonymous requests)', () => {
     expect(xml).not.toContain('sort=courts')
   })
 
-  test('robots.txt allows the directory and advertises the sitemap', async ({ request }) => {
+  test('robots.txt keeps canonical courts pages crawlable and blocks only the facet/sort permutations', async ({ request }) => {
+    // Updated 2026-07-30: this used to assert NO Disallow rule could start with "/courts" at all,
+    // which was correct when written (PR #469 was recovering from an accidental blanket block) but
+    // became wrong once /courts/in/[metro]'s facet+sort combinations turned into a crawl trap that
+    // paused production on Hobby limits (1.8M invocations against zero users). The real intent was
+    // always two-sided — canonical courts pages stay crawlable, filtered permutations don't — and
+    // that is what this now checks directly, in both directions, instead of via a blanket ban on the
+    // string "/courts" that a legitimate scoped rule would also trip.
     const response = await request.get('/robots.txt', { maxRedirects: 0 })
     expect(response.status()).toBe(200)
     expect(response.headers()['content-type']).toContain('text/plain')
@@ -77,10 +84,23 @@ test.describe('Crawler reachability (anonymous requests)', () => {
     const body = await response.text()
     expect(body).toContain('Allow: /')
     expect(body).toContain(`Sitemap: ${SITEMAP_URL}`)
-    // /api/ is the only intended disallow; a Disallow on the directory would be the same outage
+    // /api/ is an intended disallow; a blanket Disallow on the directory would be the same outage
     // as a 307, just self-inflicted.
     expect(body).toContain('Disallow: /api/')
-    expect(body).not.toMatch(/Disallow:\s*\/courts/)
+
+    const disallowed = disallowedPaths(body)
+
+    // (1) No rule blanket-blocks a canonical courts surface. This is the property PR #469 restored
+    //     and the property that must never regress again: /courts, every /courts/in/<metro>, and
+    //     every /courts/[slug] facility page must stay reachable by a crawler.
+    for (const blanket of ['/courts', '/courts/', '/courts/in', '/courts/in/']) {
+      expect(disallowed, `must not blanket-disallow ${blanket}`).not.toContain(blanket)
+    }
+    // (2) The facet/sort permutation space under /courts/in/<metro> IS disallowed — scoped by a
+    //     literal "?" in the rule, so it cannot match a clean, unfiltered URL (which never carries one).
+    const filteredRule = disallowed.find((p) => p.includes('/courts/in/') && p.includes('?'))
+    expect(filteredRule, 'must disallow query-string permutations under /courts/in/<metro>').toBeTruthy()
+
     expect(body).not.toMatch(/Disallow:\s*\/\s*$/m)
   })
 
@@ -116,6 +136,11 @@ test.describe('Crawler reachability (anonymous requests)', () => {
     expect(response.status(), '/courts/in/las-vegas is draft-only and must 404').toBe(404)
   })
 })
+
+/** Every `Disallow:` value in a robots.txt body, exactly as written (no interpretation). */
+function disallowedPaths(body: string): string[] {
+  return [...body.matchAll(/^Disallow:\s*(\S+)\s*$/gm)].map((m) => m[1])
+}
 
 /** Facility URLs only — /courts/in/<metro> has a slash in the tail and is excluded by the pattern. */
 function facilitySlugs(xml: string): string[] {

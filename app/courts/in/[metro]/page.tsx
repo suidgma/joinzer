@@ -92,7 +92,13 @@ export default async function MetroCourtsPage({ params, searchParams }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 md:py-14">
         <nav className="text-xs text-brand-muted mb-5">
-          <Link href="/courts" className="hover:text-brand-dark">Courts</Link>
+          {/* prefetch={false}: /courts is now ISR (see app/courts/page.tsx), so Next eagerly
+              full-prefetches it on scroll-into-view. This link renders on every metro page, and the
+              same page also renders one FacilityRows Link per facility (up to ~176 here) that got the
+              same treatment for the same reason — together they turned into a background-request
+              storm large enough to blow past the 30s networkidle window in the e2e suite once ISR
+              made /courts and /courts/[slug] prefetch-eligible (2026-07-30). */}
+          <Link href="/courts" prefetch={false} className="hover:text-brand-dark">Courts</Link>
           <span> · {where}</span>
         </nav>
 
@@ -189,7 +195,7 @@ export default async function MetroCourtsPage({ params, searchParams }: Props) {
 
         <div className="border-t border-brand-border pt-5 mt-6 space-y-3">
           <OsmAttribution />
-          <Link href="/courts" className="inline-block text-sm font-semibold text-brand-active hover:text-brand-dark">← All metros</Link>
+          <Link href="/courts" prefetch={false} className="inline-block text-sm font-semibold text-brand-active hover:text-brand-dark">← All metros</Link>
         </div>
       </main>
       <LandingFooter />

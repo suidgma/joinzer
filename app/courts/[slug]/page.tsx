@@ -4,12 +4,35 @@ import Link from 'next/link'
 import LandingNav from '@/components/landing/LandingNav'
 import LandingFooter from '@/components/landing/LandingFooter'
 import OsmAttribution from '@/components/features/directory/OsmAttribution'
-import { loadPublishedFacility } from '@/lib/directory/loadFacilities'
+import { loadPublishedFacility, loadPublishedSlugs } from '@/lib/directory/loadFacilities'
 import { mapsUrl } from '@/lib/directory/mapsUrl'
 import { metroSlug } from '@/lib/directory/metros'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
-export const dynamic = 'force-dynamic'
+// This route only reads `params` (the slug) — no searchParams, no cookies()/headers() anywhere in
+// its tree — so it's a genuine ISR candidate and the single biggest lever on the 2026-07-29 Hobby
+// overage: 205 of ~208 sitemap URLs. Pre-render the known published slugs at build time; anything not
+// yet in that list (e.g. published between builds) still renders on first request and is cached from
+// then on — same "no deploy needed" guarantee the metro pages already give the org.
+//
+// revalidate must be a literal, not an import of DIRECTORY_CACHE_SECONDS (lib/directory/
+// loadFacilities.ts) — Next statically parses route segment config exports at build time without
+// executing the module, so an imported identifier fails the build ("Invalid segment configuration
+// export detected"). Keep this number in sync with DIRECTORY_CACHE_SECONDS by hand.
+export const revalidate = 21600 // 6 hours
+export const dynamicParams = true
+
+export async function generateStaticParams() {
+  try {
+    const rows = await loadPublishedSlugs()
+    return rows.map((r) => ({ slug: r.slug }))
+  } catch {
+    // A build-time DB hiccup must not fail the build — fall back to fully on-demand rendering via
+    // dynamicParams (every slug renders on first request instead of being pre-built). Same defensive
+    // shape as app/sitemap.ts's try/catch around the same query.
+    return []
+  }
+}
 
 // JSON-LD carries absolute URLs of its own — metadataBase resolves Metadata fields only, not raw
 // schema.org output — so the host comes from the one source instead of being hardcoded again here.
@@ -85,7 +108,14 @@ export default async function CourtPage({ params }: Params) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 md:py-14">
         <nav className="text-xs text-brand-muted mb-5">
-          <Link href="/courts" className="hover:text-brand-dark">Courts</Link>
+          {/* prefetch={false}: /courts is now ISR (see app/courts/page.tsx), so Next eagerly
+              full-prefetches it on scroll-into-view — this link renders on all 205 facility pages,
+              which turned into a background-request storm large enough to blow past the 30s
+              networkidle window in the e2e suite once ISR made /courts and /courts/[slug]
+              prefetch-eligible (2026-07-30). Not worth it anyway: a breadcrumb "back" link isn't the
+              likely next click, and the destination is already ISR-cached, so the marginal latency
+              prefetch would save is small. */}
+          <Link href="/courts" prefetch={false} className="hover:text-brand-dark">Courts</Link>
           {/* Links the metro when the row has one — closes the hub → metro → facility loop instead
               of leaving every facility page a dead end for crawlers and readers alike. */}
           {f.metro_area && (
@@ -162,7 +192,7 @@ export default async function CourtPage({ params }: Params) {
 
         <div className="border-t border-brand-border pt-5 mt-10 space-y-3">
           <OsmAttribution />
-          <Link href="/courts" className="inline-block text-sm font-semibold text-brand-active hover:text-brand-dark">← All courts</Link>
+          <Link href="/courts" prefetch={false} className="inline-block text-sm font-semibold text-brand-active hover:text-brand-dark">← All courts</Link>
         </div>
       </main>
       <LandingFooter />

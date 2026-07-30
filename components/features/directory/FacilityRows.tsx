@@ -27,7 +27,13 @@ export default function FacilityRows({ facilities, showCourtCount = false }: { f
     <ul className="divide-y divide-brand-border">
       {facilities.map((f) => (
         <li key={f.slug}>
-          <Link href={`/courts/${f.slug}`} className="flex items-start justify-between gap-3 py-3 group">
+          {/* prefetch={false}: /courts/[slug] is now ISR (app/courts/[slug]/page.tsx), so each of
+              these links full-prefetches its target on scroll-into-view — a metro page can render up
+              to ~176 of them (Phoenix), which turned into a background-request storm large enough to
+              blow past the 30s networkidle window in the e2e suite once ISR made these routes
+              prefetch-eligible (2026-07-30). The destination is already ISR-cached, so the latency
+              prefetch would save on click is small relative to the request volume it costs. */}
+          <Link href={`/courts/${f.slug}`} prefetch={false} className="flex items-start justify-between gap-3 py-3 group">
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-brand-dark group-hover:text-brand-active transition-colors">{f.name}</span>
               {showCourtCount && f.court_count != null && (

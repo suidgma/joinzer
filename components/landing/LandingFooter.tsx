@@ -29,8 +29,12 @@ export default function LandingFooter() {
               <li><Link href="/browse/leagues" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Browse Leagues</Link></li>
               <li><Link href="/browse/tournaments" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Browse Tournaments</Link></li>
               {/* The directory had no internal link from anywhere — 205 published pages reachable
-                  only by direct URL. This is their entry point in the site graph. */}
-              <li><Link href="/courts" className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Court Directory</Link></li>
+                  only by direct URL. This is their entry point in the site graph.
+                  prefetch={false}: this footer mounts on every courts page too, and /courts became
+                  ISR (app/courts/page.tsx) — without this, every courts page render adds one more
+                  eager full-prefetch of /courts on top of the breadcrumb/back-link ones, worsening
+                  the same background-request storm (2026-07-30). */}
+              <li><Link href="/courts" prefetch={false} className="text-sm text-brand-muted hover:text-brand-dark transition-colors">Court Directory</Link></li>
             </ul>
           </div>
 
