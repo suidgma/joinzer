@@ -2,12 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verifyUnsubscribeToken } from '@/lib/email/unsubscribe'
 
+// Redundant today — every handler here is dynamic anyway because it reads the query string
+// or a body. Kept deliberately: this route carries a bearer token in its URL, and an
+// explicit never-cache marker is worth more than the line it costs if Next's inference
+// changes.
 export const dynamic = 'force-dynamic'
 
 function confirmUrl(request: NextRequest, params: Record<string, string>): URL {
   const url = new URL('/unsubscribe/confirm', request.url)
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
   return url
+}
+
+/**
+ * Map a verification failure to a confirm-page state. `misconfigured` is separated from
+ * `invalid` on purpose: the recipient's link is fine and the fault is ours, so telling them
+ * their link is bad would be a lie that sends them hunting for a new email.
+ */
+function confirmState(reason: 'malformed' | 'invalid' | 'expired' | 'misconfigured'): string {
+  if (reason === 'expired') return 'expired'
+  if (reason === 'misconfigured') return 'error'
+  return 'invalid'
 }
 
 // GET NEVER MUTATES. Email clients prefetch links (Gmail link proxying, Outlook Safe
@@ -25,7 +40,7 @@ export async function GET(request: NextRequest) {
   const result = verifyUnsubscribeToken(token)
   if (!result.ok) {
     return NextResponse.redirect(
-      confirmUrl(request, { state: result.reason === 'expired' ? 'expired' : 'invalid' })
+      confirmUrl(request, { state: confirmState(result.reason) })
     )
   }
 
@@ -43,7 +58,7 @@ export async function POST(request: NextRequest) {
   // to the destination page.
   if (!result.ok) {
     return NextResponse.redirect(
-      confirmUrl(request, { state: result.reason === 'expired' ? 'expired' : 'invalid' }),
+      confirmUrl(request, { state: confirmState(result.reason) }),
       303
     )
   }

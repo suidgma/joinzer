@@ -21,10 +21,21 @@ const TTL_DAYS = 365
 // leaked link doesn't stay valid forever.
 const TTL_SECONDS = TTL_DAYS * 24 * 60 * 60
 
-function signingKey(): string {
-  const key = process.env.UNSUBSCRIBE_SECRET
-  if (!key) throw new Error('UNSUBSCRIBE_SECRET is not set')
-  return key
+function readSecret(): string | null {
+  return process.env.UNSUBSCRIBE_SECRET || null
+}
+
+// Deliberately shouty, matching scripts/lib/revalidate-directory.mjs's `!!!` convention for
+// the same class of failure. A missing secret is not a runtime hiccup — it silently kills
+// every unsubscribe link in every inbox, and under ADR-10 this code reaches production with
+// no further human gate. A one-line console.error was indistinguishable from routine noise.
+function logMissingSecret(context: string): void {
+  console.error(
+    `\n!!! UNSUBSCRIBE_SECRET is not set — ${context} cannot function.` +
+      `\n!!! Every unsubscribe link is dead in this environment until it is set.` +
+      `\n!!! Generate one with:  openssl rand -base64 32` +
+      `\n!!! Then set it in Vercel (Production + Preview, Sensitive) and in .env.local.\n`
+  )
 }
 
 function base64url(buf: Buffer): string {
@@ -36,20 +47,33 @@ function sign(payload: string, key: string): string {
 }
 
 export function signUnsubscribeToken(userId: string, nowMs: number = Date.now()): string {
+  const key = readSecret()
+  // Throws rather than returning something unsigned: a caller must never be able to mint a
+  // token-shaped string that isn't actually authenticated.
+  if (!key) throw new Error('UNSUBSCRIBE_SECRET is not set')
   const exp = Math.floor(nowMs / 1000) + TTL_SECONDS
   const payload = `${userId}.${exp}`
-  return `${payload}.${sign(payload, signingKey())}`
+  return `${payload}.${sign(payload, key)}`
 }
 
 export type UnsubscribeTokenResult =
   | { ok: true; userId: string }
-  | { ok: false; reason: 'malformed' | 'invalid' | 'expired' }
+  | { ok: false; reason: 'malformed' | 'invalid' | 'expired' | 'misconfigured' }
 
 export function verifyUnsubscribeToken(
   token: string | null | undefined,
   nowMs: number = Date.now()
 ): UnsubscribeTokenResult {
   if (!token) return { ok: false, reason: 'malformed' }
+
+  // Fails CLOSED — an absent secret can never verify anything — but reports the reason so
+  // the caller can render a page instead of throwing a 500 at the recipient. The asymmetry
+  // this replaces was: senders degraded gracefully while token holders got a stack trace.
+  const key = readSecret()
+  if (!key) {
+    logMissingSecret('verifyUnsubscribeToken')
+    return { ok: false, reason: 'misconfigured' }
+  }
 
   // A profile id is a UUID and the expiry is digits, so neither can contain a separator.
   const parts = token.split('.')
@@ -60,7 +84,7 @@ export function verifyUnsubscribeToken(
 
   // Signature before expiry, deliberately: an unsigned token must never be able to learn
   // whether the id or the expiry it guessed was otherwise well-formed.
-  const expected = sign(`${userId}.${expStr}`, signingKey())
+  const expected = sign(`${userId}.${expStr}`, key)
   const provided = Buffer.from(providedSignature)
   const expectedBuf = Buffer.from(expected)
   // timingSafeEqual throws on a length mismatch, so the length check has to come first.
@@ -76,10 +100,10 @@ export function buildUnsubscribeUrl(userId: string): string {
   try {
     const token = signUnsubscribeToken(userId)
     return `${getSiteUrl()}/api/unsubscribe?token=${encodeURIComponent(token)}`
-  } catch (err) {
+  } catch {
     // A missing secret must never block a send. Fall back to the in-app preference so the
     // recipient still has a working way to opt out.
-    console.error('[unsubscribe] token signing failed; falling back to profile link:', err)
+    logMissingSecret('buildUnsubscribeUrl')
     return `${getSiteUrl()}/profile/edit`
   }
 }

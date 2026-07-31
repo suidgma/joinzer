@@ -129,3 +129,57 @@ describe('buildUnsubscribeUrl', () => {
     }
   })
 })
+
+describe('missing UNSUBSCRIBE_SECRET', () => {
+  it('makes verification fail closed as misconfigured, not as a thrown 500', () => {
+    const token = signUnsubscribeToken(USER)
+    delete process.env.UNSUBSCRIBE_SECRET
+    try {
+      // Fails closed — an absent secret can never verify anything — but reports WHY, so the
+      // route renders a page instead of throwing a stack trace at the recipient.
+      expect(() => verifyUnsubscribeToken(token)).not.toThrow()
+      expect(verifyUnsubscribeToken(token)).toEqual({ ok: false, reason: 'misconfigured' })
+    } finally {
+      process.env.UNSUBSCRIBE_SECRET = SECRET
+    }
+  })
+
+  it('refuses to mint an unsigned token', () => {
+    delete process.env.UNSUBSCRIBE_SECRET
+    try {
+      // The signing path must throw rather than return something token-shaped but unsigned.
+      expect(() => signUnsubscribeToken(USER)).toThrow(/UNSUBSCRIBE_SECRET/)
+    } finally {
+      process.env.UNSUBSCRIBE_SECRET = SECRET
+    }
+  })
+
+  it('logs loudly enough to be distinguishable from routine noise', () => {
+    const token = signUnsubscribeToken(USER)
+    const logged: string[] = []
+    const original = console.error
+    console.error = (...args: unknown[]) => void logged.push(args.join(' '))
+    delete process.env.UNSUBSCRIBE_SECRET
+    try {
+      verifyUnsubscribeToken(token)
+    } finally {
+      console.error = original
+      process.env.UNSUBSCRIBE_SECRET = SECRET
+    }
+
+    expect(logged).toHaveLength(1)
+    expect(logged[0]).toContain('!!!')
+    expect(logged[0]).toContain('UNSUBSCRIBE_SECRET is not set')
+    // The operator needs the fix, not just the diagnosis.
+    expect(logged[0]).toContain('openssl rand -base64 32')
+  })
+
+  it('still recovers once the secret comes back', () => {
+    const token = signUnsubscribeToken(USER)
+    delete process.env.UNSUBSCRIBE_SECRET
+    expect(verifyUnsubscribeToken(token).ok).toBe(false)
+    process.env.UNSUBSCRIBE_SECRET = SECRET
+    // Tokens are stateless, so setting the var in Vercel repairs links already in inboxes.
+    expect(verifyUnsubscribeToken(token)).toEqual({ ok: true, userId: USER })
+  })
+})
