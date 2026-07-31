@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createNotifications, type NotificationInput } from '@/lib/notifications/create'
 import { broadcastSubRequestsChanged } from '@/lib/subs/broadcast'
+import { assertCronSecret } from '@/lib/cron/auth'
 
 // Substitute-request expiration — canonical status cleanup (CRON_SECRET-guarded, daily). Stale/started
 // OPEN requests → 'expired' via the idempotent, race-safe expire_sub_requests RPC (conditional
@@ -12,9 +13,8 @@ import { broadcastSubRequestsChanged } from '@/lib/subs/broadcast'
 // /subs + Home loaders and the accept RPC independently reject stale requests between runs, so this
 // worker is cleanup, not correctness enforcement. Notifies each just-expired request's requester once.
 export async function GET(req: NextRequest) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const unauthorized = assertCronSecret(req, 'expire-sub-requests')
+  if (unauthorized) return unauthorized
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const runStart = new Date().toISOString()
 

@@ -25,6 +25,13 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-07-31 — Cron health posture after the CRON_SECRET outage
+**Status:** Active
+**Affects:** all six `/api/cron/*` routes, `lib/cron/auth.ts`
+**Decision:** manual verification via the Vercel Cron Jobs tab, with a standing invariant — any `CRON_SECRET` change or newly added cron must be followed by confirming one run returns 200. No heartbeat table, no external watcher yet. Full rationale: **ADR-15** in `docs/strategy/decision-log.md`.
+**Reasoning:** `CRON_SECRET` was never set in Vercel, so every cron 401'd for ~3 months without surfacing anywhere — a clean JSON 401 reads exactly like a healthy no-op. No in-app code can fix that (a cron that never runs writes no log), so the honest fix is a written human check rather than more code.
+**Open questions:** when real users depend on reminders/forfeits, revisit with an external dead-man's-switch plus a heartbeat row.
+
 ## 2026-05-26 — SECURITY DEFINER hardening: p_user_id should be derived, not trusted
 **Status:** Active (hardening note — not a blocker)
 **Affects:** `self_register_doubles`, `accept_free_partner_invite` RPCs

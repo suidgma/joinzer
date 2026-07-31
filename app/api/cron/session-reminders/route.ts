@@ -6,16 +6,21 @@ import { Resend } from 'resend'
 import { createNotifications } from '@/lib/notifications/create'
 import { getSiteUrl } from '@/lib/utils/site-url'
 import { withBrandHeader } from '@/lib/email/send'
+import {
+  pacificDateString,
+  addCalendarDays,
+  pacificDayUtcBounds,
+  isPacificDate,
+} from '@/lib/utils/pacific-day'
+import { assertCronSecret } from '@/lib/cron/auth'
 
 // Vercel calls this daily at 8 AM Pacific.
 // Protected by CRON_SECRET — set this in Vercel env vars and add it
 // to vercel.json so Vercel sends it automatically.
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('authorization')
-  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const unauthorized = assertCronSecret(req, 'session-reminders')
+  if (unauthorized) return unauthorized
 
   const db = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,32 +29,38 @@ export async function GET(req: NextRequest) {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const siteUrl = getSiteUrl()
 
-  // "Tomorrow" in Pacific time
-  const now = new Date()
-  const pst = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
-  const tomorrow = new Date(pst)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10) // YYYY-MM-DD
+  // "Tomorrow" in Pacific time. Derived through Intl rather than by round-tripping
+  // toLocaleString back through new Date(), which silently depended on the server's own
+  // timezone being UTC.
+  const tomorrowStr = addCalendarDays(pacificDateString(), 1) // YYYY-MM-DD
 
   let totalSent = 0
   const errors: string[] = []
 
   // ── 1. Play sessions (events) happening tomorrow ──────────────────────────
 
-  const tomorrowStart = `${tomorrowStr}T00:00:00.000Z`
-  const tomorrowEnd   = `${tomorrowStr}T23:59:59.999Z`
+  // Over-fetch a window that safely brackets the Pacific day, then filter exactly. The
+  // previous form used the Pacific date string with UTC boundaries
+  // (`${tomorrowStr}T00:00:00.000Z`..`T23:59:59.999Z`), which is offset 7–8h from the
+  // intended day: it pulled in TODAY's 5pm–midnight sessions and dropped TOMORROW's — i.e.
+  // it broke exactly the evening slot most play happens in, in both directions.
+  const { start, end } = pacificDayUtcBounds(tomorrowStr)
 
-  const { data: tomorrowEvents } = await db
+  const { data: windowEvents } = await db
     .from('events')
     .select(`
       id, title, starts_at, duration_minutes, max_players,
       location:locations!location_id (name)
     `)
-    .gte('starts_at', tomorrowStart)
-    .lte('starts_at', tomorrowEnd)
+    .gte('starts_at', start)
+    .lte('starts_at', end)
     .in('status', ['open', 'full'])
 
-  for (const ev of tomorrowEvents ?? []) {
+  const tomorrowEvents = (windowEvents ?? []).filter((ev) =>
+    isPacificDate(ev.starts_at as string, tomorrowStr)
+  )
+
+  for (const ev of tomorrowEvents) {
     const { data: participants } = await db
       .from('event_participants')
       .select('user_id')
