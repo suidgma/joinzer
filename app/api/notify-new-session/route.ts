@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { withBrandHeader } from '@/lib/email/send'
+import { buildUnsubscribeUrl } from '@/lib/email/unsubscribe'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
@@ -66,7 +67,9 @@ export async function POST(request: NextRequest) {
   const emails = profiles
     .filter((p) => p.email)
     .map((p) => {
-      const unsubscribeUrl = `https://joinzer.com/api/unsubscribe?uid=${p.id}`
+      // Signed + canonical-host. The bare `?uid=` form this replaced let anyone holding a
+      // profile id opt that user out.
+      const unsubscribeUrl = buildUnsubscribeUrl(p.id as string)
       return {
         from: 'Joinzer <support@joinzer.com>',
         to: p.email as string,
