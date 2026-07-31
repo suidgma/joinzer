@@ -174,6 +174,36 @@ describe('missing UNSUBSCRIBE_SECRET', () => {
     expect(logged[0]).toContain('openssl rand -base64 32')
   })
 
+  it('logs once per outage, not once per probe', () => {
+    // verifyUnsubscribeToken sits on an anonymous route. Without a latch, 50 probes from an
+    // unauthenticated attacker produce ~250 log lines and bury everything else.
+    const token = signUnsubscribeToken(USER)
+    const logged: string[] = []
+    const original = console.error
+    console.error = (...args: unknown[]) => void logged.push(args.join(' '))
+    delete process.env.UNSUBSCRIBE_SECRET
+    try {
+      for (let i = 0; i < 50; i++) verifyUnsubscribeToken(token)
+      expect(logged).toHaveLength(1)
+
+      // Sender and verifier share the latch — one loud line covers the environment, not
+      // one per call site.
+      buildUnsubscribeUrl(USER)
+      expect(logged).toHaveLength(1)
+
+      // The secret coming back re-arms it, so a *later* outage is loud again rather than
+      // silently inheriting the first one's latch.
+      process.env.UNSUBSCRIBE_SECRET = SECRET
+      expect(verifyUnsubscribeToken(token).ok).toBe(true)
+      delete process.env.UNSUBSCRIBE_SECRET
+      verifyUnsubscribeToken(token)
+      expect(logged).toHaveLength(2)
+    } finally {
+      console.error = original
+      process.env.UNSUBSCRIBE_SECRET = SECRET
+    }
+  })
+
   it('still recovers once the secret comes back', () => {
     const token = signUnsubscribeToken(USER)
     delete process.env.UNSUBSCRIBE_SECRET

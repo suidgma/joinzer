@@ -21,15 +21,29 @@ const TTL_DAYS = 365
 // leaked link doesn't stay valid forever.
 const TTL_SECONDS = TTL_DAYS * 24 * 60 * 60
 
+// One-shot latch for the missing-secret log below. `verifyUnsubscribeToken` runs on an
+// anonymous, attacker-reachable route, and the log is five lines, so an unauthenticated
+// prober could otherwise mint ~250 lines per 50 requests and bury everything else.
+let missingSecretLogged = false
+
 function readSecret(): string | null {
-  return process.env.UNSUBSCRIBE_SECRET || null
+  const secret = process.env.UNSUBSCRIBE_SECRET || null
+  // Observing the secret present re-arms the latch, so "log once" means once per outage
+  // rather than once per process. A later outage is loud again.
+  if (secret) missingSecretLogged = false
+  return secret
 }
 
 // Deliberately shouty, matching scripts/lib/revalidate-directory.mjs's `!!!` convention for
 // the same class of failure. A missing secret is not a runtime hiccup — it silently kills
 // every unsubscribe link in every inbox, and under ADR-10 this code reaches production with
 // no further human gate. A one-line console.error was indistinguishable from routine noise.
+//
+// Logged once per outage: the message describes a constant, not an event, so repeating it
+// adds no information. Loud once beats loud 250 times, which reads as noise and gets muted.
 function logMissingSecret(context: string): void {
+  if (missingSecretLogged) return
+  missingSecretLogged = true
   console.error(
     `\n!!! UNSUBSCRIBE_SECRET is not set — ${context} cannot function.` +
       `\n!!! Every unsubscribe link is dead in this environment until it is set.` +
