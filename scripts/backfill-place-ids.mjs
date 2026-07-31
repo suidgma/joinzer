@@ -57,6 +57,19 @@ function distM(aLat, aLng, bLat, bLng) {
   return R * 2 * Math.asin(Math.sqrt(x))
 }
 
+/**
+ * Rows barred from backfill regardless of scope, because a Places match against their stored data
+ * would write a confidently WRONG place_id. Both are draft today, so the status filter below already
+ * excludes them — this list is the belt-and-braces guard for the day someone adds a --include-drafts
+ * flag. Remove an entry only once the underlying defect is fixed.
+ */
+const NEVER_BACKFILL = {
+  'pickleball-kingdom-little-rock-ar':
+    'Stored address (11210 Bass Pro Pkwy) and coordinate (34.6621223,-92.4105104) are both wrong — the real venue is ~7.6 km away near 2616 S Shackleford Rd. A match on that coordinate would pin a different business.',
+  'tyndall-park-benton-ar':
+    "The row's own controlling-entity source lists 4 tennis + 2 basketball courts and no pickleball; the pickleball claim is aggregator-only, which ADR-14 makes insufficient on its own.",
+}
+
 /** Published rows in scope that still have no place_id. */
 async function loadTargets() {
   let q = db.from('facility_listings')
@@ -66,7 +79,10 @@ async function loadTargets() {
   if (METROS) q = q.in('metro_area', METROS)
   const { data, error } = await q.order('metro_area').order('name')
   if (error) { console.error('select failed:', error.message); process.exit(1) }
-  return data
+
+  const barred = data.filter((r) => NEVER_BACKFILL[r.slug])
+  for (const r of barred) console.log(`  ⛔ EXCLUDED ${r.slug} — ${NEVER_BACKFILL[r.slug]}`)
+  return data.filter((r) => !NEVER_BACKFILL[r.slug])
 }
 
 // ---- dry run: search + propose -----------------------------------------------------------------
