@@ -103,21 +103,24 @@ describe('computeInitialUnread', () => {
     expect(toPromote).toEqual([])
   })
 
+  // Local is caught up to the newest message and the server is behind — the ordinary "read on
+  // this device before read state was durable" case. (A local value ahead of the newest message
+  // is the legacy-skew case, covered by the clamping block below.)
   it('lets a local key ahead of the server clear the badge, and promotes it', () => {
     const { unreadKeys, toPromote } = computeInitialUnread(
       [source({ lastReadAt: '2026-07-31T11:00:00+00:00' })],
-      { [key]: '2026-07-31T13:00:00+00:00' },
+      { [key]: '2026-07-31T12:00:00+00:00' },
     )
     expect(unreadKeys).toEqual([])
     expect(toPromote).toEqual([
-      { table: 'league_messages', entityId: 'league-1', lastReadAt: '2026-07-31T13:00:00+00:00' },
+      { table: 'league_messages', entityId: 'league-1', lastReadAt: '2026-07-31T12:00:00+00:00' },
     ])
   })
 
   it('promotes a local key when the server has no row at all', () => {
-    const { toPromote } = computeInitialUnread([source()], { [key]: '2026-07-31T13:00:00+00:00' })
+    const { toPromote } = computeInitialUnread([source()], { [key]: '2026-07-31T12:00:00+00:00' })
     expect(toPromote).toHaveLength(1)
-    expect(toPromote[0].lastReadAt).toBe('2026-07-31T13:00:00+00:00')
+    expect(toPromote[0].lastReadAt).toBe('2026-07-31T12:00:00+00:00')
   })
 
   // localStorage is an overlay, not a source of truth: a stale device must not be able to
@@ -141,6 +144,55 @@ describe('computeInitialUnread', () => {
     )
     expect(unreadKeys).toEqual([])
     expect(toPromote).toEqual([])
+  })
+
+  // Legacy skew: every browser already holds keys written by the pre-fix code, which persisted
+  // the sending device's own clock. The promotion path is the backfill, so without a clamp the
+  // first load after deploy would carry that skew straight into chat_reads.
+  describe('clamping a local key to the newest message', () => {
+    const SKEWED = '2026-07-31T13:00:00.000Z' // an hour-fast device
+    const LATEST = '2026-07-31T12:00:00+00:00'
+
+    it('promotes the latest message rather than a local value ahead of it', () => {
+      const { toPromote } = computeInitialUnread(
+        [source({ latest: LATEST })],
+        { [key]: SKEWED },
+      )
+      expect(toPromote).toEqual([
+        { table: 'league_messages', entityId: 'league-1', lastReadAt: LATEST },
+      ])
+    })
+
+    it('promotes a local value at or below the newest message unchanged', () => {
+      const local = '2026-07-31T11:30:00+00:00'
+      const { toPromote } = computeInitialUnread([source({ latest: LATEST })], { [key]: local })
+      expect(toPromote[0].lastReadAt).toBe(local)
+    })
+
+    // The clamped value must not itself resurrect the badge for a chat the user has read.
+    it('still treats the chat as read after clamping', () => {
+      const { unreadKeys } = computeInitialUnread([source({ latest: LATEST })], { [key]: SKEWED })
+      expect(unreadKeys).toEqual([])
+    })
+
+    // The whole point: what lands in chat_reads must not suppress a message sent later.
+    it('produces a promoted value that cannot suppress a later message', () => {
+      const { toPromote } = computeInitialUnread([source({ latest: LATEST })], { [key]: SKEWED })
+      const promoted = toPromote[0].lastReadAt
+      const { unreadKeys } = computeInitialUnread(
+        [source({ latest: '2026-07-31T12:30:00+00:00', lastReadAt: promoted })],
+        {},
+      )
+      expect(unreadKeys).toEqual(['league_messages:league-1'])
+    })
+
+    it('does not promote when the server is already at or past the clamped value', () => {
+      const { toPromote } = computeInitialUnread(
+        [source({ latest: LATEST, lastReadAt: LATEST })],
+        { [key]: SKEWED },
+      )
+      expect(toPromote).toEqual([])
+    })
   })
 
   it('handles both surfaces independently in one pass', () => {

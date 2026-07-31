@@ -1,4 +1,7 @@
-import { createClient } from '@/lib/supabase/client'
+// Relative, not `@/` — this module has unit tests, and vitest has no alias config, so a `@/`
+// specifier fails to resolve at runtime (it also can't be intercepted by vi.mock). Next
+// resolves both forms identically.
+import { createClient } from '../supabase/client'
 import { chatReadKey } from './unread'
 
 // Durable chat read state. The single write path to `chat_reads` (migration

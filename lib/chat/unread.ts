@@ -79,16 +79,27 @@ export function computeInitialUnread(
   const toPromote: UnreadSeed['toPromote'] = []
 
   for (const s of sources) {
-    const local = localReads[chatReadKey(s.table, s.entityId)]
     const serverMs = ms(s.lastReadAt)
-    const localMs = ms(local)
+    const latestMs = ms(s.latest)
+
+    // Clamp the local value to this chat's newest message before promoting it. Existing
+    // browsers hold keys written by the PRE-FIX code, which persisted the sending device's own
+    // clock — so without this the very first load after deploy would promote that skew into
+    // chat_reads, reintroducing exactly the defect the durable-value selection removes, on day
+    // one and through the front door. A last-read AHEAD of the newest message carries no
+    // information ("read past the end" is just "read"), so clamping discards nothing.
+    let local = localReads[chatReadKey(s.table, s.entityId)]
+    let localMs = ms(local)
+    if (localMs !== null && latestMs !== null && localMs > latestMs) {
+      local = s.latest
+      localMs = latestMs
+    }
 
     if (localMs !== null && (serverMs === null || localMs > serverMs)) {
       toPromote.push({ table: s.table, entityId: s.entityId, lastReadAt: local })
     }
 
     const readMs = Math.max(serverMs ?? -Infinity, localMs ?? -Infinity)
-    const latestMs = ms(s.latest)
     if (readMs === -Infinity || (latestMs !== null && latestMs > readMs)) {
       unreadKeys.push(`${s.table}:${s.entityId}`)
     }

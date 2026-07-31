@@ -189,9 +189,20 @@ export default function ChatPanel({
 
   // Keep pinned to the bottom when the view mode toggles (open/close). Opening the chat
   // counts as reading it (and stays read as new messages arrive while expanded).
+  //
+  // The marking half is gated on the tab being visible, the same way GroupChat's is. This
+  // effect depends on markRead, whose identity changes on every `messages` change, so an
+  // expanded panel sitting in a BACKGROUND tab would re-mark on every incoming message and
+  // clear the nav dot for messages nobody saw. The trigger predates this PR; making the write
+  // durable and cross-device is what turned it into a real consequence. Scrolling is not
+  // gated — that's layout, and it should still be right when the tab is brought forward.
   useEffect(() => {
     if (atBottomRef.current) scrollToBottom()
-    if (expanded) markRead()
+    if (!expanded) return
+    const markIfVisible = () => { if (document.visibilityState === 'visible') markRead() }
+    markIfVisible()
+    document.addEventListener('visibilitychange', markIfVisible)
+    return () => document.removeEventListener('visibilitychange', markIfVisible)
   }, [expanded, scrollToBottom, markRead])
 
   // While the full-screen view is open, lock body scroll and let Esc close it.
