@@ -5,9 +5,12 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 // GET /api/chat/unread-sources
 // The chat "sources" the signed-in user belongs to (leagues + tournaments they're
 // registered in or organize) that have had a message recently, each with the latest
-// message time. The client compares `latest` to its per-entity localStorage last-read to
-// decide what's unread, and subscribes to these for live updates (cross-app nav badges).
-// Bounded to the last 30 days so it stays small — older unread isn't worth surfacing.
+// message time AND the user's durable last-read from `chat_reads`. The client compares the
+// two to decide what's unread, and subscribes to these for live updates (cross-app nav
+// badges). Bounded to the last 30 days so it stays small — older unread isn't worth surfacing.
+//
+// `lastReadAt` is returned so a browser with no localStorage still gets the right answer:
+// read state used to live only in localStorage, so a cache clear made every chat unread.
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
@@ -29,21 +32,42 @@ export async function GET(_req: NextRequest) {
   const leagueIds = [...new Set([...(leagueRegs ?? []).map((r: any) => r.league_id), ...(myLeagues ?? []).map((l: any) => l.id)])]
   const tourIds = [...new Set([...(tourRegs ?? []).map((r: any) => r.tournament_id), ...(myTours ?? []).map((t: any) => t.id)])]
 
-  const sources: { table: string; entityId: string; surface: 'leagues' | 'tournaments'; latest: string }[] = []
+  const sources: {
+    table: string
+    entityId: string
+    surface: 'leagues' | 'tournaments'
+    latest: string
+    lastReadAt: string | null
+  }[] = []
+
+  // The caller's durable read state, keyed `${source_table}:${entity_id}`. RLS would scope
+  // this to the user anyway, but this client is service-role, so the filter is what enforces
+  // it — user.id comes from getUser() above, never from the request.
+  const { data: reads } = await db.from('chat_reads')
+    .select('source_table, entity_id, last_read_at').eq('user_id', user.id)
+  const lastReadBy = new Map<string, string>(
+    (reads ?? []).map((r: any) => [`${r.source_table}:${r.entity_id}`, r.last_read_at]),
+  )
 
   if (leagueIds.length) {
     const { data } = await db.from('league_messages').select('league_id, created_at')
       .in('league_id', leagueIds).gte('created_at', cutoff).order('created_at', { ascending: false })
     const latest = new Map<string, string>()
     for (const m of data ?? []) if (!latest.has((m as any).league_id)) latest.set((m as any).league_id, (m as any).created_at)
-    for (const [entityId, l] of latest) sources.push({ table: 'league_messages', entityId, surface: 'leagues', latest: l })
+    for (const [entityId, l] of latest) sources.push({
+      table: 'league_messages', entityId, surface: 'leagues', latest: l,
+      lastReadAt: lastReadBy.get(`league_messages:${entityId}`) ?? null,
+    })
   }
   if (tourIds.length) {
     const { data } = await db.from('tournament_messages').select('tournament_id, created_at')
       .in('tournament_id', tourIds).gte('created_at', cutoff).order('created_at', { ascending: false })
     const latest = new Map<string, string>()
     for (const m of data ?? []) if (!latest.has((m as any).tournament_id)) latest.set((m as any).tournament_id, (m as any).created_at)
-    for (const [entityId, l] of latest) sources.push({ table: 'tournament_messages', entityId, surface: 'tournaments', latest: l })
+    for (const [entityId, l] of latest) sources.push({
+      table: 'tournament_messages', entityId, surface: 'tournaments', latest: l,
+      lastReadAt: lastReadBy.get(`tournament_messages:${entityId}`) ?? null,
+    })
   }
 
   return NextResponse.json({ sources })

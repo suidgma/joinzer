@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeList } from '@/lib/realtime/useRealtimeList'
 import { chatTopic } from '@/lib/realtime/topics'
+import { markChatRead } from '@/lib/chat/readState'
+import { chatReadKey, selectDurableLastRead } from '@/lib/chat/unread'
 import { formatChatTimestamp, formatTimestamp } from '@/lib/utils/date'
 import { Maximize2, X, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 
@@ -105,10 +107,15 @@ export default function ChatPanel({
   })
 
   // Persistent unread count: messages from others newer than the last time this viewer
-  // engaged with the chat (localStorage, per entity). Cleared on expand / focus / send /
-  // pill — deliberately NOT on the mount auto-scroll, so arriving on the page still shows
-  // "N new" until you engage.
-  const readKey = `chat-read:${table}:${entityId}`
+  // engaged with the chat. Cleared on expand / focus / send / pill — deliberately NOT on the
+  // mount auto-scroll, so arriving on the page still shows "N new" until you engage.
+  // Last-read is written to BOTH `chat_reads` (durable, cross-device — the source of truth)
+  // and localStorage (an optimistic cache, so the badge clears without waiting on a round
+  // trip). localStorage alone used to be the only store, which meant a cache clear made
+  // every chat look unread and reading on one device never cleared the dot on another.
+  const readKey = chatReadKey(table, entityId)
+  // Ids of sent-but-not-yet-confirmed rows, whose created_at is this device's clock.
+  const optimisticIdsRef = useRef<Set<string>>(new Set())
   const [lastRead, setLastRead] = useState('')
   useEffect(() => {
     try { setLastRead(localStorage.getItem(readKey) ?? '') } catch {}
@@ -120,8 +127,19 @@ export default function ChatPanel({
   const markRead = useCallback(() => {
     const newest = messages.length ? messages[messages.length - 1].created_at : ''
     if (!newest) return
+    // In-memory only, so the badge clears instantly even for a message still in flight.
     setLastRead(newest)
-    try { localStorage.setItem(readKey, newest) } catch {}
+    // Everything that OUTLIVES this render gets the newest server-timestamped message instead.
+    // An optimistic row carries this device's clock, and both of these are read back later —
+    // localStorage by the provider on the next load (which promotes anything ahead of the
+    // server), chat_reads by every other device. handleSend records the authoritative
+    // timestamp once the insert returns.
+    const durable = selectDurableLastRead(messages, optimisticIdsRef.current)
+    if (durable) {
+      try { localStorage.setItem(readKey, durable) } catch {}
+      // Fire-and-forget: read state must never block or fail the UI.
+      markChatRead(table, entityId, durable).catch(() => {})
+    }
     // Let the cross-app unread provider clear this chat's nav/list dot.
     try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
   }, [messages, readKey, table, entityId])
@@ -171,9 +189,20 @@ export default function ChatPanel({
 
   // Keep pinned to the bottom when the view mode toggles (open/close). Opening the chat
   // counts as reading it (and stays read as new messages arrive while expanded).
+  //
+  // The marking half is gated on the tab being visible, the same way GroupChat's is. This
+  // effect depends on markRead, whose identity changes on every `messages` change, so an
+  // expanded panel sitting in a BACKGROUND tab would re-mark on every incoming message and
+  // clear the nav dot for messages nobody saw. The trigger predates this PR; making the write
+  // durable and cross-device is what turned it into a real consequence. Scrolling is not
+  // gated — that's layout, and it should still be right when the tab is brought forward.
   useEffect(() => {
     if (atBottomRef.current) scrollToBottom()
-    if (expanded) markRead()
+    if (!expanded) return
+    const markIfVisible = () => { if (document.visibilityState === 'visible') markRead() }
+    markIfVisible()
+    document.addEventListener('visibilitychange', markIfVisible)
+    return () => document.removeEventListener('visibilitychange', markIfVisible)
   }, [expanded, scrollToBottom, markRead])
 
   // While the full-screen view is open, lock body scroll and let Esc close it.
@@ -211,21 +240,34 @@ export default function ChatPanel({
       profile: null,
     }
     atBottomRef.current = true
+    optimisticIdsRef.current.add(optimisticId)
     setMessages((prev) => [...prev, optimistic])
     markRead()
 
     const supabase = createClient()
-    const { error } = await supabase.from(table).insert({
+    // created_at comes back so the durable read state and the rendered timestamp both use the
+    // DATABASE clock rather than this device's — `optimistic.created_at` is only ever a
+    // placeholder for the in-flight moment.
+    const { data: inserted, error } = await supabase.from(table).insert({
       id: optimisticId,
       [entityField]: entityId,
       user_id: currentUserId,
       message_text: trimmed,
-    })
+    }).select('created_at').single()
+
+    optimisticIdsRef.current.delete(optimisticId)
 
     if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
       setSendError('Failed to send. Try again.')
       setText(trimmed)
+    } else if (inserted?.created_at) {
+      const serverCreatedAt = inserted.created_at
+      setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...m, created_at: serverCreatedAt } : m)))
+      // Now that a server timestamp exists, record the send as read durably — markRead() above
+      // deliberately skipped it while it was still optimistic.
+      markChatRead(table, entityId, serverCreatedAt).catch(() => {})
+      try { localStorage.setItem(readKey, serverCreatedAt) } catch {}
     }
 
     setSending(false)
