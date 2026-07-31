@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeList } from '@/lib/realtime/useRealtimeList'
 import { chatTopic } from '@/lib/realtime/topics'
+import { markChatRead } from '@/lib/chat/readState'
+import { chatReadKey } from '@/lib/chat/unread'
 import { formatChatTimestamp, formatTimestamp } from '@/lib/utils/date'
 import { Maximize2, X, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 
@@ -105,10 +107,13 @@ export default function ChatPanel({
   })
 
   // Persistent unread count: messages from others newer than the last time this viewer
-  // engaged with the chat (localStorage, per entity). Cleared on expand / focus / send /
-  // pill — deliberately NOT on the mount auto-scroll, so arriving on the page still shows
-  // "N new" until you engage.
-  const readKey = `chat-read:${table}:${entityId}`
+  // engaged with the chat. Cleared on expand / focus / send / pill — deliberately NOT on the
+  // mount auto-scroll, so arriving on the page still shows "N new" until you engage.
+  // Last-read is written to BOTH `chat_reads` (durable, cross-device — the source of truth)
+  // and localStorage (an optimistic cache, so the badge clears without waiting on a round
+  // trip). localStorage alone used to be the only store, which meant a cache clear made
+  // every chat look unread and reading on one device never cleared the dot on another.
+  const readKey = chatReadKey(table, entityId)
   const [lastRead, setLastRead] = useState('')
   useEffect(() => {
     try { setLastRead(localStorage.getItem(readKey) ?? '') } catch {}
@@ -122,6 +127,8 @@ export default function ChatPanel({
     if (!newest) return
     setLastRead(newest)
     try { localStorage.setItem(readKey, newest) } catch {}
+    // Durable, cross-device. Fire-and-forget: read state must never block or fail the UI.
+    void markChatRead(table, entityId, newest)
     // Let the cross-app unread provider clear this chat's nav/list dot.
     try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
   }, [messages, readKey, table, entityId])

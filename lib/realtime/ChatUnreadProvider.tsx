@@ -3,16 +3,23 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useRealtimeContext } from './RealtimeProvider'
 import { chatTopic } from './topics'
+import { chatReadKey, computeInitialUnread } from '@/lib/chat/unread'
+import { markChatRead, type ChatReadTable } from '@/lib/chat/readState'
 import type { RealtimePgPayload } from './channelManager'
 
 // Cross-app chat unread. Loads the user's chat sources (leagues + tournaments), compares
-// each source's latest message to the per-entity localStorage last-read (the SAME key
-// ChatPanel writes, `chat-read:<table>:<id>`), and subscribes per source for live updates.
-// Exposes an unread count per nav surface so BottomNav/DesktopNav can show a dot. Cleared
-// when ChatPanel marks a chat read (it dispatches a `chat:read` window event).
+// each source's latest message to that user's DURABLE last-read from `chat_reads` (returned
+// by the same endpoint), and subscribes per source for live updates. Exposes an unread count
+// per nav surface so BottomNav/DesktopNav can show a dot. Cleared when ChatPanel marks a chat
+// read (it dispatches a `chat:read` window event).
+//
+// localStorage (the same `chat-read:<table>:<id>` key ChatPanel writes) is an optimistic
+// overlay only — it can move last-read forward, never backward, and it is never the source of
+// truth. It used to be the ONLY store, and a missing key counted as unread, so clearing the
+// browser cache lit up every league and tournament that had ever had a message.
 
 type Surface = 'leagues' | 'tournaments'
-type Source = { table: string; entityId: string; surface: Surface; latest: string }
+type Source = { table: string; entityId: string; surface: Surface; latest: string; lastReadAt: string | null }
 
 const ENTITY_FIELD: Record<string, string> = {
   league_messages: 'league_id',
@@ -22,8 +29,6 @@ const TABLE_SURFACE: Record<string, Surface> = {
   league_messages: 'leagues',
   tournament_messages: 'tournaments',
 }
-
-const readKey = (table: string, id: string) => `chat-read:${table}:${id}`
 
 // Both the rolled-up per-surface counts (for the nav dot) and the raw per-entity unread keys
 // (`${table}:${entityId}`) so a list can show which specific league/tournament has unread chat.
@@ -36,7 +41,8 @@ export function ChatUnreadProvider({ currentUserId, children }: { currentUserId:
   // Unread entity keys, `${table}:${entityId}`.
   const [unread, setUnread] = useState<Set<string>>(new Set())
 
-  // Load sources + seed initial unread from localStorage last-read.
+  // Load sources + seed initial unread from the server's read state, with localStorage as an
+  // optimistic overlay.
   useEffect(() => {
     if (!currentUserId) return
     let cancelled = false
@@ -46,13 +52,25 @@ export function ChatUnreadProvider({ currentUserId, children }: { currentUserId:
         if (cancelled) return
         const srcs = data.sources ?? []
         setSources(srcs)
-        const initial = new Set<string>()
+
+        const localReads: Record<string, string> = {}
         for (const s of srcs) {
-          let lastRead = ''
-          try { lastRead = localStorage.getItem(readKey(s.table, s.entityId)) ?? '' } catch {}
-          if (!lastRead || s.latest > lastRead) initial.add(`${s.table}:${s.entityId}`)
+          const key = chatReadKey(s.table, s.entityId)
+          try {
+            const v = localStorage.getItem(key)
+            if (v) localReads[key] = v
+          } catch {}
         }
-        setUnread(initial)
+
+        const { unreadKeys, toPromote } = computeInitialUnread(srcs, localReads)
+        setUnread(new Set(unreadKeys))
+
+        // One-time backfill: this device read these chats before read state was durable, so
+        // carry its keys up to the server. Self-converging — once promoted, the server is
+        // ahead and this produces nothing on later loads, so it needs no version flag.
+        for (const p of toPromote) {
+          void markChatRead(p.table as ChatReadTable, p.entityId, p.lastReadAt)
+        }
       })
       .catch(() => {})
     return () => { cancelled = true }
