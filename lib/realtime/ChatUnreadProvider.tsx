@@ -68,8 +68,11 @@ export function ChatUnreadProvider({ currentUserId, children }: { currentUserId:
         // One-time backfill: this device read these chats before read state was durable, so
         // carry its keys up to the server. Self-converging — once promoted, the server is
         // ahead and this produces nothing on later loads, so it needs no version flag.
+        // Unlike ChatPanel this fires once per page session with a timestamp that never
+        // advances, so nothing here would ever retry — a rejection must not surface as an
+        // unhandled promise rejection.
         for (const p of toPromote) {
-          void markChatRead(p.table as ChatReadTable, p.entityId, p.lastReadAt)
+          markChatRead(p.table as ChatReadTable, p.entityId, p.lastReadAt).catch(() => {})
         }
       })
       .catch(() => {})

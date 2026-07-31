@@ -23,6 +23,11 @@ export type ChatReadTable = 'event_messages' | 'league_messages' | 'tournament_m
 // markRead() already re-fires with an UNCHANGED newest timestamp: the expand effect re-runs
 // on every message change, and the IntersectionObserver re-fires whenever the panel scrolls
 // back into view. localStorage absorbs that for free; a network write would not.
+//
+// The two call sites recover differently, which is why the latch is released on every failure
+// path below rather than relying on a retry. ChatPanel calls this repeatedly, so a released
+// latch really does retry. ChatUnreadProvider's one-time promotion fires once per page session
+// with a timestamp that never advances — nothing there would ever call again.
 const lastSent = new Map<string, string>()
 
 export async function markChatRead(
@@ -35,19 +40,29 @@ export async function markChatRead(
   if (lastSent.get(key) === lastReadAt) return
   lastSent.set(key, lastReadAt)
 
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  // The latch must be released on EVERY failure path, including a thrown one. supabase-js
+  // reports most failures in `error`, but `auth.getUser()` rethrows anything that isn't an
+  // AuthError — notably `LockAcquireTimeoutError`, which a routine multi-tab Web Locks steal
+  // produces. Without this catch that ordinary condition would strand the latch at a
+  // timestamp that was never written, and since markRead() recomputes the same value until a
+  // new message arrives, every later call would short-circuit and never retry.
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      lastSent.delete(key)
+      return
+    }
+
+    const { error } = await supabase.from('chat_reads').upsert(
+      { user_id: user.id, source_table: table, entity_id: entityId, last_read_at: lastReadAt },
+      { onConflict: 'user_id,source_table,entity_id' },
+    )
+
+    // Read state is a convenience, never a blocker: a failed write leaves localStorage correct
+    // for this device. Release the latch so the next call can retry.
+    if (error) lastSent.delete(key)
+  } catch {
     lastSent.delete(key)
-    return
   }
-
-  const { error } = await supabase.from('chat_reads').upsert(
-    { user_id: user.id, source_table: table, entity_id: entityId, last_read_at: lastReadAt },
-    { onConflict: 'user_id,source_table,entity_id' },
-  )
-
-  // Read state is a convenience, never a blocker: a failed write leaves localStorage correct
-  // for this device and the next markRead retries. Clear the latch so it can.
-  if (error) lastSent.delete(key)
 }

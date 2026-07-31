@@ -114,6 +114,8 @@ export default function ChatPanel({
   // trip). localStorage alone used to be the only store, which meant a cache clear made
   // every chat look unread and reading on one device never cleared the dot on another.
   const readKey = chatReadKey(table, entityId)
+  // Ids of sent-but-not-yet-confirmed rows, whose created_at is this device's clock.
+  const optimisticIdsRef = useRef<Set<string>>(new Set())
   const [lastRead, setLastRead] = useState('')
   useEffect(() => {
     try { setLastRead(localStorage.getItem(readKey) ?? '') } catch {}
@@ -127,8 +129,16 @@ export default function ChatPanel({
     if (!newest) return
     setLastRead(newest)
     try { localStorage.setItem(readKey, newest) } catch {}
-    // Durable, cross-device. Fire-and-forget: read state must never block or fail the UI.
-    void markChatRead(table, entityId, newest)
+    // The durable write uses the newest SERVER-timestamped message, skipping any still-in-flight
+    // optimistic row — that one carries THIS device's clock, and unlike the localStorage value
+    // above it would be read back on other devices, where a skewed clock could suppress real
+    // unread messages. handleSend writes the authoritative timestamp once the insert returns.
+    let durable = ''
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (!optimisticIdsRef.current.has(messages[i].id)) { durable = messages[i].created_at; break }
+    }
+    // Fire-and-forget: read state must never block or fail the UI.
+    if (durable) markChatRead(table, entityId, durable).catch(() => {})
     // Let the cross-app unread provider clear this chat's nav/list dot.
     try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
   }, [messages, readKey, table, entityId])
@@ -218,21 +228,34 @@ export default function ChatPanel({
       profile: null,
     }
     atBottomRef.current = true
+    optimisticIdsRef.current.add(optimisticId)
     setMessages((prev) => [...prev, optimistic])
     markRead()
 
     const supabase = createClient()
-    const { error } = await supabase.from(table).insert({
+    // created_at comes back so the durable read state and the rendered timestamp both use the
+    // DATABASE clock rather than this device's — `optimistic.created_at` is only ever a
+    // placeholder for the in-flight moment.
+    const { data: inserted, error } = await supabase.from(table).insert({
       id: optimisticId,
       [entityField]: entityId,
       user_id: currentUserId,
       message_text: trimmed,
-    })
+    }).select('created_at').single()
+
+    optimisticIdsRef.current.delete(optimisticId)
 
     if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
       setSendError('Failed to send. Try again.')
       setText(trimmed)
+    } else if (inserted?.created_at) {
+      const serverCreatedAt = inserted.created_at
+      setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...m, created_at: serverCreatedAt } : m)))
+      // Now that a server timestamp exists, record the send as read durably — markRead() above
+      // deliberately skipped it while it was still optimistic.
+      markChatRead(table, entityId, serverCreatedAt).catch(() => {})
+      try { localStorage.setItem(readKey, serverCreatedAt) } catch {}
     }
 
     setSending(false)
