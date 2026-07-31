@@ -13,6 +13,7 @@
 
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
+import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 
 const env = Object.fromEntries(
   readFileSync('.env.local', 'utf8').split(/\r?\n/).filter((l) => l.includes('=') && !l.startsWith('#'))
@@ -124,6 +125,17 @@ if (!DRY_RUN) {
     const { error: e } = await db.from('facility_listings').update({ status: 'draft' }).in('id', toDraft.map((r) => r.id))
     if (e) { console.error('\nun-publish failed:', e.message); process.exit(1) }
   }
+}
+
+// Both directions need this, not just publishes: the directory reads are unstable_cache'd for 6h
+// under the 'directory' tag and this script writes straight to Postgres, so an un-published venue
+// keeps rendering — and a newly published metro hard-404s — until the TTL lapses (Greensboro-High
+// Point + Little Rock, 2026-07-30). See scripts/lib/revalidate-directory.mjs.
+if (!DRY_RUN && (toPublish.length || toDraft.length)) {
+  // The live-page assertion only makes sense when this run leaves rows published. A pure
+  // un-publish pass can legitimately empty a metro, and a 404 would then be the correct outcome.
+  const rv = await revalidateDirectory({ metroArea: toPublish.length ? METRO : null })
+  if (!rv.ok) process.exitCode = 1
 }
 
 console.log(`\n${DRY_RUN ? 'DRY RUN' : 'DONE'} — ${METRO}: ${eligible.length} eligible/public${DRY_RUN ? '' : ` (published +${toPublish.length}, drafted -${toDraft.length})`}`)

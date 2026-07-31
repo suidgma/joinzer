@@ -126,6 +126,15 @@ export const loadPublishedFacilitiesWithoutMetro = unstable_cache(
  * Distinct published metros, aggregated in JS (205 rows site-wide — a GROUP BY round trip buys
  * nothing at this scale). Drives the /courts hub, the metro routes and the sitemap from one
  * source, so publishing a new metro_area makes all three appear with no deploy.
+ *
+ * ...but only after the 'directory' tag is revalidated. This value gates /courts/in/[metro]:
+ * findMetro() misses on a stale snapshot and the page calls notFound(), so a metro published inside
+ * the 6h window hard-404s while the hub already links to it (2026-07-30). Publishes must POST to
+ * /api/revalidate-directory — scripts/lib/revalidate-directory.mjs does this automatically.
+ *
+ * These entries are also NOT shared across routes: on 2026-07-31 this same function was serving
+ * /sitemap.xml a 5-metro snapshot and /courts/in/[metro] a 3-metro snapshot at the same instant.
+ * Do not reason about "the" cache entry — invalidate by tag, which clears all of them.
  */
 export const loadPublishedMetros = unstable_cache(
   async (): Promise<MetroSummary[]> => {

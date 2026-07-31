@@ -64,6 +64,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
+import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 
 const env = Object.fromEntries(
   readFileSync('.env.local', 'utf8').split(/\r?\n/).filter((l) => l.includes('=') && !l.startsWith('#'))
@@ -448,6 +449,17 @@ if (STAGE === 'publish') {
   }
   console.log(`backlinked ${linked}/${eligible.length} candidates (published_listing_id + research_status='published')`)
   if (linked !== eligible.length) { console.error('\nWARNING: backlink incomplete — re-run --stage=publish (idempotent).'); process.exit(1) }
+}
+
+// A publish is not visible until the directory cache knows about it. Every read in
+// lib/directory/loadFacilities.ts is unstable_cache'd for 6h under the 'directory' tag, and this
+// script writes straight to Postgres — so without this call /courts/in/<slug> hard-404s until the
+// TTL lapses, which is exactly what happened to this batch on 2026-07-30. Marks the run failed
+// (without aborting — the rows ARE published) if the cache could not be busted or the page is still
+// not resolving.
+if (STAGE === 'publish' && !DRY_RUN) {
+  const rv = await revalidateDirectory({ metroArea: METRO })
+  if (!rv.ok) process.exitCode = 1
 }
 
 if (STAGE === 'verify') {
