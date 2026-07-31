@@ -1,67 +1,96 @@
 import { Resend } from 'resend'
 import { withBrandHeader } from '@/lib/email/send'
 import { buildUnsubscribeUrl } from '@/lib/email/unsubscribe'
+import { buildNewSessionEmailHtml } from '@/lib/email/newSessionEmail'
+import { authorizeNewSessionNotification, isEventId } from '@/lib/events/notifyAuthorization'
+import { getSiteUrl } from '@/lib/utils/site-url'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+
+// POST /api/notify-new-session — emails every opted-in profile that a session was posted.
+// Body: { eventId }. Creator of that event only.
+//
+// This fans out to the whole opted-in user base from support@joinzer.com, so it is the
+// highest-blast-radius endpoint an ordinary player can reach. Two rules hold it shut
+// (docs/security.md — the API route is the security boundary, ADR-03):
+//
+//   1. The caller is authenticated AND authorized as the event's creator. It used to check
+//      only that *someone* was signed in, and read `creatorId` from the request body.
+//   2. Everything the email renders is read from the database by `eventId` and escaped on
+//      the way into the template. `title` and `locationName` used to come from the body
+//      straight into the HTML, so any signed-in account could mail arbitrary markup —
+//      including links — to everyone who had opted in.
+
+type NotifiableSession = {
+  id: string
+  title: string
+  starts_at: string
+  duration_minutes: number
+  max_players: number
+  creator_user_id: string
+  location_id: string
+}
 
 export async function POST(request: NextRequest) {
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  const cookieStorePromise = await cookies()
-
-  // Verify the caller is an authenticated user
-  const authClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        async getAll() { return (await cookieStorePromise).getAll() },
-        async setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          const cookieStore = await cookieStorePromise
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-        },
-      },
-    }
-  )
+  const authClient = createClient()
   const { data: { user } } = await authClient.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Use service role only for reading all opted-in profiles
+  const body = await request.json().catch(() => ({}))
+  const eventId = (body as { eventId?: unknown }).eventId
+  if (!isEventId(eventId)) {
+    return NextResponse.json({ error: 'A valid eventId is required' }, { status: 400 })
+  }
+
+  // Service role: the ownership check below is the guard, not RLS. Reading the event through
+  // the caller's own client would conflate "you may not do this" with "this does not exist".
   const supabase = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { title, locationName, startsAt, durationMinutes, maxPlayers, eventId, creatorId } =
-    await request.json()
+  const { data: eventRow, error: eventError } = await supabase
+    .from('events')
+    .select('id, title, starts_at, duration_minutes, max_players, creator_user_id, location_id')
+    .eq('id', eventId)
+    .maybeSingle()
 
-  // Fetch all opted-in users except the creator
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, email, name')
-    .eq('notify_new_sessions', true)
-    .neq('id', creatorId)
-    .not('email', 'is', null)
+  // A failed lookup is not a missing session. `maybeSingle` reports zero rows as `data: null`
+  // with no error, so an error here means the query itself failed — reporting that as a 404
+  // would send the caller hunting for a deleted event during what is actually a DB outage.
+  if (eventError) {
+    console.error('notify-new-session: event lookup failed', eventError)
+    return NextResponse.json({ error: 'Failed to load session' }, { status: 500 })
+  }
+
+  const decision = authorizeNewSessionNotification(
+    (eventRow ?? null) as NotifiableSession | null,
+    user.id
+  )
+  if (!decision.ok) {
+    return NextResponse.json({ error: decision.error }, { status: decision.status })
+  }
+  const session = decision.event
+
+  // Only after authorization: the venue name and the recipient list.
+  const [{ data: location }, { data: profiles }] = await Promise.all([
+    supabase.from('locations').select('name').eq('id', session.location_id).maybeSingle(),
+    supabase
+      .from('profiles')
+      .select('id, email')
+      .eq('notify_new_sessions', true)
+      .neq('id', user.id)
+      .not('email', 'is', null),
+  ])
 
   if (!profiles || profiles.length === 0) {
     return NextResponse.json({ ok: true, sent: 0 })
   }
 
-  const date = new Date(startsAt).toLocaleDateString('en-US', {
-    timeZone: 'America/Los_Angeles',
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  })
-  const time = new Date(startsAt).toLocaleTimeString('en-US', {
-    timeZone: 'America/Los_Angeles',
-    hour: 'numeric', minute: '2-digit',
-  })
-  const hours = Math.floor(durationMinutes / 60)
-  const mins = durationMinutes % 60
-  const duration = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
-  const eventUrl = `https://joinzer.com/play/${eventId}`
+  const eventUrl = `${getSiteUrl()}/play/${session.id}`
 
   // Send in batches to stay within Resend limits
   const emails = profiles
@@ -74,34 +103,26 @@ export async function POST(request: NextRequest) {
         from: 'Joinzer <support@joinzer.com>',
         to: p.email as string,
         replyTo: 'martyfit50@gmail.com',
-        subject: `New session: ${title}`,
-        html: withBrandHeader(`
-          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1F2A1C">
-            <div style="background:#8FC919;padding:24px 32px;border-radius:12px 12px 0 0">
-              <h1 style="margin:0;font-size:20px;color:#012D0B">New session posted!</h1>
-            </div>
-            <div style="background:#ffffff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
-              <h2 style="margin:0 0 16px;font-size:18px">${title}</h2>
-              <table style="width:100%;border-collapse:collapse">
-                <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">📍 Location</td><td style="padding:6px 0;font-size:14px">${locationName}</td></tr>
-                <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">📅 Date</td><td style="padding:6px 0;font-size:14px">${date}</td></tr>
-                <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">🕐 Time</td><td style="padding:6px 0;font-size:14px">${time}</td></tr>
-                <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">⏱ Duration</td><td style="padding:6px 0;font-size:14px">${duration}</td></tr>
-                <tr><td style="padding:6px 0;color:#6b7280;font-size:14px">👥 Capacity</td><td style="padding:6px 0;font-size:14px">${maxPlayers} players</td></tr>
-              </table>
-              <div style="margin-top:24px">
-                <a href="${eventUrl}" style="background:#8FC919;color:#012D0B;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Session</a>
-              </div>
-              <p style="margin-top:24px;font-size:12px;color:#9ca3af">
-                You're receiving this because you opted in to new session notifications on Joinzer.
-                <a href="${unsubscribeUrl}" style="color:#6b7280">Unsubscribe</a>
-              </p>
-            </div>
-          </div>
-        `),
+        // Plain text, not HTML — escaping the subject would render literal entities in the
+        // inbox list. The HTML body is where the escaping has to happen.
+        subject: `New session: ${session.title}`,
+        html: withBrandHeader(
+          buildNewSessionEmailHtml({
+            title: session.title,
+            locationName: location?.name ?? '',
+            startsAt: session.starts_at,
+            durationMinutes: session.duration_minutes,
+            maxPlayers: session.max_players,
+            eventUrl,
+            unsubscribeUrl,
+          })
+        ),
       }
     })
 
+  // Constructed here rather than at the top of the handler so an unauthorized request never
+  // reaches the Resend client at all.
+  const resend = new Resend(process.env.RESEND_API_KEY)
   const { error } = await resend.batch.send(emails)
 
   if (error) {

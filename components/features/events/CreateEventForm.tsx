@@ -180,19 +180,13 @@ export default function CreateEventForm({ locations, defaults, canCreatePaid }: 
     // Use first event for confirmation email + notifications
     const event = events[0]
 
-    // Notify opted-in users — non-blocking
+    // Notify opted-in users — non-blocking. Only the event id goes over the wire: the route
+    // re-reads the session details and the creator server-side, because this one email
+    // reaches every opted-in account and a client-supplied body is not evidence of anything.
     fetch('/api/notify-new-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        eventId: event.id,
-        title: title.trim(),
-        locationName: locName,
-        startsAt,
-        durationMinutes,
-        maxPlayers,
-        creatorId: user.id,
-      }),
+      body: JSON.stringify({ eventId: event.id }),
     }).catch(() => {})
 
     // Fire confirmation email — non-blocking, don't fail the flow if it errors
