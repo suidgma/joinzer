@@ -28,26 +28,47 @@ export function formatTimestamp(isoStr: string, opts?: Intl.DateTimeFormatOption
 
 
 // Chat bubble timestamp — scales the detail to how old the message is, so today's
-// conversation stays uncluttered while older history keeps its date.
-// today → "3:42 PM", last 7 days → "Tue 3:42 PM", older → "Jul 3, 3:42 PM"
+// conversation stays uncluttered while older history stays unambiguous.
+// today → "3:42 PM", yesterday → "Yesterday, 3:42 PM", older → "Sunday, July 5, 3:42 PM"
+// (older messages from a previous year also carry the year).
+//
+// "Yesterday" is decided on Pacific CALENDAR days, not a 24-hour subtraction — a message
+// sent at 11pm is still "Yesterday" when you read it at 1am, and one sent 20 hours ago
+// can already be two calendar days back.
 export function formatChatTimestamp(isoStr: string, now: Date = new Date()): string {
   const d = new Date(isoStr)
   if (Number.isNaN(d.getTime())) return ''
 
-  const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' }
+  // en-CA yields YYYY-MM-DD, which compares as a string.
   const dayKey = (x: Date) =>
     new Intl.DateTimeFormat('en-CA', { timeZone: VEGAS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(x)
 
-  const sameDay = dayKey(d) === dayKey(now)
-  const withinWeek = now.getTime() - d.getTime() < 7 * 24 * 60 * 60 * 1000
+  const todayKey = dayKey(now)
+  // Step back a calendar day via noon UTC, so a DST shift can't land us on the wrong date.
+  const yesterdayKey = dayKey(new Date(new Date(todayKey + 'T12:00:00Z').getTime() - 24 * 60 * 60 * 1000))
+  const msgKey = dayKey(d)
 
-  const opts: Intl.DateTimeFormatOptions = sameDay
-    ? time
-    : withinWeek
-      ? { weekday: 'short', ...time }
-      : { month: 'short', day: 'numeric', ...time }
+  const timePart = new Intl.DateTimeFormat('en-US', {
+    timeZone: VEGAS_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(d)
 
-  return new Intl.DateTimeFormat('en-US', { timeZone: VEGAS_TZ, ...opts }).format(d)
+  if (msgKey === todayKey) return timePart
+  if (msgKey === yesterdayKey) return `Yesterday, ${timePart}`
+
+  const sameYear = msgKey.slice(0, 4) === todayKey.slice(0, 4)
+  const datePart = new Intl.DateTimeFormat('en-US', {
+    timeZone: VEGAS_TZ,
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(d)
+
+  // Joined manually rather than letting Intl combine date + time: its glue string varies
+  // by locale data ("July 5 at 3:42 PM" vs "July 5, 3:42 PM"), and we want the comma.
+  return `${datePart}, ${timePart}`
 }
 
 export function formatDuration(minutes: number): string {
