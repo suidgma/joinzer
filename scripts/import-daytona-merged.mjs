@@ -174,7 +174,12 @@ const candidateRows = venues.map((v) => ({
   metro_area: METRO,
   lat: v.coordinates?.lat ?? null,
   lng: v.coordinates?.lng ?? null,
-  google_place_id: null,
+  // Read from the artifact, never hardcoded null (fixed 2026-07-30). Hardcoding it here and on the
+  // listing row is what left all 17 published Daytona rows without a place_id, which made
+  // lib/directory/mapsUrl.ts fall through to its raw-coordinate rung — an anonymous dropped pin
+  // instead of a venue card. This artifact carries no google_place_id, so the expression is a no-op
+  // on a re-run; it exists so the next batch copied from this script inherits the right shape.
+  google_place_id: orNull(fieldVal(v.google_place_id)),
   osm_id: isReconcile(v) ? v.reconcile.osm_id : null,
   osm_clusters: null,
   classifier_type: null, classifier_access_type: null, classifier_confidence: null,
@@ -216,6 +221,7 @@ function listingFields(v) {
     lighting: fieldVal(v.lighting) ?? null,
     surface: null,
     public_notes: orNull(fieldVal(v.public_notes)),
+    google_place_id: orNull(fieldVal(v.google_place_id)),   // see the candidate builder above
     name_source_url: orNull(v.name?.source_url),
     verification_status: 'source_verified',
     verified_at: null, verified_by: null,          // published rows only — set by --stage=publish

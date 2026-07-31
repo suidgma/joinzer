@@ -87,7 +87,7 @@ export default async function CourtPage({ params }: Params) {
   if (!f) notFound()
 
   const where = place(f)
-  const maps = mapsUrl(f.lat, f.lng, f.google_place_id)
+  const maps = mapsUrl(f)
   const e = f.enrichment ?? {}
 
   const breadcrumb = {

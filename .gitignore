@@ -100,3 +100,8 @@ scripts/.osm-ingest-progress.json
 # research working data, and the workbook's held-back candidate set cites openstreetmap.org and
 # mysaline.com only on several rows (tier-4 / secondary, ADR-14 private input, never republished).
 /little-rock-count/
+
+# Google Places match proposals from scripts/backfill-place-ids.mjs (--dry-run output, hand-reviewed
+# before --apply). Holds Places displayName/location used only to validate a match in memory; ADR-12
+# permits storing place_id alone, so this working file stays out of the repo.
+/place-id-backfill/
