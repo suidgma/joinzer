@@ -443,7 +443,10 @@ if (STAGE === 'verify') {
     ['no published row has low-precision coordinate', rows.filter((r) => r.status === 'published').every((r) => r.provenance?.coordinate?.precision !== 'low'), 'ok'],
     ['no published row has access_type unknown', rows.filter((r) => r.status === 'published').every((r) => r.access_type !== 'unknown'), 'ok'],
     ['draft rows carry verified_by = NULL (reconcile-gate safety)', rows.filter((r) => r.status === 'draft').every((r) => r.verified_by == null), 'ok'],
-    ['bethune-beach stays draft (low precision)', rows.filter((r) => r.slug === 'bethune-beach-park-new-smyrna-beach-fl').every((r) => r.status === 'draft'), 'ok'],
+    // Slug corrected 2026-07-30 to 'mary-mcleod-bethune-beach-park-…' by the name audit. Asserts the
+    // row EXISTS and is draft: the old form filtered on a slug that no longer matches anything, and
+    // `[].every()` is true, so the check would have kept passing while testing nothing.
+    ['bethune-beach stays draft (low precision)', rows.filter((r) => r.slug === 'mary-mcleod-bethune-beach-park-new-smyrna-beach-fl').length === 1 && rows.filter((r) => r.slug === 'mary-mcleod-bethune-beach-park-new-smyrna-beach-fl').every((r) => r.status === 'draft'), 'ok'],
     ['published candidates ↔ published listings agree', cands.filter((c) => c.research_status === 'published').length === rows.filter((r) => r.status === 'published').length, `${cands.filter((c) => c.research_status === 'published').length} vs ${rows.filter((r) => r.status === 'published').length}`],
     ['every published_listing_id points at a real batch listing', cands.filter((c) => c.published_listing_id).every((c) => listingIds.has(c.published_listing_id)), 'ok'],
     ['Nova candidate carries existing_listing_id', cands.filter((c) => c.candidate_key === 'ormond-nova').every((c) => c.existing_listing_id === RECONCILE_LISTING_ID), 'ok'],
