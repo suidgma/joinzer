@@ -4,22 +4,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createNotifications, type NotificationInput } from '@/lib/notifications/create'
 import { entrantSidesForFixture } from '@/lib/leagues/flexServer'
+import {
+  flexDeadlinePhase,
+  recipientsNeedingReminder,
+  REMINDER_WINDOW_DAYS,
+} from '@/lib/leagues/flexDeadlines'
+import { assertCronSecret } from '@/lib/cron/auth'
 
 // Flex Phase 2 — deadline lifecycle. Daily cron (CRON_SECRET-guarded):
-//   • 3 days before a flex league's season deadline (leagues.end_date), remind the
-//     entrants of each still-unplayed match to arrange + report it.
+//   • Within REMINDER_WINDOW_DAYS of a flex league's season deadline (leagues.end_date),
+//     remind the entrants of each still-unplayed match to arrange + report it. Each entrant
+//     is reminded at most once per league — deduped against the notifications already
+//     written, so the widened window catches up after a missed run without repeating.
 //   • Once the deadline has passed, forfeit any match still 'scheduled' (never played)
 //     and notify both entrants + the organizer. Reported-but-unconfirmed ('in_progress')
 //     and disputed matches are left for the organizer to resolve.
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('authorization')
-  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const unauthorized = assertCronSecret(req, 'flex-deadlines')
+  if (unauthorized) return unauthorized
 
   const db = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
-  const dayMs = 86_400_000
 
   const { data: leagues } = await db
     .from('leagues')
@@ -33,10 +38,9 @@ export async function GET(req: NextRequest) {
 
   for (const lg of (leagues ?? []) as any[]) {
     const endDate = lg.end_date as string // YYYY-MM-DD
-    const daysUntil = Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${todayStr}T00:00:00Z`)) / dayMs)
-    const pastDeadline = daysUntil < 0
-    const approaching = daysUntil === 3
-    if (!pastDeadline && !approaching) continue
+    const phase = flexDeadlinePhase(endDate, todayStr)
+    if (phase === 'none') continue
+    const pastDeadline = phase === 'forfeit'
 
     const { data: fixtures } = await db
       .from('league_fixtures')
@@ -84,19 +88,31 @@ export async function GET(req: NextRequest) {
         })
       }
     } else {
-      // approaching — remind entrants once (fires only on the day 3 days out).
-      for (const [, users] of usersByFixture) {
-        for (const uid of users) {
-          notifs.push({
-            recipientId: uid,
-            surface: 'league',
-            surfaceId: lg.id,
-            kind: 'flex_deadline_approaching',
-            title: `Play your match soon — ${lg.name}`,
-            body: `The season ends ${endDate}. Arrange, play, and report your remaining match before then.`,
-            url: `/leagues/${lg.id}`,
-          })
-        }
+      // Approaching. The window spans REMINDER_WINDOW_DAYS + 1 days, so dedupe against the
+      // reminders already written for this league rather than relying on the trigger firing
+      // exactly once. The notification row IS the record that a player was reminded.
+      const { data: priorReminders } = await db
+        .from('notifications')
+        .select('recipient_id')
+        .eq('surface', 'league')
+        .eq('surface_id', lg.id)
+        .eq('kind', 'flex_deadline_approaching')
+
+      const alreadyReminded = new Set<string>(
+        (priorReminders ?? []).map((row: any) => row.recipient_id as string)
+      )
+
+      const entrants = [...usersByFixture.values()].flat()
+      for (const uid of recipientsNeedingReminder(entrants, alreadyReminded)) {
+        notifs.push({
+          recipientId: uid,
+          surface: 'league',
+          surfaceId: lg.id,
+          kind: 'flex_deadline_approaching',
+          title: `Play your match soon — ${lg.name}`,
+          body: `The season ends ${endDate}. Arrange, play, and report your remaining match before then.`,
+          url: `/leagues/${lg.id}`,
+        })
       }
       reminded += notifs.length
     }

@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { voidCaptainHold } from '@/lib/leagues/partner'
+import { assertCronSecret } from '@/lib/cron/auth'
 
 export const dynamic = 'force-dynamic'
+// Each expired invitation does a Stripe cancel + an email, so the loop needs the same
+// headroom as the other fan-out crons.
+export const maxDuration = 60
 
+// Scheduled daily at 12:00 UTC (vercel.json). Invitations expire on a 72h window, so daily
+// granularity adds at most 24h of latency. Without this schedule an expired invitation
+// never resolves at all — the only other caller of voidCaptainHold is the decline route —
+// so the captain's Stripe hold and registration hang indefinitely.
 export async function GET(req: NextRequest) {
-  // Verify cron secret to prevent unauthorized calls
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const unauthorized = assertCronSecret(req, 'league-partner-timeout')
+  if (unauthorized) return unauthorized
 
   const service = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

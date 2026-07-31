@@ -1,6 +1,6 @@
 # Joinzer — Decision Log (ADRs)
 
-_Last updated: July 28, 2026_
+_Last updated: July 31, 2026_
 
 > The **why** behind Joinzer's foundational choices, so they don't get re-litigated and so recommendations respect the constraints. Each entry: the decision, the context, and the consequences. These are ✅ decided (in effect today) unless marked otherwise. Genuinely *unresolved* calls live in `open-decisions.md`, not here.
 
@@ -81,6 +81,14 @@ _Last updated: July 28, 2026_
 **Decision:** `facility_listings` is the **canonical venue record**; `locations` remains the **operational** table and links to it through a nullable `facility_listing_id` bridge. The legacy overloaded `locations.access_type` is **frozen** — new venue writes use the unified vocabulary on the canonical record (`access_type` in `public/private/membership/school/hoa/unknown`, plus `fee_type` and `indoor`). `locations.category`, `source_url`, `notes` and `phone` are **deprecated, marked, not dropped**.
 **Context:** the legacy `access_type` conflated access, fee, indoor and category into one enum (`resort`, `fee_based`, `business`, `indoor_public`, `semi_private`…), which cannot support a queryable public directory. The directory needs clean SEO-facing fields without breaking the live operational path.
 **Consequences:** strictly additive and non-destructive — no drops, no deletes, no lossy rewrites of `locations` rows. **Phase 3A (schema) is done; Phase 3B (read-path and write-path cutover) is still pending** — the deprecated columns are still read today. Migrations applied to Supabase before dependent code, per ADR-10. (`supabase/migrations/20260724000001` through `…000005`.)
+
+## ADR-15 — Cron health is verified by hand, not monitored
+
+**Decision:** cron health is checked by a human in the Vercel dashboard's Cron Jobs tab, and one invariant makes that reliable: **any change to `CRON_SECRET`, and any newly added cron, must be followed by verifying that at least one cron run returns 200.** No heartbeat table, no third-party uptime watcher, for now. `lib/cron/auth.ts` `assertCronSecret` logs the two failure modes distinctly (`MISCONFIGURED` = the secret is absent in this environment; `UNAUTHORIZED` = the caller sent the wrong token) so a future occurrence is greppable in the runtime logs.
+
+**Context:** `CRON_SECRET` was never set in Vercel. Every scheduled cron returned 401 from the day it was introduced — `session-reminders` since May 7 2026, the other four since mid-July — and nothing surfaced it for roughly three months. The failure was invisible precisely because it was *clean*: a 401 with a well-formed JSON body is indistinguishable from a healthy no-op unless someone reads the status code. Vercel's own dashboard did record it; nobody had reason to look.
+
+**Consequences:** accepted honestly — **no code change inside Joinzer can make silence loud.** A cron that never runs writes no log, and a job that would alert about broken crons is itself a cron sharing the same failure cause. Only an external check (a dead-man's-switch pinged by each run) or a scheduled digest whose *absence* is the signal can close that gap, and both were deferred as premature at zero real users. Revisit when players actually depend on reminders or forfeits landing on time; the natural upgrade is an external watcher reading a heartbeat row, at which point the heartbeat table earns its migration. Until then the manual invariant above is the whole mechanism, and it is written down here because it is the thing that would have caught this in May.
 
 ## ADR-14 — Aggregator directories: tier-4 research input, never bulk ingest, never user-facing
 
