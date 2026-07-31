@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRealtimeList } from '@/lib/realtime/useRealtimeList'
 import { chatTopic } from '@/lib/realtime/topics'
 import { markChatRead } from '@/lib/chat/readState'
-import { chatReadKey } from '@/lib/chat/unread'
+import { chatReadKey, selectDurableLastRead } from '@/lib/chat/unread'
 import { formatChatTimestamp, formatTimestamp } from '@/lib/utils/date'
 import { Maximize2, X, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 
@@ -127,18 +127,19 @@ export default function ChatPanel({
   const markRead = useCallback(() => {
     const newest = messages.length ? messages[messages.length - 1].created_at : ''
     if (!newest) return
+    // In-memory only, so the badge clears instantly even for a message still in flight.
     setLastRead(newest)
-    try { localStorage.setItem(readKey, newest) } catch {}
-    // The durable write uses the newest SERVER-timestamped message, skipping any still-in-flight
-    // optimistic row — that one carries THIS device's clock, and unlike the localStorage value
-    // above it would be read back on other devices, where a skewed clock could suppress real
-    // unread messages. handleSend writes the authoritative timestamp once the insert returns.
-    let durable = ''
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (!optimisticIdsRef.current.has(messages[i].id)) { durable = messages[i].created_at; break }
+    // Everything that OUTLIVES this render gets the newest server-timestamped message instead.
+    // An optimistic row carries this device's clock, and both of these are read back later —
+    // localStorage by the provider on the next load (which promotes anything ahead of the
+    // server), chat_reads by every other device. handleSend records the authoritative
+    // timestamp once the insert returns.
+    const durable = selectDurableLastRead(messages, optimisticIdsRef.current)
+    if (durable) {
+      try { localStorage.setItem(readKey, durable) } catch {}
+      // Fire-and-forget: read state must never block or fail the UI.
+      markChatRead(table, entityId, durable).catch(() => {})
     }
-    // Fire-and-forget: read state must never block or fail the UI.
-    if (durable) markChatRead(table, entityId, durable).catch(() => {})
     // Let the cross-app unread provider clear this chat's nav/list dot.
     try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
   }, [messages, readKey, table, entityId])

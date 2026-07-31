@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRealtimeChannel } from '@/lib/realtime/hooks'
 import { chatTopic } from '@/lib/realtime/topics'
 import { markChatRead } from '@/lib/chat/readState'
-import { chatReadKey } from '@/lib/chat/unread'
+import { chatReadKey, selectDurableLastRead } from '@/lib/chat/unread'
 import { formatChatTimestamp, formatTimestamp } from '@/lib/utils/date'
 
 type Message = {
@@ -63,16 +63,28 @@ export default function GroupChat({
   const optimisticIdsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!currentUserId || messages.length === 0) return
-    // localStorage may hold the optimistic value; the durable write may not — it is read back
-    // on other devices, where a skewed clock could suppress real unread messages.
-    let durable = ''
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (!optimisticIdsRef.current.has(messages[i].id)) { durable = messages[i].created_at; break }
+
+    // Gated on the tab actually being visible. This effect re-runs on every new message, so a
+    // chat left open in a BACKGROUND tab would otherwise mark a whole conversation read and
+    // suppress this league's nav dot for messages nobody ever saw. There is no local unread UI
+    // here, so that dot is the only signal a reader would get.
+    const markIfVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      // Never persist an optimistic row's client clock — see selectDurableLastRead.
+      const durable = selectDurableLastRead(messages, optimisticIdsRef.current)
+      if (durable) {
+        try { localStorage.setItem(readKey, durable) } catch {}
+        markChatRead(table, entityId, durable).catch(() => {})
+      }
+      // Clear this league's nav/list dot via the cross-app unread provider.
+      try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
     }
-    try { localStorage.setItem(readKey, messages[messages.length - 1].created_at) } catch {}
-    if (durable) markChatRead(table, entityId, durable).catch(() => {})
-    // Clear this league's nav/list dot via the cross-app unread provider.
-    try { window.dispatchEvent(new CustomEvent('chat:read', { detail: { table, entityId } })) } catch {}
+
+    markIfVisible()
+    // Opening this page in a background tab is a normal flow, and the mount above would be
+    // skipped for it — so mark when the tab is actually brought to the front.
+    document.addEventListener('visibilitychange', markIfVisible)
+    return () => document.removeEventListener('visibilitychange', markIfVisible)
   }, [messages, readKey, table, entityId, currentUserId])
 
   useRealtimeChannel(

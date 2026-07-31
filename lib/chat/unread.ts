@@ -4,6 +4,32 @@
 
 export const chatReadKey = (table: string, entityId: string) => `chat-read:${table}:${entityId}`
 
+/**
+ * The last-read timestamp that is safe to PERSIST, given the messages on screen.
+ *
+ * An in-flight optimistic row carries this device's clock (`new Date().toISOString()`), not the
+ * database's. That value must never reach `chat_reads` or localStorage: both are read back
+ * later — `chat_reads` on every other device, and localStorage on the next load, where the
+ * provider promotes anything ahead of the server. A fast client clock persisted through either
+ * route suppresses genuinely newer messages as already-read, durably and cross-device.
+ *
+ * So the rule is simply: an optimistic timestamp may live in React state, and must never be
+ * written anywhere that outlives the render. Returns '' when every message is still in flight,
+ * meaning there is nothing safe to persist yet.
+ *
+ * Shared by ChatPanel and GroupChat — both send optimistically, and this selection was
+ * duplicated in each before it lived here.
+ */
+export function selectDurableLastRead(
+  messages: { id: string; created_at: string }[],
+  optimisticIds: Set<string>,
+): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!optimisticIds.has(messages[i].id)) return messages[i].created_at
+  }
+  return ''
+}
+
 export type UnreadSource = {
   table: string
   entityId: string
