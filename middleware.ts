@@ -63,6 +63,11 @@ export async function middleware(request: NextRequest) {
     pathname === '/reset-password' ||
     pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js' ||
+    // Unsubscribe flow. The recipient of a notification email is almost never logged in, so
+    // without these the confirm page and the success page both 307 to /login and the opt-out
+    // is unreachable from the inbox. Exact equality — no subtree to expose.
+    pathname === '/unsubscribe/confirm' ||
+    pathname === '/unsubscribed' ||
     // Crawler-facing files. The matcher's exclusion list only skips image extensions, so .xml/.txt
     // DO reach this middleware — without these two lines both 307 to /login for anonymous requests
     // (i.e. every search engine), which silently de-indexes every published /courts page.
