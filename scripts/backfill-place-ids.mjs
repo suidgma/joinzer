@@ -39,6 +39,8 @@ const arg = (name) => (process.argv.find((a) => a.startsWith(`--${name}=`)) || '
 const DRY_RUN = process.argv.includes('--dry-run')
 const APPLY_FILE = arg('apply')
 const METROS = arg('metro') ? arg('metro').split(',').map((s) => s.trim()).filter(Boolean) : null
+// Re-run just specific rows — e.g. retrying a row that missed under the default query.
+const SLUGS = arg('slugs') ? arg('slugs').split(',').map((s) => s.trim()).filter(Boolean) : null
 
 if (!DRY_RUN && !APPLY_FILE) {
   console.error('Pass --dry-run (search + propose) or --apply=<file> (write reviewed proposals).')
@@ -63,6 +65,27 @@ function distM(aLat, aLng, bLat, bLng) {
  * excludes them — this list is the belt-and-braces guard for the day someone adds a --include-drafts
  * flag. Remove an entry only once the underlying defect is fixed.
  */
+/**
+ * Per-slug replacements for the default "<name> pickleball <city> <state>" query.
+ *
+ * Two failure shapes justify one: a venue whose courts sit inside a much larger park, where the
+ * park name outranks the facility ("Bur-Mil Park" returns the park, not the tennis/pickleball
+ * center inside it); and a venue whose operator styles the name in a form Places indexed but our
+ * display name does not use ("The Center @ Bishop Park"). Both were predicted by the name audit
+ * before the run, and the park-vs-facility one was observed firing on Bishop Park.
+ *
+ * An override changes only the SEARCH STRING. The ≤500 m distance check against the stored
+ * coordinate still decides whether the hit is accepted, so a bad override cannot smuggle a wrong
+ * place_id past the guard — it just misses.
+ */
+const QUERY_OVERRIDES = {
+  'bur-mil-park-greensboro-nc': 'The Family Tennis and Pickleball Center Bur-Mil Park Greensboro NC',
+  'the-center-at-bishop-park-bryant-ar': 'The Center @ Bishop Park Bryant AR',
+  // Inverse of the usual problem: the corrected official dedication name finds nothing within 5 km,
+  // because Places indexes this venue under the colloquial name the city actually uses.
+  'jessie-stevenson-kovalenko-memorial-gymnasium-new-smyrna-beach-fl': 'City Gym pickleball New Smyrna Beach FL',
+}
+
 const NEVER_BACKFILL = {
   'pickleball-kingdom-little-rock-ar':
     'Stored address (11210 Bass Pro Pkwy) and coordinate (34.6621223,-92.4105104) are both wrong — the real venue is ~7.6 km away near 2616 S Shackleford Rd. A match on that coordinate would pin a different business.',
@@ -77,6 +100,7 @@ async function loadTargets() {
     .eq('status', 'published').is('google_place_id', null)
     .not('lat', 'is', null).not('lng', 'is', null)
   if (METROS) q = q.in('metro_area', METROS)
+  if (SLUGS) q = q.in('slug', SLUGS)
   const { data, error } = await q.order('metro_area').order('name')
   if (error) { console.error('select failed:', error.message); process.exit(1) }
 
@@ -91,7 +115,7 @@ let anyOk = false // once one call succeeds, a later 403 is propagation lag, not
 async function searchText(row, attempt = 1) {
   // Bias to a 2 km circle around the stored coordinate so a same-named venue in another metro
   // cannot outrank the real one. The distance check below is the actual guard; this just helps.
-  const textQuery = [row.name, 'pickleball', row.city, row.state].filter(Boolean).join(' ')
+  const textQuery = QUERY_OVERRIDES[row.slug] || [row.name, 'pickleball', row.city, row.state].filter(Boolean).join(' ')
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': KEY, 'X-Goog-FieldMask': 'places.id,places.displayName,places.location' },
@@ -121,6 +145,11 @@ async function dryRun() {
   console.log(`${rows.length} published row(s) with no place_id → ${rows.length} Places call(s)\n`)
 
   const proposals = []
+  // Misses are recorded with their full candidate list, not just logged. Places does NOT always rank
+  // the right venue first: hayes-taylor-memorial-ymca matched 'Simkins Indoor Sports Pavilion' at
+  // 414 m while the exact-name 'Hayes-Taylor Memorial YMCA' sat 3 m away as runner-up 2. If only the
+  // top hit is kept, a rescuable row looks like a hard miss and the evidence to rescue it is gone.
+  const misses = []
   let matched = 0, missed = 0
   for (const r of rows) {
     let out
@@ -148,6 +177,14 @@ async function dryRun() {
       missed++
       console.log(`  ·  ${r.name} (${r.city}, ${r.state})`)
       console.log(`      → ${top ? `REJECTED too far (${top.dist_m}m): ${top.display_name}` : 'no result'}`)
+      // Surface any candidate that IS inside the radius, so review can rescue a mis-ranked row.
+      const rescuable = candidates.filter((c) => c.dist_m != null && c.dist_m <= MATCH_RADIUS_M)
+      for (const c of rescuable) console.log(`      ⚑ but candidate in range: ${c.display_name}  ${c.dist_m}m  ${c.place_id}`)
+      misses.push({
+        id: r.id, slug: r.slug, listing_name: r.name, city: r.city, state: r.state,
+        metro_area: r.metro_area, address: r.address, query: out.textQuery,
+        candidates, rescuable_candidates: rescuable,
+      })
     }
     await sleep(300)
   }
@@ -167,8 +204,14 @@ async function dryRun() {
       rows_in_scope: rows.length, matched, missed,
       dupe_place_ids_in_batch: dupeInBatch, collisions_with_live_rows: collisions,
       note: 'Hand-review every entry, delete any you reject, then --apply this file. Applying makes zero Places calls.',
+      review_checklist: [
+        'Compare each proposal against its runners_up — the top hit is NOT always the right venue (see hayes-taylor).',
+        'Closer is not automatically better: a generic "Pickleball Courts" POI or an informal duplicate can outrank the correctly-named venue.',
+        'Check misses[].rescuable_candidates — a row can miss on its top hit while holding a valid in-range candidate.',
+      ],
     },
     proposals,
+    misses,
   }, null, 2))
 
   console.log(`\nDRY RUN — matched ${matched}, missed ${missed}, of ${rows.length}`)
