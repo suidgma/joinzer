@@ -52,11 +52,19 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: eventRow } = await supabase
+  const { data: eventRow, error: eventError } = await supabase
     .from('events')
     .select('id, title, starts_at, duration_minutes, max_players, creator_user_id, location_id')
     .eq('id', eventId)
     .maybeSingle()
+
+  // A failed lookup is not a missing session. `maybeSingle` reports zero rows as `data: null`
+  // with no error, so an error here means the query itself failed — reporting that as a 404
+  // would send the caller hunting for a deleted event during what is actually a DB outage.
+  if (eventError) {
+    console.error('notify-new-session: event lookup failed', eventError)
+    return NextResponse.json({ error: 'Failed to load session' }, { status: 500 })
+  }
 
   const decision = authorizeNewSessionNotification(
     (eventRow ?? null) as NotifiableSession | null,

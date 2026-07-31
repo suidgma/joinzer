@@ -8,6 +8,11 @@
 // Escape, don't filter: values are stored as the user typed them and made inert at the
 // point of rendering. `&` has to go first or it would double-escape the entities the later
 // replacements introduce.
+//
+// NOT a URL sanitizer. Escaping makes a value safe to *place* inside `href="…"` — it cannot
+// break out of the attribute — but it says nothing about where the link goes. `javascript:`
+// and `data:` URLs contain no escapable character and survive this untouched. Any href built
+// from a user-supplied URL needs a scheme allowlist (https/http/mailto) as well as this.
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
