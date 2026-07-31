@@ -9,6 +9,12 @@
 //
 // Slugs are DERIVED from the metro_area value, never hardcoded — a new metro_area appearing in
 // published data produces a live page and a sitemap entry with no deploy.
+//
+// "No deploy" does NOT mean "no action". loadPublishedMetros() is unstable_cache'd for 6h under the
+// 'directory' tag, so a publish is invisible to findMetro() — and the new metro page hard-404s —
+// until that tag is busted. The publish scripts do it via POST /api/revalidate-directory; see
+// scripts/lib/revalidate-directory.mjs. Skipping that step is the 2026-07-30 Greensboro-High Point
+// + Little Rock outage.
 
 /** 'Reno-Sparks' -> 'reno-sparks', 'Las Vegas' -> 'las-vegas'. */
 export function metroSlug(metroArea: string): string {

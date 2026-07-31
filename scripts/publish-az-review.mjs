@@ -18,6 +18,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
+import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 
 const env = Object.fromEntries(
   readFileSync('.env.local', 'utf8').split(/\r?\n/).filter((l) => l.includes('=') && !l.startsWith('#'))
@@ -226,5 +227,13 @@ if (DRY_RUN) {
   if (cErr) { console.error('verify query failed:', cErr.message); process.exit(1) }
   const vc = check.reduce((a, r) => (a[r.status] = (a[r.status] || 0) + 1, a), {})
   console.log(`\nVERIFY — rows tagged '${BATCH}' by status: ${JSON.stringify(vc)} (total ${check.length})`)
+
+  // The rows are live in Postgres, but the directory reads are unstable_cache'd for 6h under the
+  // 'directory' tag and this script writes straight to Postgres — without this the new rows stay
+  // invisible until the TTL lapses (Greensboro-High Point + Little Rock, 2026-07-30). 'Phoenix' is
+  // the metro this batch writes; it matches the metro_area literal on the insert rows above.
+  const rv = await revalidateDirectory({ metroArea: 'Phoenix' })
+  if (!rv.ok) process.exitCode = 1
+
   console.log('DONE.')
 }
