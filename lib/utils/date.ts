@@ -27,6 +27,29 @@ export function formatTimestamp(isoStr: string, opts?: Intl.DateTimeFormatOption
 }
 
 
+// Chat bubble timestamp — scales the detail to how old the message is, so today's
+// conversation stays uncluttered while older history keeps its date.
+// today → "3:42 PM", last 7 days → "Tue 3:42 PM", older → "Jul 3, 3:42 PM"
+export function formatChatTimestamp(isoStr: string, now: Date = new Date()): string {
+  const d = new Date(isoStr)
+  if (Number.isNaN(d.getTime())) return ''
+
+  const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' }
+  const dayKey = (x: Date) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: VEGAS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(x)
+
+  const sameDay = dayKey(d) === dayKey(now)
+  const withinWeek = now.getTime() - d.getTime() < 7 * 24 * 60 * 60 * 1000
+
+  const opts: Intl.DateTimeFormatOptions = sameDay
+    ? time
+    : withinWeek
+      ? { weekday: 'short', ...time }
+      : { month: 'short', day: 'numeric', ...time }
+
+  return new Intl.DateTimeFormat('en-US', { timeZone: VEGAS_TZ, ...opts }).format(d)
+}
+
 export function formatDuration(minutes: number): string {
   const rounded = Math.round(minutes / 15) * 15
   const hours = rounded / 60

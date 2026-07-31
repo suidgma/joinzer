@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeChannel } from '@/lib/realtime/hooks'
 import { chatTopic } from '@/lib/realtime/topics'
+import { formatChatTimestamp, formatTimestamp } from '@/lib/utils/date'
 
 type Message = {
   id: string
@@ -163,6 +164,15 @@ export default function GroupChat({
                 >
                   {msg.message_text}
                 </div>
+                <time
+                  dateTime={msg.created_at}
+                  title={formatTimestamp(msg.created_at)}
+                  className="text-[10px] text-brand-muted/70 mt-0.5 px-1 leading-none"
+                  // Label depends on "now", so SSR across midnight can differ from hydration.
+                  suppressHydrationWarning
+                >
+                  {formatChatTimestamp(msg.created_at)}
+                </time>
               </div>
             )
           })

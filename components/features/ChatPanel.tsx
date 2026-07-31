@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRealtimeList } from '@/lib/realtime/useRealtimeList'
 import { chatTopic } from '@/lib/realtime/topics'
+import { formatChatTimestamp, formatTimestamp } from '@/lib/utils/date'
 import { Maximize2, X, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 
 type Message = {
@@ -413,6 +414,18 @@ export default function ChatPanel({
                             {msg.message_text}
                           </div>
                         </div>
+                      )}
+                      {!isEditing && (
+                        <time
+                          dateTime={msg.created_at}
+                          title={formatTimestamp(msg.created_at)}
+                          className="text-[10px] text-brand-muted/70 mt-0.5 px-1 leading-none"
+                          // The label depends on "now" (today vs this week), so an SSR render
+                          // that straddles midnight can differ from hydration by one word.
+                          suppressHydrationWarning
+                        >
+                          {formatChatTimestamp(msg.created_at)}
+                        </time>
                       )}
                       {isConfirming && (
                         <div className="flex items-center gap-2 mt-1 text-xs">
