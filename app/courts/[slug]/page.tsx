@@ -5,6 +5,7 @@ import LandingNav from '@/components/landing/LandingNav'
 import LandingFooter from '@/components/landing/LandingFooter'
 import OsmAttribution from '@/components/features/directory/OsmAttribution'
 import { loadPublishedFacility, loadPublishedSlugs } from '@/lib/directory/loadFacilities'
+import { visitorNotes, metaDescription } from '@/lib/directory/publicNotes'
 import { mapsUrl } from '@/lib/directory/mapsUrl'
 import { metroSlug } from '@/lib/directory/metros'
 import { getSiteUrl } from '@/lib/utils/site-url'
@@ -54,7 +55,18 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!f) return { title: 'Pickleball Court — Joinzer' }
   const where = place(f)
   const title = `${f.name} — Pickleball${where ? ` in ${where}` : ''} | Joinzer`
-  const description = (f.enrichment?.description || `${f.name}${where ? ` in ${where}` : ''} — a pickleball facility. Location, details, and directions on Joinzer.`).slice(0, 200)
+  // public_notes first for the same reason it leads the page body (see below): it is researched
+  // venue-specific prose, where enrichment.description is generated boilerplate that exists on 13
+  // rows and is wrong on some of them. Truncation moved off `.slice(0, 200)` onto a word boundary —
+  // description only ever ran on those 13 rows, but public_notes runs on 435 and its p90 length is
+  // 315, so a mid-word cut went from theoretical to routine.
+  const source =
+    visitorNotes(f.public_notes) ||
+    f.enrichment?.description ||
+    `${f.name}${where ? ` in ${where}` : ''} — a pickleball facility. Location, details, and directions on Joinzer.`
+  // The fallback is never empty, so metaDescription never returns null here; `|| source` is for the
+  // type checker, not a reachable branch.
+  const description = metaDescription(source) || source
   return {
     title,
     description,
@@ -89,6 +101,7 @@ export default async function CourtPage({ params }: Params) {
   const where = place(f)
   const maps = mapsUrl(f)
   const e = f.enrichment ?? {}
+  const bodyProse = visitorNotes(f.public_notes) || e.description
 
   const breadcrumb = {
     '@context': 'https://schema.org',
@@ -145,7 +158,16 @@ export default async function CourtPage({ params }: Params) {
           )}
         </header>
 
-        {e.description && <p className="text-brand-body text-base md:text-lg leading-relaxed mb-8">{e.description}</p>}
+        {/* public_notes wins over enrichment.description, and they are deliberately never both
+            shown. They are not two views of one thing: public_notes is researched, venue-specific
+            operator prose (435 published rows), while enrichment.description is generated
+            boilerplate on 13 Phoenix rows — every one of which also has public_notes, and some of
+            which contradict it (PebbleCreek's description calls a resident-only club a "public
+            facility"). Rendering both would stack a false claim on a true one, which is exactly
+            what tests/e2e/courts-honesty.spec.ts exists to prevent. Unlabeled, matching how
+            enrichment.description has always rendered — a heading is a design decision, not this.
+            Never render f.public_notes raw; visitorNotes() strips the machine-appended tail. */}
+        {bodyProse && <p className="text-brand-body text-base md:text-lg leading-relaxed mb-8">{bodyProse}</p>}
 
         {e.amenities && e.amenities.length > 0 && (
           <section className="mb-8">
