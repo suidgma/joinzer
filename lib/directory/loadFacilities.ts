@@ -20,7 +20,13 @@ export const DIRECTORY_CACHE_SECONDS = 60 * 60 * 6 // 6 hours
 //   input but bars displaying or republishing them on Joinzer pages. scripts/import-reno-merged.mjs
 //   asserts that no aggregator URL reaches website/name_source_url on a PUBLISHED row, but
 //   `provenance` carries them by design (it is the evidence trail) — so provenance must never be
-//   rendered. (public_notes is operator-sourced and safe; it simply isn't surfaced yet.)
+//   rendered.
+//
+// public_notes IS rendered, on /courts/[slug] only, and only through lib/directory/publicNotes.ts
+// `visitorNotes()`. It is not render-restricted — measured 2026-08-01, all 530 published values
+// carry zero URLs and zero aggregator hostnames, so ADR-14 is not in play — but it is not raw-safe
+// either: scripts/lib/workbook-extract.mjs concatenates unmappable enum values onto the end of the
+// operator's prose as `field: raw` pairs. Render it through the filter or not at all.
 //
 // ODbL: rows whose coordinate came from OSM carry provenance.coordinate.licence = 'ODbL…'. Any page
 // rendering them must show OpenStreetMap attribution — components/features/directory/
@@ -46,13 +52,14 @@ export type FacilityDetail = {
   google_place_id: string | null
   metro_area: string | null
   enrichment: Enrichment | null
+  public_notes: string | null
 }
 
 export const loadPublishedFacility = unstable_cache(
   async (slug: string): Promise<FacilityDetail | null> => {
     const { data } = await admin()
       .from('facility_listings')
-      .select('name, slug, city, state, zip, address, lat, lng, court_count, access_type, indoor, lighting, surface, google_place_id, metro_area, enrichment')
+      .select('name, slug, city, state, zip, address, lat, lng, court_count, access_type, indoor, lighting, surface, google_place_id, metro_area, enrichment, public_notes')
       .eq('slug', slug).eq('status', 'published').maybeSingle()
     return (data as FacilityDetail | null) ?? null
   },
