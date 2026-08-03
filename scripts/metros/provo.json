@@ -1,0 +1,23 @@
+{
+  "_comment": "Provo — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "provo",
+  "batch": "provo-2026-07-31",
+  "metro_area": "Provo",
+  "states": [
+    "UT"
+  ],
+  "input": "metro-research/provo/provo-candidates.json",
+  "discovered_by": "provo-research",
+  "spreadsheet_id": "1s7MHKjPtmpsiYh0REsXgKiPpG721JO-eMXR6pvEv4l4",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Provo-Orem, UT MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 2 MSA counties (Utah, Juab), Juab (Utah)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 40 geocoded venue(s) of 42 in this batch (observed lat 39.9540..40.4510, lng -112.0389..-111.5881). Wide box for the same reason as Ogden: Juab County runs west to the Nevada line (-114.05). Its latitude band (39.31..40.58) does not overlap Ogden's (40.76..42.01), so the two Utah metros stay disjoint.",
+  "msa": "Provo-Orem, UT (Utah, Juab counties)",
+  "envelope": { "latMin": 39.31, "latMax": 40.58, "lngMin": -114.05, "lngMax": -110.85 },
+
+  "expected_count": 42,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1
+  }
+}

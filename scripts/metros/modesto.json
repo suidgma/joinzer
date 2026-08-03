@@ -1,0 +1,23 @@
+{
+  "_comment": "Modesto — GENERATION B workbook (Import Dry Run tab; no Import Ready tab, no research_status column). NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "modesto",
+  "batch": "modesto-2026-07-31",
+  "metro_area": "Modesto",
+  "states": ["CA"],
+  "input": "metro-research/modesto/modesto-candidates.json",
+  "discovered_by": "modesto-research",
+  "spreadsheet_id": "171msgb8sldkiZLr0EnteOvihWsIDHGntTuGqJe313dY",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Modesto, CA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 1 MSA county (Stanislaus)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 16 geocoded venue(s) of 19 in this batch (observed lat 37.4698..37.7823, lng -121.1386..-120.7608).",
+  "msa": "Modesto, CA (Stanislaus county)",
+  "envelope": { "latMin": 37.13, "latMax": 38.08, "lngMin": -121.49, "lngMax": -120.38 },
+
+  "expected_count": 19,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "workbook": {
+    "generation": "B",
+    "header_row": 1
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "_comment": "New Haven — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "new-haven",
+  "batch": "new-haven-2026-07-31",
+  "metro_area": "New Haven",
+  "states": [
+    "CT"
+  ],
+  "input": "metro-research/new-haven/new-haven-candidates.json",
+  "discovered_by": "new-haven-research",
+  "spreadsheet_id": "1hPPcTDb3pqHZ4kmvaxEc1AAgTIdV7uW4wDfb_TNCQ9g",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the New Haven-Milford, CT MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 1 MSA county (New Haven)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 29 geocoded venue(s) of 31 in this batch (observed lat 41.2072..41.5338, lng -73.2180..-72.5746). Connecticut abolished county government in 2022, so OSM now carries New Haven County as boundary/historic rather than boundary/administrative. The polygon is the same geography and is the unit this batch's research was scoped to, so it is used deliberately and the acceptance is explicit rather than silent.",
+  "msa": "New Haven-Milford, CT (New Haven county)",
+  "envelope": { "latMin": 41.16, "latMax": 41.65, "lngMin": -73.33, "lngMax": -72.53 },
+
+  "expected_count": 31,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "_venue_facts_comment": "wood-center / wood-gym geocoded 0 m apart and aborted the metro. They are TWO venues, but this is NOT a same-site pair — it is a bad geocode on wood-center, so it is fixed at the geocode and NOT allow-listed. wood-gym (Woodbridge Center Building Gym, 4 Meetinghouse Ln) is correct as stored. wood-center is a separate courts facility on Center Road; its address came from the town's rec1.com booking app, which lists one municipal address for every facility. The house number is deliberately OMITTED because two town sources disagree: the parks-and-fields list says \"Woodbridge Tennis Courts (149 Center Road)\" while the town's own 2025 tennis-court painting bid says \"Address: 11 Center Road, Woodbridge, CT\". An aggregator claims 160; ADR-14 bars it from settling this. Inventing a number to make the row publishable is forbidden, so the street alone is stored and the precision rules judge the result honestly.",
+  "venue_facts": {
+    "wood-center": {
+      "source_url": "https://www.woodbridgect.org/255/List-of-Town-Parks-Fields",
+      "confidence": "medium",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "Town of Woodbridge parks-and-fields list places the town tennis courts on Center Road, not at 4 Meetinghouse Lane (which is the Center Building / Senior Center that wood-gym correctly occupies)",
+      "research_status": "probable",
+      "research_status_reason": "The pickleball claim is not confirmed by a controlling-entity source. The town's parks-and-fields page names \"Woodbridge Tennis Courts\" and does not mention pickleball anywhere; the workbook's only pickleball source is the rec1.com JS booking app, which returned empty to two independent fetches. The town's 2025 tennis-court bid DOES specify pickleball striping (\"Layout and stripe eight (8) pickleball lines on courts per USAPA\") — but a bid solicitation specifies work to be performed, not work confirmed complete, so it is grounds for promotion to 'verified' once the 2025 work is confirmed, not grounds for publishing today.",
+      "fields": {
+        "address": {
+          "value": "Center Rd",
+          "overrides_workbook": true,
+          "reason": "workbook carried \"4 Meetinghouse Ln\", the Senior Center's address, taken from the town-wide booking app; both town sources place these courts on Center Road. House number omitted deliberately — the two town sources give 11 and 149 and neither can settle it."
+        }
+      }
+    }
+  },
+
+  "workbook": {
+    "header_row": 1
+  }
+}

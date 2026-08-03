@@ -1,0 +1,97 @@
+{
+  "_comment": "Chattanooga — GENERATION B workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check. The Chattanooga TN-GA MSA spans Hamilton/Marion/Sequatchie TN and Catoosa/Dade/Walker GA, so BOTH states are in-metro and the envelope must span both — do not clip it to Tennessee.",
+  "metro": "chattanooga",
+  "batch": "chattanooga-2026-07-31",
+  "metro_area": "Chattanooga",
+  "states": ["TN", "GA"],
+  "input": "metro-research/chattanooga/chattanooga-candidates.json",
+  "discovered_by": "chattanooga-research",
+  "spreadsheet_id": "1HStjjkwmGrHObd43DPyeGkK980zJlBxpWYJyx56ovZw",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Chattanooga, TN-GA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 6 MSA counties (Hamilton TN, Marion TN, Sequatchie TN, Catoosa GA, Dade GA, Walker GA), Marion (Tennessee), Sequatchie (Tennessee), Catoosa (Georgia), Dade (Georgia), Walker (Georgia)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 23 geocoded venue(s) of 28 in this batch (observed lat 34.8980..35.3582, lng -85.3695..-84.9921).",
+  "msa": "Chattanooga, TN-GA (Hamilton TN, Marion TN, Sequatchie TN, Catoosa GA, Dade GA, Walker GA counties)",
+  "envelope": { "latMin": 34.58, "latMax": 35.57, "lngMin": -85.88, "lngMax": -84.94 },
+
+  "expected_count": 28,
+  "require_all_geocoded": false,
+  "_reconcile_comment": "Two venues match dormant source='osm' status='draft' rows, adjudicated SAME venue by court-verifier on 2026-07-31. Both are UPDATEs keyed on osm_id, never INSERTs. cha_015 is the weaker of the two verdicts and says so on the entry: medium-high on 6+ converging sources with NO exact-ID anchor. It also carries a name change in the only direction that works — the OSM row is literally named 'Pickleball Courts', which publish-facilities.mjs isGenericName() rejects independently of anything here, so the research row's 'Collegedale Pickleball Courts' has to win.",
+  "reconciles": [
+    {
+      "candidate_key": "cha_015",
+      "osm_id": "way/583280567",
+      "listing_id": "f3285e31-7093-43e7-9c32-83d7fa564d43",
+      "matched_distance_m": 139,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://collegedaleparksandrec.com/sports-outdoors/",
+      "confidence": "medium_high",
+      "note": "WEAKEST VERDICT IN THIS SET — recorded honestly rather than rounded up. court-verifier reached SAME at medium-high confidence on 6+ converging sources, with NO exact-ID anchor: no shared osm_id, no shared place_id, no matching house number. The OSM row is an unaddressed asphalt court polygon 139 m from the research row's rooftop geocode of 4910 Swinyar Dr. A future reader should treat this as a strong circumstantial identification, not a certainty. RENAME REQUIRED REGARDLESS OF THE RECONCILE: the OSM name 'Pickleball Courts' reduces to the empty string under publish-facilities.mjs isGenericName(), so that row can never publish under it. The research row's name 'Collegedale Pickleball Courts' wins and reduces to 'collegedale' (11 chars), which passes. access_type keeps the research value 'public'.",
+      "osm_original": {
+        "osm_id": "way/583280567",
+        "name": "Pickleball Courts",
+        "slug": "pickleball-courts-tn",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "public",
+        "fee_type": null,
+        "lat": 35.059543,
+        "lng": -85.0706204,
+        "surface": "asphalt",
+        "city": null,
+        "state": "TN",
+        "address": null,
+        "captured_on": "2026-07-31"
+      }
+    },
+    {
+      "candidate_key": "cha_017",
+      "osm_id": "node/2195965451",
+      "listing_id": "c3838bc1-f0b6-4750-b9bc-45db75c467ff",
+      "matched_distance_m": 0,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://www.acepickleballclub.com/hixson-tn",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row (0 m, same 5450 Hwy 153 address, same name). access_type is set to 'membership' by the venue_facts override below rather than kept at the workbook token's 'unknown' — see the _access_type_ruling note there. The slug moves to the generated <name>-<city>-<state> form 'ace-pickleball-club-hixson-hixson-tn'; the doubled city is cosmetically awkward (the venue name already ends in its city) but the row is a draft that was never public, so there is no URL-stability cost and no redirect obligation. A de-duplicating slug generator is its own slice, not something to fold into a reconcile pass.",
+      "osm_original": {
+        "osm_id": "node/2195965451",
+        "name": "Ace Pickleball Club",
+        "slug": "ace-pickleball-club-hixson-tn",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "membership",
+        "fee_type": null,
+        "lat": 35.1392837,
+        "lng": -85.244081,
+        "surface": null,
+        "indoor": true,
+        "city": "Hixson",
+        "state": "TN",
+        "address": "5450 TN 153",
+        "captured_on": "2026-07-31"
+      }
+    }
+  ],
+
+  "_access_type_ruling": "cha_017 access_type: the workbook token 'commercial_club' -> 'unknown' mapping STANDS as a token-level default and is still correct — that token genuinely spans membership clubs and walk-in commercial venues, so it cannot be resolved from the token alone. This row is superseded on ROW-LEVEL evidence, not on the token: the dormant OSM row it reconciles onto already carries access_type='membership', the research row's own fee_type is 'membership', and acepickleballclub.com/hixson-tn is already the cited controlling-entity source for the reconcile itself. Three independent signals agree. Leaving it 'unknown' would mean a permanently-draft venue and a red check on every future --stage=verify run (which asserts a reconciled row's access_type is not unknown), bought for no safety. Owner ruling 2026-07-31.",
+  "venue_facts": {
+    "cha_017": {
+      "source_url": "https://www.acepickleballclub.com/hixson-tn",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "fields": {
+        "access_type": {
+          "value": "membership",
+          "overrides_workbook": true,
+          "reason": "Row-level evidence supersedes the 'commercial_club' -> 'unknown' token default, which remains correct as a default. Ace Pickleball Club Hixson is a membership-based indoor club: its own location page sells memberships, the research row's fee_type is already 'membership', and the dormant OSM row this venue reconciles onto independently carries access_type='membership'. Three converging signals. Without this the row imports at 'unknown', is held draft by the publish gate forever, and fails the --stage=verify assertion that a reconciled row's access_type is not unknown."
+        }
+      }
+    }
+  },
+
+  "workbook": {
+    "generation": "B",
+    "header_row": 1
+  }
+}

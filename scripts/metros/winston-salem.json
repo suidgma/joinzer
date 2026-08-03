@@ -1,0 +1,86 @@
+{
+  "_comment": "Winston-Salem — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "winston-salem",
+  "batch": "winston-salem-2026-07-31",
+  "metro_area": "Winston-Salem",
+  "states": [
+    "NC"
+  ],
+  "input": "metro-research/winston-salem/winston-salem-candidates.json",
+  "discovered_by": "winston-salem-research",
+  "spreadsheet_id": "14pYK_VTkAeBjWMH9MDkn8T1kezjla9j7vtKbm2hIxho",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Winston-Salem, NC MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 5 MSA counties (Forsyth, Davidson, Davie, Stokes, Yadkin), Davidson (North Carolina), Davie (North Carolina), Stokes (North Carolina), Yadkin (North Carolina)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 24 geocoded venue(s) of 24 in this batch (observed lat 35.8705..36.2780, lng -80.6350..-80.0936).",
+  "msa": "Winston-Salem, NC (Forsyth, Davidson, Davie, Stokes, Yadkin counties)",
+  "envelope": { "latMin": 35.5, "latMax": 36.56, "lngMin": -80.89, "lngMax": -80.02 },
+
+  "expected_count": 24,
+  "require_all_geocoded": false,
+  "_reconcile_comment": "One venue matches a dormant source='osm' status='draft' row, adjudicated SAME venue by court-verifier on 2026-07-31. UPDATE keyed on osm_id, never an INSERT. This is also one of the three exact slug collisions in this pass: the OSM row already holds 'davie-family-ymca-mocksville-nc', the exact slug the research row would have inserted. Encoding the reconcile removes the row from the insert set, so the collision resolves as a reconcile target instead of an abort.",
+  "reconciles": [
+    {
+      "candidate_key": "WS-023",
+      "osm_id": "way/909808277",
+      "listing_id": "68c67e64-496b-41ae-a34d-c80471803c6a",
+      "matched_distance_m": 5,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://ymcanwnc.org/sports/adult-sports/pickleball",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row (5 m, identical name, identical 215 Cemetery Street address, and it already holds the exact target slug). The OSM row is access_type='unknown'; the reconcile patches it to the research value 'membership' on the YMCA of Northwest North Carolina's own pickleball page, plus fee_type='fee'. A YMCA is the archetypal 'membership' venue — non-members cannot simply walk on.",
+      "osm_original": {
+        "osm_id": "way/909808277",
+        "name": "Davie Family YMCA",
+        "slug": "davie-family-ymca-mocksville-nc",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 35.9057501,
+        "lng": -80.5553899,
+        "surface": null,
+        "city": "Mocksville",
+        "state": "NC",
+        "address": "215 Cemetery Street",
+        "captured_on": "2026-07-31"
+      }
+    }
+  ],
+
+  "same_site_pairs": [
+    {
+      "a": "WS-007",
+      "b": "WS-010",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.cityofws.org/Facilities/Facility/Details/William-Roscoe-Anderson-Jr-Community-Cen-204",
+      "adjudicated_on": "2026-07-31",
+      "adjudicated_by": "court-verifier",
+      "note": "The city publishes a separate facility page for each: Reynolds Park (outdoor, https://www.cityofws.org/Facilities/Facility/Details/Reynolds-Park-98) and the William R. Anderson Jr. Community Center (indoor gymnasium) that sits inside it. Both give 2450 Reynolds Park Road."
+    }
+  ],
+
+  "_venue_facts_comment": "WS-010's workbook name is compressed. The correction was VERIFIED against the controlling entity rather than taken from the brief: the city's own facility detail page and its Recreation Centers index BOTH title it \"William R. Anderson Jr. Community Center\" — COMMUNITY, not Recreation. OSM names the building \"William R. Anderson Recreation Center\", which is likely where the recreation-center form comes from, but the city page is the controlling source. research_status stays 'probable' — the pickleball claim still rests on a club source only, and the gate correctly holds the row draft.",
+  "venue_facts": {
+    "WS-010": {
+      "source_url": "https://www.cityofws.org/Facilities/Facility/Details/William-Roscoe-Anderson-Jr-Community-Cen-204",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "fields": {
+        "name": {
+          "value": "William R. Anderson Jr. Community Center",
+          "overrides_workbook": true,
+          "reason": "workbook name dropped \"R.\" and \"Jr.\"; corrected to the city facility page's own title"
+        },
+        "court_count": {
+          "confidence": "medium",
+          "reason": "2 courts is club-sourced (wspickleballclub.com), not confirmed by the city — recorded at medium confidence"
+        }
+      }
+    }
+  },
+
+  "workbook": {
+    "header_row": 1
+  }
+}

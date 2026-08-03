@@ -1,0 +1,24 @@
+{
+  "_comment": "Augusta — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. SPANS TWO STATES: the Augusta-Richmond County MSA covers Georgia AND South Carolina (Aiken / North Augusta / Graniteville / Clearwater), so `states` lists both and the envelope must be wide enough to hold both sides of the Savannah River. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "augusta",
+  "batch": "augusta-2026-07-31",
+  "metro_area": "Augusta",
+  "states": [
+    "GA",
+    "SC"
+  ],
+  "input": "metro-research/augusta/augusta-candidates.json",
+  "discovered_by": "augusta-research",
+  "spreadsheet_id": "1oBuX6wLWeijtPmPrB8DDk9fg8JdqWjtb0l0yzk1PFxE",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Augusta-Richmond County, GA-SC MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 7 MSA counties (Richmond GA, Columbia GA, Burke GA, Lincoln GA, McDuffie GA, Aiken SC, Edgefield SC), Columbia (Georgia), Burke (Georgia), Lincoln (Georgia), McDuffie (Georgia), Aiken (South Carolina), Edgefield (South Carolina)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 15 geocoded venue(s) of 20 in this batch (observed lat 33.0945..33.5761, lng -82.2296..-81.7110).",
+  "msa": "Augusta-Richmond County, GA-SC (Richmond GA, Columbia GA, Burke GA, Lincoln GA, McDuffie GA, Aiken SC, Edgefield SC counties)",
+  "envelope": { "latMin": 32.8, "latMax": 33.99, "lngMin": -82.65, "lngMax": -81.18 },
+
+  "expected_count": 20,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1
+  }
+}

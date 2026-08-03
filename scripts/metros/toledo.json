@@ -1,0 +1,54 @@
+{
+  "_comment": "Toledo, OH MSA — Fulton, Lucas, Ottawa and Wood counties. First metro extracted by the generic pipeline from its research workbook. NOT YET IMPORTED. `expected_publish` is deliberately absent: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted. Once the owner approves the split, record it here so the real import run re-asserts it.",
+
+  "metro": "toledo",
+  "batch": "toledo-2026-07-31",
+  "metro_area": "Toledo",
+  "states": ["OH"],
+  "input": "metro-research/toledo/toledo-candidates.json",
+  "discovered_by": "toledo-research",
+  "spreadsheet_id": "1T7ojaJneCg_gMffNmLC46gphYsf21eK6dBf24rB2WLE",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+
+  "_envelope_comment": "Derived from the Toledo, OH MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 4 MSA counties (Lucas, Wood, Fulton, Ottawa), Wood (Ohio), Fulton (Ohio), Ottawa (Ohio)), rounded OUTWARD to 0.01 deg. The county-bbox union comes out as lngMax -82.61, which is WIDER than the value already locked here and would undo a documented fix: OSM's Ottawa County boundary includes the county's LAKE ERIE WATER AREA and so reaches -82.6127, and a bounding box at -82.61 re-admits Cedar Point Sports Center (Sandusky, 41.4806/-82.6563) — Erie County, NOT in the Toledo MSA, and the exact row the -82.75 tightening was introduced to exclude. -82.75 still contains all of Ottawa County's LAND including the Bass Islands (-82.79 and west) and excludes Kelleys Island (-82.71), which is Erie County. GENERAL LESSON: a county bounding box is not automatically the right envelope for a county with a large water area — the water polygon can extend the box past neighbouring LAND that is not in the MSA. Cross-check: contains all 15 geocoded venue(s) of 23 in this batch (observed lat 41.4008..41.7209, lng -83.7063..-83.4758).",
+  "msa": "Toledo, OH (Lucas, Wood, Fulton, Ottawa counties)",
+  "envelope": { "latMin": 41.05, "latMax": 41.8, "lngMin": -84.5, "lngMax": -82.75 },
+
+  "expected_count": 22,
+
+  "_exclude_comment": "OWNER RULING 2026-07-31: DEFER Pickle Zone entirely rather than guess. The workbook says commercial + paid, which this pipeline maps to access_type='public' + fee_type='fee'; the dormant OSM row 1 m away is tagged access_type='membership'. Guessing wrong writes a wrong access_type onto a live public page. Excluding the venue is strictly safer than importing it as a draft: the pre-existing OSM listing acc40b9a-91c6-4ac1-beb2-87dedc9a8cff is left byte-for-byte untouched, still source='osm', still draft. Toledo therefore imports 22 of the 23 researched venues. TO RESUME once Marty rules on access_type: delete this exclude entry, restore the reconcile block preserved in _deferred_reconcile below, and bump expected_count to 23.",
+  "exclude": [
+    {
+      "candidate_key": "tol-oh-pickle-zone",
+      "reason": "DEFERRED owner decision — access_type conflict (workbook commercial/paid -> public+fee vs OSM row tagged membership) on a venue that must reconcile onto pre-existing live row acc40b9a-91c6-4ac1-beb2-87dedc9a8cff. Held out of this run; the OSM row is left untouched."
+    }
+  ],
+
+  "_geocode_comment": "8 of the 23 venues produce no coordinate from any query rung, and this was INVESTIGATED before the flag was set rather than waved through. Seven carry no street address at all in the workbook (Pearson FitPark, Tam-O-Shanter, and the Wayman Palmer / Anthony Wayne / Fort Meigs / Sylvania / Wolf Creek YMCA branches), so they only ever reach the name-based rungs, and Nominatim does not hold those branch names as POIs. The eighth, tol-oh-rossford-club, DOES carry an address (301 Glenwood Ave, Rossford OH 43460) and still misses on all four rungs — that one looks like a workbook address error and is flagged for the owner. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 8 import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the whole metro; the publish gate holds every one of them on 'no coordinate' until an address is supplied and they are re-geocoded.",
+  "require_all_geocoded": false,
+
+  "_reconcile_comment": "NO RECONCILE RUNS IN THIS BATCH. The only reconcile candidate (Pickle Zone) is deferred and excluded above, so the listings stage is a pure 22-row INSERT and the site-wide facility_listings delta must be exactly +22. The reconcile block is preserved verbatim below, unused, so resuming it is a one-line change rather than a re-derivation.",
+  "reconciles": [],
+
+  "_deferred_reconcile": [
+    {
+      "candidate_key": "tol-oh-pickle-zone",
+      "osm_id": "node/13312652436",
+      "listing_id": "acc40b9a-91c6-4ac1-beb2-87dedc9a8cff",
+      "matched_distance_m": 1,
+      "osm_original": {
+        "name": "Pickle Zone",
+        "slug": "pickle-zone-holland-oh",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "membership",
+        "fee_type": null,
+        "metro_area": null,
+        "address": "6826 Village Meadows Trail",
+        "lat": 41.6196794,
+        "lng": -83.7040616
+      },
+      "note": "Dormant OSM row at the same address, matched at 1 m, already holding the target slug. Reconcile as an UPDATE keyed on osm_id, never an INSERT. osm_id is preserved and the OSM original is stashed in provenance.osm_reconcile.osm_original so nothing OSM-derived is lost; ODbL lineage carries forward."
+    }
+  ]
+}

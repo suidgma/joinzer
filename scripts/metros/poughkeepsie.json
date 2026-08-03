@@ -1,0 +1,23 @@
+{
+  "_comment": "Poughkeepsie — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "poughkeepsie",
+  "batch": "poughkeepsie-2026-07-31",
+  "metro_area": "Poughkeepsie",
+  "states": [
+    "NY"
+  ],
+  "input": "metro-research/poughkeepsie/poughkeepsie-candidates.json",
+  "discovered_by": "poughkeepsie-research",
+  "spreadsheet_id": "1rCQxXJhx5CvGbx9BD6LZG4oF8TO2mHbI50IGQEQx02s",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Poughkeepsie-Newburgh-Middletown, NY MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 2 MSA counties (Dutchess, Orange), Orange (New York)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 15 geocoded venue(s) of 18 in this batch (observed lat 41.2124..42.0071, lng -74.4220..-73.7969).",
+  "msa": "Poughkeepsie-Newburgh-Middletown, NY (Dutchess, Orange counties)",
+  "envelope": { "latMin": 41.14, "latMax": 42.09, "lngMin": -74.77, "lngMax": -73.48 },
+
+  "expected_count": 18,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1
+  }
+}

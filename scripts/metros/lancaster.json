@@ -1,0 +1,26 @@
+{
+  "_comment": "Lancaster — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check. workbook.aliases: this workbook labels the venue's own source URL `name_source_url` rather than `website`/`source_url`; that is a pure synonym rename, scoped here rather than added to the global table.",
+  "metro": "lancaster",
+  "batch": "lancaster-2026-07-31",
+  "metro_area": "Lancaster",
+  "states": [
+    "PA"
+  ],
+  "input": "metro-research/lancaster/lancaster-candidates.json",
+  "discovered_by": "lancaster-research",
+  "spreadsheet_id": "1t_iahqCOwGo2dbEXiNE9pHNovVUU7xFGXZshEchrjGs",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Lancaster, PA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 1 MSA county (Lancaster)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 6 geocoded venue(s) of 9 in this batch (observed lat 40.0148..40.1569, lng -76.4203..-76.3021).",
+  "msa": "Lancaster, PA (Lancaster county)",
+  "envelope": { "latMin": 39.72, "latMax": 40.32, "lngMin": -76.73, "lngMax": -75.87 },
+
+  "expected_count": 9,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1,
+    "aliases": {
+      "name_source_url": "website"
+    }
+  }
+}

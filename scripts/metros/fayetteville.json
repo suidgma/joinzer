@@ -1,0 +1,23 @@
+{
+  "_comment": "Fayetteville AR (Northwest Arkansas) — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. NOTE this is Fayetteville ARKANSAS, not Fayetteville NC; the research keys are `nwa-*` and the batch covers Fayetteville/Bentonville/Rogers/Springdale/Siloam Springs/Farmington/Bella Vista. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "fayetteville",
+  "batch": "fayetteville-2026-07-31",
+  "metro_area": "Fayetteville",
+  "states": [
+    "AR"
+  ],
+  "input": "metro-research/fayetteville/fayetteville-candidates.json",
+  "discovered_by": "fayetteville-research",
+  "spreadsheet_id": "1IY4XDENTaw4wx_2BXZAWRp7HJoJ1TO3UIR4zyG0Dzek",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Fayetteville-Springdale-Rogers, AR MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Benton, Washington, Madison), Washington (Arkansas), Madison (Arkansas)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 12 geocoded venue(s) of 16 in this batch (observed lat 36.0464..36.4891, lng -94.3450..-94.1189).",
+  "msa": "Fayetteville-Springdale-Rogers, AR (Benton, Washington, Madison counties)",
+  "envelope": { "latMin": 35.75, "latMax": 36.5, "lngMin": -94.62, "lngMax": -93.44 },
+
+  "expected_count": 16,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1
+  }
+}
