@@ -1,0 +1,52 @@
+{
+  "_comment": "Harrisburg — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "harrisburg",
+  "batch": "harrisburg-2026-07-31",
+  "metro_area": "Harrisburg",
+  "states": [
+    "PA"
+  ],
+  "input": "metro-research/harrisburg/harrisburg-candidates.json",
+  "discovered_by": "harrisburg-research",
+  "spreadsheet_id": "1aMT0uFS5QnSzz3dRiw1TOhA255x8Hnr3AAP-_KdRqms",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Harrisburg-Carlisle, PA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Cumberland, Dauphin, Perry), Dauphin (Pennsylvania), Perry (Pennsylvania)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 11 geocoded venue(s) of 21 in this batch (observed lat 40.1994..40.5614, lng -77.1840..-76.6469).",
+  "msa": "Harrisburg-Carlisle, PA (Cumberland, Dauphin, Perry counties)",
+  "envelope": { "latMin": 39.94, "latMax": 40.66, "lngMin": -77.68, "lngMax": -76.53 },
+
+  "expected_count": 21,
+  "require_all_geocoded": false,
+  "_reconcile_comment": "One venue matches a dormant source='osm' status='draft' row, adjudicated SAME venue by court-verifier on 2026-07-31. UPDATE keyed on osm_id, never an INSERT. This is also one of the three exact slug collisions in this pass: the OSM row already holds 'smash-point-pickleball-mechanicsburg-pa', the exact slug the research row would have inserted. Encoding the reconcile removes the row from the insert set, so the collision resolves as a reconcile target instead of an abort.",
+  "reconciles": [
+    {
+      "candidate_key": "hcpa-smash-point",
+      "osm_id": "node/11218703162",
+      "listing_id": "6fcfbf8b-d53f-4778-bfb9-fde3133d334f",
+      "matched_distance_m": 0,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://www.smashpointpb.com/reserve",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row (0 m, same 97 Gateway Dr address, same name, and it already holds the exact target slug). The OSM row is access_type='unknown'; the reconcile patches it to the research values access_type='public' + fee_type='fee' on Smash Point's own reservation page (paid walk-in commercial per the ADR-13 Vegas-parity map, not membership).",
+      "osm_original": {
+        "osm_id": "node/11218703162",
+        "name": "Smash Point Pickleball",
+        "slug": "smash-point-pickleball-mechanicsburg-pa",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 40.2363661,
+        "lng": -76.9815457,
+        "surface": null,
+        "city": "Mechanicsburg",
+        "state": "PA",
+        "address": "97 Gateway Drive",
+        "captured_on": "2026-07-31"
+      }
+    }
+  ],
+  "workbook": {
+    "header_row": 1
+  }
+}

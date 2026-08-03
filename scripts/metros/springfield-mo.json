@@ -1,0 +1,42 @@
+{
+  "_comment": "Springfield MO — GENERATION B workbook, the 48-column Port St. Lucie/Scranton layout (no research_key column; keys synthesized from the slug). NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "_metro_slug_flag": "metro_area 'Springfield' slugs to /courts/in/springfield, which is not state-qualified. The metro KEY is springfield-mo, but metroSlug() derives the public URL from metro_area alone, so a future Springfield MA/IL/OH batch would collide on the same slug. Flagged for the owner; nothing is published yet, so it is a one-field change while the rows are draft.",
+  "metro": "springfield-mo",
+  "batch": "springfield-mo-2026-07-31",
+  "metro_area": "Springfield",
+  "states": ["MO"],
+  "input": "metro-research/springfield-mo/springfield-mo-candidates.json",
+  "discovered_by": "springfield-mo-research",
+  "spreadsheet_id": "1A8vdB5fWSPumrZkJntPwZjmx_9sfxaqH3rufyGUwIzw",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Springfield, MO MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 5 MSA counties (Greene, Christian, Dallas, Polk, Webster), Christian (Missouri), Dallas (Missouri), Polk (Missouri), Webster (Missouri)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 37 geocoded venue(s) of 43 in this batch (observed lat 37.0286..37.6119, lng -93.5564..-92.9071).",
+  "msa": "Springfield, MO (Greene, Christian, Dallas, Polk, Webster counties)",
+  "envelope": { "latMin": 36.8, "latMax": 37.91, "lngMin": -93.64, "lngMax": -92.67 },
+
+  "expected_count": 43,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "_venue_facts_comment": "springfield-mo-the-x-center and springfield-mo-nixa-rotary-park geocoded 0 m apart and aborted the metro. court-verifier adjudicated them as TWO venues (The X Center: indoor rec center, membership, fee, 3 shared-use gym courts. Rotary Park: outdoor public park, free, 2 tennis courts with pickleball lines painted) — but the 0 m collision is a RESEARCHER ERROR, not a shared campus, so this is fixed at the ADDRESS and deliberately NOT allow-listed as a same_site_pair. Both workbook rows cite only the generic https://www.nixa.com/pickleball/ page, which names both venues and gives NEITHER an address; the researcher appears to have defaulted Rotary Park's address to The X Center's 701 N Taylor Way. The City of Nixa's own pages settle it: the Rotary Park page gives \"301 Nixa Park Road Nixa, MO ... 65714\" and the Parks & Facilities index repeats \"301 nixa park road\" and places the park \"east of Hwy 160\" — while listing 701 North Taylor Way as the AQUATIC CENTER, i.e. a different building on the same municipal recreation campus as The X. Both URLs were fetched and read directly, not taken on trust. An allow-list entry would have enshrined the defect; correcting the address makes the pair stop tripping the 150 m guard at source.",
+  "venue_facts": {
+    "springfield-mo-nixa-rotary-park": {
+      "source_url": "https://www.nixa.com/parks_trails/rotary-park/",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "City of Nixa's own Rotary Park page gives the park's address as 301 Nixa Park Road, Nixa, MO 65714 and describes two tennis courts; the Parks & Facilities index corroborates it and places the park east of Hwy 160, well away from the Taylor Way recreation campus.",
+      "fields": {
+        "address": {
+          "value": "301 Nixa Park Road",
+          "overrides_workbook": true,
+          "reason": "workbook carried \"701 N Taylor Way\", which is The X Center's / the Aquatic Center's address on the municipal recreation campus. Both rows cited only nixa.com/pickleball/, which names the two venues but supplies no address, so Rotary Park's address was defaulted to its neighbour's. City-of-Nixa sources give 301 Nixa Park Road. Stored street-only, matching every other row in this batch (city/state/zip live in their own columns and are already Nixa / MO / 65714)."
+        }
+      }
+    }
+  },
+
+  "workbook": {
+    "generation": "B",
+    "header_row": 1
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "_comment": "Spokane — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. workbook.header_row=4: rows 1-3 of Import Ready are a title row, a prose note and a blank. workbook.aliases: this workbook labels the venue's own source URL `primary_source_url` on the Import Ready tab (the extractor only reads that column name off the Venues tab); a pure synonym rename, scoped here rather than added to the global table. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "spokane",
+  "batch": "spokane-2026-07-31",
+  "metro_area": "Spokane",
+  "states": [
+    "WA"
+  ],
+  "input": "metro-research/spokane/spokane-candidates.json",
+  "discovered_by": "spokane-research",
+  "spreadsheet_id": "1h7U4-JlZV85QlJJIgcNHb4tcMxNEKP6oO_cr1_ZQqUo",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Spokane-Spokane Valley, WA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Spokane, Stevens, Pend Oreille), Stevens (Washington), Pend Oreille (Washington)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 24 geocoded venue(s) of 27 in this batch (observed lat 47.5979..47.8200, lng -117.4469..-117.0718).",
+  "msa": "Spokane-Spokane Valley, WA (Spokane, Stevens, Pend Oreille counties)",
+  "envelope": { "latMin": 47.25, "latMax": 49.01, "lngMin": -118.4, "lngMax": -117.03 },
+
+  "expected_count": 27,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 4,
+    "aliases": {
+      "primary_source_url": "website"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "_comment": "Portland ME — GENERATION C workbook (Import Candidates tab; the only metro on this generation). NOT YET IMPORTED. Read-only projection only. envelope is INTENTIONALLY ABSENT: derive it from the observed bounding box printed by --stage=project and tighten it against the MSA county list before any import stage will run. NOTE the workbook's own rows span Cumberland, Sagadahoc and York counties and reach as far south as Kittery/York — the observed bbox will be large, and whether the southern York County rows belong to the Portland-South Portland MSA or the Portsmouth NH-ME MSA is an owner call to settle when the envelope is locked.",
+  "metro": "portland-me",
+  "batch": "portland-me-2026-07-31",
+  "metro_area": "Portland",
+  "states": ["ME"],
+  "input": "metro-research/portland-me/portland-me-candidates.json",
+  "discovered_by": "portland-me-research",
+  "spreadsheet_id": "16REyfyKIfEOh2LC4j_2Y3rHzs92V7_M5MPPWuTMk-fg",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "expected_count": 41,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "workbook": {
+    "generation": "C",
+    "header_row": 1
+  }
+}

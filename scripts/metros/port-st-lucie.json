@@ -1,0 +1,52 @@
+{
+  "_comment": "Port St. Lucie — GENERATION B workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check. Note the metro spans St. Lucie and Martin counties, so Stuart / Jensen Beach / Hobe Sound / Palm City rows are in-metro.",
+  "metro": "port-st-lucie",
+  "batch": "port-st-lucie-2026-07-31",
+  "metro_area": "Port St. Lucie",
+  "states": ["FL"],
+  "input": "metro-research/port-st-lucie/port-st-lucie-candidates.json",
+  "discovered_by": "port-st-lucie-research",
+  "spreadsheet_id": "1ToJ1IbpLYxn8BX8s1nF3B73WuOseJCw6RQZJ8w-3JoM",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Port St. Lucie, FL MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 2 MSA counties (St. Lucie, Martin), Martin (Florida)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 18 geocoded venue(s) of 24 in this batch (observed lat 27.0567..27.4692, lng -80.3829..-80.1333).",
+  "msa": "Port St. Lucie, FL (St. Lucie, Martin counties)",
+  "envelope": { "latMin": 26.95, "latMax": 27.56, "lngMin": -80.89, "lngMax": -80.02 },
+
+  "expected_count": 24,
+  "require_all_geocoded": false,
+  "_reconcile_comment": "One venue matches a dormant source='osm' status='draft' row, adjudicated SAME venue by court-verifier on 2026-07-31. UPDATE keyed on osm_id, never an INSERT. COUNTY FLAG RESOLVED, NO ACTION: court-verifier noted Langford Park sits in Jensen Beach, Martin County and suspected the batch was mis-tagged. It is not. The Port St. Lucie MSA comprises Martin AND St. Lucie counties — that is the exact county pair this metro's envelope was derived from — and the venue falls inside it. Correctly tagged; do not re-tag it and do not audit the batch for this. Owner ruling 2026-07-31.",
+  "reconciles": [
+    {
+      "candidate_key": "port-st-lucie-langford-park",
+      "osm_id": "way/542523957",
+      "listing_id": "773b3377-16c9-4615-a799-11123973ea52",
+      "matched_distance_m": 59,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://www.martin.fl.us/Pickleball",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row (59 m — the OSM feature is the court polygon, the research geocode is the 2369 NE Dixie Hwy rooftop). access_type keeps the research value 'public' (the OSM row already agrees at 'public'), and the reconcile supplies the city, address, metro_area, fee_type and website the OSM row lacks entirely. Name moves from the OSM 'Langford Park Pickleball' to the research row's 'Langford Park', which is what Martin County's own page calls it.",
+      "osm_original": {
+        "osm_id": "way/542523957",
+        "name": "Langford Park Pickleball",
+        "slug": "langford-park-pickleball-fl",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "public",
+        "fee_type": null,
+        "lat": 27.2252414,
+        "lng": -80.2206081,
+        "surface": null,
+        "city": null,
+        "state": "FL",
+        "address": null,
+        "captured_on": "2026-07-31"
+      }
+    }
+  ],
+
+  "workbook": {
+    "generation": "B",
+    "header_row": 1
+  }
+}

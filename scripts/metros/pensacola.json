@@ -1,0 +1,23 @@
+{
+  "_comment": "Pensacola — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "pensacola",
+  "batch": "pensacola-2026-07-31",
+  "metro_area": "Pensacola",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/pensacola/pensacola-candidates.json",
+  "discovered_by": "pensacola-research",
+  "spreadsheet_id": "1AbLHAzPPD-CGsZsoQVLCoHoKn-Wu33oc98F-Gb4Uncw",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Pensacola-Ferry Pass-Brent, FL MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 2 MSA counties (Escambia, Santa Rosa), Santa Rosa (Florida)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 8 geocoded venue(s) of 16 in this batch (observed lat 30.3547..30.6397, lng -87.2238..-86.8504).",
+  "msa": "Pensacola-Ferry Pass-Brent, FL (Escambia, Santa Rosa counties)",
+  "envelope": { "latMin": 30.22, "latMax": 31, "lngMin": -87.64, "lngMax": -86.78 },
+
+  "expected_count": 16,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "_comment": "Melbourne — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "melbourne",
+  "batch": "melbourne-2026-07-31",
+  "metro_area": "Melbourne",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/melbourne/melbourne-candidates.json",
+  "discovered_by": "melbourne-research",
+  "spreadsheet_id": "1AyRz_QHZHGEZjp-_rEiko1aCzxubJCLjC11etZd--5U",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Palm Bay-Melbourne-Titusville, FL MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 1 MSA county (Brevard)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 13 geocoded venue(s) of 15 in this batch (observed lat 28.0093..28.6235, lng -80.8393..-80.5863).",
+  "msa": "Palm Bay-Melbourne-Titusville, FL (Brevard county)",
+  "envelope": { "latMin": 27.82, "latMax": 28.8, "lngMin": -80.99, "lngMax": -80.38 },
+
+  "expected_count": 15,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "same_site_pairs": [
+    {
+      "a": "pbmt-fl-028",
+      "b": "pbmt-fl-029",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.cityofcocoabeach.com/697/Pickleball",
+      "adjudicated_on": "2026-07-31",
+      "adjudicated_by": "court-verifier",
+      "note": "Cocoa Beach Recreation Center / Tennis & Pickleball Complex (321 Ramp Road, 12 courts, fee) and Ramp Road Park (401 Ramp Road, outdoor) are distinct city facilities with distinct house numbers on the same road; the city lists them separately at https://www.cityofcocoabeach.com/547/Parks-with-Tennis-Pickleball-Courts. They geocoded 83 m apart onto the same OSM way."
+    }
+  ],
+
+  "venue_facts": {
+    "pbmt-fl-028": {
+      "source_url": "https://www.cityofcocoabeach.com/697/Pickleball",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "fields": {
+        "fee_type": {
+          "value": "fee",
+          "overrides_workbook": true,
+          "reason": "the workbook prose \"Program fees apply\" was parked at 'unknown' by the prose-ambiguity rule; adjudication confirms a fee applies, which is ruling 1 branch 1 (unambiguous prose -> take it). The verbatim prose remains in public_notes and in provenance.fields.fee_type.workbook_value."
+        }
+      }
+    }
+  },
+
+  "workbook": {
+    "header_row": 1
+  }
+}

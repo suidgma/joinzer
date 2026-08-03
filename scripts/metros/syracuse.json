@@ -1,0 +1,83 @@
+{
+  "_comment": "Syracuse — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "syracuse",
+  "batch": "syracuse-2026-07-31",
+  "metro_area": "Syracuse",
+  "states": [
+    "NY"
+  ],
+  "input": "metro-research/syracuse/syracuse-candidates.json",
+  "discovered_by": "syracuse-research",
+  "spreadsheet_id": "1B10Fc8K7tmUn7DYMJGXwiu4tQ7OYC4pOpolPG6uLRro",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Syracuse, NY MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Onondaga, Madison, Oswego), Madison (New York), Oswego (New York)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 15 geocoded venue(s) of 15 in this batch (observed lat 42.9978..43.1410, lng -76.3350..-75.9822).",
+  "msa": "Syracuse, NY (Onondaga, Madison, Oswego counties)",
+  "envelope": { "latMin": 42.72, "latMax": 43.83, "lngMin": -76.65, "lngMax": -75.23 },
+
+  "expected_count": 15,
+  "require_all_geocoded": false,
+  "_reconcile_comment": "One venue matches a dormant source='osm' status='draft' row, adjudicated SAME venue by court-verifier on 2026-07-31. UPDATE keyed on osm_id, never an INSERT. The reconcile moves the row's city from Syracuse to DeWitt (and its slug with it) because the research row places the venue in DeWitt; the target is a draft that was never public, so there is no URL-stability cost and no redirect obligation.",
+  "reconciles": [
+    {
+      "candidate_key": "syr-erie-canal",
+      "osm_id": "node/3249667564",
+      "listing_id": "2d9aa2ad-11c2-4591-8139-dffe2d9f1f40",
+      "matched_distance_m": 0,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://www.eriecanalpickleball.com/",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row (0 m — the research row's own geocode resolved to this exact OSM node, same name). The OSM row is access_type='unknown'; the reconcile patches it to the research value 'public' on the venue's own site. NOTE the research row carries NO address and no zip, so the reconcile leaves address NULL where the OSM row had '3179 Erie Boulevard East'; that is the honest outcome of the artifact and not a defect to paper over — the publish gate does not require an address, and the coordinate is high-precision.",
+      "osm_original": {
+        "osm_id": "node/3249667564",
+        "name": "Erie Canal Pickleball Center",
+        "slug": "erie-canal-pickleball-center-syracuse-ny",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 43.0551638,
+        "lng": -76.0746923,
+        "surface": null,
+        "city": "Syracuse",
+        "state": "NY",
+        "address": "3179 Erie Boulevard East",
+        "captured_on": "2026-07-31"
+      }
+    }
+  ],
+
+  "same_site_pairs": [
+    {
+      "a": "syr-meachem",
+      "b": "syr-cecile",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.syr.gov/Living/Our-Community/Parks-Recreation-Youth-Services/Find-Activities-and-Events/Pickleball-in-Syracuse",
+      "adjudicated_on": "2026-07-31",
+      "adjudicated_by": "court-verifier",
+      "note": "The City of Syracuse pickleball page lists them under two different headings. Meachem Field appears under Outdoor Courts (\"Meachem Field (3 courts, lights available for evening play)\"), where \"Play is First Come First Play\". Bob Cecile is a senior center whose only pickleball offering is under Lessons and Clinics: \"Cecile Center, 174 W. Seneca Trpk, 13205: Wednesdays and Fridays, 12 to 12:45 p.m.\", 55+ with a senior membership. Same rec-center-inside-a-park shape as Des Moines, confirmed at tier 1 rather than assumed; they geocode 83 m apart onto their own distinct house numbers (121 vs 174 W Seneca Turnpike)."
+    }
+  ],
+
+  "_venue_facts_comment": "syr-cecile only. Magnarelli is deliberately LEFT at access_type='unknown': the same city page gives it BOTH an open 17+ \"Adult Pick Up Play - Indoor\" program AND a separate 55+ senior-membership Open Play, so it genuinely mixes two access classes and 'unknown' is the honest answer, not a gap. Do not 'fix' it.",
+  "venue_facts": {
+    "syr-cecile": {
+      "source_url": "https://www.syr.gov/Living/Our-Community/Parks-Recreation-Youth-Services/Find-Activities-and-Events/Pickleball-in-Syracuse",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "the city page's only pickleball offering at the Cecile Center is Senior Lessons, and it states one access class outright: \"Players must be at least 55 years of age and have a senior membership\"",
+      "fields": {
+        "access_type": {
+          "value": "membership",
+          "overrides_workbook": true,
+          "reason": "workbook left it 'unknown'; the controlling entity names a single unambiguous access class (55+ senior membership), which is ruling-1 branch 1 — take it"
+        }
+      }
+    }
+  },
+
+  "workbook": {
+    "header_row": 1
+  }
+}

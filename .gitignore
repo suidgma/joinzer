@@ -105,3 +105,9 @@ scripts/.osm-ingest-progress.json
 # before --apply). Holds Places displayName/location used only to validate a match in memory; ADR-12
 # permits storing place_id alone, so this working file stays out of the repo.
 /place-id-backfill/
+
+# Generic metro-research pipeline artifacts (input to scripts/import-metro-merged.mjs, produced by
+# scripts/lib/workbook-extract.mjs). Same rationale as the per-metro dirs above: research working
+# data, and the workbooks carry tier-4 aggregator source URLs which are an ADR-14 private research
+# input and must never be republished. Also holds the shared Nominatim geocode cache.
+/metro-research/

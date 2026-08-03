@@ -1,0 +1,46 @@
+{
+  "_comment": "Wichita — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "wichita",
+  "batch": "wichita-2026-07-31",
+  "metro_area": "Wichita",
+  "states": [
+    "KS"
+  ],
+  "input": "metro-research/wichita/wichita-candidates.json",
+  "discovered_by": "wichita-research",
+  "spreadsheet_id": "1q6n_L1mW12fo8uhtlxsdcAE1HxL2VC-QMFS0mV0pAk0",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Wichita, KS MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 5 MSA counties (Sedgwick, Butler, Harvey, Sumner, Kingman), Butler (Kansas), Harvey (Kansas), Sumner (Kansas), Kingman (Kansas)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 23 geocoded venue(s) of 25 in this batch (observed lat 37.5538..38.0498, lng -97.4601..-96.8489).",
+  "msa": "Wichita, KS (Sedgwick, Butler, Harvey, Sumner, Kingman counties)",
+  "envelope": { "latMin": 36.99, "latMax": 38.18, "lngMin": -98.47, "lngMax": -96.52 },
+
+  "expected_count": 25,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "_same_site_comment": "No venue_facts block: every verified fact for these four rows (Edgemoor Rec indoor/3/fee, Edgemoor Park outdoor/12/free, 13th Street outdoor/4/free, Andover Community Center indoor/reservation_required/fee) already matches the workbook exactly, so writing an override would be a no-op that only obscures where the value came from.",
+  "same_site_pairs": [
+    {
+      "a": "wichita-edgemoor-rec",
+      "b": "wichita-edgemoor-park",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.wichita.gov/717/Pickleball",
+      "adjudicated_on": "2026-07-31",
+      "adjudicated_by": "court-verifier",
+      "note": "Edgemoor Recreation Center (indoor, 3 courts, drop-in fee) sits inside Edgemoor Park (outdoor, 12 courts, free). The city lists both at 5815 E 9th, which is why they geocoded onto one house-number point."
+    },
+    {
+      "a": "andover-13th-sports",
+      "b": "andover-community-center",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.andoverks.gov/866/13th-Street-Sports-Park",
+      "adjudicated_on": "2026-07-31",
+      "adjudicated_by": "court-verifier",
+      "note": "13th Street Sports Park (outdoor, 4 courts, free) and the Andover Community Center (indoor, reservation-required, fee) share 1008 E 13th Street. The city publishes a separate page for the community center: https://www.andoverks.gov/877/Andover-Community-Center"
+    }
+  ],
+
+  "workbook": {
+    "header_row": 1
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "_comment": "Huntsville AL — GENERATION B workbook, but the FIFTH distinct generation-B layout and the first where the generation's default primary tab is the wrong tab. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "_tabs_flag": "This workbook's 'Import Dry Run' tab is a per-row SIMULATION LOG (research_key / name / simulation_action / target_table / blocking_issue / dry_run_status) carrying no venue facts. The venue table is 'Reviewed Venues' — 34 columns with a real research_key AND a real research_status column (verified/held), i.e. generation A's evidence shape inside a generation B workbook. Reading the log as primary would not abort; it would silently yield 30 venues with no address, no source URL and no public_notes, and would let research_status='verified' past the ADR-14 aggregator test (which needs a URL to test anything). Hence the explicit workbook.tabs override.",
+  "_simulation_log_flag": "The simulation log carries two signals the venue table does not, both reported rather than acted on: blocking_issue='Primary-source confirmation incomplete' on huntsville-mt-carmel-rec / madison-pickle-room / new-market-rec (the same three rows the venue table already marks research_status='held', so the two agree), and simulation_action='update_existing' on madison-town-wellness — the researcher believed that venue matches a row already live in facility_listings. The importer's own per-run proximity guard re-tests that against live data on every run; no reconcile is declared here.",
+  "metro": "huntsville",
+  "batch": "huntsville-2026-07-31",
+  "metro_area": "Huntsville",
+  "states": ["AL"],
+  "input": "metro-research/huntsville/huntsville-candidates.json",
+  "discovered_by": "huntsville-research",
+  "spreadsheet_id": "1OoEd7-zjwnktJjO7tLoAHvsTcmw2GKozr-0hazKbtPo",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Huntsville, AL MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 2 MSA counties (Madison, Limestone), Limestone (Alabama)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 28 geocoded venue(s) of 30 in this batch (observed lat 34.5271..34.9078, lng -86.9676..-86.3779).",
+  "msa": "Huntsville, AL (Madison, Limestone counties)",
+  "envelope": { "latMin": 34.47, "latMax": 35, "lngMin": -87.28, "lngMax": -86.25 },
+
+  "expected_count": 30,
+  "require_all_geocoded": false,
+  "_reconcile_comment": "Two of this batch's venues match dormant source='osm' status='draft' rows already in facility_listings, adjudicated SAME venue by court-verifier on 2026-07-31 against controlling-entity sources. Both are UPDATEs keyed on osm_id, never INSERTs. The Town Madison site carries TWO dormant OSM rows — the wellness-centre polygon way/73937891 and its outdoor court pad way/75909784, 105 m apart — and reconciling onto both would publish one physical site twice. The pad is named in also_at_site and deliberately left as a dormant unpublished draft: it is a real OSM record of the site, so deleting or merging it buys nothing, and its dormancy is re-asserted against live data on every run. reconcile_radius_m is NOT lowered; that knob is metro-wide and would blind the guard to every other neighbour in Huntsville.",
+  "reconciles": [
+    {
+      "candidate_key": "madison-town-wellness",
+      "osm_id": "way/73937891",
+      "listing_id": "e9ee1bd2-c786-433a-984d-972da245b120",
+      "matched_distance_m": 3,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://www.madisonal.gov/1305/Town-Madison-Wellness-Center",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row (3 m, identical street address 190 Graphics Drive, identical name). The OSM row carries access_type='unknown', which would have silently held it draft forever; the reconcile patches it to the research value 'public' on the City of Madison's own facility page, plus name/slug/source/metro_area — a reconcile must patch every gate-relevant field, not just the name.",
+      "osm_original": {
+        "osm_id": "way/73937891",
+        "name": "Town Madison Wellness Center",
+        "slug": "town-madison-wellness-center-madison-al",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 34.6713189,
+        "lng": -86.7459066,
+        "surface": null,
+        "city": "Madison",
+        "state": "AL",
+        "address": "190 Graphics Drive",
+        "captured_on": "2026-07-31"
+      },
+      "also_at_site": [
+        {
+          "osm_id": "way/75909784",
+          "listing_id": "d1d3c137-db7a-4d00-8337-3a4d60665991",
+          "name": "Town Madison Pickleball Courts",
+          "slug": "town-madison-pickleball-courts-al",
+          "distance_m": 105,
+          "verdict": "same_site_dormant",
+          "disposition": "leave_dormant_draft",
+          "adjudicated_by": "court-verifier",
+          "adjudicated_on": "2026-07-31",
+          "evidence_url": "https://www.madisonal.gov/1305/Town-Madison-Wellness-Center",
+          "note": "NOT a separate venue — this is the outdoor court pad of the same Town Madison site whose indoor wellness centre is way/73937891. madison-town-wellness reconciles onto way/73937891 ONLY. Reconciling onto both, or inserting a third listing, would double-publish one physical site. Left as a dormant unpublished draft: verified_by stays NULL so publish-facilities.mjs cannot pick it up, and no UPDATE or INSERT in this batch targets it."
+        }
+      ]
+    },
+    {
+      "candidate_key": "huntsville-picklr",
+      "osm_id": "node/12710678566",
+      "listing_id": "dbd418ad-d096-4f50-84b5-c6b10438a331",
+      "matched_distance_m": 0,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "evidence_url": "https://thepicklr.com/location/huntsville/",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row (0 m, same street address 6123 University Drive NW). The OSM row is access_type='unknown' with no city; the reconcile patches it to the research values access_type='public' + fee_type='fee' on The Picklr's own location page (walk-in commercial: ADR-13's Vegas-parity map puts paid walk-in commercial at public + fee, not membership).",
+      "osm_original": {
+        "osm_id": "node/12710678566",
+        "name": "The Picklr",
+        "slug": "the-picklr-al",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 34.7414732,
+        "lng": -86.673554,
+        "surface": null,
+        "city": null,
+        "state": "AL",
+        "address": "6123 University Drive Northwest",
+        "captured_on": "2026-07-31"
+      }
+    }
+  ],
+
+  "_venue_facts_comment": "ADR-14 adjudication, 2026-07-31. Exactly four rows in this batch rest on pickleball-huntsville.com as their sole source. That site IS a genuine local association — it is deliberately NOT added to AGGREGATOR_HOST, because that regex is global and blanket-listing it would misclassify the seven indoor rec centres it genuinely programs — but it is a controlling entity only for those indoor programs. Its own /locations.php carries the verbatim heading \"These outdoor locations are NOT associated with the Huntsville Pickleball Club.\" over the section holding Willow Park, California Street Park and Philpot Park. That is a SELF-DISCLAIMER, not an inference, so those three cannot reach 'verified' on it and are downgraded to 'probable'. Every other venue in the disclaimed outdoor section (Sandra Moon, Shurney, Dublin Park, Town Madison) is already sourced to huntsvilleal.gov or madisonal.gov and is therefore untouched by this ruling — checked row by row, not assumed. CORRECTION TO THE BRIEF: the brief describes the disclaimer heading as sitting over all FOUR club-sourced rows; the live page puts Madison Crossroads in the INDOOR section instead, under a separate note that it is not associated with the Club or with Parks & Recreation and charges a fee. Same conclusion, different sentence — it is re-sourced below rather than downgraded, and its 'verified' now rests on the county's own facility directory.",
+  "venue_facts": {
+    "huntsville-willow-park": {
+      "source_url": "https://www.pickleball-huntsville.com/locations.php",
+      "confidence": "low",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "research_status": "probable",
+      "research_status_reason": "ADR-14: the sole source disclaims itself. pickleball-huntsville.com/locations.php lists this venue under the verbatim heading \"These outdoor locations are NOT associated with the Huntsville Pickleball Club.\", so the club is not a controlling entity for it and its listing cannot carry the row to 'verified'. court-verifier further reports that the City of Huntsville's own Find-a-Park directory is silent on pickleball at this park. Promotion to 'verified' needs a controlling-entity confirmation (city parks page, signage survey, or a city programming schedule)."
+    },
+    "huntsville-california-street-park": {
+      "source_url": "https://www.pickleball-huntsville.com/locations.php",
+      "confidence": "low",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "research_status": "probable",
+      "research_status_reason": "ADR-14: the sole source disclaims itself. pickleball-huntsville.com/locations.php lists this venue under the verbatim heading \"These outdoor locations are NOT associated with the Huntsville Pickleball Club.\", so the club is not a controlling entity for it and its listing cannot carry the row to 'verified'. court-verifier further reports that the City of Huntsville's own Find-a-Park directory is silent on pickleball at this park. Promotion to 'verified' needs a controlling-entity confirmation (city parks page, signage survey, or a city programming schedule)."
+    },
+    "huntsville-philpot-park": {
+      "source_url": "https://www.pickleball-huntsville.com/locations.php",
+      "confidence": "low",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "research_status": "probable",
+      "research_status_reason": "ADR-14: the sole source disclaims itself. pickleball-huntsville.com/locations.php lists this venue under the verbatim heading \"These outdoor locations are NOT associated with the Huntsville Pickleball Club.\", so the club is not a controlling entity for it and its listing cannot carry the row to 'verified'. court-verifier further reports that the City of Huntsville's own Find-a-Park directory is silent on pickleball at this park. Promotion to 'verified' needs a controlling-entity confirmation (city parks page, signage survey, or a city programming schedule)."
+    },
+    "toney-madison-crossroads": {
+      "source_url": "https://www.madisoncountyal.gov/Home/Components/FacilityDirectory/FacilityDirectory/60/38",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "website": "https://www.madisoncountyal.gov/Home/Components/FacilityDirectory/FacilityDirectory/60/38",
+      "website_reason": "USER-FACING DEFECT, not bookkeeping. The evidence for this row was moved onto Madison County's own facility directory, but `website` is a plain string rather than an evidence-bearing node, so the re-sourcing left the link a reader actually clicks still pointing at pickleball-huntsville.com — a club page whose own /locations.php states that it is not associated with this venue. Sending a reader to a page that disowns the venue is worse than sending them nowhere. Pointed at the same county facility-directory URL the identity, address and pickleball-activity nodes already cite. NOTE ON VERIFICATION: unchanged from the `reason` above — madisoncountyal.gov 403s every request from this environment including its own site root, which is a host-level bot block and not a dead link; four other rows in this batch already cite the same CivicPlus FacilityDirectory component on the same host.",
+      "reason": "STAYS 'verified', but re-sourced so that status rests on the county's own authority rather than on the club site. Madison County's facility directory lists Madison Crossroads Community Center with 'Basketball/Volleyball/Pickleball' at an address matching 11329 Pulaski Pike. No value changes — only the evidence URL and confidence move onto the identity, address and pickleball-activity nodes. NOTE ON VERIFICATION: madisoncountyal.gov 403s every request from this environment, including its own site root and the FacilityDirectory URL already cited by huntsville-monrovia-community in this same batch, so the citation could not be independently re-fetched here; that is a host-level bot block, not a dead link. Corroboration taken instead: it is the same CivicPlus FacilityDirectory component (facility id 60/38 vs monrovia's 36) on a host four other rows in this batch already cite. fee_type and access_type are deliberately LEFT on the club-site evidence — the county listing establishes identity, address and pickleball, and claiming it also sourced the fee model would assert evidence that was not read.",
+      "fields": {
+        "name": {},
+        "address": {},
+        "pickleball_activity": {}
+      }
+    }
+  },
+
+  "workbook": {
+    "generation": "B",
+    "header_row": 1,
+    "tabs": {
+      "primary": "Reviewed Venues",
+      "venues": null
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "_comment": "VALIDATION FIXTURE. Little Rock is already published (16 of 19 live since 2026-07-30) by the bespoke scripts/import-little-rock-merged.mjs, which stays in place as that batch's audit trail. This config exists so the GENERIC pipeline can be run against the same artifact and proved to reproduce the same classification. `expected_publish` below is the recorded known-good split, verified against production; --stage=project and --stage=publish both assert against it and fail the run on any divergence. If the generic pipeline ever disagrees, fix the pipeline — never edit this block to match the output.",
+
+  "metro": "little-rock",
+  "batch": "little-rock-2026-07-30",
+  "metro_area": "Little Rock",
+  "msa": "Little Rock–North Little Rock–Conway, AR (Faulkner, Grant, Lonoke, Perry, Pulaski, Saline counties)",
+  "states": ["AR"],
+  "input": "little-rock-count/little-rock-candidates.json",
+  "discovered_by": "little-rock-research",
+  "spreadsheet_id": "1ZX2qsVij2-Yrziz-vFLNjW3_QmiWB9yBpo6bYaeEtWg",
+
+  "envelope": { "latMin": 34.30, "latMax": 35.35, "lngMin": -93.05, "lngMax": -91.75 },
+
+  "expected_count": 19,
+  "expected_status_dist": { "verified": 17, "probable": 2 },
+
+  "reconciles": [
+    {
+      "candidate_key": "lr_conway_community_center",
+      "osm_id": "way/1498910770",
+      "listing_id": "8e16118a-f367-4c9d-947d-d08ccf55e973",
+      "matched_distance_m": 2,
+      "adjudicated_by": "feature-builder (little-rock import slice)",
+      "adjudicated_on": "2026-07-30",
+      "evidence_url": "https://conwayarkansas.gov/conway-community-center/",
+      "confidence": "high",
+      "_backfill_note": "These five fields were BACKFILLED on 2026-07-31, when evidence_url + adjudicated_on became mandatory on every reconcile entry. They are RECONSTRUCTED from this batch's own artifact, never invented: matched_distance_m (2), the adjudication date (the artifact's `updated` field and the batch tag are both 2026-07-30) and the evidence URL (the venue's tier-1 name.source_url, the City of Conway's own page) all come from little-rock-count/little-rock-candidates.json. Note what the SAME-VENUE verdict actually rested on, because the URL alone would misstate it: an independent Nominatim geocode resolving to the exact OSM element way/1498910770, corroborated by a unique-slug collision on the already-correct conway-community-center-conway-ar. That is geometric and key-level evidence, not a claim read off the Conway page; the Conway URL is the controlling-entity source for the venue's IDENTITY. This config is the generic pipeline's VALIDATION HARNESS for an already-published batch — the audit trail of what actually ran against production is scripts/import-little-rock-merged.mjs, which is deliberately untouched.",
+      "note": "Conway Community Center merges onto a dormant OSM row matched at 2 m. The tell was not the name or the slug (both were already correct) but the geocode resolving to the same osm_id plus a slug-collision hit."
+    }
+  ],
+
+  "expected_publish": {
+    "count": 16,
+    "hold": {
+      "pickleball-kingdom-little-rock-ar": "coordinate precision low",
+      "indianhead-park-sherwood-ar": "research_status=probable",
+      "tyndall-park-benton-ar": "research_status=probable"
+    }
+  }
+}

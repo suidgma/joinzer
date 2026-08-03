@@ -1,0 +1,24 @@
+{
+  "_comment": "Scranton — GENERATION B workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "_metro_area_flag": "RESOLVED by the owner 2026-07-31: metro_area is 'Scranton-Wilkes-Barre'. Roughly half these venues are in Wilkes-Barre, Kingston, Pittston, Plains, Dallas and Hazleton rather than Scranton, and metro_area is what mints the public URL (/courts/in/scranton-wilkes-barre) and what renders on the page. ASCII hyphen, matching the stored 'Reno-Sparks' and 'Greensboro-High Point' convention — an en-dash slugs identically but diverges from convention for no gain. The state is deliberately NOT carried here: metroLabel() renders `${metro_area}, ${state}` from a per-row state, so a state-suffixed value would render 'Scranton-Wilkes-Barre, PA, PA'.",
+  "metro": "scranton",
+  "batch": "scranton-2026-07-31",
+  "metro_area": "Scranton-Wilkes-Barre",
+  "states": ["PA"],
+  "input": "metro-research/scranton/scranton-candidates.json",
+  "discovered_by": "scranton-research",
+  "spreadsheet_id": "1gjY8xfV9mL5PyBefADWcS79E-PA26No4QStBYxwtjGY",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Scranton--Wilkes-Barre, PA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Lackawanna, Luzerne, Wyoming), Luzerne (Pennsylvania), Wyoming (Pennsylvania)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 14 geocoded venue(s) of 18 in this batch (observed lat 40.9503..41.4763, lng -75.9794..-75.5829).",
+  "msa": "Scranton--Wilkes-Barre, PA (Lackawanna, Luzerne, Wyoming counties)",
+  "envelope": { "latMin": 40.9, "latMax": 41.66, "lngMin": -76.33, "lngMax": -75.44 },
+
+  "expected_count": 18,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "workbook": {
+    "generation": "B",
+    "header_row": 1
+  }
+}

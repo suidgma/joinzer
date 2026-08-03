@@ -1,0 +1,23 @@
+{
+  "_comment": "Madison — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "madison",
+  "batch": "madison-2026-07-31",
+  "metro_area": "Madison",
+  "states": [
+    "WI"
+  ],
+  "input": "metro-research/madison/madison-candidates.json",
+  "discovered_by": "madison-research",
+  "spreadsheet_id": "14QWQKjU-tdQEtFD9h3iWsXM3CzAJSuS_Ir8SSKTnk0Q",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Madison, WI MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 4 MSA counties (Dane, Columbia, Green, Iowa), Columbia (Wisconsin), Green (Wisconsin), Iowa (Wisconsin)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 47 geocoded venue(s) of 48 in this batch (observed lat 42.6112..43.5519, lng -90.1360..-89.2502).",
+  "msa": "Madison, WI (Dane, Columbia, Green, Iowa counties)",
+  "envelope": { "latMin": 42.5, "latMax": 43.65, "lngMin": -90.44, "lngMax": -89 },
+
+  "expected_count": 48,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1
+  }
+}

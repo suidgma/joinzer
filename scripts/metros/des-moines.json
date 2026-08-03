@@ -1,0 +1,84 @@
+{
+  "_comment": "Des Moines — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "des-moines",
+  "batch": "des-moines-2026-07-31",
+  "metro_area": "Des Moines",
+  "states": [
+    "IA"
+  ],
+  "input": "metro-research/des-moines/des-moines-candidates.json",
+  "discovered_by": "des-moines-research",
+  "spreadsheet_id": "18lg1s_MhTca5xtrMWKnggMCoXZ7HTPPDtB1msbtxWvw",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Des Moines-West Des Moines, IA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 6 MSA counties (Polk, Dallas, Warren, Madison, Guthrie, Jasper), Dallas (Iowa), Warren (Iowa), Madison (Iowa), Guthrie (Iowa), Jasper (Iowa)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 22 geocoded venue(s) of 28 in this batch (observed lat 41.3562..41.6607, lng -93.8919..-93.4609).",
+  "msa": "Des Moines-West Des Moines, IA (Polk, Dallas, Warren, Madison, Guthrie, Jasper counties)",
+  "envelope": { "latMin": 41.15, "latMax": 41.87, "lngMin": -94.75, "lngMax": -92.75 },
+
+  "expected_count": 28,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "same_site_pairs": [
+    {
+      "a": "des-moines-dsm-pioneer",
+      "b": "des-moines-dsm-stone",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.dsm.city/Stone_Park400.php",
+      "adjudicated_on": "2026-07-31",
+      "adjudicated_by": "court-verifier",
+      "note": "Pioneer Columbus Community Recreation Center (indoor, 3 courts) sits inside Stone Park (outdoor). The City of Des Moines publishes a separate page for each and BOTH give the street address 2100 SE 5th St — so the shared address is the city's own fact, not a workbook error. Rec-center page: https://www.dsm.city/departments/parks_recreation/community_recreation_centers/pioneer_columbus.php"
+    }
+  ],
+
+  "_venue_facts_comment": "Four rows lost their city URL to the same one-column-left workbook shift (the URL landed in net_setup; the extractor correctly nulled it and logged the contamination without relocating it, per the standing ruling). That left them with no source_url on any field while still passing the publish gate. Every URL below was fetched and confirmed live before being written. Brody deliberately gets a name source ONLY: its cited page is the parks directory, which establishes the park's identity but does NOT list pickleball among its amenities — asserting a pickleball source we do not have would be worse than leaving it null.",
+  "venue_facts": {
+    "des-moines-dsm-pioneer": {
+      "source_url": "https://www.dsm.city/departments/parks_recreation/community_recreation_centers/pioneer_columbus.php",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "indoor confirmed at tier 1; the workbook carries an `indoor` TRUE/FALSE column the extractor does not read",
+      "fields": { "indoor": { "value": true } }
+    },
+    "des-moines-dsm-stone": {
+      "source_url": "https://www.dsm.city/Stone_Park400.php",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "city park page confirms an outdoor park with pickleball courts at 2100 SE 5th St",
+      "fields": {
+        "indoor": { "value": false },
+        "name": {},
+        "pickleball_activity": {}
+      }
+    },
+    "des-moines-dsm-birdland": {
+      "source_url": "https://www.dsm.city/Birdland_Sports_Park411.php",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "city park page lists \"Tennis/Pickleball Courts (Lighted)\" at 645 Birdland Dr",
+      "fields": { "name": {}, "pickleball_activity": {} }
+    },
+    "des-moines-dsm-emc": {
+      "source_url": "https://www.dsm.city/EMC_Downtown_Park363.php",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "city park page lists \"Pickleball Court\" at 701 Walnut St",
+      "fields": { "name": {}, "pickleball_activity": {} }
+    },
+    "des-moines-dsm-brody": {
+      "source_url": "https://www.dsm.city/departments/parks_recreation/parks/directory.php",
+      "confidence": "high",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-07-31",
+      "reason": "city parks directory confirms \"Brody School Park\" as a Des Moines park; it does NOT list pickleball, so pickleball_activity is deliberately left unsourced pending research",
+      "fields": { "name": {} }
+    }
+  },
+
+  "workbook": {
+    "header_row": 1
+  }
+}

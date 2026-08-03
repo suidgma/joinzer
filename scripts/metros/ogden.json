@@ -1,0 +1,23 @@
+{
+  "_comment": "Ogden — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "metro": "ogden",
+  "batch": "ogden-2026-07-31",
+  "metro_area": "Ogden",
+  "states": [
+    "UT"
+  ],
+  "input": "metro-research/ogden/ogden-candidates.json",
+  "discovered_by": "ogden-research",
+  "spreadsheet_id": "1DNWotg7Qmnd_bMLZb6uzd6HGxA3_U33wp4ZempJ8_cE",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Ogden-Clearfield, UT MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 4 MSA counties (Weber, Davis, Morgan, Box Elder), Davis (Utah), Morgan (Utah), Box Elder (Utah)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 25 geocoded venue(s) of 31 in this batch (observed lat 40.9130..41.3360, lng -112.0832..-111.8663). This is a very wide box because Box Elder County runs west to the Nevada line (-114.05) and north to Idaho (42.01). That is the MSA, not an error. Note the southern edge (40.76) is the Davis/Salt Lake County line, so the box clips the northern tip of Salt Lake City; Joinzer has no Salt Lake batch today, and any future one would overlap here by construction — a bounding box cannot separate two adjacent metros along a shared county line.",
+  "msa": "Ogden-Clearfield, UT (Weber, Davis, Morgan, Box Elder counties)",
+  "envelope": { "latMin": 40.76, "latMax": 42.01, "lngMin": -114.05, "lngMax": -111.22 },
+
+  "expected_count": 31,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "workbook": {
+    "header_row": 1
+  }
+}
