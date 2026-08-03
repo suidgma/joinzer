@@ -65,7 +65,7 @@
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { revalidateDirectory } from './lib/revalidate-directory.mjs'
-import { LIVE, AGGREGATOR_HOST } from './lib/workbook-extract.mjs'
+import { LIVE, AGGREGATOR_HOST, DOCUMENT_URL } from './lib/workbook-extract.mjs'
 import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
 
 // ---------------------------------------------------------------------------------------------
@@ -605,6 +605,16 @@ async function preflight({ checkCollisions, candidateKeys }) {
         fail.push(`${k}: ${col}="${val}" is a tier-4 aggregator on a row that would PUBLISH — ADR-14 forbids republishing it`)
       }
     }
+    // A document is never a website. Unlike an aggregator URL — which is a legitimate research
+    // input that only becomes a problem once republished — there is no state in which a meeting
+    // agenda belongs in the visitor-facing column, so this is NOT scoped to would-publish rows.
+    // Scoping it would leave a held row carrying a minutes PDF until the day someone fixes its
+    // coordinate, which is exactly how these reach production unnoticed: 8 draft rows carry one
+    // right now, and the 2026-08-03 repair only cleaned the published ones.
+    // `name_source_url` is deliberately exempt — citing a PDF is what that column is FOR.
+    if (v.website && DOCUMENT_URL.test(v.website)) {
+      fail.push(`${k} [${wouldPublish ? 'WOULD PUBLISH' : 'held'}]: website="${v.website}" is a document (PDF/agenda/minutes/uploaded file), not a venue site — cite it via name_source_url and leave website null, or point website at the operator's page`)
+    }
     if (v.research_status === 'verified' && v._workbook?.adr14_note) {
       fail.push(`${k}: carries an ADR-14 aggregator-only note but is still research_status='verified' — the downgrade to 'probable' did not apply`)
     }
@@ -797,6 +807,7 @@ if (STAGE === 'project') {
   const agg = venues.filter((v) => v._workbook?.aggregator_urls)
   console.log(`\nADR-14: ${agg.length} venue(s) cite a tier-4 aggregator anywhere in their evidence${agg.length ? ` (${agg.map((v) => v.research_key).join(', ')})` : ''}`)
   console.log(`        aggregator URL on a user-facing column of a projected-publish row: NONE (preflight asserts it)`)
+  console.log(`document URL (PDF/agenda/minutes) in website: NONE on any row in this batch (preflight asserts it)`)
 
   if (!reportExpected(assertExpectedPublish(eligible.map((e) => e.slug), blocked))) process.exit(1)
   console.log('\nREAD-ONLY — no database connection was opened and nothing was written.')
@@ -918,6 +929,10 @@ if (STAGE === 'publish') {
   }
 
   const adr14 = eligible.filter(({ row }) => AGGREGATOR_HOST.test(row.website || '') || AGGREGATOR_HOST.test(row.name_source_url || ''))
+  // Re-checked here against the DATABASE, not the artifact, because preflight can only speak for
+  // rows imported after it existed. A row imported earlier — or one held back then and unblocked
+  // since by a coordinate fix — reaches publish without ever having faced the preflight check.
+  const docUrls = eligible.filter(({ row }) => DOCUMENT_URL.test(row.website || ''))
 
   console.log(`gate = ${GATE_TEXT}\n`)
   console.log(`ELIGIBLE → publish: ${eligible.length}`)
@@ -927,6 +942,9 @@ if (STAGE === 'publish') {
   console.log(`\nADR-14 aggregator scan over publishing rows: ${adr14.length === 0 ? 'CLEAN ✓' : 'VIOLATIONS ✗'}`)
   adr14.forEach(({ row }) => console.error(`  ✗ ${row.slug}: website=${row.website} name_source_url=${row.name_source_url}`))
   if (adr14.length) { console.error('\nABORT: an aggregator URL would land on a user-facing column of a published row (ADR-14).'); process.exit(1) }
+  console.log(`document-URL scan over publishing rows: ${docUrls.length === 0 ? 'CLEAN ✓' : 'VIOLATIONS ✗'}`)
+  docUrls.forEach(({ row }) => console.error(`  ✗ ${row.slug}: website=${row.website}`))
+  if (docUrls.length) { console.error('\nABORT: a document (PDF/agenda/minutes) would publish as a venue website. Fix the row, or null its website — a wrong link is worse than none.'); process.exit(1) }
   console.log(`ODbL-coordinate rows among the publishing set: ${eligible.filter(({ row }) => row.provenance?.odbl).length} — attribution renders via OsmAttribution.`)
 
   const expOk = reportExpected(assertExpectedPublish(eligible.map((e) => e.slug), blocked))
@@ -998,6 +1016,7 @@ if (STAGE === 'verify') {
     ['no published row has access_type unknown', published.every((r) => r.access_type !== 'unknown'), 'ok'],
     ['no published row came from a probable candidate', published.every((r) => r.provenance?.research_status_at_import === 'verified'), 'ok'],
     ['no published row carries an aggregator URL on a user-facing column (ADR-14)', published.every((r) => !AGGREGATOR_HOST.test(r.website || '') && !AGGREGATOR_HOST.test(r.name_source_url || '')), published.filter((r) => AGGREGATOR_HOST.test(r.website || '') || AGGREGATOR_HOST.test(r.name_source_url || '')).map((r) => r.slug)],
+    ['no published row carries a document URL in website', published.every((r) => !DOCUMENT_URL.test(r.website || '')), published.filter((r) => DOCUMENT_URL.test(r.website || '')).map((r) => r.slug)],
     ['draft rows carry verified_by = NULL (reconcile-gate safety)', rows.filter((r) => r.status === 'draft').every((r) => r.verified_by == null), 'ok'],
     ['published candidates ↔ published listings agree', cands.filter((c) => c.research_status === 'published').length === published.length, `${cands.filter((c) => c.research_status === 'published').length} vs ${published.length}`],
     ['every published_listing_id points at a real batch listing', cands.filter((c) => c.published_listing_id).every((c) => listingIds.has(c.published_listing_id)), 'ok'],
