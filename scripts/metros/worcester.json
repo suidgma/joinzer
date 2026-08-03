@@ -1,0 +1,50 @@
+{
+  "_comment": "Worcester, MA-CT MSA — Worcester County MA plus the Connecticut portion (historically Windham County, now the Northeastern Connecticut Planning Region). Ingested from the ChatGPT Work research workbook 2026-08-03 as part of wave 1 of the v2.0 methodology. NOT YET IMPORTED. `expected_publish` is deliberately ABSENT: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted.",
+  "metro": "worcester",
+  "batch": "worcester-2026-08-03",
+  "metro_area": "Worcester",
+  "states": [
+    "MA",
+    "CT"
+  ],
+  "input": "metro-research/worcester/worcester-candidates.json",
+  "discovered_by": "worcester-research",
+  "spreadsheet_id": "1Jlsamzfw34LGvENRiTA8ZyJRoEWDetJ8HVx-azgHld4",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+
+  "_workbook_comment": "Research methodology v2.0 — the tab override is load-bearing. v2.0 splits the human research artifact from the machine handoff: the 15 human tabs are unchanged and a new generated `Import Contract` tab is now the ONLY machine input. This workbook is generation A by tab layout, so detectGeneration() would read generation A's default primary tab `Import Ready`, which v2.0 demotes to a human-readable view. Reading a human tab as machine input is the Huntsville defect class. applyTabOverrides() ABORTS on a missing named tab rather than falling back silently.",
+  "workbook": {
+    "tabs": {
+      "primary": "Import Contract"
+    }
+  },
+
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). SPANS TWO STATES, so `states` lists both and the envelope must hold both sides of the state line. Extents from the US Census TIGERweb State_County service: Worcester County MA lat 42.008053..42.721615 lng -72.315879..-71.478027. THE CONNECTICUT SIDE NEEDED A DIFFERENT LOOKUP AND THIS IS WORTH RECORDING: Connecticut abolished its counties as statistical units and the Census now delineates the state by PLANNING REGION, so a TIGERweb query for 'Windham County, CT' returns an extent of literal NaN rather than an error — a silent wrong answer if coerced without checking. The Connecticut portion of this MSA is the Northeastern Connecticut Planning Region, lat 41.505704..42.031069 lng -72.234898..-71.787239, which is what the union below actually uses. Rounded OUTWARD to 0.01 deg.",
+  "msa": "Worcester, MA-CT (Worcester County MA; Northeastern Connecticut Planning Region, formerly Windham County CT)",
+  "envelope": {
+    "latMin": 41.5,
+    "latMax": 42.73,
+    "lngMin": -72.32,
+    "lngMax": -71.47
+  },
+
+  "expected_count": 24,
+
+  "_geocode_comment": "23 of 24 venues geocoded (22 high precision, 1 low). One produces no coordinate (win-community-center, Windham CT) and one is low precision (cedar-lake, anchored to Cedar Pond Road rather than the recreation area — repair-pass class 1a, needing a better ANCHOR rather than a better address). Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200. Set false so these import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the metro. This is the best-converting metro in wave 1 at 18/24 projected publish, and geography is barely a factor — 4 of its 6 held rows are held on the evidence bar.",
+  "require_all_geocoded": false,
+
+  "reconciles": [],
+
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 18,
+    "hold": {
+      "windham-community-center-gymnasium-windham-ct": "no coordinate",
+      "dawson-recreation-area-tennis-courts-holden-ma": "research_status=probable",
+      "central-community-branch-ymca-worcester-ma": "research_status=probable",
+      "greendale-family-branch-ymca-worcester-ma": "research_status=probable",
+      "boroughs-family-branch-ymca-westborough-ma": "research_status=probable",
+      "cedar-lake-recreation-area-sturbridge-ma": "coordinate precision low"
+    }
+  }
+}

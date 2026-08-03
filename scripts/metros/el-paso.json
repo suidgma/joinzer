@@ -1,0 +1,54 @@
+{
+  "_comment": "El Paso, TX MSA — El Paso and Hudspeth counties. Ingested from the ChatGPT Work research workbook 2026-08-03 as part of wave 1 of the v2.0 methodology. NOT YET IMPORTED. `expected_publish` is deliberately ABSENT: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted.",
+  "metro": "el-paso",
+  "batch": "el-paso-2026-08-03",
+  "metro_area": "El Paso",
+  "states": [
+    "TX"
+  ],
+  "input": "metro-research/el-paso/el-paso-candidates.json",
+  "discovered_by": "el-paso-research",
+  "spreadsheet_id": "1ab1HvLHTLWVESZ4BC9P2oFjMhYNyxyylM_6-4sphlR0",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+
+  "_workbook_comment": "Research methodology v2.0 — the tab override is load-bearing. v2.0 splits the human research artifact from the machine handoff: the 15 human tabs are unchanged and a new generated `Import Contract` tab is now the ONLY machine input. This workbook is generation A by tab layout, so detectGeneration() would read generation A's default primary tab `Import Ready`, which v2.0 demotes to a human-readable view. Reading a human tab as machine input is the Huntsville defect class. applyTabOverrides() ABORTS on a missing named tab rather than falling back silently.",
+  "workbook": {
+    "tabs": {
+      "primary": "Import Contract"
+    }
+  },
+
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). Union of the two El Paso MSA counties' extents, rounded OUTWARD to 0.01 deg. Extents from the US Census TIGERweb State_County service: El Paso lat 31.387230..32.002650 lng -106.645646..-105.954328; Hudspeth lat 30.629258..32.002377 lng -105.998012..-104.907122. THE ENVELOPE IS DELIBERATELY VERY WIDE and that is correct, not sloppy: Hudspeth County is a 12,000 km2 desert county running far south and east of the El Paso urban core, so latMin 30.62 and lngMax -104.9 are genuine MSA geography even though every researched venue sits in the northwest corner. Cutting the box to the urban core would be exactly the observed-bbox error the county-list rule exists to prevent. TWO INDEPENDENT BORDERS SIT INSIDE THIS BOX: the Mexican border along the Rio Grande, and the New Mexico state line immediately north and west of the city. `states: [TX]` is the fence that rejects a Ciudad Juarez or Las Cruces row on its own — the envelope alone would admit both.",
+  "msa": "El Paso, TX (El Paso, Hudspeth counties)",
+  "envelope": {
+    "latMin": 30.62,
+    "latMax": 32.01,
+    "lngMin": -106.65,
+    "lngMax": -104.9
+  },
+
+  "expected_count": 24,
+
+  "_geocode_comment": "ALL 24 venues geocoded (21 high precision, 3 low) — the only metro in wave 1 with no coordinate misses at all, which is what a dense municipal-recreation corpus with real street addresses looks like. Left at false rather than flipped to true DELIBERATELY: `require_all_geocoded: true` would assert a property of Nominatim's current index, not of this workbook, so a single upstream OSM change would abort a whole import for a reason that has nothing to do with the data. The three low-precision rows (the-beast-eastside, galatzan, serve-el-paso) anchored to streets rather than the venue — repair-pass class 1a, needing a better ANCHOR rather than a better address.",
+  "require_all_geocoded": false,
+
+  "reconciles": [],
+
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 13,
+    "hold": {
+      "the-beast-eastside-regional-recreation-center-el-paso-tx": "coordinate precision low",
+      "galatzan-recreation-center-el-paso-tx": "coordinate precision low",
+      "pat-o-rourke-recreation-center-el-paso-tx": "research_status=probable",
+      "san-juan-recreation-center-el-paso-tx": "research_status=probable",
+      "paul-harvey-park-el-paso-tx": "research_status=probable",
+      "madeline-park-el-paso-tx": "research_status=probable",
+      "mission-hills-park-el-paso-tx": "research_status=probable",
+      "ascarate-park-el-paso-tx": "research_status=probable",
+      "nolan-richardson-recreation-center-el-paso-tx": "research_status=probable",
+      "sunrise-park-el-paso-tx": "research_status=probable",
+      "serve-el-paso-el-paso-tx": "coordinate precision low"
+    }
+  }
+}
