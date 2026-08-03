@@ -32,5 +32,21 @@
   "_geocode_comment": "17 of 20 venues geocoded (15 high precision, 2 low). THE THREE MISSES WERE INVESTIGATED, not waved through. dignity-health-sports-complex-gsa carries a suite address ('3101 Gilmore Avenue #100') that misses every rung. bear-valley-springs is the interesting one: its street locus 'Rolling Oak Drive' resolved 465 km from the venue's own zip centroid, so the township guard correctly DISCARDED it rather than publishing a coordinate 465 km wrong — the guard doing exactly its job. natatorium-courts has an intersection, not an address ('4th Street and Warren Street'), which no rung can resolve. The two low-precision rows (mesa-marin, riverview) anchored to a highway and to the wrong residential street respectively — repair-pass class 1a, needing a better ANCHOR rather than a better address. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set false so these import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the metro; the publish gate holds each on 'no coordinate'.",
   "require_all_geocoded": false,
 
-  "reconciles": []
+  "reconciles": [],
+
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 11,
+    "hold": {
+      "mesa-marin-sports-complex-bakersfield-ca": "coordinate precision low",
+      "fruitvale-norris-park-bakersfield-ca": "research_status=probable",
+      "riverview-community-center-bakersfield-ca": "coordinate precision low",
+      "dignity-health-sports-complex-gsa-pickleball-bakersfield-ca": "no coordinate",
+      "bear-valley-springs-association-pickleball-courts-tehachapi-ca": "no coordinate",
+      "natatorium-courts-taft-ca": "no coordinate; research_status=probable",
+      "kern-river-united-methodist-church-kernville-ca": "research_status=probable",
+      "mountain-view-baptist-church-lake-isabella-ca": "research_status=probable",
+      "silver-oak-park-bakersfield-ca": "research_status=probable"
+    }
+  }
 }

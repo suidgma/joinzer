@@ -32,5 +32,23 @@
   "_geocode_comment": "ALL 24 venues geocoded (21 high precision, 3 low) — the only metro in wave 1 with no coordinate misses at all, which is what a dense municipal-recreation corpus with real street addresses looks like. Left at false rather than flipped to true DELIBERATELY: `require_all_geocoded: true` would assert a property of Nominatim's current index, not of this workbook, so a single upstream OSM change would abort a whole import for a reason that has nothing to do with the data. The three low-precision rows (the-beast-eastside, galatzan, serve-el-paso) anchored to streets rather than the venue — repair-pass class 1a, needing a better ANCHOR rather than a better address.",
   "require_all_geocoded": false,
 
-  "reconciles": []
+  "reconciles": [],
+
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 13,
+    "hold": {
+      "the-beast-eastside-regional-recreation-center-el-paso-tx": "coordinate precision low",
+      "galatzan-recreation-center-el-paso-tx": "coordinate precision low",
+      "pat-o-rourke-recreation-center-el-paso-tx": "research_status=probable",
+      "san-juan-recreation-center-el-paso-tx": "research_status=probable",
+      "paul-harvey-park-el-paso-tx": "research_status=probable",
+      "madeline-park-el-paso-tx": "research_status=probable",
+      "mission-hills-park-el-paso-tx": "research_status=probable",
+      "ascarate-park-el-paso-tx": "research_status=probable",
+      "nolan-richardson-recreation-center-el-paso-tx": "research_status=probable",
+      "sunrise-park-el-paso-tx": "research_status=probable",
+      "serve-el-paso-el-paso-tx": "coordinate precision low"
+    }
+  }
 }
