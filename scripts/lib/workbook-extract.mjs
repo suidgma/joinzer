@@ -1074,6 +1074,19 @@ function contaminationOwners(field, raw) {
  *  sole basis for `verified`, and never rendered on a Joinzer page. */
 export const AGGREGATOR_HOST = /pickleheads|places2play|playpickleball|55places|maptons|pickleballunited|goodrun|pickleballcourt\.directory|playtimescheduler|mysaline|pickleballbrackets|globalpickleball/i
 
+/** A document rather than a venue site: a PDF/office file, or a CivicPlus/Granicus document
+ *  endpoint (agenda, minutes, alert archive, uploaded file).
+ *
+ *  This is the same error as putting an aggregator in `website` — a CITATION in the visitor-facing
+ *  column — and URL_COLUMN_ROLE already draws that line. A meeting-minutes PDF is perfectly good
+ *  evidence and belongs in a citation column; it is never the venue's website.
+ *
+ *  Matches on URL SHAPE, deliberately. The 2026-08-03 sweep flagged a document only when the page
+ *  lacked venue vocabulary, so a PDF full of "park" and "recreation" passed as fine and seven bad
+ *  rows survived — they were found afterwards by a pattern over the column. Content heuristics are
+ *  not a substitute for checking the shape. */
+export const DOCUMENT_URL = /\.(?:pdf|docx?|xlsx?|pptx?)(?:$|[?#])|\/(?:AgendaCenter|DocumentCenter|ShowDocument|ViewFile|Archive\.aspx|CivicAlerts\.asp)|\/(?:agenda|minutes|uploads)\//i
+
 // =============================================================================================
 // Small helpers
 // =============================================================================================
