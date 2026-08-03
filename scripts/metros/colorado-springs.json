@@ -1,0 +1,104 @@
+{
+  "_comment": "Colorado Springs, CO MSA — El Paso and Teller counties. Extracted from the Claude nine-stage workbook (methodology v2.0). NOT YET IMPORTED. expected_publish is deliberately absent: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted.",
+  "metro": "colorado-springs",
+  "batch": "colorado-springs-2026-08-03",
+  "metro_area": "Colorado Springs",
+  "states": [
+    "CO"
+  ],
+  "input": "metro-research/colorado-springs/colorado-springs-candidates.json",
+  "discovered_by": "colorado-springs-research",
+  "spreadsheet_id": "1oqz4BMF77oGHfjlTBl8q1N0kcSPFPTovGvmQFdsBsSg",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the Colorado Springs MSA county list (El Paso + Teller), not the observed venue bounding box, so a legitimate future venue near the metro edge is not rejected.",
+  "msa": "Colorado Springs, CO (El Paso and Teller counties)",
+  "envelope": {
+    "latMin": 38.5,
+    "latMax": 39.2,
+    "lngMin": -105.45,
+    "lngMax": -104.05
+  },
+  "expected_count": 24,
+  "_exclude_comment": "No exclusions. The 10 probable rows are NOT excluded — they import as draft and are held by the publish gate on research_status, which is the intended mechanism.",
+  "exclude": [],
+  "_geocode_comment": "5 of 24 produce no coordinate from any rung and 4 more resolve only to street/city level. All 9 were investigated, not waved through: 5 carry no street address at all in the workbook (Widefield Community Park, Garden of the Gods Resort & Club, YMCA at First & Main, Windmill Mesa Park, The Warehouse via a suite address), and the low-precision 4 geocode to a street band. All 9 are blocked by the publish gate, which is correct. require_all_geocoded stays false so the batch can import as draft while those are resolved.",
+  "require_all_geocoded": false,
+  "_reconcile_comment": "2 reconciles onto pre-existing dormant OSM draft rows. Both are draft, unverified, metro_area NULL, and predate this session. Site-wide facility_listings delta must therefore be exactly +22, not +24.",
+  "reconciles": [
+    {
+      "candidate_key": "springs-pickleball-east-colorado-springs",
+      "osm_id": "node/13797626086",
+      "listing_id": "4894ce06-a252-4144-97bd-5453b37748d2",
+      "matched_distance_m": 10,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-08-03",
+      "evidence_url": "https://springspickleball.com/",
+      "confidence": "high",
+      "note": "STRONGEST RECONCILE IN THIS SET. Exact-address anchor: the existing OSM row already carries address 2975 New Center Point, city Colorado Springs, zip 80922 — byte-identical to the operator-published address on springspickleball.com. Independent Nominatim geocode of that address lands 10 m from the stored OSM node. Research supplies what the OSM row lacks: court_count 11, access_type private (the row currently says unknown, which FAILS the publish gate), fee_type fee, reservation_policy and booking URL. Name normalises from the OSM hyphenation \"Springs Pickleball - East\" to the operator form \"Springs Pickleball East\"; slug is unchanged either way, so no live URL moves.",
+      "osm_original": {
+        "osm_id": "node/13797626086",
+        "name": "Springs Pickleball - East",
+        "slug": "springs-pickleball-east-colorado-springs-co",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 38.8756673,
+        "lng": -104.7173736,
+        "surface": null,
+        "city": "Colorado Springs",
+        "state": "CO",
+        "address": "2975 New Center Point",
+        "zip": "80922",
+        "indoor": true,
+        "captured_on": "2026-08-03"
+      }
+    },
+    {
+      "candidate_key": "colorado-springs-pickleball-the-warehouse-colorado-springs",
+      "osm_id": "node/10799702072",
+      "listing_id": "2cc04ebc-dfca-451e-b782-06de42f383c2",
+      "matched_distance_m": 0,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-08-03",
+      "evidence_url": "https://pickleheads.com/courts/us/colorado/colorado-springs/colo-spgs-pickleball-the-warehouse",
+      "confidence": "high",
+      "note": "Exact-ID anchor: both rows are the SAME OSM node (node/10799702072), so distance is 0 by construction and identity is not in question. RENAME REQUIRED: the OSM name \"Colo Spgs Pickleball \"The Warehouse\" (Indoor Court)\" carries an abbreviation, embedded quotes and a parenthetical, and its slug colo-spgs-pickleball-the-warehouse-indoor-court-co lacks the -city-state convention every published row uses. The research name \"Colorado Springs Pickleball (The Warehouse)\" produces a convention-correct slug. The row is draft and has never been published, so no live URL moves. access_type currently unknown, which FAILS the publish gate; research supplies private. Row is research_status=probable and will be held by the gate regardless — the operator About page 404s.",
+      "osm_original": {
+        "osm_id": "node/10799702072",
+        "name": "Colo Spgs Pickleball \"The Warehouse\" (Indoor Court)",
+        "slug": "colo-spgs-pickleball-the-warehouse-indoor-court-co",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 38.8974061,
+        "lng": -104.8465081,
+        "surface": null,
+        "city": null,
+        "state": "CO",
+        "address": null,
+        "zip": null,
+        "indoor": null,
+        "captured_on": "2026-08-03"
+      }
+    }
+  ],
+  "_expected_publish_comment": "Locked from the --stage=project run of 2026-08-03 AFTER the geocode repair pass. Turns the 13/11 split from a number read off a log into a machine assertion: both project and publish fail the run on any divergence.",
+  "expected_publish": {
+    "count": 13,
+    "hold": {
+      "springs-pickleball-west-colorado-springs-co": "coordinate precision low",
+      "banning-lewis-ranch-colorado-springs-co": "research_status=probable",
+      "portal-park-colorado-springs-co": "coordinate precision low; research_status=probable",
+      "bonforte-park-colorado-springs-co": "research_status=probable",
+      "westmoor-park-colorado-springs-co": "research_status=probable",
+      "wildflower-park-colorado-springs-co": "research_status=probable",
+      "wasson-high-school-colorado-springs-co": "research_status=probable",
+      "windmill-mesa-park-colorado-springs-co": "no coordinate; research_status=probable",
+      "glen-park-palmer-lake-co": "coordinate precision low; research_status=probable",
+      "colorado-springs-pickleball-the-warehouse-colorado-springs-co": "no coordinate; research_status=probable",
+      "cheyenne-mountain-country-club-colorado-springs-co": "research_status=probable"
+    }
+  }
+}

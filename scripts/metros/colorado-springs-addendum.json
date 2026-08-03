@@ -1,0 +1,31 @@
+{
+  "_comment": "Colorado Springs ADDENDUM — 5 venues from the ChatGPT-track reconciliation, independently re-verified. Separate batch so the 2026-08-03 main import stays immutable and this carries its own one-statement rollback handle.",
+  "metro": "colorado-springs-addendum",
+  "batch": "colorado-springs-addendum-2026-08-03",
+  "metro_area": "Colorado Springs",
+  "states": [
+    "CO"
+  ],
+  "input": "metro-research/colorado-springs-addendum/colorado-springs-addendum-candidates.json",
+  "discovered_by": "colorado-springs-addendum-research",
+  "spreadsheet_id": "1oqz4BMF77oGHfjlTBl8q1N0kcSPFPTovGvmQFdsBsSg",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "msa": "Colorado Springs, CO (El Paso and Teller counties)",
+  "envelope": {
+    "latMin": 38.5,
+    "latMax": 39.2,
+    "lngMin": -105.45,
+    "lngMax": -104.05
+  },
+  "expected_count": 5,
+  "exclude": [],
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "_expected_publish_comment": "4 publish, 1 hold. Pines & Paddles is held on low coordinate precision: house number 8483 Burgess Rd does not resolve in OSM, only the road band does.",
+  "expected_publish": {
+    "count": 4,
+    "hold": {
+      "pines-and-paddles-pickleball-club-colorado-springs-co": "coordinate precision low"
+    }
+  }
+}
