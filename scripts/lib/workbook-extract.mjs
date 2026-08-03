@@ -205,6 +205,15 @@ export const MAPPINGS = {
     // even though the rows carrying it are mostly school sites: the token itself names no
     // institution, and `school_public_limited` (which does) is the entry that maps that way.
     public_limited: 'public',                // Portland ME
+    // Cape Coral — Bonita Beach Club. Unlike membership_or_drop_in / membership_or_day_pass, this
+    // token does NOT name two competing access classes: "private" is the adjective describing how an
+    // HOA amenity is accessed, and "hoa" is the class. The vocabulary's own definition of `hoa`
+    // (facilities controlled by an HOA or community association, open to its residents) already
+    // carries the "private" half, so mapping to `hoa` loses nothing and is strictly more specific
+    // than `private`. This is the same correction the Vegas pass made by hand on five rows —
+    // Canyon Gate, Desert Vista, Regency at Summerlin, Reverence and Siena were all stored `private`
+    // where `hoa` was the better fit — applied here at extract time instead of after import.
+    private_hoa: 'hoa',
     hoa: 'hoa',
     unknown: 'unknown',
   },
@@ -784,6 +793,32 @@ export function applyTabOverrides(gen, override, tabs) {
 }
 
 /**
+ * Lets ONE metro supply the address_source fallback its own workbook cannot, without moving the
+ * generation's default underneath every other metro that shares it.
+ *
+ * WHY THIS IS PER-METRO AND NOT A GENERATION CHANGE. Generations B and C already declare
+ * `address_source_default: 'manual_research'`, on the reasoning recorded at those entries: when a
+ * workbook does not say where an address came from, `manual_research` is the weaker TRUE claim, and
+ * `official_page` would assert the address was taken off the controlling entity's own page — which
+ * the workbook nowhere states. Generation A deliberately declares `null` because its workbooks
+ * normally DO carry the column, and its entry must reproduce pre-adapter behaviour exactly (asserted
+ * by a zero-byte diff across all 20 generation-A artifacts). Flipping generation A's default would
+ * therefore silently restate the provenance of every generation-A row whose cell is blank, in 20
+ * already-projected metros, to make two new ones pass. That is the wrong blast radius, so the
+ * override is scoped to the config that needs it and every other metro is untouched BY CONSTRUCTION.
+ *
+ * The value is validated against the live CHECK vocabulary — a typo here would otherwise reach the
+ * database as a silent null via the same path this exists to fill.
+ */
+export function applyAddressSourceDefault(gen, value) {
+  if (value === undefined || value === null) return gen
+  if (!LIVE.address_source.has(value)) {
+    throw new Error(`workbook.address_source_default "${value}" is not live address_source vocabulary (one of ${[...LIVE.address_source].join(', ')})`)
+  }
+  return { ...gen, address_source_default: value, address_source_default_from_config: true }
+}
+
+/**
  * Proves the two preconditions the whole-column-alias ruling requires, against the real data:
  *   1. the destination column genuinely does NOT exist in this workbook, and
  *   2. EVERY non-blank cell in the source column is valid vocabulary for the destination.
@@ -1352,7 +1387,10 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
   const wb = config.workbook || {}
   // Tab ROLES are resolved before anything is parsed: a metro may file its venue table under a tab
   // other than its generation's default (see applyTabOverrides).
-  const gen = applyTabOverrides(detectGeneration(tabs, wb.generation), wb.tabs, tabs)
+  const gen = applyAddressSourceDefault(
+    applyTabOverrides(detectGeneration(tabs, wb.generation), wb.tabs, tabs),
+    wb.address_source_default,
+  )
   // Config aliases win over generation aliases, which win over the global table.
   const genAliases = { ...gen.aliases, ...(wb.aliases || {}) }
   log(`workbook generation ${gen.id} — ${gen.label}`)
@@ -2119,7 +2157,8 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
     ...(gen.address_source_default ? {
       address_source_default: {
         value: gen.address_source_default,
-        reason: `this generation has no address_source column; "${gen.address_source_default}" is the weaker true claim (the address came from directory research). "official_page" would assert the address was taken off the controlling entity's own page, which the workbook nowhere states. A per-row value, where one exists, always wins.`,
+        reason: `${gen.address_source_default_from_config ? `this workbook leaves address_source blank (no column, or a blank cell) and the metro config supplies the fallback` : `this generation has no address_source column`}; "${gen.address_source_default}" is the weaker true claim (the address came from directory research). "official_page" would assert the address was taken off the controlling entity's own page, which the workbook nowhere states. A per-row value, where one exists, always wins.`,
+        ...(gen.address_source_default_from_config ? { from: 'metro config workbook.address_source_default' } : {}),
       },
     } : {}),
     ...(settingCrosschecks.length ? { setting_crosschecks: settingCrosschecks } : {}),
@@ -2220,5 +2259,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (doc.extraction_notes.length) {
     console.log(`\nextraction notes (${doc.extraction_notes.length}):`)
     doc.extraction_notes.forEach((n) => console.log(`  - ${n}`))
+  }
+
+  // An extract is the moment new irreplaceable data exists on disk: `<metro>/tabs.json` is a verbatim
+  // workbook dump that cannot be regenerated from anything in this repo. Backing up here rather than
+  // at publish time is deliberate — publish is far too late, and on 2026-08-03 a wipe cost the
+  // Colorado Springs artifacts precisely because the backup step was a manual line in a README.
+  // Best-effort and NEVER fatal: a network failure must not fail an extract that already succeeded.
+  if (!process.argv.includes('--no-backup')) {
+    try {
+      const { backupMetroResearch, reportBackup } = await import('../backup-metro-research.mjs')
+      reportBackup(backupMetroResearch({ label: `${metro} extract` }))
+    } catch (err) {
+      console.log(`\nmetro-research backup: SKIPPED — ${err.message}`)
+    }
   }
 }

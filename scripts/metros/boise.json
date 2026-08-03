@@ -1,0 +1,35 @@
+{
+  "_comment": "Boise City, ID MSA — Ada, Boise, Canyon, Gem and Owyhee counties. Ingested from the ChatGPT Work research workbook 2026-08-03. NOT YET IMPORTED as of ingest; the owner APPROVED the projected split on 2026-08-03 and it is now recorded in `expected_publish` below, so every subsequent project/publish run re-asserts it.",
+  "metro": "boise",
+  "batch": "boise-2026-08-03",
+  "metro_area": "Boise",
+  "states": [
+    "ID"
+  ],
+  "input": "metro-research/boise/boise-candidates.json",
+  "discovered_by": "boise-research",
+  "spreadsheet_id": "18Ve9IBEfJ-c_OAmIbxBs30PyNXBuqERZ3rWi6HoadWQ",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). Union of the OSM boundary bboxes for Ada (relation/1742072), Boise (relation/1742086), Canyon (relation/1742082), Gem (relation/1742090) and Owyhee (relation/1742103), rounded OUTWARD to 0.01 deg. All 13 workbook venues sit in Ada and Canyon; the other three are carried because they ARE in the MSA. This envelope is genuinely huge — Owyhee County alone runs south to the Nevada line (41.99) and Boise County east to -114.97 — but the area it adds is high desert and national forest with essentially no venue population, so the width costs nothing. Checked against the nearest separate metro: Twin Falls (42.56,-114.46) falls EAST of lngMax -114.96 and is therefore excluded. KNOWN SOFT EDGE, recorded rather than tightened: Mountain Home (43.13,-115.69, Elmore County) is inside the rectangle but NOT in the MSA, and `states: [ID]` does not fence it. No Mountain Home row exists in this batch; if one is ever admitted, tighten deliberately and record the row that forced it.",
+  "msa": "Boise City, ID (Ada, Boise, Canyon, Gem, Owyhee counties)",
+  "envelope": {
+    "latMin": 41.99,
+    "latMax": 44.52,
+    "lngMin": -117.04,
+    "lngMax": -114.96
+  },
+  "expected_count": 13,
+  "_geocode_comment": "3 of the 13 venues produce no coordinate from any query rung, INVESTIGATED before the flag was set. All three are COMMERCIAL tenancies that carry a street address: meridian-flying-pickle (1135 N Hickory Ave Ste 110), nampa-mettle-sports (3001 E Badger Dr) and nampa-flying-pickle (1304 N Galleria Dr). One carries an explicit 'Ste' token, a known Nominatim defeater — the suite-qualified string is not a distinct addressable object in OSM. The pattern across this batch is consistent: strip-mall and business-park suite tenancies are exactly the class Nominatim resolves worst, and all three of Boise's misses are that class while all 10 of its municipal park rows resolved high. Flagged for the owner as address-quality work, not a pipeline defect. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 3 import as gate-blocked drafts in the work queue instead of aborting the metro; the publish gate holds each on 'no coordinate'.",
+  "require_all_geocoded": false,
+  "_venues_tab_comment": "NOT A DEFECT, but worth recording because the row counts differ: this workbook's Venues tab holds 18 rows while Import Ready holds 13. Generation A reads Import Ready as the primary tab (the researcher's own import selection) and uses Venues only for the never-authoritative coordinate cross-check, so 5 Venues-tab rows are deliberately NOT imported. If the owner expects 18, that is a workbook question for the researcher, not a config change here.",
+  "reconciles": [],
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 10,
+    "hold": {
+      "the-flying-pickle-meridian-meridian-id": "no coordinate",
+      "mettle-sports-nampa-id": "no coordinate",
+      "the-flying-pickle-nampa-nampa-id": "no coordinate"
+    }
+  }
+}
