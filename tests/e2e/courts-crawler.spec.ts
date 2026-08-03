@@ -129,11 +129,38 @@ test.describe('Crawler reachability (anonymous requests)', () => {
     }
   })
 
-  test('an unpublished metro 404s rather than redirecting', async ({ request }) => {
-    // Las Vegas rows are still `draft`. The correct answer is "not found", not "log in" — a 307
-    // here would tell a crawler the URL exists behind auth.
-    const response = await request.get('/courts/in/las-vegas', { maxRedirects: 0 })
-    expect(response.status(), '/courts/in/las-vegas is draft-only and must 404').toBe(404)
+  test('a metro not in the sitemap 404s rather than redirecting', async ({ request }) => {
+    // The property under test: a metro URL we do NOT advertise must answer "not found", never "log
+    // in" — a 307 tells a crawler the URL exists behind auth, which is the same de-indexing failure
+    // the rest of this file guards, inverted.
+    //
+    // Updated 2026-08-02: this used to hardcode /courts/in/las-vegas on the premise that its rows
+    // were all `draft`. That premise expired — Las Vegas is now 50 published / 24 draft, so the URL
+    // renders 200 and the test failed on main. Verified against the joinzer project the same day:
+    // EVERY non-null metro_area in facility_listings currently has at least one published row, so
+    // there is no all-draft metro to swap in, and any metro picked today can be published tomorrow.
+    // A synthetic slug is the only formulation that cannot go stale.
+    //
+    // It still covers the same ground: loadPublishedMetros() only ever selects status='published'
+    // (lib/directory/loadFacilities.ts), so "metro whose rows are all draft" and "metro that does
+    // not exist" both make findMetro() return null and the page call notFound()
+    // (app/courts/in/[metro]/page.tsx:65). Identical path, identical crawler-facing answer.
+    //
+    // Guarded against the sitemap so the fixture slug cannot silently become a real metro.
+    // The `toContain` guard below is a negative assertion, so it would pass vacuously on an empty
+    // or error body — assert the sitemap actually listed metros before trusting it.
+    const xml = await (await request.get('/sitemap.xml', { maxRedirects: 0 })).text()
+    expect(xml, 'sitemap must list metros for the guard below to mean anything').toContain('/courts/in/')
+
+    const slug = 'not-a-published-metro'
+    expect(xml, 'fixture slug must not be a real metro').not.toContain(`/courts/in/${slug}`)
+
+    const response = await request.get(`/courts/in/${slug}`, { maxRedirects: 0 })
+    expect(response.status(), `/courts/in/${slug} is unpublished and must 404`).toBe(404)
+    expect(
+      response.headers()['location'],
+      'a 307 would tell a crawler the URL exists behind auth'
+    ).toBeUndefined()
   })
 })
 
