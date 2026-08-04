@@ -47,7 +47,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { geocodeVenue, flushCache, liveRequestCount, cacheStats, metresBetween } from './geocode-nominatim.mjs'
+import { geocodeVenue, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath } from './geocode-nominatim.mjs'
 
 // =============================================================================================
 // LIVE CHECK VOCABULARIES — re-verified against pg_constraint on the production project
@@ -2210,7 +2210,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const tabs = loadTabs({ raw, csvDir })
   console.log(`tabs: ${Object.keys(tabs).join(', ')}`)
 
-  const doc = await extractWorkbook({ tabs, config, geocode, cachePath: config.geocode_cache })
+  // ONE CACHE FILE PER METRO. `config.geocode_cache` supplies the DIRECTORY (every config already
+  // points at the same one); the basename comes from the metro key, so two concurrent extracts write
+  // two different files instead of racing to overwrite one. Entries from before the split are still
+  // served — geocode-nominatim.mjs seeds from the legacy shared files, read-only.
+  const cachePath = geocodeCachePath(metro, config.geocode_cache)
+  const doc = await extractWorkbook({ tabs, config, geocode, cachePath })
   mkdirSync(dirname(out), { recursive: true })
   writeFileSync(out, JSON.stringify(doc, null, 1))
   console.log(`\nwrote ${doc.venues.length} venue(s) -> ${out}`)
