@@ -1,5 +1,5 @@
 {
-  "_comment": "Pensacola — generation-A workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check.",
+  "_comment": "Pensacola — generation-A workbook. IMPORTED 2026-08-01 (16 listings, 8 published). Re-geocoded 2026-08-04: 3 held rows recovered to high precision, taking the split to 11 published / 5 held. envelope was set 2026-07-31 from the MSA county list, not from the observed bbox — see _envelope_comment.",
   "metro": "pensacola",
   "batch": "pensacola-2026-07-31",
   "metro_area": "Pensacola",
@@ -16,6 +16,26 @@
 
   "expected_count": 16,
   "require_all_geocoded": false,
+
+  "_expected_publish_comment": "Added 2026-08-04. The original import had NO expected_publish block, which is exactly why an 8-of-16 split published quietly and unasserted — the run had nothing to diverge from. Both --stage=project (from the artifact) and --stage=publish (from the database) assert against this, so a future run that classifies even one row differently FAILS instead of publishing a plausible-looking number. If a hold below is resolved, move the row out of this map deliberately; never edit the map to match an output.",
+  "expected_publish": {
+    "count": 11,
+    "hold": {
+      "portside-pickle-pensacola-fl": "no coordinate",
+      "pensacola-athletic-center-pensacola-fl": "no coordinate",
+      "navarre-beach-recreation-center-pickleball-courts-navarre-beach-fl": "no coordinate",
+      "lenny-james-tolbert-memorial-park-navarre-fl": "no coordinate",
+      "highpoint-park-gulf-breeze-fl": "coordinate precision low"
+    },
+    "_hold_reasons": {
+      "portside-pickle-pensacola-fl": "Tier-1 address added 2026-08-04 (740 Commendencia St). OSM has no house number 740 on Commendencia Street and the venue name is absent entirely; best anchor is the street centerline, which is low.",
+      "pensacola-athletic-center-pensacola-fl": "Absent from OSM. Three sourced corridor aliases each resolve to a DIFFERENT road; the no-city rung returned four West Highway 98 segments 50.7-51.8 km away, all rejected by the 5,000 m guard.",
+      "navarre-beach-recreation-center-pickleball-courts-navarre-beach-fl": "UNTOUCHED BY INSTRUCTION — suspected duplicate of lenny-james-tolbert-memorial-park-navarre-fl, and an owner decision. Not researched, not geocoded, not merged, not deleted.",
+      "lenny-james-tolbert-memorial-park-navarre-fl": "No house number 3124 on Bob Tolbert Road in OSM. The name-variant sweep found only two Jacksonville venues ~500 km away, correctly rejected by the locus guard.",
+      "highpoint-park-gulf-breeze-fl": "HELD FOR OWNER SIGN-OFF, not for lack of trying. The cited Gulf Breeze page never prints a street address, so the evidence gap is real; the coordinate is deliberately left at its low street-band value pending a satellite check."
+    }
+  },
+
   "reconciles": [],
   "workbook": {
     "header_row": 1
