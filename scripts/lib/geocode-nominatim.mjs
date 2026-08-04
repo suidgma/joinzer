@@ -372,18 +372,42 @@ const BACKOFF_CAP_MS = 30_000
  *  it park the run for an unbounded time — past this we fall back to our own bounded ladder. */
 const RETRY_AFTER_CAP_MS = 60_000
 
-const clampRetryAfter = (ms) => Math.max(0, Math.min(ms, RETRY_AFTER_CAP_MS))
+/**
+ * Clamp a Retry-After delay into the usable range, or **null when there is nothing usable to honour**.
+ *
+ * A DELAY OF ZERO IS NOT A DELAY. Nominatim's edge answers a 429 with a literal `Retry-After: 0` —
+ * verified against the live endpoint 2026-08-04, `Server: Varnish` — which is self-contradictory: it
+ * refuses the request AND says to wait no time before repeating it. Honouring that literally is what
+ * made this whole module's backoff inert. `retryDelayMs` returns 0, `fetchWithRetry` sleeps 0, the
+ * exponential ladder is never reached, and the five attempts land spaced only by the 1.1 s courtesy
+ * timer in `beforeAttempt`.
+ *
+ * That is strictly worse than having no retry at all, because the run then hammers an endpoint that
+ * has already said stop, while its log prints a reassuring `backing off 0.0s`. Measured on the run
+ * that found it: 43 live requests in under a minute across 6 venues, every one after the first 429,
+ * ending in an IP-level cooldown that outlasted the run by half an hour. A transient limit became a
+ * sustained block *because* of the retry.
+ *
+ * So a non-positive delay means "no usable value" and the caller falls through to our own bounded
+ * ladder. Exactly the posture the signed-value rejection below already takes, and for the same
+ * reason: both are ways a header can silently disable the backoff while looking like it works.
+ *
+ * `!(ms > 0)` rather than `ms <= 0` so a NaN — which no current caller can produce, but a future one
+ * could — also falls back rather than propagating into a sleep.
+ */
+const usableRetryAfterMs = (ms) => (ms > 0 ? Math.min(ms, RETRY_AFTER_CAP_MS) : null)
 
 /**
  * Parse a `Retry-After` header into milliseconds, or null when it carries nothing usable.
  * Both RFC forms are accepted: delta-seconds (`120`) and an HTTP-date (`Wed, 21 Oct 2026 07:28:00 GMT`).
- * A date already in the past clamps to 0 rather than going negative.
+ * A zero delay, and a date already at or before `nowMs`, are both "nothing usable" — see
+ * usableRetryAfterMs for why honouring them is worse than ignoring them.
  */
 export function parseRetryAfter(value, nowMs = Date.now()) {
   if (value == null) return null
   const raw = String(value).trim()
   if (!raw) return null
-  if (/^\d+$/.test(raw)) return clampRetryAfter(Number(raw) * 1000)
+  if (/^\d+$/.test(raw)) return usableRetryAfterMs(Number(raw) * 1000)
   // A SIGNED value is neither RFC form: delta-seconds permits no sign, and no HTTP-date begins with
   // one. Reject before the date branch — V8 reads `-1000` / `-2026` as a PAST YEAR, which clamps to
   // a 0 ms delay and silently disables the backoff for that request. (`-5` was caught by the shape
@@ -395,7 +419,7 @@ export function parseRetryAfter(value, nowMs = Date.now()) {
   if (!/[A-Za-z]{3}/.test(raw) && !/\d{4}/.test(raw)) return null
   const at = Date.parse(raw)
   if (Number.isNaN(at)) return null
-  return clampRetryAfter(at - nowMs)
+  return usableRetryAfterMs(at - nowMs)
 }
 
 /**

@@ -51,7 +51,6 @@ describe('parseRetryAfter', () => {
   it('reads the delta-seconds form', () => {
     expect(parseRA('7')).toBe(7000)
     expect(parseRA('  120 ')).toBe(60_000) // clamped at the 60 s cap
-    expect(parseRA('0')).toBe(0)
   })
 
   it('reads the HTTP-date form, relative to the supplied clock', () => {
@@ -59,9 +58,28 @@ describe('parseRetryAfter', () => {
     expect(parseRA('Tue, 04 Aug 2026 12:00:30 GMT', now)).toBe(30_000)
   })
 
-  it('clamps a date already in the past to zero rather than going negative', () => {
+  /**
+   * REGRESSION, and the reason this module's backoff did nothing in production.
+   *
+   * Nominatim's edge answers a 429 with a literal `Retry-After: 0` (verified against the live
+   * endpoint 2026-08-04, `Server: Varnish`). This test used to assert `parseRA('0')` was `0`, and
+   * that assertion is what made the defect look intentional: `retryDelayMs` returned 0, the
+   * exponential ladder was never reached, and five attempts landed spaced only by the 1.1 s courtesy
+   * timer while the log printed `backing off 0.0s`.
+   *
+   * BOTH paths that can reach zero are covered, because the date path is the one that would rot
+   * silently: a delta-seconds `0`, and an HTTP-date at or before now.
+   */
+  it('treats a zero delay as unusable — a 429 asking us to wait no time is self-contradictory', () => {
+    expect(parseRA('0')).toBeNull()
+    expect(parseRA(' 0 ')).toBeNull()
+    expect(parseRA('00')).toBeNull()
+  })
+
+  it('treats a date at or before now as unusable rather than clamping it to zero', () => {
     const now = Date.parse('2026-08-04T12:00:00Z')
-    expect(parseRA('Tue, 04 Aug 2026 11:59:00 GMT', now)).toBe(0)
+    expect(parseRA('Tue, 04 Aug 2026 11:59:00 GMT', now)).toBeNull() // past
+    expect(parseRA('Tue, 04 Aug 2026 12:00:00 GMT', now)).toBeNull() // exactly now
   })
 
   it('caps an absurd value so a hostile or misconfigured header cannot park the run', () => {
@@ -139,6 +157,18 @@ describe('retryDelayMs — which statuses are transient', () => {
     expect(retryDelay({ status: 429, attempt: 1, retryAfterHeader: '9', random: () => 0.5 })).toBe(9000)
   })
 
+  /** The unit-level half of the `Retry-After: 0` regression: an unusable header must not win over
+   *  the ladder, it must be ignored by it. Asserted at every rung so a future change that special-
+   *  cases only the first attempt is caught. */
+  it('ignores a zero Retry-After and uses the exponential ladder instead', () => {
+    const at = (attempt: number) => retryDelay({ status: 429, attempt, retryAfterHeader: '0', random: () => 0.5 })
+    expect(at(1)).toBe(2000)
+    expect(at(2)).toBe(4000)
+    expect(at(3)).toBe(8000)
+    expect(at(4)).toBe(16_000)
+    expect(at(5)).toBeNull() // budget spent — still terminates
+  })
+
   it('applies jitter within +/-25% of the base', () => {
     expect(retryDelay({ status: 429, attempt: 1, random: () => 0 })).toBe(1500)
     expect(retryDelay({ status: 429, attempt: 1, random: () => 1 })).toBe(2500)
@@ -194,6 +224,23 @@ describe('fetchWithRetry', () => {
     await expect(withRetry('u', { fetchImpl: impl, sleepImpl, label: 'q=x' })).rejects.toThrow(/gave up after 5 attempt/)
     expect(calls).toHaveLength(5)
     expect(slept).toEqual([60_000, 60_000, 60_000, 60_000]) // 240 s total, bounded
+  })
+
+  /**
+   * THE PRODUCTION SHAPE, end to end. This is exactly what nominatim.openstreetmap.org returns under
+   * load, and before the fix this test would have recorded `[0, 0, 0, 0]` — four immediate repeats
+   * against an endpoint that had just refused us, which is how a transient limit became a half-hour
+   * IP cooldown on 2026-08-04.
+   */
+  it('a zero Retry-After falls back to the ladder instead of hammering the endpoint', async () => {
+    const four429s = [1, 2, 3, 4].map(() => response(429, { retryAfter: '0' }))
+    const { impl, calls } = fetcher([...four429s, response(200)])
+    const { slept, sleepImpl } = recorder()
+
+    await withRetry('u', { fetchImpl: impl, sleepImpl, random: () => 0.5 })
+
+    expect(slept).toEqual([2000, 4000, 8000, 16_000]) // not [0, 0, 0, 0]
+    expect(calls).toHaveLength(5)
   })
 
   it('honours Retry-After in preference to its own backoff', async () => {
