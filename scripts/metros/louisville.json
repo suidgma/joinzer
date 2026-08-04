@@ -1,0 +1,17 @@
+{
+  "_comment": "Louisville/Jefferson County, KY-IN MSA. Ingested from the ChatGPT Work research workbook 2026-08-04 (batch 4). NOT YET IMPORTED. `expected_publish` is recorded only after the owner approves the projected split, so a later run re-asserts what was approved rather than whatever it happens to compute.",
+  "metro": "louisville",
+  "batch": "louisville-2026-08-04",
+  "metro_area": "Louisville",
+  "states": ["KY", "IN"],
+  "input": "metro-research/louisville/louisville-candidates.json",
+  "discovered_by": "louisville-research",
+  "spreadsheet_id": "1uXHLY9GsEee019yXezmHga6gxYPn5OV5FI2V4MyY23U",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). Union of the OSM boundary bboxes of Jefferson (relation/1804288), Bullitt (1804281), Henry (1846533), Meade (1846561), Nelson (1846570), Oldham (1804291), Shelby (1804292), Spencer (1804293) and Trimble (1804295) in KY, and Clark (1804283), Floyd (1804284), Harrison (1804287), Scott (1482474) and Washington (1482467) in IN — rounded OUTWARD to 0.01 deg. Edges are driven by Nelson (latMin), Scott IN (latMax), Meade (lngMin) and Henry (lngMax). DELIBERATELY GENEROUS ON TWO COUNTIES: Trimble KY and Scott IN appear in some delineation vintages and not others, and sources disagree. They are carried because an envelope that is too WIDE only fails to reject a row a human would catch, while one that is too NARROW silently rejects a legitimate venue — and both counties are adjacent, so including them widens the box by little. Nelson County is confirmed IN the MSA, which is what admits the Bardstown row in this batch. KNOWN SOFT EDGE, recorded rather than silently narrowed: the rectangle spanning Meade in the south-west to Scott in the north-east also contains Hardin County / Elizabethtown (37.69,-85.86), which is its OWN MSA (Elizabethtown-Fort Knox, KY), and `states: [KY, IN]` does not fence it. No Elizabethtown row exists in this batch. If one is ever admitted, tighten deliberately and name the row that forced it.",
+  "msa": "Louisville/Jefferson County, KY-IN (Bullitt, Henry, Jefferson, Meade, Nelson, Oldham, Shelby, Spencer, Trimble KY; Clark, Floyd, Harrison, Scott, Washington IN)",
+  "envelope": { "latMin": 37.52, "latMax": 38.84, "lngMin": -86.5, "lngMax": -84.86 },
+  "expected_count": 28,
+  "require_all_geocoded": false,
+  "reconciles": []
+}

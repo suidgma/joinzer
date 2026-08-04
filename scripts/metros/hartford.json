@@ -1,0 +1,21 @@
+{
+  "_comment": "Hartford-West Hartford-East Hartford, CT MSA. Ingested from the ChatGPT Work research workbook 2026-08-04 (batch 4). NOT YET IMPORTED. `expected_publish` is recorded only after the owner approves the projected split, so a later run re-asserts what was approved rather than whatever it happens to compute.",
+  "metro": "hartford",
+  "batch": "hartford-2026-08-04",
+  "metro_area": "Hartford",
+  "states": ["CT"],
+  "input": "metro-research/hartford/hartford-candidates.json",
+  "discovered_by": "hartford-research",
+  "spreadsheet_id": "1PffxFXSLaCaoOIC0-BccYPrFFEGHH5nODZvaLqFNNDg",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY-EQUIVALENT LIST, not the observed venue bbox (Toledo precedent). CONNECTICUT IS A SPECIAL CASE and the reason this comment is long: in 2022 CT replaced counties with nine PLANNING REGIONS as the county-equivalent for statistical purposes, so the 2023 OMB delineation of this MSA is stated in planning regions while every pre-2023 source states it in counties. Rather than pick one vocabulary and risk the other's footprint, this envelope is the UNION OF BOTH: Capitol Planning Region (relation/11065880) and Lower Connecticut River Valley Planning Region (relation/11065862), plus the legacy Hartford (1839541), Tolland (2554045) and Middlesex (2554043) counties — rounded OUTWARD to 0.01 deg. The two footprints are nearly identical on the ground; the union costs ~0.08 deg of longitude on the west edge and removes the risk of rejecting a legitimate venue because the wrong vocabulary was chosen. Edges are driven by Lower CT River Valley (latMin) and legacy Hartford County (latMax, lngMin), Tolland (lngMax). KNOWN OVER-REACH, recorded rather than silently narrowed, and this one is SHARPER than the usual case because the neighbor is already live in our directory: NEW HAVEN (41.31,-72.93) falls INSIDE this rectangle and is its own MSA with its own config (scripts/metros/new-haven.json). `states: [CT]` does NOT fence it — a single-state envelope never can. No New Haven-MSA row exists in this batch and every venue here geocodes into the Hartford/Middletown corridor, but a future re-ingest that admits a New Haven, Milford, West Haven or Meriden row must tighten this box deliberately and name that row, NOT widen the metro. Three other neighbors were checked and are correctly EXCLUDED: Springfield MA (42.10) sits north of latMax 42.04, Waterbury (41.55,-73.04) sits west of lngMin -73.03, and Norwich-New London (41.35,-72.10) sits east of lngMax -72.09 — all three by narrow margins, so do not widen this envelope without re-checking all three.",
+  "msa": "Hartford-West Hartford-East Hartford, CT (Capitol + Lower Connecticut River Valley planning regions; legacy Hartford, Tolland, Middlesex counties)",
+  "_workbook_comment": "Pre-flight aborted on `address_source \"null\"` for exactly ONE row, hartford-colt-park. INSPECTED BEFORE THE DEFAULT WAS SET, because a lone blank next to that row's `court_count=\"FALSE\"` could equally have been a column shift, and a shifted row must be fixed at source rather than defaulted past. It is not a shift: research_key/name/city/state all sit in their correct columns. Colt Park is a genuinely sparse row — the researcher recorded it as a `probable` municipal lead with NO address and NO zip, so the workbook does not say where an address came from because there is no address to source. That is the same fact New Orleans and Albuquerque encoded on 2026-08-03, and `manual_research` is the same answer: the weaker TRUE claim, where `official_page` would assert something the workbook never states. Scoped per metro rather than per generation, so it cannot silently restate provenance on blank-cell rows across the 20+ already-projected generation-A metros. Only this one row is affected here; the other 23 carry a stated value, and all 23 are preserved. The row is `probable` regardless, so the publish gate holds it either way.",
+  "workbook": {
+    "address_source_default": "manual_research"
+  },
+  "envelope": { "latMin": 41.17, "latMax": 42.04, "lngMin": -73.03, "lngMax": -72.09 },
+  "expected_count": 24,
+  "require_all_geocoded": false,
+  "reconciles": []
+}

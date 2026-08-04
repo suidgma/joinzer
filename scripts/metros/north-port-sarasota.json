@@ -1,0 +1,38 @@
+{
+  "_comment": "North Port–Bradenton–Sarasota, FL MSA — Manatee and Sarasota counties. Ingested from the ChatGPT Work research workbook 2026-08-03. NOT YET IMPORTED as of ingest; the owner APPROVED the projected split on 2026-08-03 and it is now recorded in `expected_publish` below, so every subsequent project/publish run re-asserts it.",
+  "metro": "north-port-sarasota",
+  "batch": "north-port-sarasota-2026-08-03",
+  "metro_area": "North Port-Bradenton-Sarasota",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/north-port-sarasota/north-port-sarasota-candidates.json",
+  "discovered_by": "north-port-sarasota-research",
+  "spreadsheet_id": "1zXlpwQnV5Awy3CzqKG96Po7opalyJuNVhy4UkavgTgo",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). Union of the OSM boundary bboxes for Manatee (relation/1210690, lat 27.2080..27.6467, lng -82.8230..-82.0543) and Sarasota (relation/1210734, lat 26.9454..27.3898, lng -82.7054..-82.0567), rounded OUTWARD to 0.01 deg. WATER CHECK: lngMin -82.83 is Gulf water off Anna Maria Island and admits only sea. KNOWN SOFT EDGE, recorded rather than tightened: latMax 27.65 is Manatee's genuine northern county line, which is also the Hillsborough County line, so the envelope's top edge abuts the Tampa–St. Petersburg MSA. That is the true MSA boundary and tightening below it would violate the county-list rule; the `states` filter does not help here because Tampa is also FL. If a Tampa-metro row is ever admitted, tighten deliberately and record the row that forced it, exactly as toledo.json did for Cedar Point. Cross-check: contains all 24 workbook venues.",
+  "msa": "North Port–Bradenton–Sarasota, FL (Manatee, Sarasota counties)",
+  "envelope": {
+    "latMin": 26.94,
+    "latMax": 27.65,
+    "lngMin": -82.83,
+    "lngMax": -82.05
+  },
+  "expected_count": 24,
+  "_geocode_comment": "4 of the 24 venues produce no coordinate from any query rung, INVESTIGATED before the flag was set. TWO carry no street address at all in the workbook (venice-northeast-venice-park, manatee-john-marble), so they only ever reach the name-based rungs and Nominatim does not hold those names as POIs — the honest fix is an address, not a retry. TWO DO carry an address and still miss all rungs (sarasota-laurel-park at 509 Collins Road, Nokomis; commercial-dill-dinkers-sarasota at 500 Tallevast Road, Sarasota) — those look like a workbook address error or an unmapped parcel and are flagged for the owner. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 4 import as gate-blocked drafts in the work queue instead of aborting the metro; the publish gate holds each on 'no coordinate'.",
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 17,
+    "hold": {
+      "laurel-park-and-sandra-sims-terry-community-center-nokomis-fl": "no coordinate",
+      "highland-ridge-park-north-port-fl": "coordinate precision low",
+      "mckibben-park-north-port-fl": "coordinate precision low",
+      "northeast-venice-park-venice-fl": "no coordinate",
+      "c-v-walton-racquet-center-at-g-t-bray-park-bradenton-fl": "coordinate precision low",
+      "john-h-marble-park-and-recreation-center-bradenton-fl": "no coordinate",
+      "dill-dinkers-sarasota-sarasota-fl": "no coordinate"
+    }
+  }
+}

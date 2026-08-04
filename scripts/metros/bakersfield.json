@@ -1,0 +1,52 @@
+{
+  "_comment": "Bakersfield-Delano, CA MSA — Kern County. Ingested from the ChatGPT Work research workbook 2026-08-03 as part of wave 1 of the v2.0 methodology. NOT YET IMPORTED. `expected_publish` is deliberately ABSENT: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted. Once the owner approves the split, record it here so the real import run re-asserts it.",
+  "metro": "bakersfield",
+  "batch": "bakersfield-2026-08-03",
+  "metro_area": "Bakersfield-Delano",
+  "states": [
+    "CA"
+  ],
+  "input": "metro-research/bakersfield/bakersfield-candidates.json",
+  "discovered_by": "bakersfield-research",
+  "spreadsheet_id": "1Y1Tdku61eAzSB_dDYice7qfOWGF8nyrnmtInS0JW1Y4",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+
+  "_workbook_comment": "FIRST WAVE UNDER RESEARCH METHODOLOGY v2.0, AND THE TAB OVERRIDE IS LOAD-BEARING. v2.0 splits the human research artifact from the machine handoff: the 15 human tabs are unchanged and a new generated `Import Contract` tab is now the ONLY machine input. This workbook is generation A by tab layout, so detectGeneration() picks generation A and would read its default primary tab `Import Ready` — which v2.0 demotes to 'a human-readable view of what is proposed for import'. Reading a human tab as machine input is exactly the Huntsville defect class (a per-row simulation log read as the venue table, silently yielding 30 address-less venues). So the primary tab is pinned explicitly. applyTabOverrides() ABORTS if the named tab is missing rather than falling back silently, which is what makes this safe to pin. `venues` and `evidence` keep their generation-A defaults.",
+  "workbook": {
+    "tabs": {
+      "primary": "Import Contract"
+    }
+  },
+
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent) — the observed bbox is only a LOWER bound and an envelope cut to it would reject a legitimate future venue near the metro edge. The Bakersfield-Delano MSA is coextensive with Kern County, so the envelope is Kern County's own extent, rounded OUTWARD to 0.01 deg. Extent taken from the US Census TIGERweb State_County service (authoritative for US county geography) rather than Nominatim, whose request budget is reserved for venue geocoding. Kern County: lat 34.788655..35.798392, lng -120.194369..-117.616517. Kern is a large land county with no significant water over-extension, so this is a straightforward case — no Ottawa-County water caveat applies.",
+  "msa": "Bakersfield-Delano, CA (Kern County)",
+  "envelope": {
+    "latMin": 34.78,
+    "latMax": 35.8,
+    "lngMin": -120.2,
+    "lngMax": -117.61
+  },
+
+  "expected_count": 20,
+
+  "_geocode_comment": "17 of 20 venues geocoded (15 high precision, 2 low). THE THREE MISSES WERE INVESTIGATED, not waved through. dignity-health-sports-complex-gsa carries a suite address ('3101 Gilmore Avenue #100') that misses every rung. bear-valley-springs is the interesting one: its street locus 'Rolling Oak Drive' resolved 465 km from the venue's own zip centroid, so the township guard correctly DISCARDED it rather than publishing a coordinate 465 km wrong — the guard doing exactly its job. natatorium-courts has an intersection, not an address ('4th Street and Warren Street'), which no rung can resolve. The two low-precision rows (mesa-marin, riverview) anchored to a highway and to the wrong residential street respectively — repair-pass class 1a, needing a better ANCHOR rather than a better address. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set false so these import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the metro; the publish gate holds each on 'no coordinate'.",
+  "require_all_geocoded": false,
+
+  "reconciles": [],
+
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 11,
+    "hold": {
+      "mesa-marin-sports-complex-bakersfield-ca": "coordinate precision low",
+      "fruitvale-norris-park-bakersfield-ca": "research_status=probable",
+      "riverview-community-center-bakersfield-ca": "coordinate precision low",
+      "dignity-health-sports-complex-gsa-pickleball-bakersfield-ca": "no coordinate",
+      "bear-valley-springs-association-pickleball-courts-tehachapi-ca": "no coordinate",
+      "natatorium-courts-taft-ca": "no coordinate; research_status=probable",
+      "kern-river-united-methodist-church-kernville-ca": "research_status=probable",
+      "mountain-view-baptist-church-lake-isabella-ca": "research_status=probable",
+      "silver-oak-park-bakersfield-ca": "research_status=probable"
+    }
+  }
+}

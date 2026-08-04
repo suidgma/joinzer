@@ -1,0 +1,57 @@
+{
+  "_comment": "Albany-Schenectady-Troy, NY MSA — Albany, Rensselaer, Saratoga, Schenectady and Schoharie counties. Ingested from the ChatGPT Work research workbook 2026-08-03 as part of wave 1 of the v2.0 methodology. NOT YET IMPORTED. `expected_publish` is deliberately ABSENT: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted.",
+  "metro": "albany",
+  "batch": "albany-2026-08-03",
+  "metro_area": "Albany-Schenectady-Troy",
+  "states": [
+    "NY"
+  ],
+  "input": "metro-research/albany/albany-candidates.json",
+  "discovered_by": "albany-research",
+  "spreadsheet_id": "1kj2SPpPZgTgXyzW7TO6171PaL9tAV5OyZ7v02yA3zDQ",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+
+  "_workbook_comment": "Research methodology v2.0 — the tab override is load-bearing. v2.0 splits the human research artifact from the machine handoff: the 15 human tabs are unchanged and a new generated `Import Contract` tab is now the ONLY machine input. This workbook is generation A by tab layout, so detectGeneration() would read generation A's default primary tab `Import Ready`, which v2.0 demotes to a human-readable view. Reading a human tab as machine input is the Huntsville defect class. applyTabOverrides() ABORTS on a missing named tab rather than falling back silently. SEPARATELY FLAGGED FOR THE OWNER: this workbook's `Venues` tab carries 32 data rows against the Import Contract's 30, so self-check #9 (row count matches the venue count on the human tabs) does not hold. Two researched venues are therefore absent from the machine handoff and will not be imported by this batch. That is a workbook-generation gap, not a pipeline gap, and it is reported rather than worked around.",
+  "workbook": {
+    "tabs": {
+      "primary": "Import Contract"
+    }
+  },
+
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). Union of the five Albany-Schenectady-Troy MSA counties' extents, rounded OUTWARD to 0.01 deg. Extents from the US Census TIGERweb State_County service: Albany lat 42.407127..42.822577 lng -74.264863..-73.676762; Rensselaer lat 42.464231..42.958650 lng -73.786165..-73.264827; Saratoga lat 42.775377..43.398045 lng -74.160100..-73.573342; Schenectady lat 42.710826..42.955868 lng -74.306665..-73.809369; Schoharie lat 42.355017..42.829558 lng -74.711580..-74.164678. latMax 43.4 comes from Saratoga County running north to the Great Sacandaga Lake region; lngMin -74.72 from Schoharie in the west; lngMax -73.26 from Rensselaer on the Massachusetts/Vermont line. All-land counties, so no water over-extension caveat applies.",
+  "msa": "Albany-Schenectady-Troy, NY (Albany, Rensselaer, Saratoga, Schenectady, Schoharie counties)",
+  "envelope": {
+    "latMin": 42.35,
+    "latMax": 43.4,
+    "lngMin": -74.72,
+    "lngMax": -73.26
+  },
+
+  "expected_count": 30,
+
+  "_geocode_comment": "27 of 30 venues geocoded (26 high precision, 1 low) — the strongest geocode result in wave 1. Three produce no coordinate (albany-picklers, rensselaer-stride, saratoga-shenantaha). Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set false so these import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the metro; the publish gate holds each on 'no coordinate'. Coordinates are NOT this metro's binding constraint — 13 of 14 held rows are held on the evidence bar (research_status=probable), only 4 on geography.",
+  "require_all_geocoded": false,
+
+  "reconciles": [],
+
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 16,
+    "hold": {
+      "capital-hills-golf-course-pickleball-courts-albany-ny": "research_status=probable",
+      "milton-pocket-park-albany-ny": "research_status=probable",
+      "palma-park-albany-ny": "research_status=probable",
+      "nott-road-park-guilderland-ny": "research_status=probable",
+      "picklers-pickleball-club-menands-ny": "no coordinate",
+      "columbia-courts-east-greenbush-ny": "research_status=probable",
+      "stride-adaptive-sports-court-west-sand-lake-ny": "no coordinate; research_status=probable",
+      "east-side-recreation-park-saratoga-springs-ny": "research_status=probable",
+      "shenantaha-creek-park-ballston-spa-ny": "no coordinate; research_status=probable",
+      "malta-community-park-malta-ny": "research_status=probable",
+      "fryeguys-pickleball-club-clifton-park-ny": "coordinate precision low; research_status=probable",
+      "west-side-recreation-park-saratoga-springs-ny": "research_status=probable",
+      "collins-park-scotia-ny": "research_status=probable",
+      "hillhurst-park-schenectady-ny": "research_status=probable"
+    }
+  }
+}

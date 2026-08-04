@@ -1,0 +1,67 @@
+{
+  "_comment": "McAllen-Edinburg-Mission, TX MSA — Hidalgo County. Ingested from the ChatGPT Work research workbook 2026-08-03 as part of wave 1 of the v2.0 methodology. NOT YET IMPORTED. `expected_publish` is deliberately ABSENT: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted. Once the owner approves the split, record it here so the real import run re-asserts it.",
+  "metro": "mcallen",
+  "batch": "mcallen-2026-08-03",
+  "metro_area": "McAllen-Edinburg-Mission",
+  "states": [
+    "TX"
+  ],
+  "input": "metro-research/mcallen/mcallen-candidates.json",
+  "discovered_by": "mcallen-research",
+  "spreadsheet_id": "1nvpj6qq8GgLBlVmhRKLSU-8R0hXvwNeLI8Ge0rbYBw8",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+
+  "_workbook_comment": "Research methodology v2.0 — the tab override is load-bearing. v2.0 splits the human research artifact from the machine handoff: the 15 human tabs are unchanged and a new generated `Import Contract` tab is now the ONLY machine input. This workbook is generation A by tab layout, so detectGeneration() would read generation A's default primary tab `Import Ready`, which v2.0 demotes to a human-readable view. Reading a human tab as machine input is the Huntsville defect class. applyTabOverrides() ABORTS on a missing named tab rather than falling back silently.",
+  "workbook": {
+    "tabs": {
+      "primary": "Import Contract"
+    }
+  },
+
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). The McAllen-Edinburg-Mission MSA is coextensive with Hidalgo County, so the envelope is Hidalgo County's own extent rounded OUTWARD to 0.01 deg. Extent from the US Census TIGERweb State_County service: lat 26.036268..26.783081, lng -98.586444..-97.861684. NOTE THE INTERNATIONAL BORDER: Hidalgo County's southern edge is the Rio Grande, and the envelope's latMin therefore sits on the Mexican border. `states: [TX]` is the independent fence that rejects any non-Texas row, so a Reynosa-side venue cannot enter on geography alone — belt and braces, not one or the other.",
+  "msa": "McAllen-Edinburg-Mission, TX (Hidalgo County)",
+  "envelope": {
+    "latMin": 26.03,
+    "latMax": 26.79,
+    "lngMin": -98.59,
+    "lngMax": -97.86
+  },
+
+  "expected_count": 30,
+
+  "_geocode_comment": "26 of 30 venues geocoded (19 high precision, 7 low) — the WORST low-precision rate in wave 1, and the cause is structural rather than random. Most of this metro's held rows are RV resorts and 55+ active-adult communities, which OSM largely holds as named areas without house numbers, so the structured rung lands on the access road instead of the venue ('1015-rv-park' anchored to International Boulevard; 'paradise-resort-estates' to East Hall Acres Road). That is repair-pass class 1a — these need a better ANCHOR, not a better address, and a name-anchored Overpass query inside the envelope is the cheap fix. Four produce no coordinate at all (incredibowl-pickle-padel, pharr-development-research-center, llano-grande-resort, trails-end-rv-resort). Every miss is a genuine HTTP 200 with an empty result set, not rate limiting — scripts/lib/geocode-nominatim.mjs throws on any non-200. Set false so these import as gate-blocked drafts instead of aborting the metro. NOTE: geocoding is NOT this metro's binding constraint — 23 of 30 rows are research_status=probable and would be held on the evidence bar even with a perfect coordinate.",
+  "require_all_geocoded": false,
+
+  "reconciles": [],
+
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output. OWNER DECISION on the 20% rate: this metro ships at 6 of 30 rather than waiting for a Pass-2 verification run. The 24 held rows import as drafts and stay off the site, so holding the whole metro would delay 6 controlling-entity-verified venues for the sake of 24 that need per-row research either way. 18 of the 24 are RV resorts and 55+ active-adult communities, which have no controlling-entity web presence to find — Pass 2 on this metro is expected to be low-yield and should be scheduled on that basis.",
+  "expected_publish": {
+    "count": 6,
+    "hold": {
+      "incredibowl-pickle-and-padel-mission-tx": "no coordinate",
+      "mission-parks-and-recreation-adult-recreation-center-mission-tx": "research_status=probable",
+      "esdac-gym-edinburg-tx": "coordinate precision low; research_status=probable",
+      "dhr-sports-center-edinburg-tx": "coordinate precision low; research_status=probable",
+      "el-tule-sports-center-edinburg-tx": "research_status=probable",
+      "monte-cristo-golf-and-country-club-edinburg-tx": "research_status=probable",
+      "orville-i-cox-tennis-center-edinburg-tx": "research_status=probable",
+      "jose-pepe-salinas-recreation-center-pharr-tx": "research_status=probable",
+      "pharr-development-and-research-center-pharr-tx": "no coordinate; research_status=probable",
+      "llano-grande-resort-mercedes-tx": "no coordinate; research_status=probable",
+      "casa-del-valle-rv-resort-alamo-tx": "research_status=probable",
+      "bentsen-grove-resort-palmview-tx": "coordinate precision low; research_status=probable",
+      "casa-del-sol-donna-tx": "coordinate precision low; research_status=probable",
+      "country-sunshine-rv-resort-weslaco-tx": "research_status=probable",
+      "texas-trails-rv-resort-pharr-tx": "coordinate precision low; research_status=probable",
+      "tip-o-texas-rv-resort-pharr-tx": "research_status=probable",
+      "trails-end-rv-resort-weslaco-tx": "no coordinate; research_status=probable",
+      "paradise-resort-estates-pharr-tx": "coordinate precision low; research_status=probable",
+      "paradise-park-inc-mcallen-tx": "research_status=probable",
+      "baptist-temple-pavilion-mcallen-tx": "research_status=probable",
+      "las-palmas-community-center-mcallen-tx": "research_status=probable",
+      "lark-community-center-mcallen-tx": "research_status=probable",
+      "1015-rv-park-weslaco-tx": "coordinate precision low; research_status=probable",
+      "pharr-south-55-active-adult-community-pharr-tx": "research_status=probable"
+    }
+  }
+}
