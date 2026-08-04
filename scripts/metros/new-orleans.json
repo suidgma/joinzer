@@ -1,0 +1,38 @@
+{
+  "_comment": "New Orleans–Metairie, LA MSA — Jefferson, Orleans, Plaquemines, St. Bernard, St. Charles, St. James and St. John the Baptist parishes. Ingested from the ChatGPT Work research workbook 2026-08-03. NOT YET IMPORTED as of ingest; the owner APPROVED the projected split on 2026-08-03 and it is now recorded in `expected_publish` below, so every subsequent project/publish run re-asserts it.",
+  "metro": "new-orleans",
+  "batch": "new-orleans-2026-08-03",
+  "metro_area": "New Orleans-Metairie",
+  "states": [
+    "LA"
+  ],
+  "input": "metro-research/new-orleans/new-orleans-candidates.json",
+  "discovered_by": "new-orleans-research",
+  "spreadsheet_id": "1hIIKlQNNxac24atZR35ZF3K1CAgaMr-SuIQGxMOCr9g",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY (parish) LIST, not the observed venue bbox (Toledo precedent). Union of the OSM boundary bboxes for all 7 MSA parishes, rounded OUTWARD to 0.01 deg. The 2023 CBSA delineation moved St. Tammany Parish out of this MSA into Slidell–Mandeville–Covington, so St. Tammany is deliberately NOT in the union and Slidell/Covington/Mandeville venues are out of scope. THIS IS A TEXTBOOK OTTAWA-COUNTY WATER CASE, recorded because the box is far wider than the land: lngMax -88.75 comes from St. Bernard Parish (relation/1836430), whose polygon includes Breton Sound and the Chandeleur Islands and so reaches ~35 km EAST of the Mississippi state line, past the LAND of the Gulfport–Biloxi, MS MSA. latMin 28.85 likewise comes from Plaquemines Parish (relation/1836429) running down the Mississippi delta into the Gulf. Both over-extensions are over open water and are additionally fenced by `states: [LA]`, which rejects any MS row on its own — belt and braces, not one or the other. Left at the true county union rather than hand-tightened, because no wrong row is admitted today and the county-list rule is what keeps a future edge venue from being rejected. Cross-check: contains all 14 workbook venues.",
+  "msa": "New Orleans–Metairie, LA (Jefferson, Orleans, Plaquemines, St. Bernard, St. Charles, St. James, St. John the Baptist parishes)",
+  "envelope": {
+    "latMin": 28.85,
+    "latMax": 30.3,
+    "lngMin": -90.97,
+    "lngMax": -88.75
+  },
+  "_workbook_comment": "This workbook is generation A by tab layout (Import Ready / Venues / Evidence) but its Import Ready template is the narrow 22-column variant, which has NO address_source column AT ALL — so all 14 rows came out null and pre-flight correctly aborted the run. `manual_research` is the honest fallback and is NOT a relaxed assertion: it is the identical ruling already recorded on the generation B and C entries in scripts/lib/workbook-extract.mjs — when a workbook does not state where an address came from, manual_research is the weaker TRUE claim, whereas `official_page` would assert we took the address off the controlling entity's own page, which this workbook nowhere states. Set per-metro rather than on generation A itself so the other 20 generation-A metros are untouched. Any per-row value, if this workbook ever gains the column, still wins over this default.",
+  "workbook": {
+    "address_source_default": "manual_research"
+  },
+  "expected_count": 14,
+  "_geocode_comment": "3 of the 14 venues produce no coordinate from any query rung, INVESTIGATED before the flag was set. TWO carry no street address at all in the workbook (belle-chasse-pavilion-belle-chasse-la, regala-gym-reserve-la), so they only ever reach the name-based rungs and Nominatim does not hold those names as POIs — the honest fix is an address, not a retry. ONE (east-bank-bridge-destrehan-la) DOES carry an address, 13244 River Rd in Destrehan, and still misses all four rungs; that looks like a workbook address error or an unmapped rural River Road parcel and is flagged for the owner. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 3 import as gate-blocked drafts in the work queue instead of aborting the metro; the publish gate holds each on 'no coordinate'.",
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 11,
+    "hold": {
+      "east-bank-bridge-park-destrehan-la": "no coordinate; research_status=probable",
+      "belle-chasse-indoor-pavilion-and-multi-purpose-building-belle-chasse-la": "no coordinate",
+      "regala-gym-reserve-la": "no coordinate; research_status=probable"
+    }
+  }
+}

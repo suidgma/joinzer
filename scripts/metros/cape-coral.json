@@ -1,0 +1,40 @@
+{
+  "_comment": "Cape Coral–Fort Myers, FL MSA — Lee County. Ingested from the ChatGPT Work research workbook 2026-08-03. NOT YET IMPORTED as of ingest; the owner APPROVED the projected split on 2026-08-03 and it is now recorded in `expected_publish` below, so every subsequent project/publish run re-asserts it. Once the owner approves the split, record it here so the real import run re-asserts it.",
+  "metro": "cape-coral",
+  "batch": "cape-coral-2026-08-03",
+  "metro_area": "Cape Coral-Fort Myers",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/cape-coral/cape-coral-candidates.json",
+  "discovered_by": "cape-coral-research",
+  "spreadsheet_id": "1YU6qKybWEDUZHFBDABYkkcZmeU6C27Lv_dGvdw2RSJY",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not from the observed venue bounding box — the observed bbox is only a LOWER bound and an envelope cut to it would reject a legitimate future venue near the metro edge (Toledo precedent). The Cape Coral–Fort Myers MSA is the single county of Lee, FL, so the envelope is Lee County's OSM boundary bbox (relation/1210725, lat 26.3161..26.7896, lng -82.3350..-81.5622) rounded OUTWARD to 0.01 deg. WATER CHECK (the Ottawa-County trap in toledo.json): Lee's western edge -82.34 is Gulf water and Pine Island Sound, which admits nothing but sea. The two land edges that matter both hold: latMin 26.31 sits ABOVE Naples/Collier County (26.14, Naples-Marco Island MSA) so no Naples venue is admitted, and latMax 26.79 sits BELOW Punta Gorda/Charlotte County's core. Cross-check: contains all 27 workbook venues.",
+  "msa": "Cape Coral–Fort Myers, FL (Lee County)",
+  "envelope": {
+    "latMin": 26.31,
+    "latMax": 26.79,
+    "lngMin": -82.34,
+    "lngMax": -81.56
+  },
+  "expected_count": 27,
+  "_geocode_comment": "5 of the 27 venues produce no coordinate from any query rung, and this was INVESTIGATED before the flag was set rather than waved through. All five DO carry a street address, so none is the 'no address, name rungs only' case: north-fort-myers-recreation-center (2000 N Recreation Park Way), fort-myers-ace-pickleball-club (2501 Alessio Dr Suite 170), fort-myers-picklerage (15271 McGregor Blvd Suite 33), fort-myers-dna-pickleball (1900 Trailwinds Dr) and fort-myers-wa-ke-hatchee (16760 Bass Road). TWO of them carry a 'Suite' token, which is a known Nominatim defeater — the suite-qualified string is not a distinct addressable object in OSM — and those two are the likeliest to resolve on a re-geocode once the suite is stripped. The other three look like either an un-mapped address or a workbook address error and are flagged for the owner. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 5 import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the whole metro; the publish gate holds every one of them on 'no coordinate' until an address is supplied and they are re-geocoded.",
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 18,
+    "hold": {
+      "north-fort-myers-recreation-center-north-fort-myers-fl": "no coordinate",
+      "ace-pickleball-club-fort-myers-fort-myers-fl": "no coordinate",
+      "picklerage-fort-myers-fort-myers-fl": "no coordinate",
+      "dna-pickleball-fort-myers-fl": "no coordinate",
+      "bonita-bay-club-sports-center-bonita-springs-fl": "coordinate precision low",
+      "the-sanctuary-bonita-springs-bonita-springs-fl": "coordinate precision low",
+      "wa-ke-hatchee-recreation-center-fort-myers-fl": "no coordinate",
+      "lehigh-acres-park-lehigh-acres-fl": "research_status=probable",
+      "bonita-springs-ymca-bonita-springs-fl": "research_status=probable"
+    }
+  }
+}

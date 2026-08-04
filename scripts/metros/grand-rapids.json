@@ -1,0 +1,21 @@
+{
+  "_comment": "Grand Rapids-Wyoming-Kentwood, MI MSA — Kent, Ottawa, Ionia, Montcalm and Barry counties. Ingested from the ChatGPT Work research workbook 2026-08-04 (batch 4). NOT YET IMPORTED. `expected_publish` is recorded only after the owner approves the projected split, so a later run re-asserts what was approved rather than whatever it happens to compute.",
+  "metro": "grand-rapids",
+  "batch": "grand-rapids-2026-08-04",
+  "metro_area": "Grand Rapids",
+  "states": ["MI"],
+  "input": "metro-research/grand-rapids/grand-rapids-candidates.json",
+  "discovered_by": "grand-rapids-research",
+  "spreadsheet_id": "1ypxaIK9UY0N2cKkpZYEt9iMBjq8Y6rtlxzk_SIYxGls",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent — the observed bbox is only a lower bound and would reject a legitimate future venue near the metro edge). Union of the OSM boundary bboxes of Kent (relation/1907319), Ottawa (1907337), Ionia (1907315), Montcalm (1907326) and Barry (1907307), rounded OUTWARD to 0.01 deg. Edges are driven by Barry (latMin), Montcalm (latMax and lngMax) and Ottawa (lngMin). KNOWN OVER-REACH, recorded rather than silently narrowed, and this metro has TWO rather than the usual one — the MSA is a ragged pentagon and an envelope is a rectangle, so the spanned corners pick up two separate neighbouring MSAs and `states: [MI]` fences neither: (1) MUSKEGON (43.23,-86.25, Muskegon County) is its own MSA (Muskegon-Norton Shores) and sits inside this rectangle; (2) HOLLAND (42.79,-86.10) is the principal city of the Holland, MI MSA (Allegan County) and also sits inside it. Note that Holland STRADDLES the Ottawa/Allegan line, so a Holland-addressed venue is not automatically out of this MSA — check the county before rejecting one. No Muskegon-County or Allegan-County row exists in this batch. If one is ever admitted, tighten deliberately and name the row that forced it. Four other neighbours were checked and are correctly EXCLUDED: Kalamazoo (42.29) and Battle Creek (42.32) sit south of latMin 42.41, Lansing (-84.55) sits east of lngMax -84.83, and Big Rapids (43.70) sits north of latMax 43.47.",
+  "msa": "Grand Rapids-Wyoming-Kentwood, MI (Kent, Ottawa, Ionia, Montcalm, Barry counties)",
+  "_workbook_comment": "Pre-flight aborted on `address_source \"null\"` for exactly THREE rows: ionia-county-park-courts, greenville-veterans-park and six-lakes-community-park. ALL THREE INSPECTED BEFORE THE DEFAULT WAS SET, because a blank in this column can equally mean a shifted row, and a shifted row must be fixed at source rather than defaulted past. None is shifted — research_key, name, city, state and county all sit in their correct columns on all three. They are one coherent class, not three unrelated gaps: each is a `probable` lead that the researcher surfaced from the SAME source, the Michigan DNR recreation-grant award history, which records that a pickleball project was funded WITHOUT giving a street address. So all three carry a name, city, county, website and `confidence=low`, and no address and no zip. The workbook cannot say where an address came from because there is no address. `manual_research` is the same answer New Orleans, Albuquerque and Hartford use: the weaker TRUE claim, where `official_page` would assert something the workbook never states. Scoped per metro rather than per generation, so it cannot silently restate provenance on blank-cell rows across the 20+ already-projected generation-A metros. All three are `probable` AND coordinate-less, so the publish gate holds each of them twice over regardless of this setting; every row with a stated value keeps it.",
+  "workbook": {
+    "address_source_default": "manual_research"
+  },
+  "envelope": { "latMin": 42.41, "latMax": 43.47, "lngMin": -86.28, "lngMax": -84.83 },
+  "expected_count": 32,
+  "require_all_geocoded": false,
+  "reconciles": []
+}

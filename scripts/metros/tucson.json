@@ -1,0 +1,17 @@
+{
+  "_comment": "Tucson, AZ MSA — Pima County, a single-county MSA. Ingested from the ChatGPT Work research workbook 2026-08-04 (batch 4). NOT YET IMPORTED. `expected_publish` is recorded only after the owner approves the projected split, so a later run re-asserts what was approved rather than whatever it happens to compute.",
+  "metro": "tucson",
+  "batch": "tucson-2026-08-04",
+  "metro_area": "Tucson",
+  "states": ["AZ"],
+  "input": "metro-research/tucson/tucson-candidates.json",
+  "discovered_by": "tucson-research",
+  "spreadsheet_id": "1DHONpNoIxlK9HasuD3frEeV0LyJslZqja_WFBbWAQOY",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent — the observed bbox is only a lower bound and would reject a legitimate future venue near the metro edge). Pima County is the whole MSA, so the envelope is exactly its OSM boundary bbox (relation/1832206) rounded OUTWARD to 0.01 deg. This is the cleanest envelope in the corpus: a single-county MSA has no L-shape and no spanned corner, so there is no rectangle-vs-polygon over-reach to record. The box is wide in longitude (2.9 deg) only because Pima itself runs west to the Cabeza Prieta refuge on the Yuma County line; that land is national wildlife refuge and Tohono O'odham Nation with essentially no venue population, so the width costs nothing. Nearest separate metros checked and correctly EXCLUDED: Phoenix (33.45) sits north of latMax 32.52, Sierra Vista (31.55,-110.30) sits east of lngMax -110.44, Nogales (31.34) sits south of latMin 31.42.",
+  "msa": "Tucson, AZ (Pima County)",
+  "envelope": { "latMin": 31.42, "latMax": 32.52, "lngMin": -113.34, "lngMax": -110.44 },
+  "expected_count": 25,
+  "require_all_geocoded": false,
+  "reconciles": []
+}

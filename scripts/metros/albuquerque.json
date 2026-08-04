@@ -1,0 +1,40 @@
+{
+  "_comment": "Albuquerque, NM MSA — Bernalillo, Sandoval, Torrance and Valencia counties. Ingested from the ChatGPT Work research workbook 2026-08-03. NOT YET IMPORTED as of ingest; the owner APPROVED the projected split on 2026-08-03 and it is now recorded in `expected_publish` below, so every subsequent project/publish run re-asserts it.",
+  "metro": "albuquerque",
+  "batch": "albuquerque-2026-08-03",
+  "metro_area": "Albuquerque",
+  "states": [
+    "NM"
+  ],
+  "input": "metro-research/albuquerque/albuquerque-candidates.json",
+  "discovered_by": "albuquerque-research",
+  "spreadsheet_id": "1PLx5J-233n1vR7T2zWAcBxPe2lhkNpLNBfEPWVVh158",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). Union of the OSM boundary bboxes for Bernalillo (relation/1832180), Sandoval (relation/1344295), Torrance (relation/1832213) and Valencia (relation/1832214), rounded OUTWARD to 0.01 deg. All 24 workbook venues sit in just Bernalillo and Sandoval; Torrance and Valencia are carried anyway because they ARE in the MSA and the rule is county-list-not-observed-bbox. KNOWN SOFT EDGE, recorded rather than tightened: the MSA is L-shaped (Sandoval reaches north-west to 36.22, Torrance reaches east to -105.29) while the envelope is necessarily a RECTANGLE, so the corner it spans contains Santa Fe (35.69,-105.94), which is its own MSA. `states: [NM]` does not fence this one — Santa Fe is also NM. No Santa Fe row exists in this batch, so nothing is admitted today; if one ever is, tighten deliberately and record the row that forced it, as toledo.json did for Cedar Point. This is inherent to a rectangular envelope over a non-rectangular MSA and is the reason the note exists rather than a silent narrowing.",
+  "msa": "Albuquerque, NM (Bernalillo, Sandoval, Torrance, Valencia counties)",
+  "envelope": {
+    "latMin": 34.25,
+    "latMax": 36.22,
+    "lngMin": -107.63,
+    "lngMax": -105.29
+  },
+  "_workbook_comment": "This workbook DOES carry an address_source column and 17 of its 24 rows fill it; 7 leave it blank (rio-def-011, ber-pad-019, ber-wes-020, abq-tho-021, abq-ces-022, abq-her-023, abq-dur-024), which came out null and correctly aborted pre-flight. A blank cell here means the researcher did not state where that address came from, which is the SAME fact generations B and C encode by having no column at all — so the same ruling applies and `manual_research` is the weaker TRUE claim, never `official_page`. This default only ever fills a blank: the 17 rows that state their own address_source keep it, because a per-row value always wins.",
+  "workbook": {
+    "address_source_default": "manual_research"
+  },
+  "expected_count": 24,
+  "_geocode_comment": "1 of the 24 venues produces no coordinate from any query rung, INVESTIGATED before the flag was set: rio-def-011 (Defined Pickleball, Rio Rancho) carries no street address at all in the workbook, so it only ever reaches the name-based rungs and Nominatim does not hold that name as a POI — the honest fix is an address, not a retry. The miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so this row imports as a gate-blocked draft in the work queue instead of aborting the metro; the publish gate holds it on 'no coordinate'.",
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "expected_publish": {
+    "count": 19,
+    "hold": {
+      "pat-hurley-park-pickleball-courts-albuquerque-nm": "coordinate precision low",
+      "alamosa-park-pickleball-courts-albuquerque-nm": "coordinate precision low",
+      "lomas-encantadas-park-rio-rancho-nm": "coordinate precision low",
+      "defined-pickleball-rio-rancho-nm": "no coordinate",
+      "pro-sports-oasis-at-the-canyon-club-albuquerque-nm": "coordinate precision low"
+    }
+  }
+}
