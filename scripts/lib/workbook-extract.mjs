@@ -2278,4 +2278,31 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(`\nextraction notes (${doc.extraction_notes.length}):`)
     doc.extraction_notes.forEach((n) => console.log(`  - ${n}`))
   }
+
+  // An extract is the moment new irreplaceable data exists on disk: `<metro>/tabs.json` is a verbatim
+  // workbook dump that cannot be regenerated from anything in this repo. Backing up here rather than
+  // at publish time is deliberate — publish is far too late, and on 2026-08-03 a wipe cost the
+  // Colorado Springs artifacts precisely because the backup step was a manual line in a README.
+  //
+  // It COMMITS but does NOT push: a push is an external send to a second repo and ADR-10 covers
+  // Joinzer only. The backup module explains the split and prints the pending-push count.
+  //
+  // Only paths THIS run authored are passed, and the module stages nothing else — a previous version
+  // ran `git add -A` here and swept another metro's work into a commit (research repo cb79409).
+  // `cachePath` is included so that if the research repo ever stops ignoring `.geocode-cache/`, the
+  // cache is carried automatically; while it is ignored this costs exactly nothing. `csvDir` is
+  // deliberately NOT passed: it is a directory, the staging rules match files, and the irreplaceable
+  // input is `tabs.json` via --raw. A changed file under it surfaces in the "did not author" report.
+  //
+  // Best-effort and NEVER fatal: a git failure must not fail an extract that already succeeded. The
+  // dynamic import keeps the backup module out of the graph for library consumers of this file
+  // (import-metro-merged.mjs imports it), since only the CLI path needs it.
+  if (!process.argv.includes('--no-backup')) {
+    try {
+      const { backupMetroResearch, reportBackup } = await import('./backup-metro-research.mjs')
+      reportBackup(backupMetroResearch({ metro, artifacts: [out, raw, cachePath], label: `${metro} extract` }))
+    } catch (err) {
+      console.log(`\nmetro-research backup: SKIPPED — ${err.message}`)
+    }
+  }
 }
