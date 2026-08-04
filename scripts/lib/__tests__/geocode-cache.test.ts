@@ -19,7 +19,7 @@
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { cacheStats, flushCache, geocodeCachePath, geocodeVenue, legacyCachePaths, liveRequestCount } from '../geocode-nominatim.mjs'
@@ -79,9 +79,33 @@ describe('geocodeCachePath', () => {
   })
 
   it('refuses a key that would escape the cache directory or collide blankly', () => {
-    for (const bad of ['', '   ', '../evil', 'a/b', 'a\\b', '.hidden', null, undefined]) {
+    for (const bad of ['', '   ', '../evil', 'a/b', 'a\\b', '.hidden', 'a..b', null, undefined]) {
       expect(() => cachePathFor(bad, 'x/nominatim.json')).toThrow(/refusing to derive a cache path/)
     }
+  })
+
+  /**
+   * REGRESSION. The first guard required an ALPHANUMERIC first character, which killed
+   * `--metro=_vt_pme` at CLI start — and `scripts/metros/_vt_pme.json` is a real config in the repo.
+   * A leading underscore is legal; a leading DOT still is not, so traversal stays blocked.
+   */
+  it('accepts a leading underscore, which real config keys use', () => {
+    expect(cachePathFor('_vt_pme', 'x/nominatim.json')).toBe(join('x', '_vt_pme.json'))
+    expect(() => cachePathFor('.hidden', 'x/nominatim.json')).toThrow()
+    expect(() => cachePathFor('..', 'x/nominatim.json')).toThrow()
+  })
+
+  it('derives a path for every real metro config key in the repo', () => {
+    const keys = readdirSync(join(process.cwd(), 'scripts', 'metros'))
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => f.replace(/\.json$/, ''))
+    expect(keys.length).toBeGreaterThan(30)
+    for (const key of keys) {
+      expect(cachePathFor(key, 'metro-research/.geocode-cache/nominatim.json'))
+        .toBe(join('metro-research/.geocode-cache', `${key}.json`))
+    }
+    // Every metro gets a DISTINCT file — the property the whole split rests on.
+    expect(new Set(keys.map((k) => cachePathFor(k, 'x/nominatim.json'))).size).toBe(keys.length)
   })
 })
 
@@ -137,7 +161,10 @@ describe('the read-only seed migration', () => {
   it('serves a hit from the legacy shared cache, PROMOTES it, and leaves the legacy file byte-identical', async () => {
     const key = soleQueryKey('Kanis Park', 'Little Rock', 'AR')
     const legacy = join(dir, 'nominatim.json')
-    writeFileSync(legacy, JSON.stringify({ [key]: parkHit('Kanis Park', 34.7465, -92.3423) }, null, 1))
+    // Indent 4, NOT the indent 1 that `flushCache` emits. With a matching indent a rewrite of
+    // identical data produces an identical md5, so the assertion below would pass under the very
+    // bug it exists to catch. The differing indent makes it a real discriminator.
+    writeFileSync(legacy, JSON.stringify({ [key]: parkHit('Kanis Park', 34.7465, -92.3423) }, null, 4))
     const before = md5(legacy)
 
     const target = cachePathFor('toledo', legacy)

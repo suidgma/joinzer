@@ -86,6 +86,12 @@ describe('parseRetryAfter', () => {
   it('rejects junk that Date.parse happens to accept as an ancient date', () => {
     expect(parseRA('-5')).toBeNull()
     expect(parseRA('7x')).toBeNull()
+    // A 4-digit signed value slipped past the FIRST version of the shape guard: V8 reads these as a
+    // past year, which clamps to a 0 ms delay — the same silent-backoff-disable, one digit wider.
+    // Neither RFC form permits a sign, so any signed value is rejected outright.
+    for (const junk of ['-1000', '-1500', '-2026', '+2026', '-99999']) {
+      expect(parseRA(junk)).toBeNull()
+    }
   })
 
   it('still accepts all three RFC 7231 date forms', () => {
@@ -159,6 +165,35 @@ describe('fetchWithRetry', () => {
 
     expect(calls).toHaveLength(2)
     expect(slept).toEqual([2000])
+  })
+
+  /**
+   * REGRESSION, end to end. `Retry-After: -1000` parses in V8 as a past year, clamped to 0 ms, so the
+   * geocoder would have hammered the endpoint four times with no backoff at all. The signed-value
+   * rejection sends it to the real ladder instead.
+   */
+  it('a signed Retry-After falls back to the ladder instead of collapsing to zero', async () => {
+    const four429s = [1, 2, 3, 4].map(() => response(429, { retryAfter: '-1000' }))
+    const { impl } = fetcher([...four429s, response(200)])
+    const { slept, sleepImpl } = recorder()
+
+    await withRetry('u', { fetchImpl: impl, sleepImpl, random: () => 0.5 })
+
+    expect(slept).toEqual([2000, 4000, 8000, 16_000]) // not [0, 0, 0, 0]
+  })
+
+  /**
+   * The Retry-After cap is PER RETRY, not a total budget, so an absurd header costs 4 x 60 s before
+   * the run gives up. It terminates — which is the requirement — but the code comment used to claim
+   * a flat 30 s worst case, which is only true when no header is present.
+   */
+  it('caps an absurd Retry-After per retry and still terminates', async () => {
+    const { impl, calls } = fetcher([1, 2, 3, 4, 5].map(() => response(429, { retryAfter: '99999' })))
+    const { slept, sleepImpl } = recorder()
+
+    await expect(withRetry('u', { fetchImpl: impl, sleepImpl, label: 'q=x' })).rejects.toThrow(/gave up after 5 attempt/)
+    expect(calls).toHaveLength(5)
+    expect(slept).toEqual([60_000, 60_000, 60_000, 60_000]) // 240 s total, bounded
   })
 
   it('honours Retry-After in preference to its own backoff', async () => {

@@ -94,7 +94,11 @@ export function geocodeCachePath(metroKey, configuredPath = DEFAULT_CACHE) {
   const key = String(metroKey ?? '').trim()
   // A path separator or `..` here would write outside the cache directory; a blank key would collide
   // with every other blank-keyed caller. Refuse rather than derive something surprising.
-  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(key) || key.includes('..')) {
+  //
+  // A LEADING UNDERSCORE IS LEGAL: `scripts/metros/_vt_pme.json` is a real config in the repo, and
+  // requiring an alphanumeric first character killed `--metro=_vt_pme` at CLI start. A leading DOT
+  // still fails (it is how `.hidden` and `..` begin), so the traversal protection is untouched.
+  if (!/^[a-z0-9_][a-z0-9._-]*$/i.test(key) || key.includes('..')) {
     throw new Error(`geocodeCachePath: refusing to derive a cache path from metro key ${JSON.stringify(metroKey)} — expected a config-filename-shaped key such as "toledo"`)
   }
   return join(dirname(configuredPath || DEFAULT_CACHE), `${key}.json`)
@@ -198,8 +202,15 @@ export function cacheStats() {
  * carrying `[]` is still a real "no such place" that gets cached (the Greensboro lesson below).
  */
 const RETRY_STATUSES = new Set([429, 503])
-/** 4 retries = 5 attempts. Without a Retry-After that is 2+4+8+16 = 30 s of added wait, then a hard
- *  failure — so a persistently rate-limited run TERMINATES with a clear error instead of hanging. */
+/** 4 retries = 5 attempts, then a hard failure — so a persistently rate-limited run TERMINATES with a
+ *  clear error instead of hanging.
+ *
+ *  The worst-case added wait per query depends on whether the server sends a Retry-After:
+ *    - without one: the exponential ladder, 2+4+8+16 = 30 s
+ *    - with one:    RETRY_AFTER_CAP_MS applies PER RETRY, not to the total, so a server asking for
+ *                   an absurd delay costs 4 x 60 s = 240 s before the run gives up.
+ *  Both terminate; only the second is slow. Bounding the total instead of the per-retry wait would
+ *  mean ignoring a Retry-After we told the server we would honour. */
 const MAX_RETRIES = 4
 const BACKOFF_BASE_MS = 2000
 const BACKOFF_CAP_MS = 30_000
@@ -219,11 +230,14 @@ export function parseRetryAfter(value, nowMs = Date.now()) {
   const raw = String(value).trim()
   if (!raw) return null
   if (/^\d+$/.test(raw)) return clampRetryAfter(Number(raw) * 1000)
-  // `Date.parse` is far too permissive to use as a validity test on its own: V8 parses `-5` as a
-  // date in year 5 BC, which then clamps to a 0 ms delay — so a junk header would silently disable
-  // the backoff for that request. Require something actually date-shaped first: a month name (all
-  // three RFC 7231 date forms carry one) or a 4-digit year. Anything else falls through to our own
-  // bounded ladder, which is the safe direction.
+  // A SIGNED value is neither RFC form: delta-seconds permits no sign, and no HTTP-date begins with
+  // one. Reject before the date branch — V8 reads `-1000` / `-2026` as a PAST YEAR, which clamps to
+  // a 0 ms delay and silently disables the backoff for that request. (`-5` was caught by the shape
+  // guard below; `-1000` slipped past it because it contains four digits. Same hole, one digit wider.)
+  if (/^[+-]/.test(raw)) return null
+  // `Date.parse` is far too permissive to use as a validity test on its own. Require something
+  // actually date-shaped: a month name (all three RFC 7231 date forms carry one) or a 4-digit year.
+  // Anything else falls through to our own bounded ladder, which is the safe direction.
   if (!/[A-Za-z]{3}/.test(raw) && !/\d{4}/.test(raw)) return null
   const at = Date.parse(raw)
   if (Number.isNaN(at)) return null
