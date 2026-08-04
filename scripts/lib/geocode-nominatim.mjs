@@ -784,10 +784,57 @@ function describeAnchor(hit, rung) {
  *                                             address, but is also the rung most likely to land on a
  *                                             neighbouring feature, so it rarely classifies `high`
  */
+/**
+ * An address with a trailing suite / unit / building designator removed, or null when there is none.
+ *
+ * WHY: Nominatim's `street` parameter expects "<house number> <road>". A tenancy designator is not
+ * part of the road and pushing one through the structured query is what turns a findable address into
+ * zero hits — "547 Church Road, Suite G" returns nothing while "547 Church Road" resolves. Measured
+ * across all 30 metros: 17 venues carry a designator, and stripping it takes 2 of them from NO
+ * COORDINATE AT ALL to a publishable rooftop (augusta AUG-RIC-005, tucson tucson-ace).
+ *
+ * RETURNS NULL WHEN NOTHING WAS STRIPPED, deliberately — the caller adds a rung only when the
+ * transform actually changed the address, so this is a no-op on the other 1,199 corpus venues BY
+ * CONSTRUCTION rather than by a regression check that then confirms it.
+ *
+ * ACCEPTED RESIDUAL, measured not assumed: of the 17, six resolve to a CO-TENANT at the same street
+ * number (a mall, a bookshop, a coffee shop) rather than to the venue. Those are "right address,
+ * wrong entity", which the anchor-identity rule (owner, 2026-07-31) correctly scores `low`. Stripping
+ * the suite is still the right transform — it is the classifier's job, not the query's, to decide
+ * what a co-tenant anchor is worth.
+ */
+export function stripSuite(address) {
+  const raw = String(address || '').trim()
+  const stripped = raw.replace(SUITE_SUFFIX, '').replace(HASH_UNIT_SUFFIX, '').replace(/[,\s]+$/, '')
+  return stripped && stripped !== raw ? stripped : null
+}
+
+/** A trailing tenancy designator PLUS its identifier.
+ *
+ *  Both halves are required, and the identifier's SHAPE is what keeps this from eating real roads.
+ *  A permissive `[-\w]*` after the keyword looks equivalent and is not: it turns "100 Unit Road" into
+ *  "100", because `Road` is a perfectly good word character run. Every unit identifier in the corpus
+ *  is either digit-bearing (107, 25713, 4036, 300) or a lone letter (B, G) — a road name after the
+ *  word "Unit" is neither. Anchored to the END because a designator is always trailing here.
+ *
+ *  Same family as the `Date.parse('-5')` lesson: reject by FORM, not by a pattern that happens to fit
+ *  the examples in front of you. */
+const SUITE_SUFFIX = /[,\s]+(?:suite|ste|unit|apt|apartment|bldg|building|rm|room)\.?\s+(?:[A-Za-z]?\d[-\w]*|[A-Za-z])\s*$/i
+
+/** The `#` form carries no keyword, so the identifier must be digit-bearing to qualify at all —
+ *  otherwise a stray `#` would strip the end of an address that merely contains one. */
+const HASH_UNIT_SUFFIX = /[,\s]*#\s*[-\w]*\d[-\w]*\s*$/
+
 function queryLadder({ name, address, city, state, zip, country = 'United States' }) {
   const rungs = []
   if (address) {
     rungs.push(['structured', { street: address, city, state, postalcode: zip, country }])
+    // Same query, better formed — so it sits immediately behind the rung it repairs rather than at
+    // the end of the ladder. It cannot make an anchor worse: `best` is replaced only on STRICTLY
+    // better precision, and only a `high` short-circuits, so a venue whose raw address already
+    // resolved `high` never issues this request at all.
+    const nosuite = stripSuite(address)
+    if (nosuite) rungs.push(['structured-nosuite', { street: nosuite, city, state, postalcode: zip, country }])
     rungs.push(['name+address', { q: [name, address, city, state, zip].filter(Boolean).join(', ') }])
     rungs.push(['address', { q: [address, city, state, zip].filter(Boolean).join(', ') }])
   }
@@ -1081,6 +1128,60 @@ export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAtt
       }
       attempt.township = township
       if (onAttempt) onAttempt({ ...attempt, micro: microThisRung })
+
+      // ---- no-city structured rung, under the SAME locus the township rung just derived ---------
+      // The township rung drops the postal city from the NAME query. This drops it from the ADDRESS
+      // query, for the same reason and against the same trap. Measured cause: Jackson's Ridgeland
+      // Tennis Center is filed by OSM under `town: Madison` while the workbook says Ridgeland, so
+      // `city=Ridgeland` over-constrains and Nominatim falls back to the McClellan Drive centerline
+      // (`low`). Dropping the city returns `place/house`, house number 201, unnamed, place_rank 30 —
+      // a rooftop 227 m away that classifies `high`.
+      //
+      // WHY IT IS GUARDED AND NOT JUST A RUNG. An unguarded city-dropped address query is dangerous
+      // in exactly the way the Koons Park trap is dangerous, and it is not a hypothetical: across an
+      // 18-metro sample, 4 venues returned a hit carrying the venue's EXACT house number at 5.4 km,
+      // 6.4 km, 29 km and 49 km away — a different road of the same name in another county. A house
+      // number matches on every road that has one, so no precision rule can catch this. Only distance
+      // can, which is why this reuses guardTownshipHits and TOWNSHIP_NAME_MAX_M rather than
+      // introducing a second tunable that would then need its own corpus justification.
+      //
+      // It rides inside the township block on purpose: the locus costs up to two requests to derive
+      // and has already been paid for here, and the block's own precondition (an address, and nothing
+      // `high` yet) is exactly this rung's precondition too.
+      if (!best || best.prec !== 'high') {
+        // Compose with the suite rung: if the address carries a designator, the no-city retry should
+        // not re-introduce the thing that broke the structured query in the first place.
+        const nocityStreet = stripSuite(venue.address) || venue.address
+        const nocityParams = { street: nocityStreet, state: venue.state, postalcode: venue.zip, country }
+        const { results: nocityResults, cached: nocityCached } = await nominatim(nocityParams, { fetchImpl })
+        const nocityHits = Array.isArray(nocityResults) ? nocityResults : []
+        const { accepted: nocityAccepted, rejected: nocityRejected } = guardTownshipHits(nocityHits, locus)
+        const nocity = {
+          locus: township.locus,
+          accepted: [],
+          rejected: nocityRejected.map((r) => `${describeAnchor(r.hit, 'structured-nocity')} — REJECTED: ${r.reason}`),
+        }
+        const nocityAttempt = { rung: 'structured-nocity', params: nocityParams, hits: nocityHits.length, cached: nocityCached, micro_skipped: 0 }
+        attempts.push(nocityAttempt)
+        const nocityMicro = []
+        for (const { hit, distance_m } of nocityAccepted) {
+          if (isMicroFeature(hit)) {
+            nocityAttempt.micro_skipped++
+            const desc = `${hit.class || hit.category || ''}/${hit.type}${hit.namedetails?.name || hit.name ? ` "${hit.namedetails?.name || hit.name}"` : ''} (rung structured-nocity)`
+            nocityMicro.push(desc)
+            microSkipped.push(desc)
+            continue
+          }
+          const prec = classifyPrecision(hit, { venueName: venue.name, wantHouseNumber })
+          nocity.accepted.push(`${describeAnchor(hit, 'structured-nocity')} — ${distance_m} m from the ${locus.kind} locus, classified ${prec}`)
+          // Strict improvement only, same as every rung above. This runs last of all, so like the
+          // township rung it cannot lower a precision and cannot remove a row from any publish set.
+          if (!best || rank[prec] < rank[best.prec]) best = { hit, prec, rung: 'structured-nocity', townshipDistance: distance_m, townshipLocus: locus.kind, guardName: 'no-city locus' }
+          if (best.prec === 'high') break
+        }
+        nocityAttempt.nocity = nocity
+        if (onAttempt) onAttempt({ ...nocityAttempt, micro: nocityMicro })
+      }
     }
   }
 
@@ -1097,7 +1198,9 @@ export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAtt
     source_url: 'https://nominatim.openstreetmap.org/',
     // The township guard's own measurement rides in the anchor string, which IS persisted — so a
     // township-derived coordinate is self-describing in the artifact rather than only in a run log.
-    anchor: describeAnchor(hit, rung) + (best.townshipDistance == null ? '' : ` — accepted by the township guard at ${best.townshipDistance} m from the venue's ${best.townshipLocus} locus (limit ${TOWNSHIP_NAME_MAX_M} m)`),
+    // `guardName` defaults to 'township' so every anchor written before the no-city rung existed
+    // renders byte-identically — the regression diff then shows only rows that actually moved.
+    anchor: describeAnchor(hit, rung) + (best.townshipDistance == null ? '' : ` — accepted by the ${best.guardName || 'township'} guard at ${best.townshipDistance} m from the venue's ${best.townshipLocus} locus (limit ${TOWNSHIP_NAME_MAX_M} m)`),
     osm_type: hit.osm_type ?? null,
     osm_id: hit.osm_type && hit.osm_id ? `${hit.osm_type}/${hit.osm_id}` : null,
     matched_rung: rung,
