@@ -111,3 +111,16 @@ scripts/.osm-ingest-progress.json
 # data, and the workbooks carry tier-4 aggregator source URLs which are an ADR-14 private research
 # input and must never be republished. Also holds the shared Nominatim geocode cache.
 /metro-research/
+
+# Nominatim geocode cache, if one is ever written at the repo root. Nothing should write here any
+# more — scripts/lib/geocode-nominatim.mjs defaults inside metro-research/ as of 2026-08-04 — so this
+# is a backstop for a stray --cache argument or a script that predates that change.
+#
+# READ THIS BEFORE TREATING IT AS PROTECTION. An ignore entry does NOT save a directory from
+# `git clean -fdx`: `-x` removes ignored files too, and that is exactly what destroyed the geocode
+# cache on 2026-08-03. What it does buy is real but narrower — the path was previously untracked AND
+# unignored, which meant a plain `git clean -fd` reached it and a `git add -A` would have staged
+# ~1 MB of churning research data into the public repo. The actual protection for the cache is its
+# LOCATION (metro-research/ is a junction to a repo outside every working tree, which git clean
+# provably does not follow), not this line.
+/.geocode-cache/

@@ -33,6 +33,18 @@
  * and silently discards the other's entries. Files that predate the split are consulted READ-ONLY as
  * seeds (see loadSeeds), so nothing accumulated before it is lost or re-fetched.
  *
+ * DURABILITY (2026-08-04). Everything a run buys from Nominatim reaches disk as it is bought, not at
+ * the end. The callers in workbook-extract.mjs flush once per geocode pass, OUTSIDE the loop, so a
+ * throw at venue 24 of 26 discarded all 24 venues' results — each of which may have spent several
+ * live requests walking the query ladder at >=1.1 s apiece. Retrying transient rate limits (above)
+ * made that the dominant loss path rather than a rare one, because giving up after 5 attempts is a
+ * NEW way for the loop to die. Three properties close it, and all three live here so that all three
+ * of those passes get them without a single edit at the call sites:
+ *
+ *   1. auto-flush after every LIVE request (see nominatim)
+ *   2. atomic writes, so multiplying the write count ~60x cannot leave a truncated cache
+ *   3. a flush failure is reported, never thrown — it must not abort a run that otherwise succeeded
+ *
  * PRECISION LADDER (matches the ladder the Little Rock / Greensboro batches established):
  *   high   - exact house-number match, or a named leisure/amenity/building feature that is the venue
  *   medium - correct site, but the anchor is a containing or neighbouring feature, or a large
@@ -47,14 +59,37 @@
  *   node scripts/lib/geocode-nominatim.mjs --name="Kanis Park" --address="820 S Rodney Parham Rd" \
  *     --city="Little Rock" --state=AR --zip=72205
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search'
 const USER_AGENT = 'Joinzer-directory-import/1.0 (https://www.joinzer.com; pickleball court directory research)'
 const MIN_SPACING_MS = 1100
-const DEFAULT_CACHE = '.geocode-cache/nominatim.json'
+
+/**
+ * Where a cache goes when a config does not say. `scripts/metros/little-rock.json` is the one config
+ * that omits `geocode_cache`, and the per-metro split made that omission permanent rather than
+ * incidental — every future config copied from it inherits the fallback.
+ *
+ * IT POINTS INSIDE `metro-research/` ON PURPOSE. The old default put the cache at `.geocode-cache/`
+ * in the REPO ROOT, which is not in `.gitignore` (only `/metro-research/` is). Untracked and
+ * unignored is the worst of both: a plain `git clean -fd` reaches it — not just `-fdx` — and
+ * `git add -A` would stage it. `metro-research/` is a junction to a repo outside every working tree,
+ * which is the only thing on this machine a `git clean` provably cannot follow (re-verified
+ * 2026-08-04: `git clean -ndx` in the main checkout does not list it at all).
+ *
+ * NOTE THE BASENAME IS NOT `nominatim.json`. The standalone smoke test at the bottom of this file
+ * defaults to this constant, so naming it `nominatim.json` would make a smoke test REWRITE the
+ * 551-entry legacy seed — a file the per-metro split declares read-only. `_default.json` also fails
+ * LEGACY_CACHE_NAME, so it is never picked up as a seed by anything either. A leading underscore is
+ * already legal in a cache basename (see geocodeCachePath and the `_vt_pme` regression).
+ *
+ * ADDING `.geocode-cache/` TO `.gitignore` IS NOT AN ALTERNATIVE TO THIS. `git clean -fdx` removes
+ * ignored files too — that is precisely what destroyed the cache on 2026-08-03. The entry is there
+ * as well, but it buys protection from `-fd` and from `git add -A`, not from `-fdx`.
+ */
+const DEFAULT_CACHE = 'metro-research/.geocode-cache/_default.json'
 
 /** Files in the cache directory that are LEGACY SHARED caches rather than a metro's own file.
  *
@@ -87,8 +122,16 @@ let seedPaths = []
  *
  * Derived from the metro KEY rather than read from the config, so a config copy-pasted from another
  * metro cannot silently share a cache file — the key is the config's own filename and is unique by
- * construction. The 42 metro configs keep their existing `geocode_cache` value untouched; only the
+ * construction. Every metro config keeps its existing `geocode_cache` value untouched; only the
  * basename changes, so the directory (and its gitignore posture) is unchanged.
+ *
+ * (This said "the 42 metro configs" until 2026-08-04. Don't reintroduce a count here: the corpus is
+ * 33 on `main` and 43 on the unmerged `chore/courts-publish-pipeline`, so any number written down is
+ * wrong on one of the two trees and goes stale again the moment that branch merges.)
+ *
+ * The fallback when `configuredPath` is absent is DEFAULT_CACHE's directory, which now sits inside
+ * `metro-research/` — see that constant for why. Only the directory is taken from it, so the
+ * `_default.json` basename never applies to a metro.
  */
 export function geocodeCachePath(metroKey, configuredPath = DEFAULT_CACHE) {
   const key = String(metroKey ?? '').trim()
@@ -155,7 +198,28 @@ function loadCache(path = cachePath) {
   // previous implementation repointed `cachePath` while keeping the already-loaded `cache`, so a
   // second metro in the same process would have flushed the FIRST metro's entries into the second
   // metro's file. Inert while every caller passed one path; a live bug the moment they differ.
-  if (cache) flushCache()
+  //
+  // AND IT MUST NOT REPOINT WHEN THAT FLUSH FAILED. Repointing replaces `cache` and resets
+  // `cacheDirty`, so the outgoing metro's unwritten entries become unrecoverable — even once the
+  // write error clears, because the retry would then be writing the INCOMING metro's file. This is
+  // the one place the old throw was load-bearing as a guard, and making flushCache non-fatal removed
+  // it; found in review, so it never shipped.
+  //
+  // Note the asymmetry with the rest of this module, which is deliberate. A same-path flush failure
+  // is non-fatal because nothing is lost: the entries sit in memory, the path is unchanged, and the
+  // next live request retries the write. Here the entries CANNOT stay, so the only two options are
+  // "abort" and "silently discard results that were paid for at >=1.1 s each". Aborting a metro
+  // switch costs a re-run; the alternative costs data that cannot be recovered at any price.
+  //
+  // Latent today — workbook-extract.mjs computes one cachePath per run and never repoints — which is
+  // exactly why it needs the guard rather than a comment.
+  if (cache && !flushCache()) {
+    throw new Error(
+      `refusing to switch the geocode cache from ${JSON.stringify(cachePath)} to ${JSON.stringify(next)}: ` +
+      `the outgoing cache could not be written (see the ACTION REQUIRED block above) and repointing ` +
+      `would discard its unwritten entries permanently. Fix the write error, then re-run.`,
+    )
+  }
   cachePath = next
   try {
     cache = JSON.parse(readFileSync(cachePath, 'utf8'))
@@ -167,11 +231,101 @@ function loadCache(path = cachePath) {
   return cache
 }
 
+/**
+ * Write the cache ATOMICALLY: a sibling temp file, then a rename over the target.
+ *
+ * `writeFileSync` truncates before it writes, so a process killed mid-write leaves a TRUNCATED file.
+ * `loadCache` treats an unparseable cache as `{}` and the next flush then overwrites it, so a torn
+ * write is silent total loss of that metro's cache. That window existed before this slice at 3 writes
+ * per run; auto-flushing takes it to ~180, which is reason enough to close it rather than widen it
+ * 60-fold. A rename cannot half-happen, so a kill at any instant leaves either the previous complete
+ * file or the new complete one.
+ *
+ * The temp name carries the pid so two processes cannot collide on it, and it is a SIBLING of the
+ * target because a rename is only atomic within one volume.
+ */
+function writeCacheFile(path, data) {
+  const tmp = `${path}.${process.pid}.tmp`
+  try {
+    writeFileSync(tmp, data)
+    renameSync(tmp, path)
+  } catch (err) {
+    // Never leave the scratch file behind to be mistaken for a cache (it would not match
+    // LEGACY_CACHE_NAME, but it would still be confusing litter in a directory people read).
+    try { rmSync(tmp, { force: true }) } catch { /* the original error is the one that matters */ }
+    throw err
+  }
+}
+
+/**
+ * Ensure the cache directory exists, creating AT MOST its final segment.
+ *
+ * `mkdirSync(recursive: true)` would happily materialize the whole chain — including a real
+ * `metro-research/` directory INSIDE the working tree when the junction is missing (a worktree that
+ * was never bootstrapped, or one where a `git clean` removed the link). That is the exact shape of
+ * the 2026-08-03 loss: research data sitting at a gitignored path inside a tree a `git clean -fdx`
+ * can reach. A cache that silently writes itself somewhere destructible is worse than one that
+ * refuses to write, because the refusal is visible and costs only a re-run.
+ */
+function ensureCacheDir(dir) {
+  const parent = dirname(dir)
+  if (parent && parent !== dir && !existsSync(parent)) {
+    throw new Error(
+      `refusing to create ${JSON.stringify(dir)} because its parent ${JSON.stringify(parent)} does not exist. ` +
+      `Creating it would put research data inside the working tree, where a "git clean -fdx" can reach it. ` +
+      `If this is an un-bootstrapped worktree, link the shared research repo first:\n` +
+      `    cmd /c mklink /J metro-research ..\\joinzer-metro-research`,
+    )
+  }
+  mkdirSync(dir, { recursive: true })
+}
+
+/**
+ * Persist the cache. Returns true when it is safe on disk, false when it is not.
+ *
+ * THIS DOES NOT THROW, BY DESIGN. It is called from inside three geocode loops in
+ * workbook-extract.mjs and now after every live request, and a failed write must not destroy a run
+ * that has otherwise succeeded — the whole point of this slice is that a run keeps what it bought.
+ * A failure prints the house ACTION REQUIRED block, the same posture as revalidate-directory.mjs and
+ * backup-metro-research.mjs, and the next flush retries: because the cache stays dirty, a transient
+ * EPERM (an antivirus scanner or an editor holding the file open, which Windows does produce on
+ * rename) self-heals on the following request rather than needing a re-run.
+ */
+/** Cache paths currently in a failed-write episode, so the ACTION REQUIRED block is printed ONCE per
+ *  episode rather than once per failure. Auto-flushing means a metro geocoding against (say) a
+ *  missing junction fails on every live request: ~180 failures, and at 7 lines each that is ~1,260
+ *  lines burying the very summary the block exists to surface. Cleared on a successful write, so a
+ *  path that recovers and later fails again reports in full a second time — the episode is the unit
+ *  worth shouting about, not the process lifetime. */
+const flushFailuresReported = new Set()
+
 export function flushCache() {
-  if (!cacheDirty || !cache) return
-  mkdirSync(dirname(cachePath), { recursive: true })
-  writeFileSync(cachePath, JSON.stringify(cache, null, 1))
-  cacheDirty = false
+  if (!cacheDirty || !cache) return true
+  try {
+    ensureCacheDir(dirname(cachePath))
+    writeCacheFile(cachePath, JSON.stringify(cache, null, 1))
+    cacheDirty = false
+    flushFailuresReported.delete(cachePath)
+    return true
+  } catch (err) {
+    const entries = Object.keys(cache).length
+    const detail = (err && err.message) || String(err)
+    if (flushFailuresReported.has(cachePath)) {
+      console.log(`  geocode cache STILL unwritable (${entries} result(s) held in memory only): ${detail}`)
+      return false
+    }
+    flushFailuresReported.add(cachePath)
+    console.log('\n' + '='.repeat(78))
+    console.log('ACTION REQUIRED — the geocode cache could NOT be written.')
+    console.log(`  path : ${cachePath}`)
+    console.log(`  error: ${detail}`)
+    console.log(`  ${entries} cached result(s) are held in memory only. The run continues, and each`)
+    console.log('  further live request retries the write — but if this keeps failing, everything')
+    console.log('  this run spent against Nominatim is lost when the process exits.')
+    console.log('  Further failures on this path print one line each until it succeeds.')
+    console.log('='.repeat(78))
+    return false
+  }
 }
 
 export function cacheStats() {
@@ -338,7 +492,17 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-async function nominatim(params) {
+/**
+ * `fetchImpl` is a TEST SEAM, defaulting to the real `fetch`. `fetchWithRetry` already took one for
+ * exactly this reason; threading it one level up is what makes the durability property above
+ * testable, because that property is only observable on a LIVE request and the existing cache tests
+ * are deliberately network-free. Nothing else passes it.
+ *
+ * NOTE THAT THE >=1.1 s SPACING IS NOT INJECTABLE and is not made so here. A test-only bypass of a
+ * courtesy limit on someone else's endpoint is the kind of seam that later leaks into a real run;
+ * the tests pay the real wait instead.
+ */
+async function nominatim(params, { fetchImpl = fetch } = {}) {
   const key = JSON.stringify(params)
   const c = loadCache()
   if (Object.prototype.hasOwnProperty.call(c, key)) return { results: c[key], cached: true }
@@ -347,6 +511,13 @@ async function nominatim(params) {
   // own cache so the per-metro file becomes self-sufficient over time and the shared files go
   // vestigial — without a single write ever landing on one. Counts as `cached`, because it is: it
   // cost no live request.
+  //
+  // DELIBERATELY NOT AUTO-FLUSHED. A promotion costs nothing to redo, because the seed it came from
+  // is still sitting on disk unchanged, so losing one to a crash loses nothing. Flushing here would
+  // mean a fully-seeded re-run — which spends ZERO live requests — paid for hundreds of writes it
+  // gains nothing from (measured: ~0.9 s across a 420-entry metro). The end-of-pass flushes in
+  // workbook-extract.mjs still persist promotions on a clean run, so the file does become
+  // self-sufficient; it just does not buy that with durability it does not need.
   if (seedCache && Object.prototype.hasOwnProperty.call(seedCache, key)) {
     c[key] = seedCache[key]
     cacheDirty = true
@@ -359,6 +530,7 @@ async function nominatim(params) {
       if (v != null && v !== '') url.searchParams.set(k, String(v))
     }
     const res = await fetchWithRetry(url, {
+      fetchImpl,
       headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
       label: String(url.searchParams),
       beforeAttempt: async () => {
@@ -379,6 +551,16 @@ async function nominatim(params) {
   const results = await p
   c[key] = results
   cacheDirty = true
+  // AUTO-FLUSH: this entry cost >=1.1 s of a rate limit that belongs to the ENDPOINT rather than to
+  // this process, so it is worth persisting the moment it exists. Without this, the next throw
+  // anywhere in the caller's loop discards it along with every other result the run has bought,
+  // because all three flushes in workbook-extract.mjs sit outside their loops.
+  //
+  // The cost is not a judgement call — it was measured against the real 551-entry / 459 KB cache:
+  // flushing on every request costs 78-816 ms across a whole metro run, against 114-462 s of live
+  // Nominatim time for the same run. That is under 0.2% in the worst case, and it is bounded by the
+  // 1.1 s spacing that gates every request anyway. Never throws (see flushCache).
+  flushCache()
   return { results, cached: false }
 }
 
@@ -771,7 +953,7 @@ export function guardTownshipHits(hits, locus, maxM = TOWNSHIP_NAME_MAX_M) {
  * Geocode one venue. Returns the coordinate node the importer persists, or null if every rung came
  * back empty (which is a real outcome — some venues simply are not in OSM).
  */
-export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAttempt = null } = {}) {
+export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAttempt = null, fetchImpl = fetch } = {}) {
   loadCache(cp)
   const wantHouseNumber = houseNumberOf(venue.address)
   const attempts = []
@@ -789,7 +971,7 @@ export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAtt
   const microSkipped = []
 
   for (const [rung, params] of queryLadder(venue)) {
-    const { results, cached } = await nominatim(params)
+    const { results, cached } = await nominatim(params, { fetchImpl })
     const attempt = { rung, params, hits: Array.isArray(results) ? results.length : 0, cached, micro_skipped: 0 }
     attempts.push(attempt)
     const microThisRung = []
@@ -832,8 +1014,8 @@ export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAtt
   if (!township.reason) {
     const street = streetWithoutHouseNumber(venue.address)
     const country = venue.country || 'United States'
-    const zipHits = venue.zip ? (await nominatim({ postalcode: venue.zip, country })).results : []
-    const streetHits = street ? (await nominatim({ street, state: venue.state, postalcode: venue.zip, country })).results : []
+    const zipHits = venue.zip ? (await nominatim({ postalcode: venue.zip, country }, { fetchImpl })).results : []
+    const streetHits = street ? (await nominatim({ street, state: venue.state, postalcode: venue.zip, country }, { fetchImpl })).results : []
     const locus = resolveTownshipLocus({ streetHits, zipHits })
 
     if (locus?.discarded_street) {
@@ -849,7 +1031,7 @@ export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAtt
       township.fired = true
       township.locus = `${locus.kind} locus ${locus.lat.toFixed(5)},${locus.lng.toFixed(5)} — ${describeAnchor(locus.hit, `locus:${locus.kind}`)}${locus.from_zip_m == null ? ' (UNVALIDATED: venue has no zip to check it against)' : locus.kind === 'street' ? `, ${locus.from_zip_m} m from the zip centroid` : ''}`
       const params = { q: [venue.name, venue.state].filter(Boolean).join(', '), countrycodes: 'us' }
-      const { results, cached } = await nominatim(params)
+      const { results, cached } = await nominatim(params, { fetchImpl })
       const hits = Array.isArray(results) ? results : []
       const { accepted, rejected } = guardTownshipHits(hits, locus)
       township.rejected = rejected.map((r) => `${describeAnchor(r.hit, 'township-name')} — REJECTED: ${r.reason}`)
@@ -925,7 +1107,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // warm (and benefit from) the real metro cache instead of a file nothing else reads.
   const cache = arg('cache') || (arg('metro') ? geocodeCachePath(arg('metro')) : DEFAULT_CACHE)
   const out = await geocodeVenue(venue, { cachePath: cache })
-  flushCache()
+  // A run that could not persist what it spent is not a success, even though the geocode itself
+  // worked and the result below is real. `flushCache` no longer throws, so without this the process
+  // exits 0 and a caller (or a human reading a shell) has nothing to key off.
+  if (!flushCache()) process.exitCode = 1
   console.log(JSON.stringify(out, null, 2))
   console.log(`\nlive requests this run: ${liveRequestCount()} · cache: ${JSON.stringify(cacheStats())}`)
 }
