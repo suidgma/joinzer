@@ -9,6 +9,8 @@
   "input": "little-rock-count/little-rock-candidates.json",
   "discovered_by": "little-rock-research",
   "spreadsheet_id": "1ZX2qsVij2-Yrziz-vFLNjW3_QmiWB9yBpo6bYaeEtWg",
+  "_geocode_cache_comment": "Added 2026-08-04. This was the ONE config of 43 that omitted geocode_cache, which was harmless while every metro shared one cache file and became permanent when the cache split per metro — every config copied from this one would inherit the fallback. The fallback is now safe on its own (it resolves inside metro-research/), so this line is uniformity rather than protection: the corpus states where its cache lives instead of half of it being implied.",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
 
   "envelope": { "latMin": 34.30, "latMax": 35.35, "lngMin": -93.05, "lngMax": -91.75 },
 

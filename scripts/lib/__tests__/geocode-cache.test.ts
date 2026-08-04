@@ -17,7 +17,7 @@
  * `geocode-nominatim.mjs` is plain ESM with no types, so tsc widens its exports to `object`. Typed
  * wrappers at the boundary keep `tsc --noEmit` green without loosening the gate.
  */
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -68,9 +68,32 @@ describe('geocodeCachePath', () => {
       .toBe(join('metro-research/.geocode-cache', 'port-st-lucie.json'))
   })
 
-  it('falls back to the default directory when a config omits geocode_cache (little-rock does)', () => {
-    expect(cachePathFor('little-rock', undefined)).toBe(join('.geocode-cache', 'little-rock.json'))
-    expect(cachePathFor('little-rock', '')).toBe(join('.geocode-cache', 'little-rock.json'))
+  /**
+   * The fallback used to resolve to `.geocode-cache/` in the REPO ROOT, which is untracked and was
+   * NOT gitignored — so a plain `git clean -fd` reached it, not merely `-fdx`. It now resolves inside
+   * `metro-research/`, a junction to a repo outside every working tree. `little-rock.json` declares
+   * the field as of 2026-08-04, so nothing reaches this path today; it stays safe for whatever does.
+   */
+  it('falls back to a directory a git clean cannot reach when a config omits geocode_cache', () => {
+    const safe = join('metro-research/.geocode-cache', 'little-rock.json')
+    expect(cachePathFor('little-rock', undefined)).toBe(safe)
+    expect(cachePathFor('little-rock', '')).toBe(safe)
+    // The guard that matters, stated as a property rather than as a literal: the fallback is never
+    // the repo root. A future edit to DEFAULT_CACHE that moved it back would fail here.
+    expect(cachePathFor('anything', undefined).startsWith('.geocode-cache')).toBe(false)
+  })
+
+  /**
+   * The fallback is safe, but a config that states where its cache lives is better than one that
+   * implies it — and the per-metro split is what made a silent fallback permanent rather than
+   * incidental, because every config copied from an omitting one inherits the omission.
+   */
+  it('every metro config in the repo declares geocode_cache', () => {
+    const dir = join(process.cwd(), 'scripts', 'metros')
+    const missing = readdirSync(dir)
+      .filter((f) => f.endsWith('.json'))
+      .filter((f) => !JSON.parse(readFileSync(join(dir, f), 'utf8')).geocode_cache)
+    expect(missing).toEqual([])
   })
 
   it('gives two metros two different files — the whole point of the split', () => {
@@ -236,6 +259,160 @@ describe('the read-only seed migration', () => {
     expect(await geocode(venue('Intact Park', 'Akron', 'OH'), { cachePath: target })).not.toBeNull()
     expect(stats().seed_entries).toBe(1)
   })
+})
+
+/**
+ * DURABILITY — what a run keeps when it dies partway.
+ *
+ * The three geocode passes in workbook-extract.mjs flush OUTSIDE their loops, so before this slice a
+ * throw at venue 24 of 26 discarded all 24 venues' results, each of which may have spent several live
+ * requests at >=1.1 s apiece. The fix lives in geocode-nominatim.mjs rather than at the three call
+ * sites, so these tests exercise the property directly and it holds for all three passes at once.
+ *
+ * These are the only tests in this file that issue a "live" request. They inject `fetchImpl`, so no
+ * packet leaves the machine — but they DO pay the real >=1.1 s endpoint spacing, because that limit
+ * is deliberately not injectable. Hence the explicit timeouts.
+ */
+describe('cache durability across a failed run', () => {
+  /** A Response-alike carrying Nominatim's array body. */
+  const okResponse = (hits: Row[]) => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: { get: () => null },
+    json: async () => hits,
+    text: async () => JSON.stringify(hits),
+  })
+
+  const failResponse = () => ({
+    ok: false,
+    status: 500,
+    statusText: 'Internal Server Error',
+    headers: { get: () => null },
+    json: async () => ({}),
+    text: async () => '',
+  })
+
+  it('puts a live result on disk immediately, with no explicit flush', async () => {
+    const dir = newCacheDir()
+    const target = cachePathFor('toledo', join(dir, 'nominatim.json'))
+    const key = soleQueryKey('Auto Flush Park', 'Toledo', 'OH')
+
+    const hit = await geocode(venue('Auto Flush Park', 'Toledo', 'OH'), {
+      cachePath: target,
+      fetchImpl: async () => okResponse(parkHit('Auto Flush Park', 41.6, -83.5)),
+    })
+
+    expect(hit).not.toBeNull()
+    // NOTE: no flush() call. That is the whole assertion.
+    expect(existsSync(target)).toBe(true)
+    expect(Object.keys(readJson(target))).toEqual([key])
+  }, 20_000)
+
+  /**
+   * THE REGRESSION THIS SLICE EXISTS FOR. Two venues succeed, the third throws. Before the fix the
+   * caller's flush sat past the end of the loop, so the throw discarded both earlier results.
+   */
+  it('keeps everything bought before a mid-run throw', async () => {
+    const dir = newCacheDir()
+    const target = cachePathFor('akron', join(dir, 'nominatim.json'))
+    const bought = [
+      soleQueryKey('First Park', 'Akron', 'OH'),
+      soleQueryKey('Second Park', 'Akron', 'OH'),
+    ]
+
+    const fetchImpl = async (url: any) => (
+      String(url).includes('Third') ? failResponse() : okResponse(parkHit('Park', 41.0, -81.5))
+    )
+
+    expect(await geocode(venue('First Park', 'Akron', 'OH'), { cachePath: target, fetchImpl })).not.toBeNull()
+    expect(await geocode(venue('Second Park', 'Akron', 'OH'), { cachePath: target, fetchImpl })).not.toBeNull()
+
+    // A 500 is terminal by design — it is not laundered into a retry — so this is a real mid-run throw.
+    await expect(geocode(venue('Third Park', 'Akron', 'OH'), { cachePath: target, fetchImpl }))
+      .rejects.toThrow(/nominatim HTTP 500/)
+
+    // The run died without ever reaching a flush, and both paid-for results survived it.
+    expect(Object.keys(readJson(target)).sort()).toEqual(bought.sort())
+  }, 20_000)
+
+  /**
+   * The deliberate exclusion, pinned so nobody "fixes" it into a flush. A promotion costs nothing to
+   * redo because its seed is still on disk, so auto-flushing one would make a fully-seeded re-run —
+   * which spends ZERO live requests — pay for hundreds of writes it gains nothing from.
+   */
+  it('does NOT auto-flush a seed promotion, but an explicit flush still persists it', async () => {
+    const dir = newCacheDir()
+    const key = soleQueryKey('Seeded Park', 'Albany', 'NY')
+    const legacy = join(dir, 'nominatim.json')
+    writeFileSync(legacy, JSON.stringify({ [key]: parkHit('Seeded Park', 42.6, -73.7) }))
+
+    const target = cachePathFor('albany', legacy)
+    expect(await geocode(venue('Seeded Park', 'Albany', 'NY'), { cachePath: target })).not.toBeNull()
+    expect(existsSync(target)).toBe(false)
+
+    flush()
+    expect(Object.keys(readJson(target))).toEqual([key])
+  })
+
+  it('leaves no temp file behind — the write is a rename, not a truncate-in-place', async () => {
+    const dir = newCacheDir()
+    const target = cachePathFor('boise', join(dir, 'nominatim.json'))
+    await geocode(venue('Temp File Park', 'Boise', 'ID'), {
+      cachePath: target,
+      fetchImpl: async () => okResponse(parkHit('Temp File Park', 43.6, -116.2)),
+    })
+    flush()
+    expect(readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([])
+  }, 20_000)
+
+  it('reports a failed write and returns false instead of throwing', async () => {
+    const dir = newCacheDir()
+    // A FILE where the cache directory should be, so mkdir fails. The run must survive it — a write
+    // failure must never abort a run that has otherwise succeeded.
+    const blocked = join(dir, 'blocked')
+    writeFileSync(blocked, 'not a directory')
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const hit = await geocode(venue('Blocked Park', 'Provo', 'UT'), {
+        cachePath: join(blocked, 'provo.json'),
+        fetchImpl: async () => okResponse(parkHit('Blocked Park', 40.2, -111.6)),
+      })
+      // The auto-flush already failed at this point, and the geocode still returned its answer.
+      expect(hit).not.toBeNull()
+      expect(flush()).toBe(false)
+      expect(log.mock.calls.flat().join('\n')).toMatch(/ACTION REQUIRED — the geocode cache could NOT be written/)
+    } finally {
+      log.mockRestore()
+    }
+  }, 20_000)
+
+  /**
+   * `mkdirSync(recursive: true)` would materialize a real `metro-research/` inside the working tree
+   * when the junction is missing — research data at a gitignored path a `git clean -fdx` can reach,
+   * which is the exact shape of the 2026-08-03 loss. Refusing is visible and costs only a re-run.
+   */
+  it('refuses to create a cache directory whose parent does not exist', async () => {
+    const dir = newCacheDir()
+    const absent = join(dir, 'metro-research')
+    const target = join(absent, '.geocode-cache', 'toledo.json')
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const hit = await geocode(venue('Unlinked Park', 'Toledo', 'OH'), {
+        cachePath: target,
+        fetchImpl: async () => okResponse(parkHit('Unlinked Park', 41.6, -83.5)),
+      })
+      expect(hit).not.toBeNull()
+      expect(flush()).toBe(false)
+      // Nothing was materialized inside the working tree — not the junction point, not the cache dir.
+      expect(existsSync(absent)).toBe(false)
+      expect(log.mock.calls.flat().join('\n')).toMatch(/mklink \/J metro-research/)
+    } finally {
+      log.mockRestore()
+    }
+  }, 20_000)
 })
 
 describe('switching cache paths inside one process', () => {
