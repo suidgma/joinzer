@@ -23,6 +23,16 @@
  *   - results cached to disk, so a re-run of an already-geocoded metro issues ZERO requests.
  *     ~600 venues across 29 metros is ~11 minutes of wall clock ONCE, then free forever.
  *
+ * THE RATE LIMIT IS ON THE ENDPOINT, NOT ON THIS PROCESS. The 1.1 s spacing above is enforced per
+ * process, so two sessions geocoding at once are two clients against one courtesy budget and both
+ * can be told to back off. That is why this module retries 429/503 rather than treating a non-200 as
+ * terminal: before 2026-08-04 any transient rate-limit killed a whole metro's extract mid-run.
+ *
+ * PER-METRO CACHE (2026-08-04). Each metro writes its OWN cache file, `<cache-dir>/<metro>.json`,
+ * because a single shared file made two concurrent extracts a lost-update race — last writer wins
+ * and silently discards the other's entries. Files that predate the split are consulted READ-ONLY as
+ * seeds (see loadSeeds), so nothing accumulated before it is lost or re-fetched.
+ *
  * PRECISION LADDER (matches the ladder the Little Rock / Greensboro batches established):
  *   high   - exact house-number match, or a named leisure/amenity/building feature that is the venue
  *   medium - correct site, but the anchor is a containing or neighbouring feature, or a large
@@ -37,8 +47,8 @@
  *   node scripts/lib/geocode-nominatim.mjs --name="Kanis Park" --address="820 S Rodney Parham Rd" \
  *     --city="Little Rock" --state=AR --zip=72205
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search'
@@ -46,21 +56,114 @@ const USER_AGENT = 'Joinzer-directory-import/1.0 (https://www.joinzer.com; pickl
 const MIN_SPACING_MS = 1100
 const DEFAULT_CACHE = '.geocode-cache/nominatim.json'
 
+/** Files in the cache directory that are LEGACY SHARED caches rather than a metro's own file.
+ *
+ *  Discovered by pattern, deliberately, instead of being a hardcoded list. There were two such files
+ *  when this slice was planned and THREE by the time it was written (`nominatim.json`,
+ *  `nominatim-wave1.json`, `nominatim-batch3.json` — 551 + 316 + 146 entries, pairwise overlap
+ *  ZERO), because sessions were already splitting the shared file by hand to dodge the very race
+ *  this slice fixes. A hardcoded pair would have gone stale within the hour and orphaned 146 entries.
+ *
+ *  A metro's own cache is `<metro>.json`, which cannot match this pattern unless a metro is literally
+ *  named `nominatim*` — so the two namespaces never collide. `county-bbox-*.json` (a different cache,
+ *  keyed by county name rather than by query params) is excluded for the same reason. */
+const LEGACY_CACHE_NAME = /^nominatim.*\.json$/i
+
 // ---------------------------------------------------------------------------------------------
 // Disk cache — keyed by the exact query, so a changed query is a cache miss rather than a stale hit.
+//
+// ONE FILE PER METRO. `cachePath` is the metro's own file and the ONLY file this module ever writes.
+// Legacy shared files are read-only seeds: consulted on a miss, never opened for writing, so the
+// migration off the shared file cannot lose an entry and needs no copy step to get wrong.
 // ---------------------------------------------------------------------------------------------
 let cachePath = DEFAULT_CACHE
 let cache = null
 let cacheDirty = false
+let seedCache = null
+let seedPaths = []
+
+/**
+ * The cache file a given metro writes: `<dir of the configured path>/<metro>.json`.
+ *
+ * Derived from the metro KEY rather than read from the config, so a config copy-pasted from another
+ * metro cannot silently share a cache file — the key is the config's own filename and is unique by
+ * construction. The 42 metro configs keep their existing `geocode_cache` value untouched; only the
+ * basename changes, so the directory (and its gitignore posture) is unchanged.
+ */
+export function geocodeCachePath(metroKey, configuredPath = DEFAULT_CACHE) {
+  const key = String(metroKey ?? '').trim()
+  // A path separator or `..` here would write outside the cache directory; a blank key would collide
+  // with every other blank-keyed caller. Refuse rather than derive something surprising.
+  //
+  // A LEADING UNDERSCORE IS LEGAL: `scripts/metros/_vt_pme.json` is a real config in the repo, and
+  // requiring an alphanumeric first character killed `--metro=_vt_pme` at CLI start. A leading DOT
+  // still fails (it is how `.hidden` and `..` begin), so the traversal protection is untouched.
+  if (!/^[a-z0-9_][a-z0-9._-]*$/i.test(key) || key.includes('..')) {
+    throw new Error(`geocodeCachePath: refusing to derive a cache path from metro key ${JSON.stringify(metroKey)} — expected a config-filename-shaped key such as "toledo"`)
+  }
+  return join(dirname(configuredPath || DEFAULT_CACHE), `${key}.json`)
+}
+
+/** Every legacy shared cache in `cacheDir`, excluding `activePath`, sorted so seed precedence is
+ *  deterministic across runs and platforms. An unreadable directory yields no seeds, never a throw. */
+export function legacyCachePaths(cacheDir, activePath = null) {
+  let names
+  try {
+    names = readdirSync(cacheDir)
+  } catch {
+    return []
+  }
+  const active = activePath ? resolve(activePath) : null
+  return names
+    .filter((n) => LEGACY_CACHE_NAME.test(n))
+    .map((n) => join(cacheDir, n))
+    .filter((p) => !active || resolve(p) !== active)
+    .sort()
+}
+
+/**
+ * Merge every legacy shared cache into one read-only lookup.
+ *
+ * NOTHING HERE EVER WRITES A LEGACY FILE. That is the whole safety argument for the migration: the
+ * accumulated entries are preserved by being read, not by being copied, so there is no move, no
+ * partition heuristic and no step that could drop an entry it failed to classify.
+ *
+ * A parse failure on one seed is skipped rather than fatal. That is load-bearing, not defensive
+ * padding: a legacy file may be MID-WRITE by another session (writeFileSync is not atomic), and a
+ * truncated read must degrade to a cache miss — a live request — rather than killing the run.
+ */
+function loadSeeds() {
+  seedPaths = legacyCachePaths(dirname(cachePath), cachePath)
+  seedCache = {}
+  for (const path of seedPaths) {
+    let entries
+    try {
+      entries = JSON.parse(readFileSync(path, 'utf8'))
+    } catch {
+      continue
+    }
+    // First file wins a key collision. Measured 2026-08-04: the three live legacy files share ZERO
+    // keys, so this tiebreak has never had to fire — it exists so the merge order is defined.
+    for (const [k, v] of Object.entries(entries)) if (!(k in seedCache)) seedCache[k] = v
+  }
+}
 
 function loadCache(path = cachePath) {
-  cachePath = path
-  if (cache) return cache
+  const next = path || DEFAULT_CACHE
+  if (cache && resolve(next) === resolve(cachePath)) return cache
+  // A path SWITCH inside one process must not write the outgoing cache to the incoming path. The
+  // previous implementation repointed `cachePath` while keeping the already-loaded `cache`, so a
+  // second metro in the same process would have flushed the FIRST metro's entries into the second
+  // metro's file. Inert while every caller passed one path; a live bug the moment they differ.
+  if (cache) flushCache()
+  cachePath = next
   try {
     cache = JSON.parse(readFileSync(cachePath, 'utf8'))
   } catch {
     cache = {}
   }
+  cacheDirty = false
+  loadSeeds()
   return cache
 }
 
@@ -73,7 +176,155 @@ export function flushCache() {
 
 export function cacheStats() {
   const c = loadCache()
-  return { path: cachePath, entries: Object.keys(c).length }
+  return {
+    path: cachePath,
+    entries: Object.keys(c).length,
+    seeds: seedPaths.length,
+    seed_entries: seedCache ? Object.keys(seedCache).length : 0,
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Retry policy — TRANSIENT rate-limit responses only
+// ---------------------------------------------------------------------------------------------
+/**
+ * 429 and 503, and nothing else.
+ *
+ * 429 is Nominatim's documented rate-limit response; the OSM operations tier returns 503 when it is
+ * shedding load. Both mean "come back later" BY DEFINITION, which is what makes retrying them safe.
+ *
+ * 502 and 504 are deliberately EXCLUDED (owner ruling 2026-08-04): neither has ever been observed
+ * against this endpoint, and widening the retry set without evidence trades a clear terminal error
+ * for five slow ones. Add them if one is ever actually seen.
+ *
+ * 400/404/500 keep the original behaviour exactly — thrown on the first response, with the original
+ * message shape. A genuine error must never be laundered into a retry, and in particular a 200
+ * carrying `[]` is still a real "no such place" that gets cached (the Greensboro lesson below).
+ */
+const RETRY_STATUSES = new Set([429, 503])
+/** 4 retries = 5 attempts, then a hard failure — so a persistently rate-limited run TERMINATES with a
+ *  clear error instead of hanging.
+ *
+ *  The worst-case added wait per query depends on whether the server sends a Retry-After:
+ *    - without one: the exponential ladder, 2+4+8+16 = 30 s
+ *    - with one:    RETRY_AFTER_CAP_MS applies PER RETRY, not to the total, so a server asking for
+ *                   an absurd delay costs 4 x 60 s = 240 s before the run gives up.
+ *  Both terminate; only the second is slow. Bounding the total instead of the per-retry wait would
+ *  mean ignoring a Retry-After we told the server we would honour. */
+const MAX_RETRIES = 4
+const BACKOFF_BASE_MS = 2000
+const BACKOFF_CAP_MS = 30_000
+/** A server (or a proxy in front of one) can name any Retry-After it likes. Honour it, but never let
+ *  it park the run for an unbounded time — past this we fall back to our own bounded ladder. */
+const RETRY_AFTER_CAP_MS = 60_000
+
+const clampRetryAfter = (ms) => Math.max(0, Math.min(ms, RETRY_AFTER_CAP_MS))
+
+/**
+ * Parse a `Retry-After` header into milliseconds, or null when it carries nothing usable.
+ * Both RFC forms are accepted: delta-seconds (`120`) and an HTTP-date (`Wed, 21 Oct 2026 07:28:00 GMT`).
+ * A date already in the past clamps to 0 rather than going negative.
+ */
+export function parseRetryAfter(value, nowMs = Date.now()) {
+  if (value == null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  if (/^\d+$/.test(raw)) return clampRetryAfter(Number(raw) * 1000)
+  // A SIGNED value is neither RFC form: delta-seconds permits no sign, and no HTTP-date begins with
+  // one. Reject before the date branch — V8 reads `-1000` / `-2026` as a PAST YEAR, which clamps to
+  // a 0 ms delay and silently disables the backoff for that request. (`-5` was caught by the shape
+  // guard below; `-1000` slipped past it because it contains four digits. Same hole, one digit wider.)
+  if (/^[+-]/.test(raw)) return null
+  // `Date.parse` is far too permissive to use as a validity test on its own. Require something
+  // actually date-shaped: a month name (all three RFC 7231 date forms carry one) or a 4-digit year.
+  // Anything else falls through to our own bounded ladder, which is the safe direction.
+  if (!/[A-Za-z]{3}/.test(raw) && !/\d{4}/.test(raw)) return null
+  const at = Date.parse(raw)
+  if (Number.isNaN(at)) return null
+  return clampRetryAfter(at - nowMs)
+}
+
+/**
+ * How long to wait before re-attempting, or **null meaning DO NOT RETRY** — either because the status
+ * is not transient or because the retry budget is spent. `attempt` is 1-based and counts the attempt
+ * that just failed.
+ *
+ * Jitter is ±25%. With one process it buys little; with two sessions backing off against the same
+ * endpoint at the same moment — the exact scenario this exists for — it de-synchronizes them.
+ */
+export function retryDelayMs({
+  status,
+  retryAfterHeader = null,
+  attempt,
+  maxRetries = MAX_RETRIES,
+  nowMs = Date.now(),
+  random = Math.random,
+} = {}) {
+  if (!RETRY_STATUSES.has(status)) return null
+  if (!(attempt >= 1) || attempt > maxRetries) return null
+  const fromHeader = parseRetryAfter(retryAfterHeader, nowMs)
+  if (fromHeader != null) return fromHeader
+  const base = Math.min(BACKOFF_BASE_MS * 2 ** (attempt - 1), BACKOFF_CAP_MS)
+  return Math.round(base * (0.75 + random() * 0.5))
+}
+
+/**
+ * Fetch with bounded exponential backoff on transient rate-limit responses.
+ *
+ * `beforeAttempt` runs before EVERY attempt including retries — that is what keeps the >=1.1 s
+ * endpoint spacing and the live-request counter honest when a retry fires, since a retry is another
+ * real request against the same courtesy budget.
+ *
+ * Injectable `fetchImpl` / `sleepImpl` / `random` exist so the whole ladder is unit-testable with no
+ * network and no wall-clock wait.
+ */
+export async function fetchWithRetry(url, {
+  headers = {},
+  label = null,
+  fetchImpl = fetch,
+  sleepImpl = sleep,
+  beforeAttempt = null,
+  onRetry = null,
+  maxRetries = MAX_RETRIES,
+  nowFn = Date.now,
+  random = Math.random,
+} = {}) {
+  const describe = label ?? String(url)
+  let waitedMs = 0
+  for (let attempt = 1; ; attempt++) {
+    if (beforeAttempt) await beforeAttempt(attempt)
+    const res = await fetchImpl(url, { headers })
+    if (res.ok) return res
+
+    const delay = retryDelayMs({
+      status: res.status,
+      retryAfterHeader: res.headers?.get ? res.headers.get('retry-after') : null,
+      attempt,
+      maxRetries,
+      nowMs: nowFn(),
+      random,
+    })
+
+    if (delay == null) {
+      // Retryable but out of budget gets a DIFFERENT message from a genuine error, so a run log can
+      // never confuse "the endpoint kept refusing us" with "this query is malformed".
+      if (RETRY_STATUSES.has(res.status)) {
+        throw new Error(
+          `nominatim HTTP ${res.status} ${res.statusText} for ${describe} — gave up after ${attempt} attempt(s) and ${(waitedMs / 1000).toFixed(1)}s of backoff`,
+        )
+      }
+      // A non-200 is NOT the same as "no such place" — surface it instead of caching an empty
+      // result and silently marking the venue ungeocodable (the Greensboro lesson: 8 straight empty
+      // responses there were genuine 200-with-[], and assuming rate-limiting would have been wrong).
+      throw new Error(`nominatim HTTP ${res.status} ${res.statusText} for ${describe}`)
+    }
+
+    // Drain the discarded body so the socket is released before we sleep on it.
+    if (typeof res.text === 'function') await res.text().catch(() => {})
+    waitedMs += delay
+    if (onRetry) onRetry({ attempt, status: res.status, delayMs: delay, totalWaitedMs: waitedMs, label: describe })
+    await sleepImpl(delay)
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -92,22 +343,34 @@ async function nominatim(params) {
   const c = loadCache()
   if (Object.prototype.hasOwnProperty.call(c, key)) return { results: c[key], cached: true }
 
+  // Legacy shared caches are consulted READ-ONLY on a miss, and a hit is PROMOTED into this metro's
+  // own cache so the per-metro file becomes self-sufficient over time and the shared files go
+  // vestigial — without a single write ever landing on one. Counts as `cached`, because it is: it
+  // cost no live request.
+  if (seedCache && Object.prototype.hasOwnProperty.call(seedCache, key)) {
+    c[key] = seedCache[key]
+    cacheDirty = true
+    return { results: c[key], cached: true }
+  }
+
   const run = async () => {
-    const wait = MIN_SPACING_MS - (Date.now() - lastRequestAt)
-    if (wait > 0) await sleep(wait)
     const url = new URL(ENDPOINT)
     for (const [k, v] of Object.entries({ format: 'jsonv2', addressdetails: '1', namedetails: '1', limit: '5', ...params })) {
       if (v != null && v !== '') url.searchParams.set(k, String(v))
     }
-    lastRequestAt = Date.now()
-    liveRequests++
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' } })
-    if (!res.ok) {
-      // A non-200 is NOT the same as "no such place" — surface it instead of caching an empty
-      // result and silently marking the venue ungeocodable (the Greensboro lesson: 8 straight empty
-      // responses there were genuine 200-with-[], and assuming rate-limiting would have been wrong).
-      throw new Error(`nominatim HTTP ${res.status} ${res.statusText} for ${url.searchParams}`)
-    }
+    const res = await fetchWithRetry(url, {
+      headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
+      label: String(url.searchParams),
+      beforeAttempt: async () => {
+        const wait = MIN_SPACING_MS - (Date.now() - lastRequestAt)
+        if (wait > 0) await sleep(wait)
+        lastRequestAt = Date.now()
+        liveRequests++
+      },
+      onRetry: ({ attempt, status, delayMs, totalWaitedMs }) => {
+        console.warn(`    nominatim HTTP ${status} (attempt ${attempt}) — backing off ${(delayMs / 1000).toFixed(1)}s (${(totalWaitedMs / 1000).toFixed(1)}s total) for ${url.searchParams}`)
+      },
+    })
     return res.json()
   }
 
@@ -658,7 +921,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return a ? a.split('=').slice(1).join('=') : null
   }
   const venue = { name: arg('name'), address: arg('address'), city: arg('city'), state: arg('state'), zip: arg('zip') }
-  const out = await geocodeVenue(venue, { cachePath: arg('cache') || DEFAULT_CACHE })
+  // --cache wins; --metro derives the same per-metro path the pipeline uses, so a smoke test can
+  // warm (and benefit from) the real metro cache instead of a file nothing else reads.
+  const cache = arg('cache') || (arg('metro') ? geocodeCachePath(arg('metro')) : DEFAULT_CACHE)
+  const out = await geocodeVenue(venue, { cachePath: cache })
   flushCache()
   console.log(JSON.stringify(out, null, 2))
   console.log(`\nlive requests this run: ${liveRequestCount()} · cache: ${JSON.stringify(cacheStats())}`)
