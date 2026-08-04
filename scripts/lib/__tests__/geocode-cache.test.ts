@@ -383,6 +383,86 @@ describe('cache durability across a failed run', () => {
       expect(hit).not.toBeNull()
       expect(flush()).toBe(false)
       expect(log.mock.calls.flat().join('\n')).toMatch(/ACTION REQUIRED — the geocode cache could NOT be written/)
+
+      // CLEANUP IS LOAD-BEARING, not tidiness. This test deliberately ends with the module holding
+      // unwritten entries, and the repoint guard below correctly refuses every later path switch
+      // until they land — so leaving it dirty fails four unrelated tests. Heal, then flush.
+      rmSync(blocked)
+      mkdirSync(blocked, { recursive: true })
+      expect(flush()).toBe(true)
+    } finally {
+      log.mockRestore()
+    }
+  }, 20_000)
+
+  /**
+   * REGRESSION (found in review, never shipped). Repointing replaces `cache` and resets `cacheDirty`,
+   * so a switch after a FAILED flush made the outgoing metro's unwritten entries unrecoverable — the
+   * write error could clear and the retry would then be writing the INCOMING metro's file. Making
+   * `flushCache` non-fatal is what removed the guard, because the throw had been doing this job.
+   *
+   * Latent today (workbook-extract.mjs computes one cachePath per run), which is exactly why it needs
+   * a test rather than a comment.
+   */
+  it('refuses to switch cache paths when the outgoing cache could not be written', async () => {
+    const dir = newCacheDir()
+    const blocked = join(dir, 'blocked')
+    writeFileSync(blocked, 'a file where a directory should be')
+    const unwritable = join(blocked, 'metro-a.json')
+    const other = join(dir, 'metro-b.json')
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      // Metro A buys one entry. The auto-flush fails; the run is expected to survive that.
+      expect(await geocode(venue('Paid For Park', 'Akron', 'OH'), {
+        cachePath: unwritable,
+        fetchImpl: async () => okResponse(parkHit('Paid For Park', 41.0, -81.5)),
+      })).not.toBeNull()
+
+      // Switching to metro B must NOT silently drop it.
+      await expect(geocode(venue('Second Park', 'Albany', 'NY'), {
+        cachePath: other,
+        fetchImpl: async () => okResponse(parkHit('Second Park', 42.6, -73.7)),
+      })).rejects.toThrow(/refusing to switch the geocode cache/)
+
+      // And metro A's entry was never written into metro B's file.
+      expect(existsSync(other)).toBe(false)
+
+      // Heal the write error: the entry is still held, and now lands where it always belonged. This
+      // doubles as this test's cleanup — a module left mid-failure would poison every later switch.
+      rmSync(blocked)
+      mkdirSync(blocked, { recursive: true })
+      expect(flush()).toBe(true)
+      expect(Object.keys(readJson(unwritable))).toEqual([soleQueryKey('Paid For Park', 'Akron', 'OH')])
+    } finally {
+      log.mockRestore()
+    }
+  }, 20_000)
+
+  /**
+   * Auto-flushing means a metro geocoding against a broken path fails on EVERY live request — ~180
+   * of them — and at 7 lines each the block that exists to surface the problem would bury it.
+   */
+  it('prints the ACTION REQUIRED block once per failure episode, then one line each', async () => {
+    const dir = newCacheDir()
+    const blocked = join(dir, 'blocked')
+    writeFileSync(blocked, 'a file where a directory should be')
+    const target = join(blocked, 'spokane.json')
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const fetchImpl = async () => okResponse(parkHit('Spam Park', 47.6, -117.4))
+      await geocode(venue('First Park', 'Spokane', 'WA'), { cachePath: target, fetchImpl })
+      await geocode(venue('Second Park', 'Spokane', 'WA'), { cachePath: target, fetchImpl })
+
+      const output = log.mock.calls.flat().join('\n')
+      expect(output.match(/ACTION REQUIRED — the geocode cache could NOT be written/g)).toHaveLength(1)
+      expect(output).toMatch(/geocode cache STILL unwritable/)
+
+      // Recovery resets the episode, so a later failure is loud again rather than silently terse.
+      rmSync(blocked)
+      mkdirSync(blocked, { recursive: true })
+      expect(flush()).toBe(true)
     } finally {
       log.mockRestore()
     }
@@ -409,6 +489,12 @@ describe('cache durability across a failed run', () => {
       // Nothing was materialized inside the working tree — not the junction point, not the cache dir.
       expect(existsSync(absent)).toBe(false)
       expect(log.mock.calls.flat().join('\n')).toMatch(/mklink \/J metro-research/)
+
+      // Same reason as above: land the held entries so the repoint guard does not fail later tests.
+      // This also proves the intended recovery — once the "junction" exists, the write just works.
+      mkdirSync(absent, { recursive: true })
+      expect(flush()).toBe(true)
+      expect(existsSync(target)).toBe(true)
     } finally {
       log.mockRestore()
     }

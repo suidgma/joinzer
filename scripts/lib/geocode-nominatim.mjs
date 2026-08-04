@@ -122,8 +122,12 @@ let seedPaths = []
  *
  * Derived from the metro KEY rather than read from the config, so a config copy-pasted from another
  * metro cannot silently share a cache file — the key is the config's own filename and is unique by
- * construction. The 42 metro configs keep their existing `geocode_cache` value untouched; only the
+ * construction. Every metro config keeps its existing `geocode_cache` value untouched; only the
  * basename changes, so the directory (and its gitignore posture) is unchanged.
+ *
+ * (This said "the 42 metro configs" until 2026-08-04. Don't reintroduce a count here: the corpus is
+ * 33 on `main` and 43 on the unmerged `chore/courts-publish-pipeline`, so any number written down is
+ * wrong on one of the two trees and goes stale again the moment that branch merges.)
  *
  * The fallback when `configuredPath` is absent is DEFAULT_CACHE's directory, which now sits inside
  * `metro-research/` — see that constant for why. Only the directory is taken from it, so the
@@ -194,7 +198,28 @@ function loadCache(path = cachePath) {
   // previous implementation repointed `cachePath` while keeping the already-loaded `cache`, so a
   // second metro in the same process would have flushed the FIRST metro's entries into the second
   // metro's file. Inert while every caller passed one path; a live bug the moment they differ.
-  if (cache) flushCache()
+  //
+  // AND IT MUST NOT REPOINT WHEN THAT FLUSH FAILED. Repointing replaces `cache` and resets
+  // `cacheDirty`, so the outgoing metro's unwritten entries become unrecoverable — even once the
+  // write error clears, because the retry would then be writing the INCOMING metro's file. This is
+  // the one place the old throw was load-bearing as a guard, and making flushCache non-fatal removed
+  // it; found in review, so it never shipped.
+  //
+  // Note the asymmetry with the rest of this module, which is deliberate. A same-path flush failure
+  // is non-fatal because nothing is lost: the entries sit in memory, the path is unchanged, and the
+  // next live request retries the write. Here the entries CANNOT stay, so the only two options are
+  // "abort" and "silently discard results that were paid for at >=1.1 s each". Aborting a metro
+  // switch costs a re-run; the alternative costs data that cannot be recovered at any price.
+  //
+  // Latent today — workbook-extract.mjs computes one cachePath per run and never repoints — which is
+  // exactly why it needs the guard rather than a comment.
+  if (cache && !flushCache()) {
+    throw new Error(
+      `refusing to switch the geocode cache from ${JSON.stringify(cachePath)} to ${JSON.stringify(next)}: ` +
+      `the outgoing cache could not be written (see the ACTION REQUIRED block above) and repointing ` +
+      `would discard its unwritten entries permanently. Fix the write error, then re-run.`,
+    )
+  }
   cachePath = next
   try {
     cache = JSON.parse(readFileSync(cachePath, 'utf8'))
@@ -266,22 +291,38 @@ function ensureCacheDir(dir) {
  * EPERM (an antivirus scanner or an editor holding the file open, which Windows does produce on
  * rename) self-heals on the following request rather than needing a re-run.
  */
+/** Cache paths currently in a failed-write episode, so the ACTION REQUIRED block is printed ONCE per
+ *  episode rather than once per failure. Auto-flushing means a metro geocoding against (say) a
+ *  missing junction fails on every live request: ~180 failures, and at 7 lines each that is ~1,260
+ *  lines burying the very summary the block exists to surface. Cleared on a successful write, so a
+ *  path that recovers and later fails again reports in full a second time — the episode is the unit
+ *  worth shouting about, not the process lifetime. */
+const flushFailuresReported = new Set()
+
 export function flushCache() {
   if (!cacheDirty || !cache) return true
   try {
     ensureCacheDir(dirname(cachePath))
     writeCacheFile(cachePath, JSON.stringify(cache, null, 1))
     cacheDirty = false
+    flushFailuresReported.delete(cachePath)
     return true
   } catch (err) {
     const entries = Object.keys(cache).length
+    const detail = (err && err.message) || String(err)
+    if (flushFailuresReported.has(cachePath)) {
+      console.log(`  geocode cache STILL unwritable (${entries} result(s) held in memory only): ${detail}`)
+      return false
+    }
+    flushFailuresReported.add(cachePath)
     console.log('\n' + '='.repeat(78))
     console.log('ACTION REQUIRED — the geocode cache could NOT be written.')
     console.log(`  path : ${cachePath}`)
-    console.log(`  error: ${(err && err.message) || String(err)}`)
+    console.log(`  error: ${detail}`)
     console.log(`  ${entries} cached result(s) are held in memory only. The run continues, and each`)
     console.log('  further live request retries the write — but if this keeps failing, everything')
     console.log('  this run spent against Nominatim is lost when the process exits.')
+    console.log('  Further failures on this path print one line each until it succeeds.')
     console.log('='.repeat(78))
     return false
   }
@@ -1066,7 +1107,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // warm (and benefit from) the real metro cache instead of a file nothing else reads.
   const cache = arg('cache') || (arg('metro') ? geocodeCachePath(arg('metro')) : DEFAULT_CACHE)
   const out = await geocodeVenue(venue, { cachePath: cache })
-  flushCache()
+  // A run that could not persist what it spent is not a success, even though the geocode itself
+  // worked and the result below is real. `flushCache` no longer throws, so without this the process
+  // exits 0 and a caller (or a human reading a shell) has nothing to key off.
+  if (!flushCache()) process.exitCode = 1
   console.log(JSON.stringify(out, null, 2))
   console.log(`\nlive requests this run: ${liveRequestCount()} · cache: ${JSON.stringify(cacheStats())}`)
 }
