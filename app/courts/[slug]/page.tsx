@@ -7,6 +7,7 @@ import OsmAttribution from '@/components/features/directory/OsmAttribution'
 import { loadPublishedFacility, loadPublishedSlugs } from '@/lib/directory/loadFacilities'
 import { visitorNotes, metaDescription } from '@/lib/directory/publicNotes'
 import { mapsUrl } from '@/lib/directory/mapsUrl'
+import { isApproximateLocation, APPROXIMATE_LOCATION_DETAIL } from '@/lib/directory/locationPrecision'
 import { metroSlug } from '@/lib/directory/metros'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
@@ -150,6 +151,13 @@ export default async function CourtPage({ params }: Params) {
           <h1 className="font-heading text-3xl md:text-4xl font-extrabold text-brand-dark leading-tight text-balance mb-4">{f.name}</h1>
           <Facts f={f} />
           {f.address && <p className="text-sm text-brand-muted mt-4">{f.address}{f.zip ? `, ${f.zip}` : ''}</p>}
+          {/* ADR-16: a low-precision row publishes, on the condition that the reader is told. This
+              sits BETWEEN the address and the map button deliberately — it qualifies both, and
+              placing it after the button would let someone click through having never seen it.
+              Plain text, no icon, no colour-coding; the reasoning is in locationPrecision.ts. */}
+          {isApproximateLocation(f.location_precision) && (
+            <p className="text-sm text-brand-muted mt-2 italic">{APPROXIMATE_LOCATION_DETAIL}</p>
+          )}
           {maps && (
             <a href={maps} target="_blank" rel="noopener noreferrer"
               className="inline-block mt-5 bg-brand text-brand-dark font-semibold px-6 py-3 rounded-xl hover:bg-brand-hover transition-colors text-sm">

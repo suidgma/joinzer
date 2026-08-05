@@ -82,6 +82,47 @@ _Last updated: July 31, 2026_
 **Context:** the legacy `access_type` conflated access, fee, indoor and category into one enum (`resort`, `fee_based`, `business`, `indoor_public`, `semi_private`…), which cannot support a queryable public directory. The directory needs clean SEO-facing fields without breaking the live operational path.
 **Consequences:** strictly additive and non-destructive — no drops, no deletes, no lossy rewrites of `locations` rows. **Phase 3A (schema) is done; Phase 3B (read-path and write-path cutover) is still pending** — the deprecated columns are still read today. Migrations applied to Supabase before dependent code, per ADR-10. (`supabase/migrations/20260724000001` through `…000005`.)
 
+## ADR-16 — A low-precision coordinate publishes, behind an approximate-location label
+
+> **DRAFT — AWAITING OWNER SIGN-OFF ON THIS TEXT.** The decision is the owner's, taken 2026-08-04;
+> what needs approval before merge is the wording below. Filed as a NEW ADR rather than an amendment
+> to the 2026-07-28 ruling because it reverses a publishing philosophy rather than adjusting a
+> threshold — the old rule is preserved intact under Context, which an in-place edit would destroy.
+
+**Decision:** **reverses the coordinate-precision clause of the 2026-07-28 publish gate.** A listing
+whose geocoded coordinate is classified `low` — a street centerline, or a large-polygon centroid
+standing in for the courts — now **publishes**, and its venue page and every list row that renders it
+carry a plain-text approximate-location note. The rest of the gate is untouched: coordinate
+**present**, slug, `access_type != 'unknown'`, candidate `research_status='verified'`. **A row with no
+coordinate at all is still held**, and that distinction is the load-bearing part of this ruling — a
+label can qualify a pin, it cannot invent one.
+
+**Context:** 348 held drafts had accumulated across 39 imported metros. Of those, 186 were blocked
+only on the coordinate, and **91 across 32 metros passed every other gate condition and were held
+solely because their pin was a street rather than a building.** Those are researched, source-verified,
+real venues — Portland 9, Ogden 7, Killeen-Temple 6, Lexington 6, Port St. Lucie 6, Salt Lake City 6,
+Durham 5, Jackson 4, and 24 further metros at 3 or fewer. The builder's recommendation was to keep
+holding them, arguing that a labelled pin on the wrong end of a 2.2 km road still sends a player to
+the wrong place (Baton Rouge's Burbank Drive is the worked example). The owner weighed that against a
+directory that silently omits a third of the venues it has already researched, and ruled the other
+way: a venue the reader can find, with an honest caveat about the pin, beats one they never learn
+exists.
+
+**Consequences:** the label is **not optional and not deferrable** — the gate change and the
+user-visible affordance ship in the same commit, because a published low-precision pin presented as if
+it were exact is the harmful version of this change and the only version worth blocking over.
+Enforcement moved to `scripts/lib/publish-gate.mjs`, shared by `import-metro-merged.mjs` and
+`publish-facilities.mjs`: the two carried private copies of the old rule, and relaxing one alone would
+have let the reconciling pass silently un-publish every row the importer promoted, one metro at a
+time. The render layer reads a new generated column `facility_listings.location_precision` (migration
+`20260804000001`) rather than `provenance`, which stays off the client under ADR-14. Two consequences
+accepted rather than solved: **the internal-proximity duplicate guard deliberately skips low-precision
+pairs** (two venues on one street band are indistinguishable to it), so two approximate rows may
+publish as near-identical pins — previously invisible because neither published; and a row anchored on
+a **co-tenant at the correct street number** (a mall, a neighbouring business) is classified `low` and
+will now publish wearing an "approximate" label that is arguably too pessimistic, since that
+coordinate is in fact rooftop-accurate. The second is what a future co-tenant-precision ruling fixes.
+
 ## ADR-15 — Cron health is verified by hand, not monitored
 
 **Decision:** cron health is checked by a human in the Vercel dashboard's Cron Jobs tab, and one invariant makes that reliable: **any change to `CRON_SECRET`, and any newly added cron, must be followed by verifying that at least one cron run returns 200.** No heartbeat table, no third-party uptime watcher, for now. `lib/cron/auth.ts` `assertCronSecret` logs the two failure modes distinctly (`MISCONFIGURED` = the secret is absent in this environment; `UNAUTHORIZED` = the caller sent the wrong token) so a future occurrence is greppable in the runtime logs.

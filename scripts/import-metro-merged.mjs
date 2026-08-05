@@ -67,6 +67,7 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 import { LIVE, AGGREGATOR_HOST, DOCUMENT_URL } from './lib/workbook-extract.mjs'
 import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
+import { GATE_TEXT, gateReasons, isApproximateLocation } from './lib/publish-gate.mjs'
 
 // ---------------------------------------------------------------------------------------------
 // Args + config
@@ -298,7 +299,7 @@ function reviewerNotes(v) {
   if (v.name?.workbook_name) parts.push(`name cleanup: "${v.name.workbook_name}" -> "${fieldVal(v.name)}"`)
   if (v.research_status === 'probable') parts.push('probable — imported deliberately so it sits in the work queue with full provenance; the publish gate holds it draft until controlling-entity confirmation promotes it to verified')
   if (v._workbook?.adr14_note) parts.push(v._workbook.adr14_note)
-  if (v.coordinates?.precision === 'low') parts.push(`coordinate precision LOW — held draft by the publish gate: ${v.coordinates.anchor || ''}`.trim())
+  if (isApproximateLocation(v.coordinates?.precision)) parts.push(`coordinate precision LOW — publishes with an approximate-location label (ADR-16), pin is the street band not the building: ${v.coordinates.anchor || ''}`.trim())
   const rec = reconcileFor(v)
   if (rec) parts.push(`RECONCILE onto OSM ${rec.osm_id} (existing_listing_id=${rec.listing_id})`)
   parts.push(`facts + full per-field provenance on facility_listings slug=${v.slug}`)
@@ -465,20 +466,15 @@ const reconcileVenues = venues.filter(isReconcile)
 const listingRows = insertVenues.map(listingFields)
 
 // ---------------------------------------------------------------------------------------------
-// The publish gate — ONE definition, used by --stage=project (artifact) and --stage=publish (DB).
+// The publish gate now lives in scripts/lib/publish-gate.mjs and is SHARED with the reconciling
+// pass in scripts/publish-facilities.mjs.
+//
+// It moved for two reasons. Nothing defined in this file is importable — the module reads argv and
+// process.exit()s at load — so the gate could never be unit-tested where it was. And publish-
+// facilities.mjs carried its OWN private copy of the coordinate-precision rule, so relaxing the gate
+// here alone would have let that pass silently un-publish every row this one promoted. See that
+// file's header for the full argument.
 // ---------------------------------------------------------------------------------------------
-const GATE_TEXT = `coordinate present + precision != low + slug + access_type != unknown + candidate research_status='verified'  (court_count is NOT a gate condition)`
-
-function gateReasons({ lat, lng, precision, slug, access_type, research_status, hasCandidate = true }) {
-  const reasons = []
-  if (!hasCandidate) reasons.push('no linked candidate')
-  if (lat == null || lng == null) reasons.push('no coordinate')
-  if (precision === 'low') reasons.push('coordinate precision low')
-  if (!slug) reasons.push('no slug')
-  if (!access_type || access_type === 'unknown') reasons.push('access_type unknown')
-  if (research_status !== 'verified') reasons.push(`research_status=${research_status}`)
-  return reasons
-}
 
 /**
  * Asserts the computed split against config.expected_publish. This is what makes a claimed
@@ -848,7 +844,7 @@ if (STAGE === 'listings') {
   console.log(`  net_setup:           ${tally((r) => r.net_setup)}`)
   console.log(`  coord precision:     ${tally((r) => r.provenance?.coordinate?.precision)}`)
   console.log(`  court_count present ${listingRows.filter((r) => r.court_count != null).length}/${listingRows.length} · website ${listingRows.filter((r) => r.website).length}/${listingRows.length} · phone ${listingRows.filter((r) => r.phone).length}/${listingRows.length}`)
-  console.log(`  low-precision coord (blocked at publish): ${listingRows.filter((r) => r.provenance?.coordinate?.precision === 'low').map((r) => r.slug).join(', ') || 'none'}`)
+  console.log(`  low-precision coord (publishes WITH the approximate-location label, ADR-16): ${listingRows.filter((r) => isApproximateLocation(r.provenance?.coordinate?.precision)).map((r) => r.slug).join(', ') || 'none'}`)
   console.log(`  probable rows (blocked at publish):       ${listingRows.filter((r) => r.provenance?.research_status_at_import === 'probable').map((r) => r.slug).join(', ') || 'none'}`)
   console.log(`  ODbL-coordinate rows: ${listingRows.filter((r) => r.provenance.odbl).length}/${listingRows.length}`)
 
@@ -981,7 +977,7 @@ if (STAGE === 'publish' && !DRY_RUN) {
 if (STAGE === 'verify') {
   const conn = connect()
   const { data: rows } = await conn.from('facility_listings')
-    .select('id, slug, status, source, metro_area, state, lat, lng, access_type, fee_type, reservation_policy, surface, court_configuration, line_type, net_setup, court_count, indoor, verification_status, osm_id, verified_by, website, name_source_url, provenance, address, address_source, address_verified_at, city, zip, lighting, reservation_url, phone, public_notes, google_place_id, location_id').eq('source', BATCH)
+    .select('id, slug, status, source, metro_area, state, lat, lng, access_type, fee_type, reservation_policy, surface, court_configuration, line_type, net_setup, court_count, indoor, verification_status, osm_id, verified_by, website, name_source_url, provenance, address, address_source, address_verified_at, city, zip, lighting, reservation_url, phone, public_notes, google_place_id, location_id, location_precision').eq('source', BATCH)
   const { data: cands } = await conn.from('facility_candidates')
     .select('candidate_key, research_status, published_listing_id, existing_listing_id, metro_area').eq('batch', BATCH)
   const byStatus = (arr, k) => arr.reduce((a, r) => (a[r[k]] = (a[r[k]] || 0) + 1, a), {})
@@ -1012,7 +1008,14 @@ if (STAGE === 'verify') {
     ['no coordinate is Places-derived (ADR-12)', rows.every((r) => !/places|google/i.test(r.provenance?.coordinate?.origin || '')), 'ok'],
     ['every slug follows <name>-<city>-<state>', rows.every((r) => r.slug.endsWith(`-${String(r.state).toLowerCase()}`)), rows.filter((r) => !r.slug.endsWith(`-${String(r.state).toLowerCase()}`)).map((r) => r.slug)],
     ['no published row lacks a coordinate', published.every((r) => r.lat != null && r.lng != null), 'ok'],
-    ['no published row has low-precision coordinate', published.every((r) => r.provenance?.coordinate?.precision !== 'low'), 'ok'],
+    // ADR-16 INVERTED THIS ASSERTION. It used to read "no published row has a low-precision
+    // coordinate"; a low-precision row now publishes behind the approximate-location label, so the
+    // old form would fail on every run. What still must hold is that every such row is LABELLABLE —
+    // i.e. the derived location_precision the render layer reads agrees with the provenance the
+    // geocoder wrote. A row published as approximate whose column says otherwise would render an
+    // unlabelled approximate pin, which is the exact harm this slice exists to prevent.
+    ['every published low-precision row is labelled approximate', published.filter((r) => isApproximateLocation(r.provenance?.coordinate?.precision)).every((r) => isApproximateLocation(r.location_precision)), published.filter((r) => isApproximateLocation(r.provenance?.coordinate?.precision) && !isApproximateLocation(r.location_precision)).map((r) => r.slug)],
+    ['published rows carrying the approximate-location label', true, `${published.filter((r) => isApproximateLocation(r.location_precision)).length} of ${published.length}`],
     ['no published row has access_type unknown', published.every((r) => r.access_type !== 'unknown'), 'ok'],
     ['no published row came from a probable candidate', published.every((r) => r.provenance?.research_status_at_import === 'verified'), 'ok'],
     ['no published row carries an aggregator URL on a user-facing column (ADR-14)', published.every((r) => !AGGREGATOR_HOST.test(r.website || '') && !AGGREGATOR_HOST.test(r.name_source_url || '')), published.filter((r) => AGGREGATOR_HOST.test(r.website || '') || AGGREGATOR_HOST.test(r.name_source_url || '')).map((r) => r.slug)],

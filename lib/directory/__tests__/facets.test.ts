@@ -14,6 +14,11 @@ function facility(overrides: Partial<FacilityListItem> = {}): FacilityListItem {
     access_type: 'public', indoor: false,
     fee_type: 'free', reservation_policy: 'drop_in',
     court_count: 4, metro_area: 'Phoenix',
+    // Defaults to 'high' because the overwhelming majority of published rows are. Defaulting to
+    // 'low' would quietly turn every facet test into a test about approximate rows. Note
+    // location_precision is deliberately NOT a facet — it describes our confidence in our own data,
+    // not a property of the venue — so it should never appear in a bucket below.
+    location_precision: 'high',
     ...overrides,
   }
 }
