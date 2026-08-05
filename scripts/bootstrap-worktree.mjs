@@ -21,7 +21,7 @@
  *   node scripts/bootstrap-worktree.mjs
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, copyFileSync } from 'node:fs'
+import { existsSync, copyFileSync, lstatSync, readlinkSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const ENV_FILES = ['.env.local', '.env.test']
@@ -48,13 +48,46 @@ console.log(`worktree     : ${here}`)
 console.log(`main checkout: ${mainCheckout}\n`)
 
 let failures = 0
+const FAIL = Symbol('fail')
+const fail = (message) => ({ [FAIL]: true, message })
 const step = (label, fn) => {
   try {
-    console.log(`  ${label}: ${fn()}`)
+    const result = fn()
+    if (result && result[FAIL]) {
+      failures++
+      console.log(`  ${label}: ${result.message}`)
+      return
+    }
+    console.log(`  ${label}: ${result}`)
   } catch (err) {
     failures++
     console.log(`  ${label}: FAILED — ${(err.message || String(err)).split('\n')[0]}`)
   }
+}
+
+// What is actually at a path — never inferred from existsSync, which cannot tell a junction from
+// the real thing. That distinction is the whole point: the branch this replaces said "already
+// present, left alone" and skipped an existing `metro-research` WITHOUT checking what it was, which
+// is how .claude/worktrees/metro-wave-1 came to hold five metros' research as a real directory —
+// the only copy, invisible to the backup, and reachable by `git clean -fdx`.
+//
+// A Windows junction reports isSymbolicLink() === true to lstat and readlinkSync returns its
+// target, so both halves of "is this a link, and does it point where I expect" are answerable.
+const classify = (path) => {
+  let stats
+  try {
+    stats = lstatSync(path)
+  } catch {
+    return { kind: 'missing' }
+  }
+  if (stats.isSymbolicLink()) {
+    try {
+      return { kind: 'junction', target: resolve(readlinkSync(path)) }
+    } catch {
+      return { kind: 'junction', target: null }
+    }
+  }
+  return { kind: stats.isDirectory() ? 'dir' : 'file' }
 }
 
 // --- env files: COPIED, never linked. They are per-environment secrets and a worktree may
@@ -62,7 +95,15 @@ const step = (label, fn) => {
 // silently rewrite every other one, which is the class of bug this script exists to prevent.
 for (const f of ENV_FILES) {
   step(f, () => {
-    if (existsSync(join(here, f))) return 'already present, left alone'
+    const found = classify(join(here, f))
+    if (found.kind === 'junction') {
+      return fail(
+        `SYMLINK -> ${found.target} — env files must be COPIES.\n` +
+          `      A link makes an edit here silently rewrite every other worktree's environment,\n` +
+          `      which is the class of bug this script exists to prevent. Replace it with a copy.`,
+      )
+    }
+    if (found.kind !== 'missing') return 'already present, left alone'
     const src = join(mainCheckout, f)
     if (!existsSync(src)) return `not in the main checkout either — skipped`
     copyFileSync(src, join(here, f))
@@ -73,8 +114,32 @@ for (const f of ENV_FILES) {
 // --- metro-research: JUNCTION to the shared research repo, which lives outside every working tree.
 // Shared deliberately: it is one backed-up git repo and per-worktree copies would diverge silently.
 step('metro-research', () => {
-  if (existsSync(join(here, 'metro-research'))) return 'already present, left alone'
   const target = resolve(mainCheckout, '..', RESEARCH_REPO)
+  const found = classify(join(here, 'metro-research'))
+
+  if (found.kind === 'junction') {
+    if (found.target === target) return `junction -> ${target} (target verified)`
+    return fail(
+      `WRONG TARGET — points at ${found.target}, expected ${target}\n` +
+        `      Every scripts/metros/*.json input resolves through this link, so the pipeline would\n` +
+        `      read and write the wrong repo without ever saying so. Repoint it:\n` +
+        `          node -e "require('fs').rmdirSync('metro-research')"\n` +
+        `          cmd /c mklink /J metro-research ${target}`,
+    )
+  }
+
+  if (found.kind === 'dir') {
+    return fail(
+      `REAL DIRECTORY, not a junction — this worktree is NOT sharing the research repo.\n` +
+        `      This is the metro-wave-1 shape. Research written here is the ONLY copy: the backup\n` +
+        `      never sees it, and \`git clean -fdx\` inside a worktree provably removes it (that is\n` +
+        `      the 2026-08-03 loss). Move its contents into\n` +
+        `          ${target}\n` +
+        `      then remove the directory and re-run this script.`,
+    )
+  }
+
+  if (found.kind === 'file') return fail('a FILE exists at metro-research — remove it and re-run')
   if (!existsSync(target)) return `${target} not found — clone the private joinzer-metro-research repo there first`
   link(target, join(here, 'metro-research'))
   return `junction -> ${target}`
@@ -100,8 +165,23 @@ step('metro-research', () => {
 // `npm ci`, not `npm install`: it installs exactly the lockfile and never rewrites it, so a
 // bootstrap can't leave a spurious package-lock.json diff in the worktree you're about to work in.
 step('node_modules', () => {
-  if (existsSync(join(here, 'node_modules'))) return 'already present, left alone'
-  if (!existsSync(join(here, 'package-lock.json'))) return 'no package-lock.json here — cannot `npm ci`'
+  const found = classify(join(here, 'node_modules'))
+
+  if (found.kind === 'junction') {
+    return fail(
+      `JUNCTION -> ${found.target} — bootstrapped before node_modules became a real install.\n` +
+        `      \`next build\` WILL fail here with TurbopackInternalError (see the note above).\n` +
+        `      Replace the link with a real tree:\n` +
+        `          node -e "require('fs').rmdirSync('node_modules')"   # removes the LINK only\n` +
+        `          npm ci\n` +
+        `      Never \`rm -rf node_modules\` on a junction — it walks into the main checkout's own\n` +
+        `      module tree and empties it for every session.`,
+    )
+  }
+
+  if (found.kind === 'dir') return 'already present (real directory), left alone'
+  if (found.kind === 'file') return fail('a FILE exists at node_modules — remove it and re-run')
+  if (!existsSync(join(here, 'package-lock.json'))) return fail('no package-lock.json here — cannot `npm ci`')
   console.log('  node_modules: absent — running `npm ci` (a minute or so; output follows)')
   execFileSync('cmd', ['/c', 'npm', 'ci'], { cwd: here, stdio: 'inherit' })
   return 'installed via `npm ci` — a real tree, so the BUILD gate works here'
