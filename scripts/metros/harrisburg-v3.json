@@ -21,7 +21,14 @@
 
   "_discovery_comment": "Stage 1 enumerated municipal parks departments across all three MSA counties, both county tourism bureaus (visitcumberlandvalley.com, visithersheyharrisburg.org), regional clubs (Carlisle Area Pickleball Association, pickleballharrisburg.com, pickleballcarlisle.com) and local news. FINDING: unlike Lancaster, this metro has NO dominant local list — neither tourism bureau publishes a pickleball roundup, and the club sites delegate to third-party directories rather than maintaining their own. The best single local source found lists 10 venues (places2play, Harrisburg); the best local NEWS source, theburgnews.com, is bot-protected and was not worked around. Nineteen new venues against a previous 21 candidates is therefore a genuine coverage gain rather than a gap in the old pass's diligence. THREE LEADS WERE DELIBERATELY DROPPED for failing the citation standard rather than for being unreal: Yellow Breeches Educational Center (a special-education school; one aggregator lists 2 indoor courts and nothing else corroborates it), Country Club of Harrisburg (a real club, but the pickleball courts rest on aggregator evidence only), and Traditions of America at Silver Spring (a 55+ community whose courts are real but which publishes no street address and no citable public page). Two Swatara Township parks with tennis courts, Donald R. Taylor Memorial and Enhaut, were also left out — the township lists tennis only, and the 'six double-lined courts south of Derry Street' claim could not be tied to a specific park.",
 
-  "_expected_publish_comment": "DELIBERATELY ABSENT until the owner has read the projection. Both --stage=project and --stage=publish assert against expected_publish and fail the run on any divergence, and the script says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' Authoring it before the projection exists would make it a guess to be corrected; authoring it afterwards, from a reviewed list, makes it the per-metro deliberate-release mechanism ADR-17 intends.",
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-05, read against the projection and approved at 17 of 19 unchanged. Deliberately withheld until the projection existed: both --stage=project and --stage=publish assert against this block and fail the run on any divergence, and the script says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' The two holds are the only two venues in the batch with no street address — no source publishes one for either, and inventing a house number to force a geocode would publish a fabricated fact. Both are real venues with a bad coordinate rather than bad venues, so they are HELD in the work queue (a later re-geocode releases them) and not excluded. Everything else clears the coverage-first gate, including three low-precision rows that publish behind an approximate-location label per ADR-16.",
+  "expected_publish": {
+    "count": 17,
+    "hold": {
+      "hidden-creek-park-mechanicsburg-pa": "no coordinate",
+      "stuart-community-center-carlisle-pa": "no coordinate"
+    }
+  },
 
   "workbook": {
     "header_row": 1,
