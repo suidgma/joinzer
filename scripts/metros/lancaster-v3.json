@@ -13,7 +13,7 @@
   "msa": "Lancaster, PA (Lancaster county)",
   "envelope": { "latMin": 39.72, "latMax": 40.32, "lngMin": -76.73, "lngMax": -75.87 },
 
-  "expected_count": 28,
+  "expected_count": 27,
   "require_all_geocoded": false,
   "reconciles": [],
 
@@ -25,8 +25,10 @@
     { "candidate_key": "lancaster-v3-rcw-athletic-club", "reason": "live PUBLISHED row rcw-athletic-club-lancaster-pa; this pass adds nothing." },
     { "candidate_key": "lancaster-v3-bright-side-opportunities-center", "reason": "live PUBLISHED row bright-side-opportunities-center-lancaster-pa. This pass DID find a street address (515 Hershey Ave) where the live row is NULL — the single genuine improvement this research offers an existing row. Applying it is a keyed UPDATE on a published row and belongs to its own gated slice, not to an import." },
     { "candidate_key": "lancaster-v3-hempfield-reccenter", "reason": "live DRAFT row hempfield-reccenter-landisville-pa, held only on a low-precision coordinate — which ADR-16 now releases, so it is a candidate for a publish run on the OLD batch rather than a re-import here." },
-    { "candidate_key": "lancaster-v3-lititz-reccenter", "reason": "live DRAFT row lititz-reccenter-lititz-pa, same ADR-16 situation as hempfield-reccenter." }
+    { "candidate_key": "lancaster-v3-lititz-reccenter", "reason": "live DRAFT row lititz-reccenter-lititz-pa, same ADR-16 situation as hempfield-reccenter." },
+    { "candidate_key": "lancaster-v3-brubaker-park", "reason": "NOT PLACEABLE from OSM today, and the ladder produces a coordinate ~90 km outside the county rather than none. OSM has no 'Brubaker Lane' in Denver PA (0 hits) and no 'Brubaker Park' there (0 hits); the accepted anchor was a same-named lane at 40.7001,-76.8859, which the envelope assertion correctly refused. The venue is real (8 courts, discoverlancaster) — excluded rather than imported, because a work-queue row carrying a confidently wrong coordinate is worse than no row. Re-admit once a house number or postal code is confirmed." }
   ],
+  "_brubaker_guard_note": "WHY THE COORDINATE WAS WRONG RATHER THAN ABSENT, flagged for the geocoder's own slice and NOT fixed here: with no zip, resolveTownshipLocus has no zip centroid to validate the street locus against, so the locus fell back to the same wrong 'Brubaker Lane' the structured-nocity rung then matched — and the rung's distance guard measured that hit against a locus DERIVED FROM IT, passing at 0 m. The guard is circular whenever the street locus and the candidate hit are the same feature and the venue has no zip. Every township-rung venue in this batch printed 'UNVALIDATED: venue has no zip to check it against'; two produced out-of-envelope coordinates and both were caught. The general lesson: a zip is not merely a locus of last resort, it is the VALIDATOR for the street locus, and omitting it does not disable the rung — it disarms it.",
 
   "_existing_rows_comment": "Two live rows from lancaster-2026-07-31 have NO counterpart in this research and are deliberately untouched by this run. (1) overlook-pickleball-courts-activities-center-lancaster-pa is a CHIMERA — it merged Overlook Park and Overlook Activities Center into one listing, which then failed to geocode and published nothing. This batch imports the two as separate rows; retiring the chimera is a candidate-status change and needs its own gate. It has never been public, so there is no URL cost. (2) denver-recreation-center-denver-pa was found by the OLD venue-led pass and MISSED by this source-led one. Source-led beat venue-led 35 to 9 but is NOT a superset, and the methodological fix is to union new research against rows already in the database before calling a metro's discovery complete. It costs nothing here — the row is already a draft and this run leaves it alone.",
 
