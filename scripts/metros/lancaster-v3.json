@@ -32,7 +32,11 @@
 
   "_existing_rows_comment": "Two live rows from lancaster-2026-07-31 have NO counterpart in this research and are deliberately untouched by this run. (1) overlook-pickleball-courts-activities-center-lancaster-pa is a CHIMERA — it merged Overlook Park and Overlook Activities Center into one listing, which then failed to geocode and published nothing. This batch imports the two as separate rows; retiring the chimera is a candidate-status change and needs its own gate. It has never been public, so there is no URL cost. (2) denver-recreation-center-denver-pa was found by the OLD venue-led pass and MISSED by this source-led one. Source-led beat venue-led 35 to 9 but is NOT a superset, and the methodological fix is to union new research against rows already in the database before calling a metro's discovery complete. It costs nothing here — the row is already a draft and this run leaves it alone.",
 
-  "_expected_publish_comment": "DELIBERATELY ABSENT until the projection has been read. Both --stage=project and --stage=publish assert against expected_publish and fail the run on any divergence, and reportExpected says in as many words: 'Fix the pipeline. Do NOT edit the expectation to match the output.' Writing a guessed block now and correcting it to match the first projection would be exactly that move with extra steps. This block gets authored from the owner's locked decisions as the last act before the write gate — that is what makes it the per-metro deliberate-release mechanism ADR-17 intends rather than a transcription of a log line.",
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-05, read row by row and approved unchanged. Deliberately withheld until the projection existed: both --stage=project and --stage=publish assert against this block and fail the run on any divergence, and reportExpected says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' Authoring it before the projection would have made it a guess to be corrected; authoring it after, from a reviewed list, makes it the per-metro deliberate-release mechanism ADR-17 intends. hold is EMPTY because every one of the 27 imported rows clears the coverage-first gate — the 8 venues that do not appear are held out by `exclude`, which is a different mechanism and is not counted here. If a hold ever appears, move the row out of this block deliberately; never edit the block to match an output.",
+  "expected_publish": {
+    "count": 27,
+    "hold": {}
+  },
 
   "workbook": {
     "header_row": 1,
