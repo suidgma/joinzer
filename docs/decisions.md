@@ -25,6 +25,13 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-08-05 — Court directory goes coverage-first; publish gate reversed
+**Status:** Active (supersedes the 2026-07-28 publish gate)
+**Affects:** `scripts/lib/publish-gate.mjs`, `scripts/import-metro-merged.mjs`, `scripts/publish-facilities.mjs`, `facility_listings.verification_status`, `/courts` + `/courts/[slug]`
+**Decision:** the publish gate becomes **name + coordinate + city + slug**. `access_type='unknown'` publishes (shown as "Access unknown — call ahead"), `research_status='probable'` publishes, and only correctness verdicts (`duplicate`/`not_venue`/`not_pickleball`) plus an explicit `held` still block. A new `listed` confidence tier describes rows no controlling entity has confirmed. Full rationale: **ADR-17** and **ADR-18** in `docs/strategy/decision-log.md`.
+**Reasoning:** Lancaster published 5 venues where one local page lists 24 and source-led discovery found 35. A directory nobody uses because it lists 5 of 24 is worth less than one carrying some imperfect entries. Wrong or stale published venues are explicitly acceptable; coverage wins.
+**Open questions:** a report-an-issue path on venue pages is now load-bearing — stale entries reach users by design, so users need a way to tell us. Nothing renders the `listed` tier yet.
+
 ## 2026-08-04 — Low-precision coordinates publish behind an approximate-location label
 **Status:** Active (precision clause supersedes the 2026-07-28 publish gate)
 **Affects:** `scripts/lib/publish-gate.mjs`, `scripts/import-metro-merged.mjs`, `scripts/publish-facilities.mjs`, `facility_listings.location_precision`, `/courts` + `/courts/[slug]`

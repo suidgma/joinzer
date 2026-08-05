@@ -1,23 +1,25 @@
 import Link from 'next/link'
 import type { FacilityListItem } from '@/lib/directory/loadFacilities'
 import { isApproximateLocation, APPROXIMATE_LOCATION_SHORT } from '@/lib/directory/locationPrecision'
-
-const ACCESS_LABEL: Record<string, string> = {
-  public: 'Public', private: 'Private', membership: 'Membership', school: 'School', hoa: 'HOA', unknown: '',
-}
+import { accessLabel } from '@/lib/directory/accessLabels'
 
 const FEE_LABEL: Record<string, string> = {
   free: 'Free', fee: 'Pay to play', membership: 'Membership', unknown: '',
 }
 
 /**
- * Row summary chips. Only affirmative facts are rendered — an absent or 'unknown' value produces no
- * text at all rather than a "no"/"none" label, matching the filter rule (lib/directory/facets.ts).
+ * Row summary chips. Only affirmative facts are rendered — a missing value produces no text at all
+ * rather than a "no"/"none" label, matching the filter rule (lib/directory/facets.ts).
+ *
+ * `'unknown'` USED TO BE TREATED THE SAME WAY and no longer is, for `access_type` only (ADR-17).
+ * Since that value now publishes rather than holding the row, "we don't know the access rules" is
+ * itself an affirmative fact about our data that changes what a reader should do — so it renders.
+ * `fee_type: 'unknown'` still suppresses, because there is no equivalent action to take on it.
  */
 function summary(f: FacilityListItem): string {
   const parts = [
     f.indoor === true ? 'Indoor' : f.indoor === false ? 'Outdoor' : null,
-    ACCESS_LABEL[f.access_type ?? ''] || null,
+    accessLabel(f.access_type, 'short'),
     FEE_LABEL[f.fee_type ?? ''] || null,
   ]
   return parts.filter(Boolean).join(' · ')
