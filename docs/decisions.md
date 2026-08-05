@@ -25,6 +25,13 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-08-04 — Low-precision coordinates publish behind an approximate-location label
+**Status:** Active (precision clause supersedes the 2026-07-28 publish gate)
+**Affects:** `scripts/lib/publish-gate.mjs`, `scripts/import-metro-merged.mjs`, `scripts/publish-facilities.mjs`, `facility_listings.location_precision`, `/courts` + `/courts/[slug]`
+**Decision:** a `low`-precision coordinate — a street band rather than a building pin — **publishes**, on the condition that the reader is told in plain text on both the venue page and every list row. A row with **no** coordinate is still held. Full rationale: **ADR-16** in `docs/strategy/decision-log.md`.
+**Reasoning:** 91 rows across 32 metros passed every other gate condition and were held solely because their pin was a street rather than a building. A venue the reader can find, with an honest caveat about the pin, beats one they never learn exists. The label is not optional — a published approximate pin presented as exact is the harmful version of this change.
+**Open questions:** a coordinate anchored on a co-tenant at the correct street number is classified `low` and now wears a label that is arguably too pessimistic; a future co-tenant-precision ruling fixes that.
+
 ## 2026-07-31 — Cron health posture after the CRON_SECRET outage
 **Status:** Active
 **Affects:** all six `/api/cron/*` routes, `lib/cron/auth.ts`

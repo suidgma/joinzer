@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { revalidateDirectory } from './lib/revalidate-directory.mjs'
+import { isApproximateLocation } from './lib/publish-gate.mjs'
 
 const env = Object.fromEntries(
   readFileSync('.env.local', 'utf8').split(/\r?\n/).filter((l) => l.includes('=') && !l.startsWith('#'))
@@ -69,9 +70,19 @@ if (candidateKeys.length) {
 }
 const researchBlocked = (r) => { const s = statusByKey.get(candidateKeyOf(r)); return s != null && BLOCKING_RESEARCH_STATUS.has(s) }
 
-// Coordinate-precision guard: a coordinate the research pass itself marked `low` (e.g. a golf-course
-// relation centroid standing in for a clubhouse) is not good enough to drop a pin on a public page.
-const lowPrecision = (r) => (r.provenance?.coordinate?.precision ?? null) === 'low'
+// Coordinate precision — NO LONGER AN EXCLUSION (ADR-16, owner 2026-08-04).
+//
+// This used to drop any row the research pass marked `low` (a street centerline, or a golf-course
+// relation centroid standing in for a clubhouse) on the grounds that it was not good enough to put a
+// pin on a public page. The owner has ruled the other way: those rows publish, and the venue page
+// tells the reader in words that the pin is approximate. 91 rows across 32 metros are released by it.
+//
+// THE PREDICATE STAYS AND IS STILL LOAD-BEARING — as a REPORTING signal rather than an exclusion, and
+// imported from the shared gate module rather than redefined here. The sharing is the whole point:
+// this file and import-metro-merged.mjs each carried a private copy of the old rule, so relaxing the
+// gate in one place alone would have left this reconciling pass un-publishing (via `toDraft` below)
+// every row the batch importer had just promoted — silently, and one metro at a time.
+const lowPrecision = (r) => isApproximateLocation(r.provenance?.coordinate?.precision ?? null)
 
 // Eligible = coords + city + slug (above) + a non-generic name AND a trust signal — EITHER Gemini
 // enrichment (enrichment_version) OR a human review sign-off (verified_by). The verified path lets
@@ -83,7 +94,7 @@ const lowPrecision = (r) => (r.provenance?.coordinate?.precision ?? null) === 'l
 //   20260721000005: "publish gate will require it"). name_source_url is selected for that future step.
 const isVerified = (r) => r.verified_by != null
 const eligible = gated.filter((r) =>
-  !isGenericName(r.name) && (r.enrichment_version != null || isVerified(r)) && !researchBlocked(r) && !lowPrecision(r))
+  !isGenericName(r.name) && (r.enrichment_version != null || isVerified(r)) && !researchBlocked(r))
 const eligibleIds = new Set(eligible.map((r) => r.id))
 
 // Gate-authoritative reconcile: pull ANY currently-published row that isn't eligible — whether it
@@ -98,7 +109,11 @@ const toDraft = publishedRows.filter((r) => !eligibleIds.has(r.id))
 
 console.log(`Publish gate (reconcile) — ${DRY_RUN ? 'DRY RUN' : 'LIVE'} — metro=${METRO}`)
 console.log(`  eligible (gate-passing): ${eligible.length} · currently published: ${publishedRows.length}`)
-console.log(`  held back by guards — research_status: ${gated.filter(researchBlocked).length} · low-precision coordinate: ${gated.filter(lowPrecision).length}\n`)
+console.log(`  held back by guards — research_status: ${gated.filter(researchBlocked).length}`)
+// Reported, never excluded. This number is how an operator sees the size of the approximate-location
+// set in the run log rather than having to query for it — and if it ever reads 0 for a metro that
+// should have some, that is the tell that location_precision has drifted from provenance.
+console.log(`  publishing WITH the approximate-location label (ADR-16, precision 'low'): ${eligible.filter(lowPrecision).length} of ${eligible.length}\n`)
 console.log(`PUBLISH (${toPublish.length}):`); toPublish.forEach((r) => console.log(`  + ${r.name}`))
 console.log(`UN-PUBLISH not-eligible (${toDraft.length}):`); toDraft.forEach((r) => console.log(`  - ${r.name}`))
 

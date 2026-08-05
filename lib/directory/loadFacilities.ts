@@ -53,13 +53,18 @@ export type FacilityDetail = {
   metro_area: string | null
   enrichment: Enrichment | null
   public_notes: string | null
+  /** 'high' | 'medium' | 'low' | null. A GENERATED column derived from
+   *  provenance.coordinate.precision — see migration 20260804000001. It exists so this loader can
+   *  answer "is this pin approximate?" WITHOUT selecting `provenance`, which carries the tier-4
+   *  research URLs the render-restricted list below keeps off the client. */
+  location_precision: string | null
 }
 
 export const loadPublishedFacility = unstable_cache(
   async (slug: string): Promise<FacilityDetail | null> => {
     const { data } = await admin()
       .from('facility_listings')
-      .select('name, slug, city, state, zip, address, lat, lng, court_count, access_type, indoor, lighting, surface, google_place_id, metro_area, enrichment, public_notes')
+      .select('name, slug, city, state, zip, address, lat, lng, court_count, access_type, indoor, lighting, surface, google_place_id, metro_area, enrichment, public_notes, location_precision')
       .eq('slug', slug).eq('status', 'published').maybeSingle()
     return (data as FacilityDetail | null) ?? null
   },
@@ -75,8 +80,15 @@ export const loadPublishedFacility = unstable_cache(
 // STORED value meaning "researched but undetermined" (NULL means "not yet researched" — see
 // migration 20260724000002). Neither is a fact. lib/directory/facets.ts enforces that both are
 // excluded from every filter bucket; don't reintroduce them as selectable values here or there.
+//
+// location_precision is a GENERATED column (migration 20260804000001) carrying
+// provenance.coordinate.precision. It is selected here so a list row can mark an approximate pin
+// before the reader clicks through — telling them only on the detail page would let a metro page
+// imply a precision it does not have. It is NOT a facet and must never become one: it describes our
+// confidence in our own data, not a property of the venue, so it has no place among filters that
+// answer "what is this place like". See lib/directory/facets.ts.
 const LIST_COLUMNS =
-  'name, slug, city, state, access_type, indoor, fee_type, reservation_policy, court_count, metro_area'
+  'name, slug, city, state, access_type, indoor, fee_type, reservation_policy, court_count, metro_area, location_precision'
 
 export type FacilityListItem = {
   name: string; slug: string
@@ -84,6 +96,7 @@ export type FacilityListItem = {
   access_type: string | null; indoor: boolean | null
   fee_type: string | null; reservation_policy: string | null
   court_count: number | null; metro_area: string | null
+  location_precision: string | null
 }
 
 export const loadPublishedFacilities = unstable_cache(

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { FacilityListItem } from '@/lib/directory/loadFacilities'
+import { isApproximateLocation, APPROXIMATE_LOCATION_SHORT } from '@/lib/directory/locationPrecision'
 
 const ACCESS_LABEL: Record<string, string> = {
   public: 'Public', private: 'Private', membership: 'Membership', school: 'School', hoa: 'HOA', unknown: '',
@@ -40,6 +41,13 @@ export default function FacilityRows({ facilities, showCourtCount = false }: { f
                 <span className="block text-xs text-brand-muted mt-0.5">
                   {f.court_count} court{f.court_count === 1 ? '' : 's'}
                 </span>
+              )}
+              {/* ADR-16. Marked here as well as on the venue page so a metro list never implies a
+                  precision it does not have — a reader scanning 40 rows should not have to click
+                  through to learn which pins are approximate. Short phrase, not a glyph or a colour;
+                  see lib/directory/locationPrecision.ts. */}
+              {isApproximateLocation(f.location_precision) && (
+                <span className="block text-xs text-brand-muted mt-0.5 italic">{APPROXIMATE_LOCATION_SHORT}</span>
               )}
             </span>
             <span className="shrink-0 text-xs text-brand-muted text-right">{summary(f)}</span>
