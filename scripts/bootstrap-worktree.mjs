@@ -28,47 +28,15 @@
  * the junction survived. See the teardown function below.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, copyFileSync, lstatSync, readlinkSync, readdirSync, readFileSync, rmdirSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { existsSync, copyFileSync, readdirSync, rmdirSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { classify, countEntries, unresolvedConfigPaths } from './lib/worktree-paths.mjs'
 
 const ENV_FILES = ['.env.local', '.env.test']
 const RESEARCH_REPO = 'joinzer-metro-research'
 
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', ...opts }).trim()
 const link = (target, name) => execFileSync('cmd', ['/c', 'mklink', '/J', name, target], { encoding: 'utf8' })
-
-// What is actually at a path — never inferred from existsSync, which cannot tell a junction from
-// the real thing. That distinction is the whole point: the branch this replaces said "already
-// present, left alone" and skipped an existing `metro-research` WITHOUT checking what it was, which
-// is how .claude/worktrees/metro-wave-1 came to hold five metros' research as a real directory —
-// the only copy, invisible to the backup, and reachable by `git clean -fdx`.
-//
-// A Windows junction reports isSymbolicLink() === true to lstat and readlinkSync returns its
-// target, so both halves of "is this a link, and does it point where I expect" are answerable.
-const classify = (path) => {
-  let stats
-  try {
-    stats = lstatSync(path)
-  } catch {
-    return { kind: 'missing' }
-  }
-  if (stats.isSymbolicLink()) {
-    try {
-      return { kind: 'junction', target: resolve(readlinkSync(path)) }
-    } catch {
-      return { kind: 'junction', target: null }
-    }
-  }
-  return { kind: stats.isDirectory() ? 'dir' : 'file' }
-}
-
-const countEntries = (path) => {
-  try {
-    return readdirSync(path).length
-  } catch {
-    return null
-  }
-}
 
 /**
  * Removes a worktree, unlinking its junctions FIRST and PROVING they are gone before anything
@@ -297,30 +265,11 @@ step('metro-research', () => {
 step('metro configs', () => {
   const configDir = join(here, 'scripts', 'metros')
   if (!existsSync(configDir)) return 'scripts/metros not found — skipped'
-  const configs = readdirSync(configDir).filter((f) => f.endsWith('.json'))
-  const unresolved = new Map()
+  const { configCount, unresolved } = unresolvedConfigPaths({ configDir, root: here })
 
-  for (const file of configs) {
-    let config
-    try {
-      config = JSON.parse(readFileSync(join(configDir, file), 'utf8'))
-    } catch (err) {
-      unresolved.set(`${file} (unparseable)`, { files: [file], note: err.message.split('\n')[0] })
-      continue
-    }
-    // `input` is the artifact; `geocode_cache` is a file whose DIRECTORY must exist for a flush to
-    // land. Both are repo-root-relative in every config today.
-    const declared = [config.input, config.geocode_cache && dirname(config.geocode_cache)].filter(Boolean)
-    for (const rel of declared) {
-      if (existsSync(resolve(here, rel))) continue
-      if (!unresolved.has(rel)) unresolved.set(rel, { files: [] })
-      unresolved.get(rel).files.push(file)
-    }
-  }
+  if (unresolved.size === 0) return `${configCount} configs — every input path resolves`
 
-  if (unresolved.size === 0) return `${configs.length} configs — every input path resolves`
-
-  const lines = [`${configs.length} configs — ${unresolved.size} path(s) do NOT resolve in this worktree:`]
+  const lines = [`${configCount} configs — ${unresolved.size} path(s) do NOT resolve in this worktree:`]
   for (const [rel, { files, note }] of unresolved) {
     const owners = files.length > 3 ? `${files.slice(0, 3).join(', ')} +${files.length - 3} more` : files.join(', ')
     lines.push(`      ${rel}   (${owners})`)
