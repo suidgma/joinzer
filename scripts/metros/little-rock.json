@@ -1,5 +1,7 @@
 {
-  "_comment": "VALIDATION FIXTURE. Little Rock is already published (16 of 19 live since 2026-07-30) by the bespoke scripts/import-little-rock-merged.mjs, which stays in place as that batch's audit trail. This config exists so the GENERIC pipeline can be run against the same artifact and proved to reproduce the same classification. `expected_publish` below is the recorded known-good split, verified against production; --stage=project and --stage=publish both assert against it and fail the run on any divergence. If the generic pipeline ever disagrees, fix the pipeline — never edit this block to match the output.",
+  "_comment": "VALIDATION FIXTURE. Little Rock is published (19 of 19 live since 2026-08-05) — the first 16 landed 2026-07-30 via the bespoke scripts/import-little-rock-merged.mjs, which stays in place as that batch's audit trail. This config exists so the GENERIC pipeline can be run against the same artifact and proved to reproduce the same classification. `expected_publish` below is the recorded known-good split, verified against production; --stage=project and --stage=publish both assert against it and fail the run on any divergence. If the generic pipeline ever disagrees, fix the pipeline — never edit this block to match the output.",
+
+  "_expected_publish_history": "RE-AUTHORED 2026-08-05 from 16/19 to 19/19, and this is the one legitimate reason to rewrite the block above: the GATE changed by owner decision, not the pipeline's classification. ADR-16 released `pickleball-kingdom-little-rock-ar` (a `low`-precision coordinate now publishes behind an approximate-location label) and ADR-17 released `indianhead-park-sherwood-ar` + `tyndall-park-benton-ar` (`research_status='probable'` is no longer a gate condition). The prior block held exactly those three, for exactly those two reasons, so the divergence was fully accounted for before the expectation was touched — nothing was nudged to fit. `hold` is now empty: every row in this batch is live. The two `probable` rows were re-tiered `source_verified` -> `listed` first (scripts/retier-adr18-debt.mjs), because ADR-18 derives the tier from research_status and --stage=verify asserts the two agree.",
 
   "metro": "little-rock",
   "batch": "little-rock-2026-07-30",
@@ -33,11 +35,7 @@
   ],
 
   "expected_publish": {
-    "count": 16,
-    "hold": {
-      "pickleball-kingdom-little-rock-ar": "coordinate precision low",
-      "indianhead-park-sherwood-ar": "research_status=probable",
-      "tyndall-park-benton-ar": "research_status=probable"
-    }
+    "count": 19,
+    "hold": {}
   }
 }
