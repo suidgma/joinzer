@@ -29,9 +29,17 @@
  * --dry-run the process exits before any write is issued. Only SELECTs run in dry-run. `project`
  * and `verify` contain no write of any kind at all.
  *
- * PUBLISH GATE (owner ruling 2026-07-28, unchanged): coordinate present + coordinate precision !=
- * 'low' + slug + access_type != 'unknown' + candidate research_status='verified'.
+ * PUBLISH GATE — COVERAGE-FIRST (ADR-17, owner ruling 2026-08-05): name (present + not generic) +
+ * coordinate present + city + slug. Defined ONCE in scripts/lib/publish-gate.mjs and shared with the
+ * reconciling pass in scripts/publish-facilities.mjs.
+ *   Supersedes the 2026-07-28 gate, which also demanded precision != 'low' (dropped by ADR-16),
+ *   access_type != 'unknown' and candidate research_status='verified' (both dropped by ADR-17).
  *   court_count is deliberately NOT a gate condition. Do not re-add it.
+ *
+ * THE GATE DOES NOT PUBLISH ANYTHING BY ITSELF. `--stage=publish` is the only thing that stamps
+ * verified_by, and that stamp is the fence the reconciling pass requires before it will promote a
+ * row. Loosening the gate therefore cannot flip a held draft: it stays draft until an owner runs this
+ * stage for that metro. See the gate module's header for the full argument.
  *
  * SELF-VALIDATION: a config may declare `expected_publish` — the exact count that should publish and
  * the exact slug -> reason map for every row that should be held. Both `project` and `publish`
@@ -67,7 +75,7 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 import { LIVE, AGGREGATOR_HOST, DOCUMENT_URL } from './lib/workbook-extract.mjs'
 import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
-import { GATE_TEXT, gateReasons, isApproximateLocation } from './lib/publish-gate.mjs'
+import { BLOCKING_RESEARCH_STATUS, GATE_TEXT, gateReasons, isApproximateLocation, PIPELINE_VERIFICATION_STATUS, verificationStatusFor } from './lib/publish-gate.mjs'
 
 // ---------------------------------------------------------------------------------------------
 // Args + config
@@ -297,7 +305,7 @@ function reviewerNotes(v) {
   const parts = []
   if (v.workbook_id) parts.push(`workbook ${v.workbook_id}`)
   if (v.name?.workbook_name) parts.push(`name cleanup: "${v.name.workbook_name}" -> "${fieldVal(v.name)}"`)
-  if (v.research_status === 'probable') parts.push('probable — imported deliberately so it sits in the work queue with full provenance; the publish gate holds it draft until controlling-entity confirmation promotes it to verified')
+  if (v.research_status === 'probable') parts.push("probable — believed real, not confirmed by a controlling entity (ADR-14). PUBLISHES under the coverage-first gate (ADR-17) carrying verification_status='listed'; it is an unproven venue, not a rejected one. Promote to 'verified' when a controlling-entity source is found.")
   if (v._workbook?.adr14_note) parts.push(v._workbook.adr14_note)
   if (isApproximateLocation(v.coordinates?.precision)) parts.push(`coordinate precision LOW — publishes with an approximate-location label (ADR-16), pin is the street band not the building: ${v.coordinates.anchor || ''}`.trim())
   const rec = reconcileFor(v)
@@ -448,7 +456,11 @@ function listingFields(v) {
     public_notes: orNull(fieldVal(v.public_notes)),
     google_place_id: orNull(fieldVal(v.google_place_id)),
     name_source_url: orNull(v.name?.source_url),
-    verification_status: 'source_verified',
+    // ADR-18: the tier DESCRIBES the row, it does not gate it. Was hardcoded 'source_verified' for
+    // every row, which was true only while the gate demanded research_status='verified'. Under
+    // coverage-first a `probable` row publishes, and calling it source_verified would be a lie told
+    // by a column. Mapping is mechanical so it cannot be applied inconsistently.
+    verification_status: verificationStatusFor(v.research_status),
     verified_at: null, verified_by: null,          // published rows only — set by --stage=publish
     enrichment: null, enriched_at: null, enrichment_version: null,
     location_id: null,
@@ -592,9 +604,11 @@ async function preflight({ checkCollisions, candidateKeys }) {
     }
 
     // ADR-14: an aggregator URL must never reach a user-facing column on a row that will publish.
+    // NOTE this check got STRICTER as a side effect of the coverage-first gate, which is the safe
+    // direction: more rows now qualify as "would publish", so more rows are held to the ADR-14 bar.
     const wouldPublish = gateReasons({
-      lat: v.coordinates?.lat, lng: v.coordinates?.lng, precision: v.coordinates?.precision,
-      slug: v.slug, access_type: fieldVal(v.access_type), research_status: v.research_status,
+      name: fieldVal(v.name), lat: v.coordinates?.lat, lng: v.coordinates?.lng,
+      city: v.city, slug: v.slug, research_status: v.research_status,
     }).length === 0
     for (const [col, val] of [['website', v.website], ['name_source_url', v.name?.source_url]]) {
       if (val && AGGREGATOR_HOST.test(val) && wouldPublish) {
@@ -625,16 +639,42 @@ async function preflight({ checkCollisions, candidateKeys }) {
   // Internal proximity — two rows for one physical site.
   // A `low`-precision coordinate is a street band, not a located point, so two DIFFERENT venues on
   // the same street necessarily collide at 0 m. Asserting on it would be asserting on a coordinate
-  // the pipeline itself declares untrustworthy — and those rows are held from publishing anyway.
+  // the pipeline itself declares untrustworthy.
   // Ogden: Farmington Regional Park (178 S 650 W) and Farmington Gymnasium (294 S 650 W) are
   // distinct venues with distinct house numbers that both fell back to "South 650 West".
+  //
+  // THE SECOND HALF OF THAT RATIONALE WENT STALE ON 2026-08-04 and this block is the repair. The
+  // skip was safe partly because "those rows are held from publishing anyway" — ADR-16 made that
+  // false, and low-precision rows now go live. So two rows for ONE physical site can now both
+  // publish with this guard never having looked at them, which is a visible duplicate in the
+  // directory rather than a slightly-off pin.
+  //
+  // The skip itself is KEPT — asserting on an untrustworthy coordinate would fail honest runs, which
+  // is why it was introduced. What changes is that the collision is REPORTED instead of silently
+  // dropped: non-fatal, printed on every run, so the owner sees the pair at the metro's go-gate and
+  // can adjudicate or exclude. Reporting is the whole fix; escalating to fatal would resurrect the
+  // false failures.
+  const lowPrecisionCollisions = []
   const adjudicatedTripped = new Set()
   for (let i = 0; i < venues.length; i++) for (let j = i + 1; j < venues.length; j++) {
     const a = venues[i].coordinates, b = venues[j].coordinates
     if (!a?.lat || !b?.lat) continue
-    if (a.precision === 'low' || b.precision === 'low') continue
     const d = metresBetween(a.lat, a.lng, b.lat, b.lng)
     if (d >= INTERNAL_PROXIMITY_M) continue
+    if (a.precision === 'low' || b.precision === 'low') {
+      const id = pairId(venues[i].research_key, venues[j].research_key)
+      if (SAME_SITE.has(id)) {
+        // COUNT IT AS TRIPPED. The pair is within the radius and an allow-list entry is what stops
+        // it being reported below — that entry is doing its job, so it must not be described by the
+        // "allow-listed but did NOT trip the guard … no longer load-bearing" summary further down.
+        // Saying so would invite someone to delete the one thing suppressing a false duplicate
+        // report. The proximity check is skipped for this pair; the adjudication is not.
+        adjudicatedTripped.add(id)
+      } else {
+        lowPrecisionCollisions.push(`${venues[i].research_key} / ${venues[j].research_key} — ${Math.round(d)} m apart (precision ${a.precision}/${b.precision})`)
+      }
+      continue
+    }
     const id = pairId(venues[i].research_key, venues[j].research_key)
     const adj = SAME_SITE.get(id)
     if (!adj) { fail.push(`${venues[i].research_key} and ${venues[j].research_key} are ${Math.round(d)} m apart — likely one site, two rows`); continue }
@@ -647,6 +687,16 @@ async function preflight({ checkCollisions, candidateKeys }) {
     if (!adjudicatedTripped.has(id)) {
       console.log(`  same-site pair ${adj.a} / ${adj.b} is allow-listed but did NOT trip the ${INTERNAL_PROXIMITY_M} m guard — they now geocode apart; the entry is harmless but no longer load-bearing.`)
     }
+  }
+  // Non-fatal by design — see the rationale above the loop. These pairs are NOT asserted on because
+  // the coordinate is untrustworthy by the pipeline's own admission, but under ADR-16 they can now
+  // both reach production, so they must be visible at the metro's go-gate rather than silent.
+  if (lowPrecisionCollisions.length) {
+    console.log(`\n  ⚠ LOW-PRECISION PROXIMITY (${lowPrecisionCollisions.length}) — non-fatal, REVIEW BEFORE PUBLISHING:`)
+    lowPrecisionCollisions.forEach((c) => console.log(`      ${c}`))
+    console.log(`    At least one coordinate in each pair is a street band, so this may be two venues on one street`)
+    console.log(`    (the normal case) OR one site imported twice. Under ADR-16 both rows can now PUBLISH, so a`)
+    console.log(`    genuine duplicate would be publicly visible. Adjudicate via same_site_pairs, or exclude.`)
   }
 
   if (checkCollisions) {
@@ -774,8 +824,8 @@ if (STAGE === 'project') {
   const eligible = [], blocked = []
   for (const v of venues) {
     const reasons = gateReasons({
-      lat: v.coordinates?.lat, lng: v.coordinates?.lng, precision: v.coordinates?.precision,
-      slug: v.slug, access_type: fieldVal(v.access_type), research_status: v.research_status,
+      name: fieldVal(v.name), lat: v.coordinates?.lat, lng: v.coordinates?.lng,
+      city: v.city, slug: v.slug, research_status: v.research_status,
     })
     ;(reasons.length ? blocked : eligible).push({ slug: v.slug, key: v.research_key, name: fieldVal(v.name), reasons })
   }
@@ -845,7 +895,8 @@ if (STAGE === 'listings') {
   console.log(`  coord precision:     ${tally((r) => r.provenance?.coordinate?.precision)}`)
   console.log(`  court_count present ${listingRows.filter((r) => r.court_count != null).length}/${listingRows.length} · website ${listingRows.filter((r) => r.website).length}/${listingRows.length} · phone ${listingRows.filter((r) => r.phone).length}/${listingRows.length}`)
   console.log(`  low-precision coord (publishes WITH the approximate-location label, ADR-16): ${listingRows.filter((r) => isApproximateLocation(r.provenance?.coordinate?.precision)).map((r) => r.slug).join(', ') || 'none'}`)
-  console.log(`  probable rows (blocked at publish):       ${listingRows.filter((r) => r.provenance?.research_status_at_import === 'probable').map((r) => r.slug).join(', ') || 'none'}`)
+  console.log(`  probable rows (PUBLISH under ADR-17, tiered 'listed'): ${listingRows.filter((r) => r.provenance?.research_status_at_import === 'probable').map((r) => r.slug).join(', ') || 'none'}`)
+  console.log(`  verification_status: ${tally((r) => r.verification_status)}`)
   console.log(`  ODbL-coordinate rows: ${listingRows.filter((r) => r.provenance.odbl).length}/${listingRows.length}`)
 
   // The UPDATE payload is the MERGED fields, not listingFields() alone. The target row was captured
@@ -902,7 +953,7 @@ if (STAGE === 'listings') {
 if (STAGE === 'publish') {
   const conn = connect()
   const { data: rows, error: rErr } = await conn.from('facility_listings')
-    .select('id, slug, name, lat, lng, access_type, status, website, name_source_url, provenance').eq('source', BATCH)
+    .select('id, slug, name, lat, lng, city, access_type, status, website, name_source_url, provenance').eq('source', BATCH)
   if (rErr) { console.error('listing read failed:', rErr.message); process.exit(1) }
   const { data: cands, error: cErr } = await conn.from('facility_candidates')
     .select('id, candidate_key, research_status, published_listing_id').eq('batch', BATCH)
@@ -918,8 +969,8 @@ if (STAGE === 'publish') {
     // stage is idempotent, so re-running it must not reclassify rows it already published.
     const effectiveStatus = cand ? (cand.research_status === 'published' ? 'verified' : cand.research_status) : null
     const reasons = gateReasons({
-      lat: r.lat, lng: r.lng, precision: r.provenance?.coordinate?.precision ?? null,
-      slug: r.slug, access_type: r.access_type, research_status: effectiveStatus, hasCandidate: !!cand,
+      name: r.name, lat: r.lat, lng: r.lng, city: r.city, slug: r.slug,
+      research_status: effectiveStatus, hasCandidate: !!cand,
     })
     ;(reasons.length ? blocked : eligible).push({ row: r, cand, slug: r.slug, reasons })
   }
@@ -1000,7 +1051,14 @@ if (STAGE === 'verify') {
     ['every line_type is a live enum value', rows.every((r) => r.line_type == null || LIVE.line_type.has(r.line_type)), byStatus(rows, 'line_type')],
     ['every net_setup is a live enum value', rows.every((r) => r.net_setup == null || LIVE.net_setup.has(r.net_setup)), byStatus(rows, 'net_setup')],
     ['every indoor value is boolean or null', rows.every((r) => r.indoor == null || typeof r.indoor === 'boolean'), byStatus(rows, 'indoor')],
-    ['verification_status = source_verified everywhere', rows.every((r) => r.verification_status === 'source_verified'), byStatus(rows, 'verification_status')],
+    // ADR-18 REPLACED THIS ASSERTION. It used to demand source_verified on every row, which was only
+    // true while the gate required research_status='verified'. The tier is now derived, so what must
+    // hold is (a) the pipeline never writes a tier outside its vocabulary — human_verified in
+    // particular is a human's word and no script may claim it — and (b) every row's tier agrees with
+    // the research_status it was imported under. A row tiered source_verified off a `probable`
+    // candidate is the failure mode: a column asserting a controlling-entity source that nobody has.
+    ['verification_status is one this pipeline may write', rows.every((r) => PIPELINE_VERIFICATION_STATUS.has(r.verification_status)), byStatus(rows, 'verification_status')],
+    ['verification_status matches research_status_at_import (ADR-18)', rows.every((r) => r.verification_status === verificationStatusFor(r.provenance?.research_status_at_import)), rows.filter((r) => r.verification_status !== verificationStatusFor(r.provenance?.research_status_at_import)).map((r) => `${r.slug}:${r.verification_status}/${r.provenance?.research_status_at_import}`)],
     ['every listing has provenance with a candidate_key', rows.every((r) => r.provenance?.candidate_key), rows.filter((r) => !r.provenance?.candidate_key).length + ' missing'],
     ['every listing has a per-field evidence map', rows.every((r) => r.provenance?.fields && Object.keys(r.provenance.fields).length), rows.filter((r) => !Object.keys(r.provenance?.fields || {}).length).length + ' missing'],
     ['every listing carries the ODbL marker', rows.every((r) => r.provenance?.odbl), rows.filter((r) => !r.provenance?.odbl).length + ' missing'],
@@ -1016,8 +1074,15 @@ if (STAGE === 'verify') {
     // unlabelled approximate pin, which is the exact harm this slice exists to prevent.
     ['every published low-precision row is labelled approximate', published.filter((r) => isApproximateLocation(r.provenance?.coordinate?.precision)).every((r) => isApproximateLocation(r.location_precision)), published.filter((r) => isApproximateLocation(r.provenance?.coordinate?.precision) && !isApproximateLocation(r.location_precision)).map((r) => r.slug)],
     ['published rows carrying the approximate-location label', true, `${published.filter((r) => isApproximateLocation(r.location_precision)).length} of ${published.length}`],
-    ['no published row has access_type unknown', published.every((r) => r.access_type !== 'unknown'), 'ok'],
-    ['no published row came from a probable candidate', published.every((r) => r.provenance?.research_status_at_import === 'verified'), 'ok'],
+    // ADR-17 REPLACED BOTH OF THE ASSERTIONS THAT USED TO SIT HERE. They read "no published row has
+    // access_type unknown" and "no published row came from a probable candidate" — both encoded the
+    // 2026-07-28 gate and would now fail on every run. They are replaced rather than deleted, because
+    // what they were really protecting still needs protecting: that a published row's access_type is
+    // a value the UI can render, and that an unproven row is HONESTLY LABELLED rather than silently
+    // promoted. Coverage-first changed which rows publish, not whether the directory tells the truth.
+    ['every published access_type is a live enum value the UI can label', published.every((r) => LIVE.access_type.has(r.access_type)), byStatus(published, 'access_type')],
+    ["every published row from a non-verified candidate is tiered 'listed' (ADR-18)", published.filter((r) => r.provenance?.research_status_at_import !== 'verified').every((r) => r.verification_status === 'listed'), published.filter((r) => r.provenance?.research_status_at_import !== 'verified' && r.verification_status !== 'listed').map((r) => r.slug)],
+    ['no published row came from a BLOCKING research_status (ADR-17 correctness verdicts)', published.every((r) => !BLOCKING_RESEARCH_STATUS.has(r.provenance?.research_status_at_import)), published.filter((r) => BLOCKING_RESEARCH_STATUS.has(r.provenance?.research_status_at_import)).map((r) => r.slug)],
     ['no published row carries an aggregator URL on a user-facing column (ADR-14)', published.every((r) => !AGGREGATOR_HOST.test(r.website || '') && !AGGREGATOR_HOST.test(r.name_source_url || '')), published.filter((r) => AGGREGATOR_HOST.test(r.website || '') || AGGREGATOR_HOST.test(r.name_source_url || '')).map((r) => r.slug)],
     ['no published row carries a document URL in website', published.every((r) => !DOCUMENT_URL.test(r.website || '')), published.filter((r) => DOCUMENT_URL.test(r.website || '')).map((r) => r.slug)],
     ['draft rows carry verified_by = NULL (reconcile-gate safety)', rows.filter((r) => r.status === 'draft').every((r) => r.verified_by == null), 'ok'],

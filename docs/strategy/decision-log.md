@@ -82,6 +82,93 @@ _Last updated: July 31, 2026_
 **Context:** the legacy `access_type` conflated access, fee, indoor and category into one enum (`resort`, `fee_based`, `business`, `indoor_public`, `semi_private`…), which cannot support a queryable public directory. The directory needs clean SEO-facing fields without breaking the live operational path.
 **Consequences:** strictly additive and non-destructive — no drops, no deletes, no lossy rewrites of `locations` rows. **Phase 3A (schema) is done; Phase 3B (read-path and write-path cutover) is still pending** — the deprecated columns are still read today. Migrations applied to Supabase before dependent code, per ADR-10. (`supabase/migrations/20260724000001` through `…000005`.)
 
+## ADR-18 — `listed`: a third confidence tier, because coverage-first publishes unconfirmed venues
+
+**Decision:** `facility_listings.verification_status` gains a fourth permitted value, **`listed`** —
+"a credible local source names this venue with an address, and it geocoded." The importer stops
+hardcoding `source_verified` on every row and derives the tier mechanically from the candidate's
+research status: `verified` → `source_verified`, everything else → `listed`. `human_verified` remains
+reserved for a person's own sign-off and **no script may ever write it**. Migration
+`20260805000001_verification_status_listed.sql` widens the CHECK constraint; it is a strict superset
+of the old vocabulary, so no existing row can violate it and nothing is backfilled.
+
+**Context:** the hardcoded `source_verified` was true only for as long as the publish gate demanded
+`research_status='verified'`. ADR-17 removes that demand, so `probable` rows — believed real, not
+confirmed by a controlling entity (ADR-14) — now reach production. Leaving the hardcode in place
+would have had a column assert a controlling-entity source that nobody has: not a cosmetic problem,
+because `verification_status` is the field a future trust badge, a source-quality audit, or a
+re-verification sweep would all key off.
+
+**Consequences:** tiers **describe** a row, they never gate one — that separation is the point, and
+it is the same shape as the gate/fence split in ADR-17. The `verify` stage's old assertion
+(`verification_status = source_verified everywhere`) is replaced by two: that the pipeline only ever
+writes a tier from its own vocabulary, and that every row's tier agrees with the `research_status` it
+was imported under. Existing rows are deliberately **not** backfilled — 720 carry NULL, meaning
+"never assessed", and assigning them a confidence tier retroactively would manufacture precisely the
+false confidence the tier exists to avoid. **Consequence to expect, so it is not read as a
+regression: 111 rows across 20 already-imported batches will FAIL the new tier assertion on a
+`--stage=verify` re-run.** They were written `source_verified` off a non-`verified` candidate under
+the old hardcode, which is exactly the untruth this ADR exists to stop, so the assertion is correct
+to fire. Re-tiering them is a deliberate data pass with its own gate — not something to fold into a
+metro's publish run, and not a reason to weaken the assertion. Nothing renders the tier yet; that is a separate slice,
+and it is the one that makes ruling 3 of the coverage-first mandate (stale entries are acceptable)
+honest to the reader.
+
+## ADR-17 — Coverage-first publish gate, and the gate/fence separation that makes it safe
+
+**Decision:** **reverses the 2026-07-28 publish gate.** The gate becomes **name (present and not
+generic) + coordinate present + city + slug** — nothing more. `access_type != 'unknown'` and candidate
+`research_status='verified'` are both **removed**; `precision != 'low'` was already removed by
+ADR-16. Three owner rulings drive it: `access_type='unknown'` publishes and is displayed as "Access
+unknown — call ahead"; local publications may be linked while competitor aggregators remain leads
+only (ADR-14 unchanged); and **wrong or stale published venues are acceptable**.
+
+The structural half of the decision matters more than the threshold half. **The gate and the fence
+are two different questions**, and they had been jammed into one filter expression:
+
+| | Question | Where | Scope |
+|---|---|---|---|
+| **Gate** | is this row good enough to be public? | `scripts/lib/publish-gate.mjs`, shared | both directions, both scripts |
+| **Fence** | has anyone deliberately released this metro? | `verified_by IS NOT NULL` | publish direction only |
+
+Blocking is now narrow and is about **correctness, not proof**: `duplicate`, `not_venue`,
+`not_pickleball`, and `held` — an explicit human "not this one." `probable` publishes, because
+coverage-first publishes *unproven* venues, not *rejected* ones.
+
+**Context:** Lancaster, PA published **5** venues. A single local tourism page lists **24**;
+source-led discovery found **35**. The gate cost 4 of that shortfall and discovery cost 14 — but
+Phoenix publishes 176 at a **95% gate pass rate**, which shows the gate was never the binding
+constraint anywhere except at the margin. Candidate volume is the variable. The governing principle
+adopted with this ADR: **a directory's value is coverage first, precision second** — a user comparing
+5 venues against a competitor's 24 leaves before discovering that our 5 were impeccably sourced.
+
+**Consequences.** The dangerous reading of this change is that loosening the gate publishes the
+backlog. Measured against production on 2026-08-05: **868 draft rows across 41 metros, 446 of which
+pass the new gate.** Applying the new gate to `publish-facilities.mjs` *literally* — that script
+reconciles a whole `metro_area` and both publishes and un-publishes — would have published **232** of
+them on the next unrelated run, 24 in Provo and 23 in Las Vegas among them. It does not, because the
+fence is retained and kept separate: every one of those 446 rows carries `verified_by = NULL`, and
+only an explicit `--stage=publish` run stamps that column. **Loosening the gate therefore cannot
+publish anything by itself**, and deliberate per-metro release stays the only path to production.
+Three further consequences:
+
+- The fence governs the **publish direction only**. Applying it to un-publish would draft the 19 live
+  Stockton-Lodi rows that predate the stamping convention. "The fence only ever withholds, never
+  drafts" is the invariant.
+- `expected_publish` in the metro configs that declare it becomes **stale on purpose**. A loosened
+  gate produces a different split, the assertion fails, and the run aborts with "Fix the pipeline. Do
+  NOT edit the expectation to match the output." That is a per-metro fail-closed interlock the
+  pipeline already had, and it is being relied on rather than replaced with a second mechanism.
+  **Known scale of this, so the next session is not surprised: 13 of the 14 configs carrying an
+  `expected_publish` block will abort at `--stage=project` until their expectation is regenerated.**
+  That is the interlock working, not a defect — regenerate each expectation deliberately, as part of
+  releasing that metro, and never by pasting the new output back in unexamined. **Lancaster has no
+  `expected_publish` block, so the pilot metro is unblocked.**
+- Two `verify`-stage assertions encoded the old gate ("no published row has access_type unknown", "no
+  published row came from a probable candidate") and are **replaced, not deleted** — with assertions
+  that the published `access_type` is renderable and that an unproven row is honestly tiered
+  (ADR-18). Coverage-first changed which rows publish, not whether the directory tells the truth.
+
 ## ADR-16 — A low-precision coordinate publishes, behind an approximate-location label
 
 > Filed as a NEW ADR rather than an amendment to the 2026-07-28 ruling because it reverses a
@@ -122,6 +209,13 @@ publish as near-identical pins — previously invisible because neither publishe
 a **co-tenant at the correct street number** (a mall, a neighbouring business) is classified `low` and
 will now publish wearing an "approximate" label that is arguably too pessimistic, since that
 coordinate is in fact rooftop-accurate. The second is what a future co-tenant-precision ruling fixes.
+
+**Superseded in part by ADR-17** the following day: the "rest of the gate is untouched" sentence
+above no longer holds — `access_type != 'unknown'` and `research_status='verified'` were both dropped
+on 2026-08-05. The precision ruling itself stands unchanged, and the first "accepted rather than
+solved" consequence above (the internal-proximity guard skipping low-precision pairs) was
+subsequently mitigated: those collisions are now REPORTED on every run rather than silently dropped,
+because ADR-16 is what made both members of such a pair publishable.
 
 ## ADR-15 — Cron health is verified by hand, not monitored
 

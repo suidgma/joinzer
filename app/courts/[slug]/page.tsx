@@ -8,6 +8,7 @@ import { loadPublishedFacility, loadPublishedSlugs } from '@/lib/directory/loadF
 import { visitorNotes, metaDescription } from '@/lib/directory/publicNotes'
 import { mapsUrl } from '@/lib/directory/mapsUrl'
 import { isApproximateLocation, APPROXIMATE_LOCATION_DETAIL } from '@/lib/directory/locationPrecision'
+import { accessLabel } from '@/lib/directory/accessLabels'
 import { metroSlug } from '@/lib/directory/metros'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
@@ -39,10 +40,6 @@ export async function generateStaticParams() {
 // JSON-LD carries absolute URLs of its own — metadataBase resolves Metadata fields only, not raw
 // schema.org output — so the host comes from the one source instead of being hardcoded again here.
 const BASE = getSiteUrl()
-
-const ACCESS_LABEL: Record<string, string> = {
-  public: 'Public', private: 'Private', membership: 'Membership', school: 'School', hoa: 'HOA', unknown: 'Access varies',
-}
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -79,7 +76,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 function Facts({ f }: { f: Awaited<ReturnType<typeof loadPublishedFacility>> }) {
   if (!f) return null
   const facts: string[] = []
-  if (f.access_type && ACCESS_LABEL[f.access_type]) facts.push(ACCESS_LABEL[f.access_type])
+  // ADR-17: 'unknown' now resolves to a real label ("Access unknown — call ahead") rather than being
+  // suppressed, because the row publishes and this is the only thing telling the reader we don't know.
+  const access = accessLabel(f.access_type, 'detail')
+  if (access) facts.push(access)
   if (f.indoor === true) facts.push('Indoor'); else if (f.indoor === false) facts.push('Outdoor')
   if (f.court_count) facts.push(`${f.court_count} court${f.court_count === 1 ? '' : 's'}`)
   if (f.surface) facts.push(`${f.surface[0].toUpperCase()}${f.surface.slice(1)} surface`)

@@ -32,16 +32,19 @@
  *                        NOT NULL DEFAULT 'unknown' — so no incoming-null state exists to trigger
  *                        preservation even by accident.
  *   name, slug           the reconcile's whole job on a generically-named OSM row ("Pickleball
- *                        Courts"); isGenericName() in publish-facilities.mjs would draft it back.
- *                        A preserved slug would describe the old name.
+ *                        Courts"); isGenericName() in scripts/lib/publish-gate.mjs would draft it
+ *                        back. A preserved slug would describe the old name.
  *   source               the batch tag, and the one-statement rollback handle.
  *   status               always 'draft'; --stage=publish flips the gate-passers.
  *   metro_area           reconcile-controlled; it is what puts the row on /courts/in/<metro>.
  *   verification_status  reconcile-controlled.
- *   verified_at/by,      publish-stage controlled. `verified_by != null` is the reconcile-gate trust
- *   enrichment,          signal in publish-facilities.mjs and `enrichment_version != null` is the
- *   enriched_at,         other; preserving either would let a reconciled draft inherit a trust
- *   enrichment_version   signal it never earned and quietly defeat that gate.
+ *   verified_at/by,      publish-stage controlled. `verified_by != null` is THE RELEASE FENCE in
+ *   enrichment,          publish-facilities.mjs (ADR-17) — the sole thing standing between a held
+ *   enriched_at,         draft and the public site — so preserving it would let a reconciled draft
+ *   enrichment_version   inherit a release it never earned. `enrichment_version` is NO LONGER part of
+ *                        that fence (it once was, and letting a Gemini-enriched OSM row satisfy it
+ *                        was the bug that removed it), but it stays unpreserved regardless: it
+ *                        describes work done to the target row, not to the incoming one.
  *   lat, lng             the stored coordinate is independently Nominatim-derived and
  *                        provenance.coordinate records that derivation, so preserving an OSM
  *                        coordinate would make the provenance node describe a coordinate that is not
