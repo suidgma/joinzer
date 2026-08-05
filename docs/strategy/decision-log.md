@@ -84,18 +84,18 @@ _Last updated: July 31, 2026_
 
 ## ADR-16 — A low-precision coordinate publishes, behind an approximate-location label
 
-> **DRAFT — AWAITING OWNER SIGN-OFF ON THIS TEXT.** The decision is the owner's, taken 2026-08-04;
-> what needs approval before merge is the wording below. Filed as a NEW ADR rather than an amendment
-> to the 2026-07-28 ruling because it reverses a publishing philosophy rather than adjusting a
-> threshold — the old rule is preserved intact under Context, which an in-place edit would destroy.
+> Filed as a NEW ADR rather than an amendment to the 2026-07-28 ruling because it reverses a
+> publishing philosophy rather than adjusting a threshold — the old rule is preserved intact under
+> Context, which an in-place edit would destroy.
 
 **Decision:** **reverses the coordinate-precision clause of the 2026-07-28 publish gate.** A listing
 whose geocoded coordinate is classified `low` — a street centerline, or a large-polygon centroid
 standing in for the courts — now **publishes**, and its venue page and every list row that renders it
-carry a plain-text approximate-location note. The rest of the gate is untouched: coordinate
-**present**, slug, `access_type != 'unknown'`, candidate `research_status='verified'`. **A row with no
-coordinate at all is still held**, and that distinction is the load-bearing part of this ruling — a
-label can qualify a pin, it cannot invent one.
+carry a plain-text approximate-location note. The rest of the gate was untouched *by this ruling* —
+coordinate **present**, slug, `access_type != 'unknown'`, candidate `research_status='verified'` —
+but **ADR-17 superseded that clause the next day**; see it for the gate as it now stands. **A row
+with no coordinate at all is still held**, and that distinction is the load-bearing part of this
+ruling — a label can qualify a pin, it cannot invent one.
 
 **Context:** 348 held drafts had accumulated across 39 imported metros. Of those, 186 were blocked
 only on the coordinate, and **91 across 32 metros passed every other gate condition and were held
