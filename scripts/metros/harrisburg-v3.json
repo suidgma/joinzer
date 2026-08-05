@@ -1,0 +1,30 @@
+{
+  "_comment": "Harrisburg v3 — the Harrisburg-Carlisle MSA through the coverage-first (source-led) methodology. NOT a workbook: the grid at metro-research/harrisburg-v3/tabs.json was authored directly in the shape workbook-extract.mjs reads via --raw, so no Sheet exists. Separate config and separate batch tag from scripts/metros/harrisburg.json, on the lancaster-v3 / colorado-springs-addendum precedent: the 2026-07-31 import stays immutable and this carries its own one-statement rollback handle. Same metro_area, so the public URL /courts/in/harrisburg is unchanged. NOT YET IMPORTED — read-only projection only.",
+
+  "metro": "harrisburg-v3",
+  "batch": "harrisburg-v3-2026-08-05",
+  "metro_area": "Harrisburg",
+  "states": ["PA"],
+  "input": "metro-research/harrisburg-v3/harrisburg-v3-candidates.json",
+  "discovered_by": "harrisburg-v3-source-led-research",
+
+  "_envelope_comment": "Copied verbatim from scripts/metros/harrisburg.json, which derived it 2026-07-31 from the Harrisburg-Carlisle PA MSA COUNTY LIST (Cumberland, Dauphin, Perry) and NOT from an observed bounding box. Same metro, same counties, so re-deriving it would be a chance to introduce a difference and no chance to improve one. Every venue in this batch sits in one of the three MSA counties; the deliberate-exclusions list below removed the out-of-MSA leads (New Holland and GEARS Community Center, both Lancaster County; Lewisburg Area Recreation Park, Union County; Middletown Township Firefighters Park, Bucks County).",
+  "msa": "Harrisburg-Carlisle, PA (Cumberland, Dauphin, Perry counties)",
+  "envelope": { "latMin": 39.94, "latMax": 40.66, "lngMin": -77.68, "lngMax": -76.53 },
+
+  "expected_count": 19,
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "exclude": [],
+
+  "_existing_rows_comment": "THIS BATCH IMPORTS ONLY VENUES WITH NO COUNTERPART IN harrisburg-2026-07-31. Rather than research the 21 existing venues again and then exclude them (the lancaster-v3 shape), they were simply never authored into this artifact — the exclude[] mechanism exists to stop a researched row colliding with a live one, and a row that does not exist cannot collide. The 20 live venues (21 minus the Conewago duplicate below) are untouched by this run and keep their own batch tag and rollback handle. Three separate follow-ups fall OUT of this import and are deliberately not folded into it: (1) three of the five coordinate-held rows in the old batch now have addresses this research recovered — Winding Hill Park South at 900 E Winding Hill Rd 17055, Vernon Wass Park at 301 Wesley Dr 17055, and Koons Memorial Park on Larue St 17112 — which is a keyed UPDATE on existing rows and belongs to its own gated slice, exactly as lancaster-v3 ruled for Bright Side Opportunities Center. (2) conewago-township-pickleball-complex-elizabethtown-pa in the old batch is the SAME VENUE as conewago-courts-elizabethtown-pa, already PUBLISHED under metro_area='Lancaster' from lancaster-v3-2026-08-05 (both 2 courts, outdoor, public, Elizabethtown; the live Lancaster row carries the address 5815 Ridge Rd and a working coordinate the Harrisburg row lacks). Conewago Township is in DAUPHIN county, so the MSA-correct home is arguably Harrisburg, but the row is already live and correct under Lancaster — re-homing it would un-publish and re-slug a working public URL for no user benefit. Recommendation is to retire the Harrisburg duplicate, not to move the Lancaster row. (3) bishop-park-harrisburg-pa in the old batch is sourced to a 2022 Dauphin County commissioners' meeting PDF, but Swatara Township's own current park inventory lists Bishop Park with basketball courts and paved parking and NO pickleball — the pickleball claim needs re-verification before that row publishes.",
+
+  "_discovery_comment": "Stage 1 enumerated municipal parks departments across all three MSA counties, both county tourism bureaus (visitcumberlandvalley.com, visithersheyharrisburg.org), regional clubs (Carlisle Area Pickleball Association, pickleballharrisburg.com, pickleballcarlisle.com) and local news. FINDING: unlike Lancaster, this metro has NO dominant local list — neither tourism bureau publishes a pickleball roundup, and the club sites delegate to third-party directories rather than maintaining their own. The best single local source found lists 10 venues (places2play, Harrisburg); the best local NEWS source, theburgnews.com, is bot-protected and was not worked around. Nineteen new venues against a previous 21 candidates is therefore a genuine coverage gain rather than a gap in the old pass's diligence. THREE LEADS WERE DELIBERATELY DROPPED for failing the citation standard rather than for being unreal: Yellow Breeches Educational Center (a special-education school; one aggregator lists 2 indoor courts and nothing else corroborates it), Country Club of Harrisburg (a real club, but the pickleball courts rest on aggregator evidence only), and Traditions of America at Silver Spring (a 55+ community whose courts are real but which publishes no street address and no citable public page). Two Swatara Township parks with tennis courts, Donald R. Taylor Memorial and Enhaut, were also left out — the township lists tennis only, and the 'six double-lined courts south of Derry Street' claim could not be tied to a specific park.",
+
+  "_expected_publish_comment": "DELIBERATELY ABSENT until the owner has read the projection. Both --stage=project and --stage=publish assert against expected_publish and fail the run on any divergence, and the script says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' Authoring it before the projection exists would make it a guess to be corrected; authoring it afterwards, from a reviewed list, makes it the per-metro deliberate-release mechanism ADR-17 intends.",
+
+  "workbook": {
+    "header_row": 1,
+    "source_description": "Source-led web research, Harrisburg-Carlisle PA MSA, 2026-08-05 (v3 coverage-first methodology) — no workbook and no Google Sheet; the tab grid was authored directly"
+  }
+}
