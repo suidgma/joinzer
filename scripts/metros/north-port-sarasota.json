@@ -19,20 +19,15 @@
     "lngMax": -82.05
   },
   "expected_count": 24,
-  "_geocode_comment": "4 of the 24 venues produce no coordinate from any query rung, INVESTIGATED before the flag was set. TWO carry no street address at all in the workbook (venice-northeast-venice-park, manatee-john-marble), so they only ever reach the name-based rungs and Nominatim does not hold those names as POIs — the honest fix is an address, not a retry. TWO DO carry an address and still miss all rungs (sarasota-laurel-park at 509 Collins Road, Nokomis; commercial-dill-dinkers-sarasota at 500 Tallevast Road, Sarasota) — those look like a workbook address error or an unmapped parcel and are flagged for the owner. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 4 import as gate-blocked drafts in the work queue instead of aborting the metro; the publish gate holds each on 'no coordinate'.",
+  "_geocode_comment": "2 of the 24 venues produce no coordinate from any query rung, INVESTIGATED before the flag was set. BOTH carry no street address at all in the workbook (venice-northeast-venice-park, manatee-john-marble), so they only ever reach the name-based rungs and Nominatim does not hold those names as POIs — the honest fix is an address, not a retry. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 2 import as gate-blocked drafts in the work queue instead of aborting the metro; the publish gate holds each on 'no coordinate'. THIS COUNT WAS 4 UNTIL 2026-08-05, and the two that recovered were exactly the two this note had called a probable workbook address error — they were neither. sarasota-laurel-park (509 Collins Road) and commercial-dill-dinkers-sarasota (500 Tallevast Road) both resolve high against the current ladder. Do not read a geocode miss as evidence that an address is wrong; it is evidence about the ladder on the day it ran.",
   "require_all_geocoded": false,
   "reconciles": [],
-  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-05, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output. SUPERSEDES the 2026-08-03 block (count 17). The +5 splits evenly across the two causes: THREE rows moved on ADR-16 alone (highland-ridge-park, mckibben-park, c-v-walton-racquet-center — all held on 'coordinate precision low'), and TWO moved on the re-geocode alone (laurel-park and dill-dinkers, both held on 'no coordinate'). lakewood-ranch-park was ALREADY publishing and stays: its OSM anchor is named 'Lakewood Ranch Community Park' while the workbook and Manatee County both say 'Lakewood Ranch Park', which was hand-checked on 2026-08-05 against mymanatee.org — same 5350 Lakewood Ranch Blvd, six courts. Its 2471 m township-guard distance is measured against ONE segment of a multi-segment boulevard whose other segment lies 1.75 km the far side, with the park between them; the distance is a road-geometry artifact, not a mislocation.",
   "expected_publish": {
-    "count": 17,
+    "count": 22,
     "hold": {
-      "laurel-park-and-sandra-sims-terry-community-center-nokomis-fl": "no coordinate",
-      "highland-ridge-park-north-port-fl": "coordinate precision low",
-      "mckibben-park-north-port-fl": "coordinate precision low",
       "northeast-venice-park-venice-fl": "no coordinate",
-      "c-v-walton-racquet-center-at-g-t-bray-park-bradenton-fl": "coordinate precision low",
-      "john-h-marble-park-and-recreation-center-bradenton-fl": "no coordinate",
-      "dill-dinkers-sarasota-sarasota-fl": "no coordinate"
+      "john-h-marble-park-and-recreation-center-bradenton-fl": "no coordinate"
     }
   }
 }
