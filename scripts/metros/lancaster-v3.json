@@ -1,0 +1,39 @@
+{
+  "_comment": "Lancaster v3 — the first metro through the coverage-first (source-led) methodology. NOT a workbook: the grid at metro-research/lancaster-v3/tabs.json was authored directly in the shape workbook-extract.mjs already reads via --raw, so no Sheet exists and workbook.source_description says so instead of the artifact claiming one. Separate config and separate batch tag from scripts/metros/lancaster.json, on the colorado-springs-addendum precedent: the 2026-07-31 import stays immutable and this carries its own one-statement rollback handle. Same metro_area, so the public URL /courts/in/lancaster is unchanged. NOT YET IMPORTED — read-only projection only.",
+
+  "metro": "lancaster-v3",
+  "batch": "lancaster-v3-2026-08-05",
+  "metro_area": "Lancaster",
+  "states": ["PA"],
+  "input": "metro-research/lancaster-v3/lancaster-v3-candidates.json",
+  "discovered_by": "lancaster-v3-source-led-research",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+
+  "_envelope_comment": "Copied verbatim from scripts/metros/lancaster.json, which derived it 2026-07-31 from the Lancaster, PA MSA COUNTY LIST (not from an observed bounding box). Same metro, same county, so re-deriving it would be a chance to introduce a difference and no chance to improve one. All 35 researched venues are in Lancaster County; the deliberate-exclusions list in the research removed the out-of-county leads (Guinea Lane Park in Bucks County, Sgt. Steve Owen Memorial Park in California, YMCA of Greater Lancaster in Ohio, Body Zone in Berks).",
+  "msa": "Lancaster, PA (Lancaster county)",
+  "envelope": { "latMin": 39.72, "latMax": 40.32, "lngMin": -76.73, "lngMax": -75.87 },
+
+  "expected_count": 28,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "_exclude_comment": "SEVEN venues are researched but held OUT of this run because a live listing already represents them. Excluding is strictly safer than importing: it leaves the pre-existing row byte-for-byte untouched (the tol-oh-pickle-zone precedent) and keeps this batch a clean INSERT against a disjoint slug set, so `update facility_listings set status='draft' where source='lancaster-v3-2026-08-05'` reverses the whole thing without touching a published URL. SIX of the seven collide on slug and would abort preflight anyway; the seventh (d-f-buchmiller-park) would NOT — its slug differs from the live row by one word, so only the 200 m live-proximity guard stands between it and a silent duplicate. The reconcile mechanism is NOT usable on any of them: reconciles[] mandates osm_id and asserts exactly one live row carries it, and all nine lancaster-2026-07-31 listings have osm_id = NULL. Improving an existing row is therefore a separate, gated, keyed-UPDATE slice — see the Bright Side note below.",
+  "exclude": [
+    { "candidate_key": "lancaster-v3-d-f-buchmiller-park", "reason": "live PUBLISHED row d-f-buchmiller-county-park-lancaster-pa is the same venue under the county's own fuller name, which is already the public URL. Slugs DIFFER, so this is the one exclusion the unique constraint would not have caught." },
+    { "candidate_key": "lancaster-v3-reamstown-memorial-park", "reason": "live PUBLISHED row reamstown-memorial-park-stevens-pa; the live row also carries the better address (23 E Church St vs this pass's bare E Church St)." },
+    { "candidate_key": "lancaster-v3-spooky-nook-sports", "reason": "live PUBLISHED row spooky-nook-sports-manheim-pa; this pass adds nothing." },
+    { "candidate_key": "lancaster-v3-rcw-athletic-club", "reason": "live PUBLISHED row rcw-athletic-club-lancaster-pa; this pass adds nothing." },
+    { "candidate_key": "lancaster-v3-bright-side-opportunities-center", "reason": "live PUBLISHED row bright-side-opportunities-center-lancaster-pa. This pass DID find a street address (515 Hershey Ave) where the live row is NULL — the single genuine improvement this research offers an existing row. Applying it is a keyed UPDATE on a published row and belongs to its own gated slice, not to an import." },
+    { "candidate_key": "lancaster-v3-hempfield-reccenter", "reason": "live DRAFT row hempfield-reccenter-landisville-pa, held only on a low-precision coordinate — which ADR-16 now releases, so it is a candidate for a publish run on the OLD batch rather than a re-import here." },
+    { "candidate_key": "lancaster-v3-lititz-reccenter", "reason": "live DRAFT row lititz-reccenter-lititz-pa, same ADR-16 situation as hempfield-reccenter." }
+  ],
+
+  "_existing_rows_comment": "Two live rows from lancaster-2026-07-31 have NO counterpart in this research and are deliberately untouched by this run. (1) overlook-pickleball-courts-activities-center-lancaster-pa is a CHIMERA — it merged Overlook Park and Overlook Activities Center into one listing, which then failed to geocode and published nothing. This batch imports the two as separate rows; retiring the chimera is a candidate-status change and needs its own gate. It has never been public, so there is no URL cost. (2) denver-recreation-center-denver-pa was found by the OLD venue-led pass and MISSED by this source-led one. Source-led beat venue-led 35 to 9 but is NOT a superset, and the methodological fix is to union new research against rows already in the database before calling a metro's discovery complete. It costs nothing here — the row is already a draft and this run leaves it alone.",
+
+  "_expected_publish_comment": "DELIBERATELY ABSENT until the projection has been read. Both --stage=project and --stage=publish assert against expected_publish and fail the run on any divergence, and reportExpected says in as many words: 'Fix the pipeline. Do NOT edit the expectation to match the output.' Writing a guessed block now and correcting it to match the first projection would be exactly that move with extra steps. This block gets authored from the owner's locked decisions as the last act before the write gate — that is what makes it the per-metro deliberate-release mechanism ADR-17 intends rather than a transcription of a log line.",
+
+  "workbook": {
+    "header_row": 1,
+    "source_description": "Source-led web research, Lancaster County PA, 2026-08-05 (v3 coverage-first methodology) — no workbook and no Google Sheet; the tab grid was authored directly"
+  }
+}
