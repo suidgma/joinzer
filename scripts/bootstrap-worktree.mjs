@@ -21,8 +21,8 @@
  *   node scripts/bootstrap-worktree.mjs
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, copyFileSync, lstatSync, readlinkSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync, copyFileSync, lstatSync, readlinkSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 
 const ENV_FILES = ['.env.local', '.env.test']
 const RESEARCH_REPO = 'joinzer-metro-research'
@@ -143,6 +143,64 @@ step('metro-research', () => {
   if (!existsSync(target)) return `${target} not found — clone the private joinzer-metro-research repo there first`
   link(target, join(here, 'metro-research'))
   return `junction -> ${target}`
+})
+
+// --- metro configs: prove every declared input path actually resolves HERE, before a pipeline run
+// discovers it at ENOENT. 47 of the 48 configs resolve through the metro-research junction above, so
+// they are really a second assertion that the link works. The 48th is the reason this step exists:
+// little-rock.json's input is `little-rock-count/`, a gitignored directory INSIDE the Joinzer repo,
+// which a fresh worktree therefore does not carry. It ENOENTs exactly like a missing artifact, for a
+// completely recoverable reason.
+//
+// Deliberately NOT FATAL, and deliberately no auto-copy. Not fatal because only the metro you are
+// about to run matters, and the junction failure above already exits 1 for the case that affects all
+// 47. No auto-copy because these are ADR-14 private research inputs, and duplicating them into every
+// worktree is not a decision a bootstrap script should make silently — so it reports the exact
+// command and lets a human choose.
+step('metro configs', () => {
+  const configDir = join(here, 'scripts', 'metros')
+  if (!existsSync(configDir)) return 'scripts/metros not found — skipped'
+  const configs = readdirSync(configDir).filter((f) => f.endsWith('.json'))
+  const unresolved = new Map()
+
+  for (const file of configs) {
+    let config
+    try {
+      config = JSON.parse(readFileSync(join(configDir, file), 'utf8'))
+    } catch (err) {
+      unresolved.set(`${file} (unparseable)`, { files: [file], note: err.message.split('\n')[0] })
+      continue
+    }
+    // `input` is the artifact; `geocode_cache` is a file whose DIRECTORY must exist for a flush to
+    // land. Both are repo-root-relative in every config today.
+    const declared = [config.input, config.geocode_cache && dirname(config.geocode_cache)].filter(Boolean)
+    for (const rel of declared) {
+      if (existsSync(resolve(here, rel))) continue
+      if (!unresolved.has(rel)) unresolved.set(rel, { files: [] })
+      unresolved.get(rel).files.push(file)
+    }
+  }
+
+  if (unresolved.size === 0) return `${configs.length} configs — every input path resolves`
+
+  const lines = [`${configs.length} configs — ${unresolved.size} path(s) do NOT resolve in this worktree:`]
+  for (const [rel, { files, note }] of unresolved) {
+    const owners = files.length > 3 ? `${files.slice(0, 3).join(', ')} +${files.length - 3} more` : files.join(', ')
+    lines.push(`      ${rel}   (${owners})`)
+    if (note) {
+      lines.push(`        -> ${note}`)
+      continue
+    }
+    const inMain = resolve(mainCheckout, rel)
+    lines.push(
+      existsSync(inMain)
+        ? `        -> present in the main checkout. If you are running that metro, copy it:\n` +
+            `           node -e "require('fs').cpSync(String.raw\`${inMain}\`, String.raw\`${resolve(here, rel)}\`, { recursive: true })"`
+        : `        -> absent from the main checkout too — this metro cannot run anywhere until it is restored`,
+    )
+  }
+  lines.push('      NOT FATAL — only the metro you actually run needs its own input.')
+  return lines.join('\n')
 })
 
 // --- node_modules: a REAL install, never a link.
