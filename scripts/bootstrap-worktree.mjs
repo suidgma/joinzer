@@ -84,11 +84,14 @@ const teardown = (rawPath) => {
     console.error(`${target} is not a git repository.`)
     process.exit(1)
   }
-  const worktreeCommonDir = sh('git', ['-C', target, 'rev-parse', '--git-common-dir'])
-  if (resolve(target, worktreeGitDir) === resolve(target, worktreeCommonDir)) {
+  // Resolve both against the worktree: git may answer relatively, and the main-checkout refusal
+  // below is only sound if the two are compared as absolute paths.
+  const commonDirAbs = resolve(target, sh('git', ['-C', target, 'rev-parse', '--git-common-dir']))
+  if (resolve(target, worktreeGitDir) === commonDirAbs) {
     console.error(`Refusing: ${target} is the MAIN checkout, not a linked worktree.`)
     process.exit(1)
   }
+  const owningCheckout = resolve(commonDirAbs, '..')
 
   // 1. Find every junction at the worktree root and record what it points at, plus a before-count
   //    of the target's entries. The count is the proof: a link that looked removed but was not
@@ -137,7 +140,7 @@ const teardown = (rawPath) => {
 
   // 3. Only now is the destructive step safe.
   console.log(`\n  removing worktree (this walks a real node_modules, so give it a moment)...`)
-  execFileSync('git', ['-C', worktreeCommonDir, 'worktree', 'remove', '--force', target], { stdio: 'inherit' })
+  execFileSync('git', ['-C', owningCheckout, 'worktree', 'remove', '--force', target], { stdio: 'inherit' })
 
   // 4. Prove the shared targets are untouched.
   let drift = 0
