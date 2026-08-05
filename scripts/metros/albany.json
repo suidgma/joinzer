@@ -32,26 +32,46 @@
   "_geocode_comment": "27 of 30 venues geocoded (26 high precision, 1 low) — the strongest geocode result in wave 1. Three produce no coordinate (albany-picklers, rensselaer-stride, saratoga-shenantaha). Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set false so these import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the metro; the publish gate holds each on 'no coordinate'. Coordinates are NOT this metro's binding constraint — 13 of 14 held rows are held on the evidence bar (research_status=probable), only 4 on geography.",
   "require_all_geocoded": false,
 
-  "reconciles": [],
+  "_reconcile_comment": "ONE RECONCILE, AND NOTHING MECHANICAL WOULD HAVE CAUGHT IT. SPORTIME Capital Region already exists as a dormant OSM draft under a different name ('Sportime Schenectady', slug sportime-schenectady-schenectady-ny), so the two rows do NOT collide on the unique slug and the run would have inserted a second listing for one venue and published it. Nor does pre-flight's live proximity guard see it: the pair is 271 m apart and reconcile_radius_m is 200, so the guard's `if (d >= RECONCILE_RADIUS_M) continue` skips it entirely. THE RADIUS IS DELIBERATELY LEFT AT 200. Raising it to buy a confirmation line would disable the guard for every other neighbour in this metro, which is precisely the failure the guard exists to prevent — so this run will NOT print 'reconcile confirmed live', and that silence is expected rather than a problem. The reconcile applies on osm_id/listing_id, which pre-flight asserts independently of distance. IDENTITY IS NOT INFERRED FROM PROXIMITY: both rows carry the same street address (the OSM row's '2699 Curry Road' and the research row's '2699 Curry Rd'), the same city, and the same zip 12303. No field conflicts are possible — the OSM row is an empty shell whose only non-null values are address/city/state/zip/lat/lng, with access_type='unknown', metro_area=NULL and verified_by=NULL, so the research row only ADDS facts. Discovered 2026-08-05 by a manual SQL sweep of live rows inside the metro envelope, not by any pipeline assertion; that sweep is the reason this block exists.",
+  "reconciles": [
+    {
+      "candidate_key": "schenectady-sportime",
+      "osm_id": "node/8408507907",
+      "listing_id": "eb9808dd-4f22-45ef-8232-c8b9f01f10ca",
+      "matched_distance_m": 271,
+      "adjudicated_by": "feature-builder",
+      "adjudicated_on": "2026-08-05",
+      "evidence_url": "https://www.sportimeny.com/capitalregion",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row, established by address rather than by proximity: the OSM row carries '2699 Curry Road, Schenectady, NY 12303' and the research row carries '2699 Curry Rd, Schenectady, NY 12303'. The 271 m separation is the gap between the OSM node placement and the research row's own structured geocode of the house number, not evidence of two sites. The OSM row holds NO value this merge could lose — access_type='unknown', fee_type/court_count/indoor/surface/website/phone/public_notes all NULL, metro_area NULL, verified_by NULL — so every field is additive and the incoming_wins_unless_null policy has nothing to preserve except the osm_id itself. Reconciling rather than inserting is what keeps the ODbL lineage and retires the raw OSM row in the same move.",
+      "osm_original": {
+        "osm_id": "node/8408507907",
+        "name": "Sportime Schenectady",
+        "slug": "sportime-schenectady-schenectady-ny",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "metro_area": null,
+        "address": "2699 Curry Road",
+        "city": "Schenectady",
+        "state": "NY",
+        "zip": "12303",
+        "lat": 42.7620181,
+        "lng": -73.9309133,
+        "verified_by": null,
+        "created_at": "2026-07-20 20:45:54.642499+00"
+      }
+    }
+  ],
 
-  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "_expected_publish_comment": "RE-AUTHORED 2026-08-05 from the confirming --stage=project run under the CURRENT gate, approved by the owner. The previous block (count 16, 14 holds) was locked 2026-08-03 against the pre-ADR-16/17 gate: 11 of its 14 hold reasons were 'research_status=probable' and one was 'coordinate precision low', and ADR-17 and ADR-16 removed both as gate conditions. It was REPLACED, not edited to match output — the block was removed, the projection was run with no expectation present, and this was written from what it printed. NOTE THE COUNT IS 27, NOT 26: a reconcile does not reduce the published count. --stage=project computes the split over `venues` and never reads `reconciles`, and --stage=listings rewrites the reconciled row's `source` to the batch tag, so --stage=publish picks it up like any other row. What the reconcile reduces is the site-wide LISTINGS total (+29, not +30) because it is an UPDATE rather than an INSERT.",
   "expected_publish": {
-    "count": 16,
+    "count": 27,
     "hold": {
-      "capital-hills-golf-course-pickleball-courts-albany-ny": "research_status=probable",
-      "milton-pocket-park-albany-ny": "research_status=probable",
-      "palma-park-albany-ny": "research_status=probable",
-      "nott-road-park-guilderland-ny": "research_status=probable",
       "picklers-pickleball-club-menands-ny": "no coordinate",
-      "columbia-courts-east-greenbush-ny": "research_status=probable",
-      "stride-adaptive-sports-court-west-sand-lake-ny": "no coordinate; research_status=probable",
-      "east-side-recreation-park-saratoga-springs-ny": "research_status=probable",
-      "shenantaha-creek-park-ballston-spa-ny": "no coordinate; research_status=probable",
-      "malta-community-park-malta-ny": "research_status=probable",
-      "fryeguys-pickleball-club-clifton-park-ny": "coordinate precision low; research_status=probable",
-      "west-side-recreation-park-saratoga-springs-ny": "research_status=probable",
-      "collins-park-scotia-ny": "research_status=probable",
-      "hillhurst-park-schenectady-ny": "research_status=probable"
+      "stride-adaptive-sports-court-west-sand-lake-ny": "no coordinate",
+      "shenantaha-creek-park-ballston-spa-ny": "no coordinate"
     }
   }
 }

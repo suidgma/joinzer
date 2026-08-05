@@ -27,26 +27,33 @@
     "lngMax": -117.61
   },
 
-  "expected_count": 20,
+  "expected_count": 18,
+
+  "_exclude_comment": "OWNER RULING 2026-08-05, consistent with the McAllen precedent. Both rows would have PUBLISHED under the coverage-first gate carrying NO source URL of any kind — not a weak citation, none. Their only evidence was playtimescheduler.com, which workbook-extract correctly strips from the user-facing columns (AGGREGATOR_HOST), leaving website and name_source_url both null. A venue page with nothing to cite is not what verification_status='listed' means under ADR-18. Both are also private/HOA, so a visiting player likely cannot use them, and each row's own public_notes already says to confirm before visiting. EXCLUDED rather than held: exclude removes them from the run entirely, so no candidate row, no listing row, and any future re-research starts clean. The research is not lost — it stays in the artifact and the reason is recorded here. expected_count drops 20 -> 18 accordingly, because an excluded venue is not counted toward it.",
+  "exclude": [
+    {
+      "candidate_key": "lake-isabella-mountain-view-church",
+      "reason": "Would publish with no source URL at all (aggregator-only evidence, stripped by ADR-14). access_type='private'. Owner ruling 2026-08-05 — McAllen precedent."
+    },
+    {
+      "candidate_key": "bakersfield-silver-oak-park",
+      "reason": "Would publish with no source URL at all (aggregator-only evidence, stripped by ADR-14). access_type='hoa'; the row's own note says 'appears residential; access rules and controlling-entity confirmation remain open'. Owner ruling 2026-08-05 — McAllen precedent."
+    }
+  ],
 
   "_geocode_comment": "17 of 20 venues geocoded (15 high precision, 2 low). THE THREE MISSES WERE INVESTIGATED, not waved through. dignity-health-sports-complex-gsa carries a suite address ('3101 Gilmore Avenue #100') that misses every rung. bear-valley-springs is the interesting one: its street locus 'Rolling Oak Drive' resolved 465 km from the venue's own zip centroid, so the township guard correctly DISCARDED it rather than publishing a coordinate 465 km wrong — the guard doing exactly its job. natatorium-courts has an intersection, not an address ('4th Street and Warren Street'), which no rung can resolve. The two low-precision rows (mesa-marin, riverview) anchored to a highway and to the wrong residential street respectively — repair-pass class 1a, needing a better ANCHOR rather than a better address. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set false so these import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the metro; the publish gate holds each on 'no coordinate'.",
   "require_all_geocoded": false,
 
   "reconciles": [],
 
-  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "_expected_publish_comment": "RE-AUTHORED 2026-08-05 from the confirming --stage=project run under the CURRENT gate, approved by the owner. The previous block (count 11) was locked 2026-08-03 against the pre-ADR-16/17 gate, which held rows on coordinate precision 'low' and on research_status != 'verified' — both retired, so every reason string in it was stale. It was REPLACED, not edited to match output: the block was removed, the projection was run with no expectation present, and this was written from what it printed. riverview is held on research_status='held' rather than excluded because the VENUE is fine and only the COORDINATE is wrong — the cached geocode for '401 Willow Drive / 93308' returned OSM way/10436658 named 'Willow Creek Drive' as a road centroid with no house number, the name-qualified query returned [], and OSM has no Willow Drive in 93308 at all (the one that exists is 5.3 km east in 93301). This config's own _geocode_comment already described it as anchored to 'the wrong residential street'. Holding keeps the row in the work queue so a re-geocode releases it; exclude would drop it from the batch. That distinction is the pattern: real-venue-bad-coordinate holds, not-a-venue excludes.",
   "expected_publish": {
-    "count": 11,
+    "count": 14,
     "hold": {
-      "mesa-marin-sports-complex-bakersfield-ca": "coordinate precision low",
-      "fruitvale-norris-park-bakersfield-ca": "research_status=probable",
-      "riverview-community-center-bakersfield-ca": "coordinate precision low",
+      "riverview-community-center-bakersfield-ca": "research_status=held",
       "dignity-health-sports-complex-gsa-pickleball-bakersfield-ca": "no coordinate",
       "bear-valley-springs-association-pickleball-courts-tehachapi-ca": "no coordinate",
-      "natatorium-courts-taft-ca": "no coordinate; research_status=probable",
-      "kern-river-united-methodist-church-kernville-ca": "research_status=probable",
-      "mountain-view-baptist-church-lake-isabella-ca": "research_status=probable",
-      "silver-oak-park-bakersfield-ca": "research_status=probable"
+      "natatorium-courts-taft-ca": "no coordinate"
     }
   }
 }
