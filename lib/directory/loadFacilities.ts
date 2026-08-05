@@ -35,6 +35,59 @@ function admin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
+/**
+ * PostgREST's server-side row cap. An unbounded select stops here and returns NO error and NO
+ * indication that anything was withheld — the caller gets exactly this many rows and cannot tell a
+ * complete result from a truncated one.
+ *
+ * THIS IS NOT HYPOTHETICAL. On 2026-08-05 the directory crossed 1000 published rows and every
+ * site-wide read below silently truncated: /sitemap.xml served exactly 1000 facility URLs against
+ * 1084 published (84 venues invisible to search engines), and loadPublishedMetros aggregated over
+ * that same truncated window, so two whole metros — Boise and El Paso — vanished from the metro
+ * list and their /courts/in/<slug> pages hard-404'd while the rows sat published in the database.
+ * The publish scripts had carried a `>= 1000` guard since the ADR-17 work; the app read path never
+ * got one, so the bug was invisible until the corpus grew past the cap.
+ */
+export const POSTGREST_PAGE_SIZE = 1000
+
+/** Runaway guard. 50 pages = 50,000 rows, far beyond any plausible directory, so tripping this
+ *  means the cursor is broken rather than the corpus large. Throws instead of looping forever. */
+const MAX_PAGES = 50
+
+type PageResult = { data: unknown; error: { message: string } | null }
+
+/**
+ * Reads every row of a query by paging with `.range()` until a page comes back SHORT.
+ *
+ * The termination rule is the whole point: a FULL page means "there may be more", so it asks again.
+ * A loader that issued one request and trusted the row count is exactly what failed above, and it
+ * failed silently — so this also stops discarding `error`. Every caller below used to destructure
+ * `{ data }` alone, which turned any database failure into an empty array and a silently empty
+ * directory. Both failure modes now throw: the next person gets an exception, not an undercount.
+ *
+ * CALLERS MUST ORDER BY SOMETHING UNIQUE. Pagination over an unstable order can repeat rows on one
+ * page and skip them on the next, which would be a subtler version of the same bug. Every call site
+ * below ends its ordering with `slug` (unique, not null).
+ */
+async function fetchAllRows<T>(
+  label: string,
+  page: (from: number, to: number) => PromiseLike<PageResult>
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let pageIndex = 0; pageIndex < MAX_PAGES; pageIndex++) {
+    const from = pageIndex * POSTGREST_PAGE_SIZE
+    const { data, error } = await page(from, from + POSTGREST_PAGE_SIZE - 1)
+    if (error) throw new Error(`${label}: database read failed — ${error.message}`)
+    const batch = (data as T[] | null) ?? []
+    rows.push(...batch)
+    if (batch.length < POSTGREST_PAGE_SIZE) return rows
+  }
+  throw new Error(
+    `${label}: exceeded ${MAX_PAGES} pages (${MAX_PAGES * POSTGREST_PAGE_SIZE} rows) — refusing to ` +
+      `return a possibly-truncated directory. The pagination cursor is almost certainly broken.`
+  )
+}
+
 export type Enrichment = {
   description?: string
   amenities?: string[]
@@ -100,13 +153,17 @@ export type FacilityListItem = {
 }
 
 export const loadPublishedFacilities = unstable_cache(
-  async (): Promise<FacilityListItem[]> => {
-    const { data } = await admin()
-      .from('facility_listings')
-      .select(LIST_COLUMNS)
-      .eq('status', 'published').order('city', { nullsFirst: false }).order('name')
-    return (data as FacilityListItem[] | null) ?? []
-  },
+  async (): Promise<FacilityListItem[]> =>
+    fetchAllRows<FacilityListItem>('loadPublishedFacilities', (from, to) =>
+      admin()
+        .from('facility_listings')
+        .select(LIST_COLUMNS)
+        .eq('status', 'published')
+        // `slug` is the unique tiebreak pagination needs — city is nullable and names collide, so
+        // city+name alone is not a total order and pages could overlap or skip.
+        .order('city', { nullsFirst: false }).order('name').order('slug')
+        .range(from, to)
+    ),
   ['directory-facilities'],
   { revalidate: DIRECTORY_CACHE_SECONDS, tags: ['directory'] }
 )
@@ -158,12 +215,16 @@ export const loadPublishedFacilitiesWithoutMetro = unstable_cache(
  */
 export const loadPublishedMetros = unstable_cache(
   async (): Promise<MetroSummary[]> => {
-    const { data } = await admin()
-      .from('facility_listings')
-      .select('metro_area, state')
-      .eq('status', 'published').not('metro_area', 'is', null)
-
-    const rows = (data as { metro_area: string; state: string | null }[] | null) ?? []
+    const rows = await fetchAllRows<{ metro_area: string; state: string | null }>(
+      'loadPublishedMetros',
+      (from, to) =>
+        admin()
+          .from('facility_listings')
+          .select('metro_area, state')
+          .eq('status', 'published').not('metro_area', 'is', null)
+          .order('slug')
+          .range(from, to)
+    )
     const byMetro = new Map<string, { states: Map<string, number>; count: number }>()
     for (const row of rows) {
       let entry = byMetro.get(row.metro_area)
@@ -188,10 +249,15 @@ export const loadPublishedMetros = unstable_cache(
 )
 
 export const loadPublishedSlugs = unstable_cache(
-  async (): Promise<{ slug: string; updated_at: string | null }[]> => {
-    const { data } = await admin().from('facility_listings').select('slug, updated_at').eq('status', 'published')
-    return (data as { slug: string; updated_at: string | null }[] | null) ?? []
-  },
+  async (): Promise<{ slug: string; updated_at: string | null }[]> =>
+    fetchAllRows<{ slug: string; updated_at: string | null }>('loadPublishedSlugs', (from, to) =>
+      admin()
+        .from('facility_listings')
+        .select('slug, updated_at')
+        .eq('status', 'published')
+        .order('slug')
+        .range(from, to)
+    ),
   ['directory-slugs'],
   { revalidate: DIRECTORY_CACHE_SECONDS, tags: ['directory'] }
 )
