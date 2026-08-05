@@ -11,8 +11,12 @@
  * should transfer signal to the new URL and stop requesting the old one.
  *
  * Only published rows appear here. `bethune-beach-park-new-smyrna-beach-fl` was renamed in the same
- * pass but is status='draft' (held by the publish gate on a low-precision coordinate), so it has
- * never been reachable or indexed — a redirect for it would assert a history that does not exist.
+ * pass but is status='draft', so it has never been reachable or indexed — a redirect for it would
+ * assert a history that does not exist. NOTE THE REASON IT IS STILL DRAFT CHANGED (2026-08-05): it
+ * was held by the publish gate on a low-precision coordinate, which ADR-16 no longer treats as a
+ * hold. It is now held by the RELEASE FENCE (`verified_by IS NULL`, ADR-17) — i.e. by nobody having
+ * released Daytona Beach since, not by any property of the row. The conclusion is unchanged, but if
+ * that metro is ever re-published this row goes live and WILL need its redirect added here.
  *
  * ORDERING RULE, learned here: this config must be DEPLOYED BEFORE the database slug UPDATEs run.
  * Between the UPDATE and the deploy, the old URL is live, indexed, and 404s. Deploy first and the
