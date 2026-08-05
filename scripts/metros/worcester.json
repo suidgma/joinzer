@@ -65,16 +65,12 @@
     }
   ],
 
-  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "_expected_publish_comment": "RE-AUTHORED 2026-08-05 from the confirming --stage=project run under the CURRENT gate, approved by the owner. The previous block (count 18) was locked 2026-08-03 against the pre-ADR-16/17 gate — 4 of its 6 hold reasons were 'research_status=probable' and one was 'coordinate precision low', both retired as gate conditions. It was REPLACED, not edited to match output: the block was removed, the projection was run with no expectation present, and this was written from what it printed. rt-12-pickle is a NEW hold that did not exist under the old gate, and it is a FALSE POSITIVE that the owner has deliberately accepted for this release: isGenericName() strips 'pickle' as a noise word and then strips the digits, leaving 'rt' — two characters — so a tier-1-sourced, research_status='verified', high-precision commercial venue with its own website reads as unnamed. Measured across all 1,354 venues in every metro artifact the rule produces exactly TWO such false positives (this and memphis's 'Pickleball 901') while correctly blocking 76 raw OSM drafts named things like '1', '2' and 'Pickleball Court'. Renaming the venue would put a false name in the directory permanently; widening the rule is correct but belongs in its own slice against the ADR-17 shared module, where publish-facilities.mjs re-evaluates it against live rows. Worcester ships 22 and this row is released by that later slice.",
   "expected_publish": {
-    "count": 18,
+    "count": 22,
     "hold": {
-      "windham-community-center-gymnasium-windham-ct": "no coordinate",
-      "dawson-recreation-area-tennis-courts-holden-ma": "research_status=probable",
-      "central-community-branch-ymca-worcester-ma": "research_status=probable",
-      "greendale-family-branch-ymca-worcester-ma": "research_status=probable",
-      "boroughs-family-branch-ymca-westborough-ma": "research_status=probable",
-      "cedar-lake-recreation-area-sturbridge-ma": "coordinate precision low"
+      "rt-12-pickle-west-boylston-ma": "generic name",
+      "windham-community-center-gymnasium-windham-ct": "no coordinate"
     }
   }
 }
