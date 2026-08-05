@@ -1,5 +1,5 @@
 {
-  "_comment": "Lancaster — nine-stage-generation workbook. NOT YET IMPORTED. Read-only projection only. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check. workbook.aliases: this workbook labels the venue's own source URL `name_source_url` rather than `website`/`source_url`; that is a pure synonym rename, scoped here rather than added to the global table.",
+  "_comment": "Lancaster — nine-stage-generation workbook. IMPORTED AND PUBLISHED 2026-07-31 (5 of 9), then 7 of 9 on 2026-08-05 when ADR-16 released the two rows held only on a low-precision coordinate. The 'NOT YET IMPORTED' claim that stood here until 2026-08-05 was stale from the day the batch landed. This metro also carries a SECOND batch — scripts/metros/lancaster-v3.json, 27 rows, same metro_area — and the two are independent: this config's stages must never be run with the intent of touching v3's rows, and vice versa. envelope is NOW SET (derived 2026-07-31 from the MSA county list, not from the observed bbox) — see _envelope_comment for the counties used, the derivation rule and the containment cross-check. workbook.aliases: this workbook labels the venue's own source URL `name_source_url` rather than `website`/`source_url`; that is a pure synonym rename, scoped here rather than added to the global table.",
   "metro": "lancaster",
   "batch": "lancaster-2026-07-31",
   "metro_area": "Lancaster",
@@ -17,6 +17,16 @@
   "expected_count": 9,
   "require_all_geocoded": false,
   "reconciles": [],
+
+  "_expected_publish_comment": "AUTHORED 2026-08-05 FROM THE PROJECTION, NOT FROM A GUESS — the same sequence lancaster-v3 used. This batch ran its whole 2026-07-31 import with no expected_publish block at all, so its split was never machine-checked; `--stage=project` printed 'no expected_publish block ... split not machine-checked' on every run. The block was written only after reading the 7/9 projection this config's own --stage=project produced, and it is asserted at BOTH project (from the artifact) and publish (recomputed from the database). count 7 = the 5 published 2026-07-31 plus hempfield-reccenter and lititz-reccenter, which were held solely on a low-precision coordinate and which ADR-16 releases behind an approximate-location label. Both hold reasons are 'no coordinate' — the one condition ADR-16 deliberately did NOT relax, because a label can qualify a pin, it cannot invent one. THE REASON STRINGS ARE 'no coordinate' AND NOT THE FULLER PUBLISH-STAGE STRING ON PURPOSE: assertExpectedPublish matches with includes(), and the overlook row now computes 'no coordinate' at project (the artifact still records research_status=verified) but 'no coordinate; research_status=held' at publish (the candidate was retired to 'held' on 2026-08-05). 'no coordinate' is the substring true at both stages. If a hold ever clears, move the row out of this block deliberately; never edit the block to match an output.",
+  "expected_publish": {
+    "count": 7,
+    "hold": {
+      "overlook-pickleball-courts-activities-center-lancaster-pa": "no coordinate",
+      "denver-recreation-center-denver-pa": "no coordinate"
+    }
+  },
+
   "workbook": {
     "header_row": 1,
     "aliases": {
