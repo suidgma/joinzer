@@ -1,5 +1,5 @@
 {
-  "_comment": "El Paso, TX MSA — El Paso and Hudspeth counties. Ingested from the ChatGPT Work research workbook 2026-08-03 as part of wave 1 of the v2.0 methodology. NOT YET IMPORTED. `expected_publish` is deliberately ABSENT: for a new metro the projected split IS the finding the owner needs, so it is reported by --stage=project rather than asserted.",
+  "_comment": "El Paso, TX MSA — El Paso and Hudspeth counties. Ingested from the ChatGPT Work research workbook 2026-08-03 as part of wave 1 of the v2.0 methodology. IMPORTED AND PUBLISHED 2026-08-05, 24 of 24 live. `expected_publish` below was authored from the --stage=project split immediately before the import and is asserted at both project and publish.",
   "metro": "el-paso",
   "batch": "el-paso-2026-08-03",
   "metro_area": "El Paso",
@@ -34,21 +34,12 @@
 
   "reconciles": [],
 
-  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-05, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
+
+  "_expected_publish_history": "RE-AUTHORED 2026-08-05 from 13/24 to 24/24 BEFORE the import ran, because the gate changed by owner decision between the 2026-08-03 approval and the release. The prior block held 11 rows: 3 on `coordinate precision low` (the-beast-eastside, galatzan, serve-el-paso), which ADR-16 retired — those now publish behind an approximate-location label; and 8 on `research_status=probable` (pat-o-rourke, san-juan, paul-harvey, madeline, mission-hills, ascarate, nolan-richardson, sunrise), which ADR-17 retired as a gate condition. Every one of the 11 divergences --stage=project reported was accounted for by one of those two ADRs before this block was touched. `hold` is empty: all 24 rows publish. Those 8 `probable` rows are tiered `listed` at import by verificationStatusFor(), so this batch carries no ADR-18 tier debt — 16 source_verified / 8 listed.",
+
   "expected_publish": {
-    "count": 13,
-    "hold": {
-      "the-beast-eastside-regional-recreation-center-el-paso-tx": "coordinate precision low",
-      "galatzan-recreation-center-el-paso-tx": "coordinate precision low",
-      "pat-o-rourke-recreation-center-el-paso-tx": "research_status=probable",
-      "san-juan-recreation-center-el-paso-tx": "research_status=probable",
-      "paul-harvey-park-el-paso-tx": "research_status=probable",
-      "madeline-park-el-paso-tx": "research_status=probable",
-      "mission-hills-park-el-paso-tx": "research_status=probable",
-      "ascarate-park-el-paso-tx": "research_status=probable",
-      "nolan-richardson-recreation-center-el-paso-tx": "research_status=probable",
-      "sunrise-park-el-paso-tx": "research_status=probable",
-      "serve-el-paso-el-paso-tx": "coordinate precision low"
-    }
+    "count": 24,
+    "hold": {}
   }
 }
