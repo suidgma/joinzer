@@ -1396,6 +1396,44 @@ function fieldSourceUrl(value, fieldEvidenceUrl) {
   return fieldEvidenceUrl || null
 }
 
+/**
+ * How the artifact describes where its grid came from.
+ *
+ * THIS EXTRACTOR HAS NEVER READ A GOOGLE SHEET. `loadTabs` takes a tab-grid JSON via `--raw` or a
+ * directory of CSVs via `--csv-dir`; a Sheet sits UPSTREAM of that file, and for the 29
+ * workbook-derived metros it is merely how the grid was obtained (an agent transcribing tabs through
+ * the Sheets MCP). Source-led research produces the same grid with no Sheet anywhere in its history,
+ * and the hardcoded `Google Sheet …` prefix then makes the artifact assert a provenance that never
+ * existed — in the one file that IS the audit record for the run.
+ *
+ * `workbook.source_description` replaces the ORIGIN PHRASE only. The tab list and the extractor
+ * attribution stay, because both remain true however the grid was authored.
+ *
+ * ABSENT, this returns the exact expression that stood inline before it existed, so every
+ * workbook-derived artifact is byte-identical BY CONSTRUCTION rather than by a check re-run each
+ * time — the same argument class as an additive MAPPINGS key.
+ *
+ * Scope note: this string does NOT reach the database. `import-metro-merged.mjs` copies `updated`,
+ * `workbook_coordinate_warning`, `enum_mappings_applied`, `verified_facts_applied` and
+ * `owner_decisions` out of the artifact and nothing else. What is at stake is the artifact's own
+ * honesty, which is what a later reader trusts when reconstructing why a row says what it says.
+ */
+export function describeSource(config, gen) {
+  const tabs = [gen.primary_tab, gen.venues_tab, gen.evidence_tab].filter(Boolean).join(' + ')
+  const suffix = `${tabs} tabs, extracted by scripts/lib/workbook-extract.mjs`
+  const described = config.workbook?.source_description
+  if (described === undefined || described === null) {
+    return `Google Sheet ${config.spreadsheet_id || '(supplied export)'} — ${suffix}`
+  }
+  // Validated rather than coerced: a blank or non-string value here would silently produce an
+  // artifact whose provenance sentence begins with nothing, which is worse than the wrong claim it
+  // replaces. Same posture as applyAddressSourceDefault.
+  if (typeof described !== 'string' || !described.trim()) {
+    throw new Error(`workbook.source_description must be a non-empty string describing where the grid came from, got ${JSON.stringify(described)}`)
+  }
+  return `${described.trim()} — ${suffix}`
+}
+
 export async function extractWorkbook({ tabs, config, geocode = true, cachePath, log = console.log }) {
   const wb = config.workbook || {}
   // Tab ROLES are resolved before anything is parsed: a metro may file its venue table under a tab
@@ -2185,7 +2223,7 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
     msa: config.msa || null,
     updated: new Date().toISOString().slice(0, 10),
     method: 'directory_research',
-    source: `Google Sheet ${config.spreadsheet_id || '(supplied export)'} — ${[gen.primary_tab, gen.venues_tab, gen.evidence_tab].filter(Boolean).join(' + ')} tabs, extracted by scripts/lib/workbook-extract.mjs`,
+    source: describeSource(config, gen),
     // What the generation adapter did beyond the baseline. OMITTED ENTIRELY when it did nothing
     // (generation A), which is what lets the 20 already-projected metros stay byte-identical and so
     // makes "the adapter changed no existing metro" a machine check rather than a promise.
