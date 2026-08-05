@@ -21,7 +21,7 @@
  *   node scripts/bootstrap-worktree.mjs
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, copyFileSync, readFileSync } from 'node:fs'
+import { existsSync, copyFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const ENV_FILES = ['.env.local', '.env.test']
@@ -80,19 +80,31 @@ step('metro-research', () => {
   return `junction -> ${target}`
 })
 
-// --- node_modules: JUNCTION when the dependency set is identical, install otherwise. Sharing a
-// module tree across branches with different package.json would be a real footgun, so the check is
-// on package.json + package-lock.json content rather than on trust.
+// --- node_modules: a REAL install, never a link.
+//
+// This used to junction to the main checkout when package.json + package-lock.json were
+// byte-identical. That broke `next build` — one of the three gates that define "done" — for every
+// worktree it touched: Turbopack resolves the module root itself and rejects a link that leaves the
+// project directory, failing with
+//     Symlink [project]/node_modules is invalid, it points out of the filesystem root
+//       -> TurbopackInternalError
+// so the default configuration made the known-broken path the default, and every session that
+// needed the build gate unpicked it by hand.
+//
+// The junction existed to save disk, and that premise does not survive measurement: node_modules is
+// 0.49 GB against 337 GB free, so six parallel worktrees cost under 1% of the disk. It bought about
+// a minute of install time and cost a working build. It was also the ONLY reason `rmdir
+// node_modules` appeared in teardown at all — so deleting the option deletes half the teardown
+// hazard outright, rather than documenting it better.
+//
+// `npm ci`, not `npm install`: it installs exactly the lockfile and never rewrites it, so a
+// bootstrap can't leave a spurious package-lock.json diff in the worktree you're about to work in.
 step('node_modules', () => {
   if (existsSync(join(here, 'node_modules'))) return 'already present, left alone'
-  const same = ['package.json', 'package-lock.json'].every((f) => {
-    const a = join(here, f)
-    const b = join(mainCheckout, f)
-    return existsSync(a) && existsSync(b) && readFileSync(a, 'utf8') === readFileSync(b, 'utf8')
-  })
-  if (!same) return 'package.json/lock DIFFER from the main checkout — run `npm install` here instead of sharing'
-  link(join(mainCheckout, 'node_modules'), join(here, 'node_modules'))
-  return 'junction -> main checkout (dependency set is byte-identical)'
+  if (!existsSync(join(here, 'package-lock.json'))) return 'no package-lock.json here — cannot `npm ci`'
+  console.log('  node_modules: absent — running `npm ci` (a minute or so; output follows)')
+  execFileSync('cmd', ['/c', 'npm', 'ci'], { cwd: here, stdio: 'inherit' })
+  return 'installed via `npm ci` — a real tree, so the BUILD gate works here'
 })
 
 console.log(
