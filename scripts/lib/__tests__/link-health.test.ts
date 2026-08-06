@@ -22,7 +22,9 @@ import {
   DEAD_STATUS,
   INCONCLUSIVE_STATUS,
   classify,
+  closureInAssets,
   closureLanguage,
+  extractAssetText,
   extractPageFields,
   isInconclusiveStatus,
   isUnrelatedRedirect,
@@ -40,7 +42,9 @@ const parked = parkedHosting as (t: string) => string | null
 const regDomain = registrableDomain as (h: string) => string | null
 const unrelated = isUnrelatedRedirect as (a: string, b: string) => boolean
 const ownHost = isVenueOwnHost as (o: { hostname: string; hostRowCount: number }) => boolean
-const fields = extractPageFields as (h: string) => { title: string; metaDescription: string; headings: string; body: string }
+const fields = extractPageFields as (h: string) => { title: string; metaDescription: string; headings: string; body: string; assets: string }
+const assetText = extractAssetText as (h: string) => string
+const assets = closureInAssets as (t: string) => { phrase: string; excerpt: string } | null
 const inconclusive = isInconclusiveStatus as (s: number) => boolean
 const B = BUCKET as { GONE: string; BROKEN: string; BLOCKED: string; HEALTHY: string }
 
@@ -390,6 +394,144 @@ describe('extractPageFields', () => {
     expect(fields('').title).toBe('')
     expect(fields(undefined as unknown as string).body).toBe('')
     expect(fields('<html><body>no head').title).toBe('')
+  })
+})
+
+// =================================================================================================
+// ASSET-BORNE CLOSURE — the path that made v1 miss its own control
+// =================================================================================================
+describe('closure announced in an image, not in text', () => {
+  /**
+   * The real Big House shape, reduced. The page TEXT is untouched stale template copy — the nav,
+   * the pricing and "BOOK NOW" all still read as an open business. Only the hero filename changed.
+   * v1 read body text only and classified this healthy; it is the reason this path exists.
+   */
+  const bigHouse = `<!doctype html><html><head><title>Big House Pickleball</title>
+    <meta name="description" content="Big House Pickleball"></head><body>
+    <h1>Don't paddle up and wait at public courts! Play now! Play here!</h1>
+    <img src="//img1.wsimg.com/isteam/ip/e24b74e8-f90f-43ca-a77a-75970ae81946/BHPB%20CLOSED.png/:/cr=t:3.95%25,l:0%25,w:100%25,h:92" alt="Big House Pickleball">
+    <p>Become a Member. Court Reservations. BOOK NOW! $20 per hour.</p>
+    </body></html>`
+
+  it('CONTROL: Big House now lands in gone', () => {
+    const v = run({
+      requestUrl: 'https://thebighousepickleball.com/',
+      finalUrl: 'https://thebighousepickleball.com/',
+      status: 200,
+      html: bigHouse,
+      hostRowCount: 1,
+    })
+    expect(v.bucket).toBe(B.GONE)
+    expect(v.signal).toBe('closure-language-asset')
+    // A bare filename token, not a prose phrase — bucket 1 for triage, medium confidence because
+    // the same rule produced 2 false positives before the subject negators landed.
+    expect(v.confidence).toBe('medium')
+  })
+
+  it('a PROSE phrase in a filename still rates high confidence', () => {
+    const v = run({
+      requestUrl: 'https://club.com/', finalUrl: 'https://club.com/', status: 200,
+      html: '<html><head><title>Club</title></head><body><img src="/img/we-are-permanently-closed.png"></body></html>',
+      hostRowCount: 1,
+    })
+    expect(v.bucket).toBe(B.GONE)
+    expect(v.confidence).toBe('high')
+  })
+
+  it('CONTROL, negative half: the page TEXT alone still reads as open', () => {
+    // Proves the finding rather than just the fix — the body genuinely carries no closure signal,
+    // so text-only classification of this page is healthy and no amount of prose tuning finds it.
+    const f = fields(bigHouse)
+    expect(closure(f.body)).toBeNull()
+    expect(closure(`${f.title} ${f.metaDescription} ${f.headings}`)).toBeNull()
+    expect(f.body).toMatch(/Become a Member/)
+  })
+
+  it('percent-decodes and flattens a filename into words', () => {
+    const text = assetText('<img src="/media/BHPB%20CLOSED.png">')
+    expect(text).toMatch(/BHPB CLOSED png/)
+  })
+
+  it('scans the whole URL, not the basename — the marker sits mid-path behind CDN transforms', () => {
+    const midPath = '<img src="//cdn.example/ip/abc/BHPB%20CLOSED.png/:/cr=t:3.95%25,w:100%25">'
+    expect(assets(assetText(midPath))).not.toBeNull()
+  })
+
+  it.each([
+    ['src', '<img src="/img/we-are-closed.png">'],
+    ['srcset', '<img srcset="/img/permanently-closed.jpg 2x">'],
+    ['alt', '<img src="/img/hero.png" alt="This location is permanently closed">'],
+    ['data-src lazy load', '<img data-src="/uploads/2026/CLOSED.png">'],
+    ['og:image', '<meta property="og:image" content="https://x.test/store-closed.png">'],
+  ])('detects a closure marker in %s', (_label, html) => {
+    expect(assets(assetText(html))).not.toBeNull()
+  })
+})
+
+describe('asset closure — FALSE positives that must NOT fire', () => {
+  // Same standard as the body matcher: a matcher proven only on what it should catch tells you
+  // nothing about what it must not. These are ordinary files on a live municipal parks site.
+  it.each([
+    ['closed Mondays banner', '<img src="/banners/banner-closed-mondays.png">'],
+    ['reversed day order', '<img src="/banners/mondays-closed.png">'],
+    ['winter closure notice', '<img src="/notices/winter-closure-notice.png">'],
+    ['seasonal', '<img src="/img/winter-closed.png">'],
+    ['maintenance', '<img src="/img/closed-for-maintenance.jpg">'],
+    ['resurfacing', '<img src="/img/courts-closed-resurfacing.png">'],
+    ['temporary', '<img src="/img/temporarily-closed.png">'],
+    ['hours graphic', '<img src="/img/hours-closed-9pm.png">'],
+    ['weather', '<img src="/img/closed-due-to-weather.png">'],
+    ['ENCLOSED courts — substring trap', '<img src="/img/enclosed-court-photo.jpg">'],
+    ['alt hours text', '<img src="/a.png" alt="Closed Mondays and holidays">'],
+    ['reopening', '<img src="/img/closed-until-we-reopen.png">'],
+  ])('does not fire on: %s', (_label, html) => {
+    expect(assets(assetText(html))).toBeNull()
+  })
+
+  /**
+   * MEASURED false positives from the first full sweep with asset scanning on (2026-08-06).
+   * Both are the closure of something that is NOT the venue, on a town site that the `.gov` test
+   * does not catch — ormondbeach.org and akron-pa.com are a city and a borough on .org/.com.
+   * Pinned here as regressions because they were found by running, not by imagining.
+   */
+  it.each([
+    ['City Hall Closed Notice — ormondbeach.org', '<img src="/Home/ShowImage/Center/ImageRepository/Document?documentID=28708" alt="City Hall Closed Notice">'],
+    ['Road Closed — akron-pa.com', '<img src="https://www.akron-pa.com/wp-content/uploads/2026/03/Road-Closed-1-150x150.png">'],
+  ])('does not fire on the measured false positive: %s', (_label, html) => {
+    expect(assets(assetText(html))).toBeNull()
+  })
+
+  it('"pool closed" is a facility notice, not a business closure — negated outright', () => {
+    // The prose negator for court/pool/field/rink already covers this, and it should: a municipal
+    // page announcing a closed pool is reporting facility status, not going out of business.
+    expect(assets(assetText('<img src="/img/pool-closed.png">'))).toBeNull()
+  })
+
+  it('demotes a surviving asset hit on a municipal host to broken, never gone', () => {
+    const v = run({
+      requestUrl: 'https://www.phoenix.gov/parks/somecourt',
+      finalUrl: 'https://www.phoenix.gov/parks/somecourt',
+      status: 200,
+      html: '<html><body><img src="/img/CLOSED.png"></body></html>',
+      hostRowCount: 28,
+    })
+    expect(v.bucket).toBe(B.BROKEN)
+    expect(v.signal).toBe('closure-language-asset-shared-host')
+  })
+
+  it('a normal venue page with ordinary images stays healthy', () => {
+    const v = run({
+      requestUrl: 'https://club.com/',
+      finalUrl: 'https://club.com/',
+      status: 200,
+      html: '<html><head><title>Club</title></head><body><img src="/img/hero-2.png" alt="Our courts"><img src="/img/logo.svg" alt="Club"></body></html>',
+      hostRowCount: 1,
+    })
+    expect(v.bucket).toBe(B.HEALTHY)
+  })
+
+  it('survives malformed percent-encoding without throwing', () => {
+    expect(() => assetText('<img src="/img/100%-closed%zz.png">')).not.toThrow()
   })
 })
 
