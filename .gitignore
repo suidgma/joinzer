@@ -124,3 +124,9 @@ scripts/.osm-ingest-progress.json
 # LOCATION (metro-research/ is a junction to a repo outside every working tree, which git clean
 # provably does not follow), not this line.
 /.geocode-cache/
+
+# Link-health sweep artifacts (scripts/link-health-sweep.mjs). Run output, not source: each sweep
+# writes a timestamped JSON of every URL probed plus its verdict. Same posture as the metro research
+# artifacts above — the SCRIPT is tracked, the run output is not. See the caveat on /.geocode-cache/
+# about what an ignore entry does and does not protect against.
+/link-health/

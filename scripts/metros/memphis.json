@@ -1,0 +1,76 @@
+{
+  "_comment": "Batch 3 — Memphis. Ingested 2026-08-04 from the ChatGPT Work nine-stage workbook (generation A: Import Ready / Venues / Evidence). NOT YET IMPORTED.",
+  "metro": "memphis",
+  "batch": "memphis-2026-08-04",
+  "metro_area": "Memphis",
+  "states": [
+    "TN",
+    "MS",
+    "AR"
+  ],
+  "input": "metro-research/memphis/memphis-candidates.json",
+  "discovered_by": "memphis-research",
+  "spreadsheet_id": "1ACJD9swEr5xq0Xxbr1_dUphjq8f7XbJp3fcllnj2FhI",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim-batch3.json",
+  "_envelope_comment": "Derived from the Memphis, TN-MS-AR MSA COUNTY LIST (Shelby, Fayette, Tipton (TN); DeSoto, Marshall, Tate, Tunica (MS); Crittenden (AR)), not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the MSA counties [Shelby County, Tennessee (relation/1829139), Fayette County, Tennessee (relation/1829178), Tipton County, Tennessee (relation/1828578), DeSoto County, Mississippi (relation/1829177), Marshall County, Mississippi (relation/1829179), Tate County, Mississippi (relation/1833658), Tunica County, Mississippi (relation/1829181), Crittenden County, Arkansas (relation/1818407)], rounded OUTWARD to 0.01 deg.",
+  "msa": "Memphis, TN-MS-AR (Shelby, Fayette, Tipton (TN); DeSoto, Marshall, Tate, Tunica (MS); Crittenden (AR) counties)",
+  "envelope": {
+    "latMin": 34.42,
+    "latMax": 35.66,
+    "lngMin": -90.59,
+    "lngMax": -89.18
+  },
+  "expected_count": 21,
+  "require_all_geocoded": false,
+  "_workbook_comment": "This workbook has NO address_source column at all, so every one of its 21 rows fails the preflight address_source assertion. address_source_default supplies the fallback for this metro only. \"manual_research\" is the weaker TRUE claim — the address came from directory research; \"official_page\" would assert it was taken off the controlling entity's own page, which this workbook nowhere states. A per-row value, where one exists, still wins.",
+  "_reconcile_comment": "One venue matches a dormant source=osm status=draft row already in facility_listings. It is an UPDATE keyed on osm_id, never an INSERT — and it is not optional: the research row generates the slug \"bluff-city-pickleball-bartlett-tn\", which is exactly the slug the live row already holds, and slug carries a global unique constraint. Without this entry the listings INSERT raises and the whole metro fails mid-run.",
+  "reconciles": [
+    {
+      "candidate_key": "memphis-bluff-city",
+      "osm_id": "way/739852316",
+      "listing_id": "9b89b570-a4e6-45a1-9da3-b93d94c07012",
+      "adjudicated_by": "donna",
+      "adjudicated_on": "2026-08-04",
+      "matched_distance_m": 1.06,
+      "evidence_url": "https://book.bluffcitypickleball.com/",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row. Independent agreement on all three identifying fields: identical name (\"Bluff City Pickleball\"), identical street address (\"2809 Bartlett Boulevard\"), same city/state (Bartlett, TN) — and the slug the pipeline generates from the research row is byte-identical to the live row's slug. The OSM row is access_type=\"unknown\"; the reconcile patches it to the research value \"membership\", sourced to the venue's own booking site. The OSM row also carries metro_area=NULL, so this reconcile is what brings it into the Memphis metro at all — until now it was invisible to the directory. CONFIRMED INDEPENDENTLY BY THE GEOCODE: the research row's own Nominatim lookup resolved to way/739852316 — the very OSM object the live row carries — 1.06 m from the stored coordinate. Identity here rests on an independent lookup agreeing, not on name matching alone. The OSM coordinate is recorded below as the pre-merge snapshot.",
+      "osm_original": {
+        "osm_id": "way/739852316",
+        "name": "Bluff City Pickleball",
+        "slug": "bluff-city-pickleball-bartlett-tn",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "surface": null,
+        "court_count": null,
+        "website": null,
+        "lat": 35.2023126,
+        "lng": -89.8663902,
+        "city": "Bartlett",
+        "state": "TN",
+        "address": "2809 Bartlett Boulevard",
+        "zip": null,
+        "metro_area": null,
+        "captured_on": "2026-08-04"
+      }
+    }
+  ],
+  "_expected_publish_comment": "Generated from this metro's own --stage=project output on 2026-08-04, then asserted by both project and publish. Any row that classifies differently from this block FAILS the run rather than reporting a plausible-looking number. Regenerate it deliberately if the split is meant to change; never edit it to make a run pass.",
+  "expected_publish": {
+    "count": 18,
+    "hold": {
+      "pickleball-901-collierville-tn": "generic name",
+      "marion-recreational-complex-pickleball-courts-marion-ar": "no coordinate",
+      "tipton-county-farmers-market-pickleball-courts-atoka-tn": "no coordinate; research_status=held"
+    }
+  },
+  "workbook": {
+    "header_row": 1,
+    "address_source_default": "manual_research"
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: re-authored 16 -> 18 publish. The prior block was locked before ADR-16 (coordinate precision 'low' no longer holds a row; it publishes behind an approximate-location label) and ADR-17 (access_type 'unknown' and candidate research_status 'probable' are no longer gate conditions; only duplicate/not_venue/not_pickleball/held block). Every divergence is accounted for by those two ADRs plus the wave-3 audit holds recorded in facility_candidates.reviewer_notes. Not nudged to fit output."
+  ]
+}

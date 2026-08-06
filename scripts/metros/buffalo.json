@@ -1,0 +1,41 @@
+{
+  "_comment": "Batch 3 — Buffalo-Cheektowaga. Ingested 2026-08-04 from the ChatGPT Work nine-stage workbook (generation A: Import Ready / Venues / Evidence). NOT YET IMPORTED.",
+  "metro": "buffalo",
+  "batch": "buffalo-2026-08-04",
+  "metro_area": "Buffalo",
+  "states": [
+    "NY"
+  ],
+  "input": "metro-research/buffalo/buffalo-candidates.json",
+  "discovered_by": "buffalo-research",
+  "spreadsheet_id": "1wGysQ9TVfEpTWiBgB-q9zELuBS2OFti3s-vLDqcIWpQ",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim-batch3.json",
+  "_envelope_comment": "Derived from the Buffalo-Cheektowaga, NY MSA COUNTY LIST (Erie, Niagara), not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the MSA counties [Erie County, New York (relation/36074), Niagara County, New York (relation/36267)], rounded OUTWARD to 0.01 deg.",
+  "msa": "Buffalo-Cheektowaga, NY (Erie, Niagara counties)",
+  "envelope": {
+    "latMin": 42.43,
+    "latMax": 43.64,
+    "lngMin": -79.3,
+    "lngMax": -78.46
+  },
+  "expected_count": 28,
+  "require_all_geocoded": false,
+  "_expected_publish_comment": "Generated from this metro's own --stage=project output on 2026-08-04, then asserted by both project and publish. Any row that classifies differently from this block FAILS the run rather than reporting a plausible-looking number. Regenerate it deliberately if the split is meant to change; never edit it to make a run pass.",
+  "expected_publish": {
+    "count": 22,
+    "hold": {
+      "pickfit-buffalo-tonawanda-ny": "no coordinate",
+      "independent-health-family-ymca-amherst-ny": "no coordinate",
+      "william-emslie-family-ymca-buffalo-ny": "no coordinate",
+      "jcc-buffalo-benderson-family-building-getzville-ny": "no coordinate",
+      "village-glen-tennis-and-pickleball-club-williamsville-ny": "no coordinate",
+      "kiwanis-park-lewiston-ny": "no coordinate"
+    }
+  },
+  "workbook": {
+    "header_row": 1
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: re-authored 15 -> 22 publish. The prior block was locked before ADR-16 (coordinate precision 'low' no longer holds a row; it publishes behind an approximate-location label) and ADR-17 (access_type 'unknown' and candidate research_status 'probable' are no longer gate conditions; only duplicate/not_venue/not_pickleball/held block). Every divergence is accounted for by those two ADRs plus the wave-3 audit holds recorded in facility_candidates.reviewer_notes. Not nudged to fit output."
+  ]
+}

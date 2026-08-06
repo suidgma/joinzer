@@ -1,0 +1,40 @@
+{
+  "_comment": "Batch 3 — Fresno. Ingested 2026-08-04 from the ChatGPT Work nine-stage workbook (generation A: Import Ready / Venues / Evidence). NOT YET IMPORTED.",
+  "metro": "fresno",
+  "batch": "fresno-2026-08-04",
+  "metro_area": "Fresno",
+  "states": [
+    "CA"
+  ],
+  "input": "metro-research/fresno/fresno-candidates.json",
+  "discovered_by": "fresno-research",
+  "spreadsheet_id": "1vVBmERel5yS4kqujTBKB2ihZkYnhdn1xB8Nzm7IYY8o",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim-batch3.json",
+  "_envelope_comment": "Derived from the Fresno, CA MSA COUNTY LIST (Fresno), not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the MSA counties [Fresno County, California (relation/396492)], rounded OUTWARD to 0.01 deg.",
+  "msa": "Fresno, CA (Fresno counties)",
+  "envelope": {
+    "latMin": 35.9,
+    "latMax": 37.59,
+    "lngMin": -120.92,
+    "lngMax": -118.36
+  },
+  "expected_count": 22,
+  "require_all_geocoded": false,
+  "_expected_publish_comment": "Generated from this metro's own --stage=project output on 2026-08-04, then asserted by both project and publish. Any row that classifies differently from this block FAILS the run rather than reporting a plausible-looking number. Regenerate it deliberately if the split is meant to change; never edit it to make a run pass.",
+  "expected_publish": {
+    "count": 17,
+    "hold": {
+      "sunnyside-health-and-tennis-club-fresno-ca": "research_status=held",
+      "bulldog-pickleball-fresno-ca": "research_status=held",
+      "woodward-park-pickleball-courts-fresno-ca": "research_status=held",
+      "pickleball364-fresno-ca": "no coordinate; research_status=held",
+      "flores-hacienda-clovis-ca": "no coordinate"
+    }
+  },
+  "workbook": {
+    "header_row": 1
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: re-authored 11 -> 17 publish. The prior block was locked before ADR-16 (coordinate precision 'low' no longer holds a row; it publishes behind an approximate-location label) and ADR-17 (access_type 'unknown' and candidate research_status 'probable' are no longer gate conditions; only duplicate/not_venue/not_pickleball/held block). Every divergence is accounted for by those two ADRs plus the wave-3 audit holds recorded in facility_candidates.reviewer_notes. Not nudged to fit output."
+  ]
+}
