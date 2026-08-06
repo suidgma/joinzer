@@ -1,0 +1,35 @@
+{
+  "_comment": "Tampa ADDENDUM — Stage 2c unaggregated-venue pass #2, 2026-08-06. Separate batch so the 2026-08-05 main import (tampa-2026-08-05, 130 published / 17 held) stays immutable and this carries its own one-statement rollback handle. A separate batch is also MECHANICALLY required: --stage=listings INSERTs every artifact row unconditionally, so re-running it against the main config would duplicate all 147. Same metro_area as the main batch, so these join the existing /courts/in/tampa-st-petersburg-clearwater page rather than creating a second one.",
+  "metro": "tampa-addendum",
+  "batch": "tampa-addendum-2026-08-06",
+  "metro_area": "Tampa-St. Petersburg-Clearwater",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/tampa-addendum/tampa-addendum-candidates.json",
+  "discovered_by": "tampa-addendum-research",
+  "geocode_cache": "metro-research/.geocode-cache/tampa-addendum.json",
+  "_envelope_comment": "Identical to scripts/metros/tampa.json — derived from the MSA county list (Hillsborough, Pinellas, Pasco, Hernando), not from the observed bbox of eleven rows. An addendum must not narrow its parent's envelope: doing so would let a row that is legitimately in-metro fail an assertion purely because this batch happens to be small.",
+  "msa": "Tampa–St. Petersburg–Clearwater, FL (Hillsborough, Pinellas, Pasco, Hernando counties)",
+  "envelope": {
+    "latMin": 27.57,
+    "latMax": 28.76,
+    "lngMin": -82.91,
+    "lngMax": -82.04
+  },
+  "expected_count": 10,
+  "_deferred_comment": "ELEVEN venues were researched; TEN are in this batch. bryan-glazer-family-jcc (522 N Howard Ave, Tampa 33606 — 2 indoor membership courts on the JCC multi-sports floor) is DEFERRED to a follow-up batch by owner decision on 2026-08-06. It is neither excluded nor a duplicate: it sits 148 m from live PUBLISHED 'Vila Brothers Park' (700 N Armenia Ave, 33609 — 2 outdoor public city courts) and trips the live-proximity guard. The two are plainly distinct — different streets, zips, operators and court types, and West Tampa blocks really are ~150 m apart — but the pipeline has NO config expression for 'distinct venues where the neighbour is a PUBLISHED non-OSM row': both escape hatches (reconciles, also_at_site) key on the NEIGHBOUR'S osm_id, and Vila Brothers carries osm_id NULL because it came from our own research rather than OSM; also_at_site additionally requires the neighbour be status='draft'. Deferred pending that tooling slice. reconcile_radius_m is deliberately UNCHANGED at its default — lowering it to admit this one row would weaken the guard for every other neighbour in Tampa, which is the failure the guard exists to prevent. THE COUNT CHANGE BELOW IS A SCOPE CHANGE, NOT A RELAXED ASSERTION: one row left the batch, and the remaining ten still assert their split exactly.",
+  "_geocode_comment": "One row carries no street address by deliberate decision, not by omission: avila-community-courts. The Avila POA lists pickleball among its gated community's amenities, but the only address published under the name 'Avila' belongs to the golf club inside the same gate — a different facility. Writing that address would plant the pin on the wrong site (Overlook Park failure mode), so the field is blank and the row holds. Every other address here was READ from a source fetched during the research session; none was recalled.",
+  "require_all_geocoded": false,
+  "reconciles": [],
+  "_expected_publish_comment": "AUTHORED AFTER the --stage=project projection was read, and using the importer's OWN machine reason strings only — the assertion is a substring containment test against b.reasons.join('; '), so prose here produces spurious failures on a correct split. Rationale lives in _hold_rationale, which nothing asserts against.",
+  "expected_publish": {
+    "count": 9,
+    "hold": {
+      "avila-community-courts-tampa-fl": "no coordinate"
+    }
+  },
+  "_hold_rationale": {
+    "avila-community-courts-tampa-fl": "Real venue, no usable address. The courts are an Avila Property Owners Association community amenity behind a 24-hour guard gate, distinct from Avila Golf & Country Club whose address (943 Guisando De Avila) is the only one published under that name. Held rather than pinned to the wrong facility. Releases as soon as an address for the community courts is read."
+  }
+}
