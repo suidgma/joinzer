@@ -16,6 +16,19 @@
 
   "expected_count": 21,
   "require_all_geocoded": false,
+
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-05, read against the projection and approved at 15 rather than the 16 the projection offered. Deliberately withheld until the projection existed: both --stage=project and --stage=publish assert against this block and fail the run on any divergence, and reportExpected says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' The dividend is the ADR-16/17 re-gate of a batch imported 2026-07-31 under the old rules — 8 rows were already live, 7 more are released here. FOUR of the seven come from ADR-17 dropping access_type='unknown' as a gate condition (the YMCAs) and three from it dropping the candidate research_status='verified' requirement. Two deliberate departures from the raw projection, both owner rulings: bishop-park is HELD rather than published because its pickleball claim rests on a 2022 Dauphin County commissioners' PDF while Swatara Township's current park inventory lists the park with basketball courts and paved parking and no pickleball — source contradicts claim, so research_status='held' rather than exclude, because it is a real venue with an unproven sport and later evidence should be able to release it. conewago-township-pickleball-complex is DUPLICATE: the same venue is already published as conewago-courts-elizabethtown-pa under metro_area='Lancaster' from lancaster-v3-2026-08-05, carrying the address and working coordinate this row lacks; Conewago Township is in Dauphin county so Harrisburg is arguably its MSA-correct home, but a live correct row is never re-slugged for that. The remaining four holds are the coordinate-blocked rows; three of them (winding-hill-park-south, vernon-wass-park, koons-park) have addresses recovered by the harrisburg-v3 research and are queued as their own gated keyed-UPDATE slice, NOT folded into this run.",
+  "expected_publish": {
+    "count": 15,
+    "hold": {
+      "bishop-park-harrisburg-pa": "research_status=held",
+      "conewago-township-pickleball-complex-elizabethtown-pa": "research_status=duplicate",
+      "winding-hill-park-south-mechanicsburg-pa": "no coordinate",
+      "koons-park-harrisburg-pa": "no coordinate",
+      "vernon-wass-park-mechanicsburg-pa": "no coordinate",
+      "lynn-sheaffer-dum-memorial-park-landisburg-pa": "no coordinate"
+    }
+  },
   "_reconcile_comment": "One venue matches a dormant source='osm' status='draft' row, adjudicated SAME venue by court-verifier on 2026-07-31. UPDATE keyed on osm_id, never an INSERT. This is also one of the three exact slug collisions in this pass: the OSM row already holds 'smash-point-pickleball-mechanicsburg-pa', the exact slug the research row would have inserted. Encoding the reconcile removes the row from the insert set, so the collision resolves as a reconcile target instead of an abort.",
   "reconciles": [
     {
