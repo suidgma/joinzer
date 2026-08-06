@@ -4,21 +4,44 @@
   "metro": "killeen",
   "batch": "killeen-2026-07-31",
   "metro_area": "Killeen-Temple",
-  "states": ["TX"],
+  "states": [
+    "TX"
+  ],
   "input": "metro-research/killeen/killeen-candidates.json",
   "discovered_by": "killeen-research",
   "spreadsheet_id": "1hpA1K0d1Wf3uiA4AUTRFmFWLQD9BqEVGwYHyWQoqIhI",
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Killeen-Temple, TX MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Bell, Coryell, Lampasas), Coryell (Texas), Lampasas (Texas)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 15 geocoded venue(s) of 25 in this batch (observed lat 30.9537..31.4328, lng -97.7486..-97.3190).",
   "msa": "Killeen-Temple, TX (Bell, Coryell, Lampasas counties)",
-  "envelope": { "latMin": 30.75, "latMax": 31.72, "lngMin": -98.57, "lngMax": -97.07 },
-
+  "envelope": {
+    "latMin": 30.75,
+    "latMax": 31.72,
+    "lngMin": -98.57,
+    "lngMax": -97.07
+  },
   "expected_count": 25,
   "require_all_geocoded": false,
   "reconciles": [],
-
   "workbook": {
     "generation": "B",
     "header_row": 1
-  }
+  },
+  "expected_publish": {
+    "count": 15,
+    "hold": {
+      "summit-recreation-center-pickleball-courts-temple-tx": "no coordinate",
+      "wilson-park-recreation-center-temple-tx": "no coordinate",
+      "chisholm-trail-park-pickleball-courts-belton-tx": "no coordinate",
+      "summers-mill-retreat-and-conference-center-belton-tx": "no coordinate",
+      "gather-campground-bell-county-belton-tx": "no coordinate",
+      "heights-athletic-club-harker-heights-tx": "no coordinate",
+      "airfield-physical-fitness-center-pickleball-court-fort-cavazos-tx": "no coordinate",
+      "lone-star-conference-center-tennis-and-pickleball-courts-fort-cavazos-tx": "no coordinate",
+      "groundplay-outdoor-fitness-family-park-multi-use-court-fort-cavazos-tx": "no coordinate",
+      "comanche-ii-pickleball-court-fort-cavazos-tx": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (15/25 publish, 10 held) under the ADR-16/17 gate. Batch already imported 9 published rows; this release adds 6, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }
