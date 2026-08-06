@@ -52,6 +52,16 @@
   ],
   "same_site_pairs": [
     {
+      "a": "syr-manlius-centre",
+      "b": "syr-manlius-rec",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.eaglenewsonline.com/eagle_bulletin/news/manlius-cuts-ribbon-for-new-pickleball-courts/article_0d6f9934-f593-4531-b7cd-444862493293.html",
+      "adjudicated_on": "2026-08-06",
+      "adjudicated_by": "v3-source-led-pass",
+      "note": "Both carry the address 1 Arkie Albanese Ave and geocode to 0 m, so this pair MUST be adjudicated or one row publishes as a duplicate pin. Two venues on one site — the same shape as syr-meachem/syr-cecile below. The Village of Manlius built SIX outdoor public courts on the old soccer field between Willowbrook Drive and the Manlius Village Centre, ribbon-cut July 2026 at just under $400,000 (Eagle News / CNY Central); the Manlius Recreation Center is the building itself and offers ONE indoor court, members only (cnypickleball.com). Different court sets, different settings, different access classes. If the name-separation pass cannot resolve the 2026 outdoor build — it may not be in OSM yet — HOLD syr-manlius-rec rather than publish two pins at one point: the 6-court public venue is the one that matters to a user.",
+      "_batch_note": "Both members are v3-pass rows and therefore import under batch syracuse-v3-2026-08-06, not syracuse-2026-07-31. This entry is duplicated into scripts/metros/syracuse-v3.json, which is the config that actually imports them; it is kept here only so the shared extract runs the name-separation pass."
+    },
+    {
       "a": "syr-meachem",
       "b": "syr-cecile",
       "verdict": "two_venues",
