@@ -1,0 +1,48 @@
+{
+  "_comment": "Greensboro-High Point, NC MSA (CBSA 24660) - Guilford, Randolph and Rockingham counties. AUTHORED FROM SCRATCH 2026-08-06: no metro config existed. The metro was first built on 2026-07-30 by a BESPOKE script whose research artifacts no longer exist, which left 14 rows published and 1 draft under source='greensboro-high-point-2026-07-30' and made the metro unreachable by the generic pipeline. This config does NOT re-import those 15 rows - they are unioned against (Stage 2b) and this batch carries only venues absent from them. Built under the v3 source-led coverage-first methodology including the Stage 2c unaggregated-venue pass. NOT YET IMPORTED as of 2026-08-06.",
+  "metro": "greensboro",
+  "batch": "greensboro-2026-08-06",
+  "metro_area": "Greensboro-High Point",
+  "states": [
+    "NC"
+  ],
+  "input": "metro-research/greensboro/greensboro-candidates.json",
+  "discovered_by": "greensboro-research",
+  "geocode_cache": "metro-research/.geocode-cache/greensboro.json",
+
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, never from an observed bounding box (Toledo/Winston-Salem precedent). An observed bbox is only a LOWER bound - it says where the venues we happened to find are, not where the metro is, so an envelope cut to it rejects a legitimate future venue at the metro edge. Envelope = the union of the OSM boundary-relation bounding boxes for the three MSA counties, rounded OUTWARD to 0.01 deg: Guilford (relation/2528705, lat 35.8996..36.2572, lng -80.0469..-79.5321), Randolph (relation/2528736, lat 35.5058..35.9207, lng -80.0668..-79.5418), Rockingham (relation/2528739, lat 36.2461..36.5427, lng -80.0351..-79.5108). WINSTON-SALEM SEPARATION - the point of deriving from counties rather than from observed points: Winston-Salem is a SEPARATE metro with its own live config and its own five-county envelope (latMin 35.5, latMax 36.56, lngMin -80.89, lngMax -80.02). The two overlap only in the thin band lng -80.07..-80.02, which is genuine Guilford and Randolph land west of the Forsyth County line at -80.0351; the envelopes are per-metro county assertions, not a partition of the state. The county-derived lngMin of -80.07 is what keeps this metro OUT of Forsyth: it excludes the two 'Fourth of July Tennis Courts' OSM rows at lng -80.0818, which are Kernersville's (Forsyth County) and belong to Winston-Salem. Had the envelope been fitted to observed venues it would have been wider on that side and swallowed them. CROSS-CHECK: contains all 15 pre-existing Greensboro-High Point rows (observed lat 35.6648..36.4974, lng -80.0425..-79.7454) and all 19 venues in this batch.",
+  "msa": "Greensboro-High Point, NC (Guilford, Randolph, Rockingham counties)",
+  "envelope": {
+    "latMin": 35.5,
+    "latMax": 36.55,
+    "lngMin": -80.07,
+    "lngMax": -79.51
+  },
+
+  "expected_count": 19,
+
+  "_expected_publish_comment": "The projected split, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data - never edit this block to match the output. FORMAT IS LOAD-BEARING: assertExpectedPublish does a SUBSTRING CONTAINMENT test against the importer's own reason string, so the values below are the importer's exact machine reasons ('no coordinate', 'research_status=held') and nothing else. Prose here produces spurious failures on a split that is actually correct - Jacksonville took 7 false failures that way on 2026-08-05. Human rationale lives in _hold_rationale, which nothing asserts against. The check is BIDIRECTIONAL: every held slug must appear here and every slug here must actually hold, so both are listed. Slugs were READ FROM metro-research/greensboro/greensboro-candidates.json, never re-derived - a hand-rolled slugify drops '&' and mangles initials, which is what produced Tampa's false 134-vs-130 mismatch.",
+  "expected_publish": {
+    "count": 17,
+    "hold": {
+      "sedgefield-country-club-greensboro-nc": "research_status=held",
+      "grandover-swim-and-racquet-club-greensboro-nc": "no coordinate"
+    }
+  },
+  "_hold_rationale": {
+    "_note": "Human-readable WHY for each held row. Nothing asserts against this block. Both holds are COORDINATE problems, not evidence problems - each is a real venue with a citable non-aggregator source for its pickleball claim, and each is one address read away from publishing.",
+    "wrong_campus_would_have_published": {
+      "slugs": ["sedgefield-country-club-greensboro-nc"],
+      "why": "The club's own Tennis & Pickleball page documents six dedicated courts rebuilt in 2024, and its contact page gives 3201 Forsyth Drive. OSM holds no such address - the structured AND free-form rungs both return zero results - so the ladder fell through to name+city and anchored on 'Sedgefield Country Club, Dye Course' at 5700 Cardinal Way (relation/6542700), a DIFFERENT CAMPUS of the same club on a different street. It geocoded 'high' and inside the envelope, in the correct city and the correct zip (27407), so NOTHING in the pipeline would have stopped it: this is the Overlook Park chimera in its most dangerous form, a same-organisation neighbouring feature that no proximity guard catches. Held deliberately. Releasing it needs one coordinate for the clubhouse, not more research."
+    },
+    "no_address_published": {
+      "slugs": ["grandover-swim-and-racquet-club-greensboro-nc"],
+      "why": "Two irreconcilable addresses are on offer (4501 Pemberton Rd and 1903 Adams Farm Pkwy) and neither was read on a club-controlled page, so none was imported - the row reaches only the name rungs and returns NO RESULT. Publishing either candidate address would have been a guess. Needs an address, not a retry."
+    }
+  },
+
+  "_geocode_comment": "TWO of the 19 venues carry NO street address, and both are a deliberate authoring decision rather than incomplete research. greensboro-complex: the GACVB announcement of its 40 portable indoor courts names no street address and none was read on a controlling page. grandover-swim-and-racquet-club: two irreconcilable addresses are on offer (4501 Pemberton Rd and 1903 Adams Farm Pkwy) and neither was read on a club-controlled page - the Overlook Park failure mode, where importing a neighbouring venue's address re-forms a chimera that no proximity guard catches. Both reach only the name-based geocode rungs and are expected to hold on 'no coordinate' rather than publish a wrong pin. require_all_geocoded is therefore false: a no-coordinate row imports as a gate-blocked draft that stays in the work queue and is released by a later re-geocode or one address read.",
+  "require_all_geocoded": false,
+
+  "_reconciles_comment": "NO RECONCILES, deliberately. Stage 2b found five pre-existing rows inside the envelope carrying metro_area NULL - all raw OSM drafts. Two ('Fourth of July Tennis Courts', way/279449881 and way/279449883, lat 36.1277, lng -80.0818) fall OUTSIDE this envelope and are Kernersville/Forsyth, i.e. Winston-Salem's. The other three are inside it: 'Friendly Swim & Tennis' (way/1490356136, 2215 Mimosa Drive), 'J. Spencer Love Tennis Center' (way/280169526, 3802 Jaycee Park Drive) and 'Leonard J. Kaplan Center for Wellness' (way/597977778, 1301 West Gate City Boulevard, UNCG). None is reconciled, because an OSM row NAMES a candidate but does not CITE one, and no non-aggregator source was found asserting pickleball at any of the three. J. Spencer Love is affirmatively excluded rather than merely unconfirmed: the City of Greensboro's own Tennis Centers page enumerates all four staffed tennis centres with their court types (18 outdoor clay at Spencer Love, 8 indoor at Simkins, 11 outdoor hard at Hester, 8 outdoor clay at Latham) and claims pickleball at none of them. The three rows are left exactly as they are - untouched, unstamped, still draft."
+}
