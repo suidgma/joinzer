@@ -75,6 +75,71 @@
         "address": "624 Bills Lane",
         "captured_on": "2026-08-05"
       }
+    },
+    {
+      "candidate_key": "orl-thousand-trails-orlando-rv-resort",
+      "osm_id": "way/1473660442",
+      "listing_id": "84dbee03-b433-42fe-80f4-fd850ffcba65",
+      "matched_distance_m": 91,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-08-06",
+      "evidence_url": "https://thousandtrails.com/florida/orlando-rv-resort",
+      "confidence": "high",
+      "note": "SAME venue, and SAFE to reconcile because this row GEOCODED SUCCESSFULLY at high precision (28.37729,-81.67501) - 91 m from the OSM court polygons - so listingFields sends a real coordinate rather than the NULL that would overwrite the target's. The row resolves the gate-blocking generic name 'Pickleball'. Identification is independently corroborated: geocoding matched OSM's OWN tourism/caravan_site relation 16841079 NAMED 'Thousand Trails Orlando' at house number 2110, without reference to the operator page.",
+      "osm_original": {
+        "osm_id": "way/1473660442",
+        "name": "Pickleball",
+        "slug": "pickleball-fl",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "private",
+        "fee_type": null,
+        "lat": 28.3774325,
+        "lng": -81.6759268,
+        "surface": null,
+        "city": null,
+        "state": "FL",
+        "address": null,
+        "captured_on": "2026-08-05"
+      },
+      "also_at_site": [
+        {
+          "osm_id": "way/1473660443",
+          "listing_id": "9d0871df-a36a-4a44-a0c1-f9338a223af3",
+          "verdict": "same_site_dormant",
+          "disposition": "leave_dormant_draft",
+          "evidence_url": "https://thousandtrails.com/florida/orlando-rv-resort",
+          "adjudicated_on": "2026-08-06",
+          "note": "The Huntsville shape: ONE physical site carrying TWO dormant OSM rows, here two adjacent pickleball court polygons 47 m apart inside Thousand Trails Orlando. Exactly one may be reconciled; reconciling both would publish one site twice. This row is left a dormant unpublished draft with its OSM coordinate intact. reconcile_radius_m is deliberately NOT lowered - it is metro-wide and lowering it would disable the guard for every other neighbour in Orlando."
+        }
+      ]
+    },
+    {
+      "candidate_key": "orl-adventhealth-pickleball-complex-at-central-winds-park",
+      "osm_id": "way/1165951096",
+      "listing_id": "598e3a09-67fe-4260-b1a4-8f67e56907cf",
+      "matched_distance_m": 414,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-08-06",
+      "evidence_url": "https://www.winterspringsfl.org/parksrec/page/adventhealth-pickleball-complex-winter-springs",
+      "confidence": "high",
+      "note": "SAME venue - the City of Winter Springs' 14-court AdventHealth complex IS the courts OSM carries as 'Central Winds Pickleball Courts' at 1000 Central Winds Drive/Parkway. WITHOUT this reconcile the row would INSERT: at 414 m it sits OUTSIDE reconcile_radius_m (200), so the proximity guard cannot see it and a silent duplicate would be created - the Lancaster 178 m failure mode. COORDINATE TRADE, MADE DELIBERATELY: lat/lng are not in PRESERVE_ON_RECONCILE, so this row's street-level pin (28.70737,-81.27085, precision low, 415 m from the courts) replaces the target's court-accurate OSM coordinate on the row itself. That coordinate is NOT lost - it is recorded in provenance.osm_reconcile.osm_original below. Accepted because the target has metro_area NULL and therefore publishes nothing today, so protecting its precision would keep a 14-court flagship dark to guard a pin nobody can see. A preserved coordinate is a repairable coordinate. QUEUED FOR THE PENDING CROSS-METRO RE-GEOCODE PASS: recover from provenance.osm_reconcile.osm_original (lat 28.7078188, lng -81.2750719), NOT from a fresh Nominatim resolve - a re-resolve reproduces the same street pin, because OSM carries no house number on Central Winds Parkway and no feature under the AdventHealth name.",
+      "osm_original": {
+        "osm_id": "way/1165951096",
+        "name": "Central Winds Pickleball Courts",
+        "slug": "central-winds-pickleball-courts-winter-springs-fl",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 28.7078188,
+        "lng": -81.2750719,
+        "surface": null,
+        "city": "Winter Springs",
+        "state": "FL",
+        "address": "1000 Central Winds Drive",
+        "captured_on": "2026-08-05"
+      }
     }
   ],
   "_duplicate_osm_row_comment": "TWO dormant rows, pickleball-fl (way/1473660442) and pickleball-fl-way-1473660443, sit 47 m apart at Thousand Trails Orlando and are THE SAME VENUE - two adjacent court polygons OSM carries as two features. NEITHER is reconciled: the venue row failed to geocode, so a reconcile would null the coordinates both rows currently hold (see _reconcile_coordinate_hazard), and a duplicate is excluded rather than re-slugged in any case. Both stay dormant drafts with their coordinates intact. thousand-trails-orlando-rv-resort imports as a normal held row; identifying what these two OSM rows actually are remains this pass's contribution, and retiring the duplicate is a separate gated slice.",
@@ -106,5 +171,6 @@
       "cardinal-cove-park-eustis-fl": "no coordinate",
       "pickle-x-orlando-fl": "generic name"
     }
-  }
+  },
+  "_deferred_finding_coordinate_adoption": "DEFERRED FINDING, NOT WORK IN THIS BATCH. The pipeline has NO sanctioned way to adopt a known-good coordinate onto a research row. Established by enumerating every key across all 48 shipped metro configs: none sets lat/lng. venue_facts.fields throws unless the field is one of nine evidence-bearing fields; workbook-extract.mjs:17 states the Import Ready tab has no lat/lng at all and :1354 calls the workbook pair 'a cross-check, never a source'; the only coordinate-changing levers are the address override (re-geocode) and same_site_pairs (name re-geocode), neither of which can reach an OSM feature that carries no house number and no matching name. The remaining routes - hand-editing the generated artifact, or seeding the geocode cache - are respectively disowned by the code as silently undone on rebuild, and fabrication. This recurs wherever an OSM row is more accurate than what the ladder can resolve, which is exactly the reconcile case. It is a feature-builder slice behind a go-gate and does not belong in this batch."
 }
