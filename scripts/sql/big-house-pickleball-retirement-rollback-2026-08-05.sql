@@ -44,6 +44,25 @@ where id = '75d081aa-75a6-4650-8567-a052eff021de'
 
 commit;
 
+-- 3. *** NOT OPTIONAL — THE ROLLBACK IS NOT DONE UNTIL YOU RUN THIS. ***
+--    Every directory read is unstable_cache'd for 6h under the 'directory' tag, and the
+--    publish path writes straight to Postgres, so nothing in the Next.js request path
+--    observes the statements above. Without this the row is `published` in the database
+--    while /courts/big-house-pickleball-colorado-springs-co keeps serving 404 and the slug
+--    stays out of sitemap.xml for up to six hours.
+--
+--      node scripts/lib/revalidate-directory.mjs --metro="Colorado Springs"
+--
+--    CACHE INVALIDATION IS PART OF PUBLISHING AND OF UN-PUBLISHING ALIKE. This exact gap
+--    is what left the retirement half-applied on 2026-08-05: the DB said draft, the site
+--    served 200 and the sitemap still listed the slug.
+--
+--    NOTE the script's built-in assertion only proves a METRO page is live — it is written
+--    for publish. It cannot confirm a facility page came back. Check that by hand:
+--      curl -s -o /dev/null -w "%{http_code}\n" \
+--        https://www.joinzer.com/courts/big-house-pickleball-colorado-springs-co   # expect 200
+--      curl -s https://www.joinzer.com/sitemap.xml | grep -c big-house-pickleball   # expect 1
+
 -- Verify the reversal:
 --   select l.slug, l.status, c.research_status
 --   from facility_listings l
