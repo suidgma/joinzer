@@ -40,7 +40,11 @@
 
   "_coverage_note": "Jackson's outer counties are genuinely thin, and that is a finding rather than a shortfall. Copiah (Hazlehurst, Crystal Springs, Wesson), Yazoo (Yazoo City) and Holmes (Lexington, Durant, Goodman) returned NO pickleball venue against any source — municipal, tourism, local news or directory. Simpson County produced two, both from the county newspaper. Canton, the Madison County seat, returned none: every 'Canton Parks & Recreation pickleball' result belongs to Canton OHIO (cantonparksandrec.com, the 'Hall of Fame City' club), Canton CT, Canton IL, Canton MI or Canton MA. That wrong-state contamination is the single most dangerous false positive this pass encountered and is recorded here so the next pass recognizes it immediately.",
 
-  "_expected_publish_comment": "DELIBERATELY ABSENT until the owner has read the --stage=project projection. Both --stage=project and --stage=publish assert against this block and fail the run on any divergence, and reportExpected says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' Authoring it before the projection would make it a guess to be corrected; authoring it after, from a reviewed list, makes it the per-metro deliberate-release mechanism ADR-17 intends. Populate from the owner's locked decision, then re-run project.",
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-05, authored AFTER the --stage=project projection was read and approved unchanged — 'go on all 11', no conditions. Both project and publish assert against this block and fail the run on any divergence, and reportExpected says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' hold is EMPTY because every one of the 11 imported rows clears the coverage-first gate at HIGH precision — there is not a single low-precision or missing coordinate in this batch, which is what a full zip column buys. The 12 venues that do not appear here are held out by `exclude`, a different mechanism that is not counted in this block. If a hold ever appears, move the row out of this block deliberately; never edit the block to match an output.",
+  "expected_publish": {
+    "count": 11,
+    "hold": {}
+  },
 
   "workbook": {
     "header_row": 1,

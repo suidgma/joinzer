@@ -17,6 +17,16 @@
   "expected_count": 12,
   "require_all_geocoded": false,
   "reconciles": [],
+
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-05, authored AFTER the --stage=project projection was read and approved unchanged, never before. Both project and publish assert against this block and fail the run on any divergence, and reportExpected says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' The count moves 6 -> 10 with no re-import and no new research: the four rows released (Towne Park, Ridgeland Tennis Center, The Club at The Township, Madison Methodist Church) were held ONLY on location_precision 'low', which ADR-16 retired as a gate condition. Each was checked to be anchored on the correct named street in the correct city before approval — they publish behind the ADR-16 approximate-location label, which is the intended behavior and not a compromise. The two rows that remain held are the last genuine coordinate-based holds in this batch; both carry a CONFIRMED-correct street address (Magnolia against the operator's own site, Cascades against the Clinton Chamber directory), so each is a geocoding failure rather than a research failure, and a later re-geocode releases it without touching this block.",
+  "expected_publish": {
+    "count": 10,
+    "hold": {
+      "magnolia-pickleball-gluckstadt-ms": "no coordinate",
+      "clinton-pickleball-club-at-cascades-clinton-ms": "no coordinate"
+    }
+  },
+
   "workbook": {
     "header_row": 1
   }
