@@ -94,21 +94,38 @@
       }
     }
   ],
-  "_expected_publish_comment": "Locked from the --stage=project run of 2026-08-03 AFTER the geocode repair pass. Turns the 13/11 split from a number read off a log into a machine assertion: both project and publish fail the run on any divergence.",
+  "_expected_publish_comment": "Locked 2026-08-03 from the --stage=project run after the geocode repair pass; REASONS UPDATED 2026-08-06 after the owner ruled this batch stays at 13. The 13/11 SPLIT IS UNCHANGED and always was the intent — what changed is WHY nine of the eleven are held. They were held by `research_status=probable`; ADR-16/17 plus the ADR-18 re-tier stopped blocking on that, and a --stage=project run on 2026-08-06 accordingly projected 22/24. They are now held by `research_status=held`, set deliberately on the candidate rows so a future gate change cannot release them silently. This block tracks a DELIBERATE CHANGE OF STATE; it was not edited to make a divergence go away, and the split it asserts is the same 13/11 it has always asserted.",
+
+  "_expected_publish_format_warning": "HOLD VALUES ARE SHORT MACHINE REASONS, NOT PROSE. The assertion is a substring-containment check against the importer's own generated reason string, so an explanatory sentence fails a split that is actually correct — it has cost two metros (Jacksonville: 7 false failures). Every value below is a literal fragment the importer itself emits. Rationale lives in _hold_rationale, never here.",
+
+  "_hold_rationale": {
+    "_note": "Why each row is held. Prose belongs HERE, not in expected_publish.hold. Owner ruling 2026-08-06: default is hold; publishing requires evidence. The gate loosening is why these would now pass — it is not evidence that they should.",
+    "_five_rows_on_one_club_page": "banning-lewis-ranch, glen-park, wasson-high-school, westmoor-park and wildflower-park all rest solely on pppall.net/Outdoor, so their apparent corroboration is one link. NOTE for accuracy: `website` is NULL on all five, so that URL is NOT written into a user-facing column and no ADR-14 assertion fires. This is an editorial-quality hold, not a rule violation — which is precisely why it needed an owner ruling rather than an assertion.",
+    "cheyenne-mountain-country-club-colorado-springs-co": "Cites OSM way/1470162223 as its IDENTITY source while its coordinate came from way/220300890 — a different object. Worse, THE NAME DESIGNATES NO ENTITY: the venue is The Country Club of Colorado at Cheyenne Mountain Resort, 125 E Clubhouse Dr, 80906 (8 outdoor + 1 indoor courts, operator-sourced). Needs rename + address + operator source, not release.",
+    "wasson-high-school-colorado-springs-co": "Coordinate anchors 'Roy J. Wasson Academic Campus'. Wasson High School CLOSED at the end of 2012-13; the site is now a District 11 alternative/adult-education campus (rjwac.d11.org). That is why the 2026-08-03 pass could find no D11 source — it was looking for a school that no longer exists. Publishing ships a defunct name sourced to a club list.",
+    "bonforte-park-colorado-springs-co": "Cites coloradosprings.gov/parks/page/tennis-and-pickleball — a tier-1 municipal page that DOES NOT NAME IT. The venue is real (the city's neighborhood-parks page lists it at 2323 N Wahsatch Ave with two tennis courts), but the URL on the row does not support the claim.",
+    "portal-park-colorado-springs-co": "Same unsupporting city URL as bonforte-park, PLUS an address conflict: the row says 1216 Devonshire St, the city's neighborhood-parks page says 3535 N Hancock Ave with four tennis courts. The stored coordinate sits at the city's location, so it is the address column that is wrong.",
+    "wildflower-park-colorado-springs-co": "UNRESOLVED CONTRADICTION, the only one this pass could neither confirm nor clear. pppall lists 1 dual-striped tennis court at 980 Nolte Dr West; the city's neighborhood-parks entry lists baseball, soccer, basketball/in-line skate, picnic shelter and playground — and NO tennis court at all.",
+    "_three_null_addresses": "cheyenne-mountain-country-club, glen-park and westmoor-park were geocoded from a name match with no address at all. This pass FOUND addresses for all three — 125 E Clubhouse Dr; Lovers Lane, Palmer Lake 80133 (no house number is published, so none was invented); 3315 Water St — but NONE of them is in the database. Finding a source is not applying one.",
+    "springs-pickleball-west-colorado-springs-co": "THE ONE ROW HELD WITHOUT AN EVIDENCE PROBLEM. Sourced to its operator springspickleball.com and independently re-confirmed this pass. It was only ever held on coordinate precision (780 Vondelpark Dr resolves to the road band), which ADR-16 now releases behind an approximate-location label. It is held here solely because releasing it means running this batch's publish stage, which releases every eligible row in it. Best candidate for the first per-row release.",
+    "windmill-mesa-park-colorado-springs-co": "No coordinate — an unchanged mechanical block, not an owner hold. Operated by Widefield School District 3 at 4610 Fencer Rd, 80911. WARNING: a successful re-geocode releases it, because nothing else is holding it.",
+    "colorado-springs-pickleball-the-warehouse-colorado-springs-co": "No coordinate — also mechanical, and carrying a LATENT HAZARD: its name_source_url is a pickleheads.com aggregator URL, so a re-geocode would both release it and trip the ADR-14 abort. Its operator domain cspickleball.com now serves gambling/affiliate spam, so it has no citable source at all. RECOMMEND setting research_status='held' rather than leaving it protected only by a missing coordinate."
+  },
+
   "expected_publish": {
     "count": 13,
     "hold": {
-      "springs-pickleball-west-colorado-springs-co": "coordinate precision low",
-      "banning-lewis-ranch-colorado-springs-co": "research_status=probable",
-      "portal-park-colorado-springs-co": "coordinate precision low; research_status=probable",
-      "bonforte-park-colorado-springs-co": "research_status=probable",
-      "westmoor-park-colorado-springs-co": "research_status=probable",
-      "wildflower-park-colorado-springs-co": "research_status=probable",
-      "wasson-high-school-colorado-springs-co": "research_status=probable",
-      "windmill-mesa-park-colorado-springs-co": "no coordinate; research_status=probable",
-      "glen-park-palmer-lake-co": "coordinate precision low; research_status=probable",
-      "colorado-springs-pickleball-the-warehouse-colorado-springs-co": "no coordinate; research_status=probable",
-      "cheyenne-mountain-country-club-colorado-springs-co": "research_status=probable"
+      "springs-pickleball-west-colorado-springs-co": "research_status=held",
+      "banning-lewis-ranch-colorado-springs-co": "research_status=held",
+      "portal-park-colorado-springs-co": "research_status=held",
+      "bonforte-park-colorado-springs-co": "research_status=held",
+      "westmoor-park-colorado-springs-co": "research_status=held",
+      "wildflower-park-colorado-springs-co": "research_status=held",
+      "wasson-high-school-colorado-springs-co": "research_status=held",
+      "windmill-mesa-park-colorado-springs-co": "no coordinate",
+      "glen-park-palmer-lake-co": "research_status=held",
+      "colorado-springs-pickleball-the-warehouse-colorado-springs-co": "no coordinate",
+      "cheyenne-mountain-country-club-colorado-springs-co": "research_status=held"
     }
   }
 }

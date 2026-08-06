@@ -59,7 +59,34 @@
   "_exclude_comment": "EMPTY. Unlike lancaster-v3, this artifact contains ONLY net-new venues — every pre-existing row is absent from the grid rather than present-and-excluded. That is the safer shape here because the exclude validator aborts on any key it cannot find in the artifact, and because 29 pre-existing rows would have made the grid mostly a re-transcription of the database, which is the circularity the 2026-08-05 owner ruling warned against.",
   "exclude": [],
 
-  "_expected_publish_comment": "NOT YET AUTHORED — deliberately withheld until --stage=project has produced a projection, exactly as lancaster-v3 did. reportExpected says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' Authoring this block before the projection exists would make it a guess to be corrected; authoring it after, from a row-by-row owner review, makes it the deliberate-release mechanism ADR-17 intends. THIS CONFIG MUST NOT BE RUN PAST --stage=project UNTIL THE OWNER LOCKS THIS BLOCK.",
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-06: ship the 7 new v3 venues as their own batch, Colorado Springs 16 -> 23, old batch held at 16 (lancaster-v3 precedent). Authored AFTER the projection existed, from a reviewed list — never edited to match an output.",
+
+  "_expected_publish_format_warning": "`hold` VALUES ARE SHORT MACHINE REASONS, NOT PROSE. The assertion is a substring-containment check against the importer's OWN generated reason string, so any explanatory sentence fails a split that is actually correct. This has cost two metros (Jacksonville: 7 false failures). Rationale belongs in _hold_rationale below, never in the hold map. `hold` is EMPTY here, so the trap is not live for this batch — the warning stays because the next person to add a hold row is the one who needs it.",
+
+  "_zero_hold_is_not_a_quality_signal": "hold is {} and the projection is 7/7. THIS IS THE ARITHMETIC DEFAULT, NOT EVIDENCE THE DATA IS GOOD. After ADR-16/17 the gate blocks on four verdicts only — duplicate, not_venue, not_pickleball, held — so a clean projection means nobody hand-marked anything, and nothing more. The actual quality statement for this batch is the per-row provenance_note in the artifact and this config's _row_confidence block: 3 of 7 are `verified`, 4 are `probable`, and the reasons each one is probable are recorded rather than averaged away.",
+
+  "_row_confidence": {
+    "_note": "What 7/7 does NOT tell you. Recorded because the projection cannot.",
+    "verified_3": "wilson-ranch-park (city park page + club), the-mine (operator's own /pickleball page), woodmen-hills-recreation-center-east (metro district's own /indoor-pickleball-club page).",
+    "probable_4": {
+      "cripple-creek-parks-and-recreation": "multi-use court, not a dedicated pickleball facility; the department's pickleball page 301-redirects and the current page does not restate the court detail.",
+      "life-time-colorado-springs": "venue and address rest on the operator's own location page, but that page could not be read directly (malformed HTTP header), so the 8-court detail rests on secondary sources.",
+      "tri-lakes-family-ymca": "WEAKEST ROW IN THE BATCH. Identity and address are solid (YMCA of the Pikes Peak Region branch page, controlling entity); PICKLEBALL ACTIVITY rests on aggregators only. ppymca's pickleball page names First & Main and Briargate but is a senior-clinic listing, not a facility inventory, so its silence is not a contradiction — it is simply not confirmation either.",
+      "wpr-recreation-center": "gymnasium court set up for pickleball on demand rather than a dedicated court; court count genuinely unknown and left unknown rather than guessed."
+    }
+  },
+
+  "_exclusion_self_audit": {
+    "_note": "Consistency check on this batch's exclusions, per the Cape Coral precedent: if one venue was cleared by distrusting a source class and another excluded by trusting the same class, one of the two is wrong.",
+    "inconsistency_found": "YES — in the REASONING, and it was corrected. Air Force Academy Fitness Center was originally excluded on the ground that its pickleball rested on aggregators only (places2play, pickleheads, playpickleball). That exact ground also condemns tri-lakes-family-ymca, which was INCLUDED. One of the two had to be wrong.",
+    "resolution": "The defensible ground for excluding AFA is different and narrower: its VENUE has no controlling-entity source at all — no usafa.af.mil page establishes the Sports & Fitness Center, only third-party base directories and aggregators. Tri-Lakes' venue IS established by its operator's own branch page. The consistent rule, now stated explicitly: A VENUE ENTERS THE LIST WHEN A NON-AGGREGATOR SOURCE ESTABLISHES THE VENUE ITSELF; pickleball activity may rest on weaker evidence and is then recorded at `probable`. Under that rule both dispositions stand — AFA out, Tri-Lakes in at probable. No venue was recovered, but the rule no longer contradicts itself.",
+    "coverage_gap_surfaced": "The audit did turn up a real gap, logged as follow-up rather than folded into an owner-approved batch: ppymca.org operates branches this pass never evaluated — Cottonwood Creek, Southeast Armed Services, and FOUNTAIN VALLEY. The last one sits in Fountain, a municipality this pass reported as yielding zero venues, so the 16/16 completeness figure may be one venue optimistic there."
+  },
+
+  "expected_publish": {
+    "count": 7,
+    "hold": {}
+  },
 
   "workbook": {
     "header_row": 1,
