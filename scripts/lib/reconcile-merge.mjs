@@ -76,7 +76,7 @@ export const PRESERVE_ON_RECONCILE = [
  * would blank it, i.e. the bug this whole mechanism exists to prevent.
  */
 export const RECONCILE_TARGET_COLUMNS = ['id', 'osm_id', 'status', 'name', 'slug', 'access_type',
-  'address_source', 'address_verified_at', ...PRESERVE_ON_RECONCILE].join(', ')
+  'address_source', 'address_verified_at', 'lat', 'lng', ...PRESERVE_ON_RECONCILE].join(', ')
 
 /**
  * Absent means null / undefined / empty string — NEVER merely falsy. `indoor: false` and
@@ -140,6 +140,143 @@ export function mergeOntoTarget(fields, target, rec, nowIso) {
   }
 
   return { fields: merged, preserved, targetSeen: true }
+}
+
+/**
+ * Metres between two points. Duplicated from geocode-nominatim.mjs and import-metro-merged.mjs
+ * DELIBERATELY, character for character: this module is imported by the importer, and importing the
+ * geocoder here would drag the whole cache/fetch surface into a path that must never make a request.
+ * The formula is asymmetric (it takes the cosine of the FIRST argument's latitude), so all three
+ * copies must evaluate their arguments in the same order or a distance quoted in one place and
+ * recomputed in another disagrees by ~0.07% — enough to break a re-derivation check.
+ */
+const metresBetween = (aLat, aLng, bLat, bLng) => {
+  const dLat = (aLat - bLat) * 111320
+  const dLng = (aLng - bLng) * 111320 * Math.cos((aLat * Math.PI) / 180)
+  return Math.sqrt(dLat * dLat + dLng * dLng)
+}
+
+/** How far a re-derived distance may sit from the one written into a `coordinate_trade` before the
+ *  acknowledgement is treated as stale. Same tolerance workbook_crosscheck already uses, for the
+ *  same reason: a stored number is re-derived, never trusted. */
+const TRADE_DISTANCE_TOLERANCE_M = 2
+
+/**
+ * Does this reconcile DESTROY or DEGRADE the coordinate on the row it rewrites?
+ *
+ * WHY THIS EXISTS. `listingFields` sends `lat: v.coordinates?.lat ?? null` and `mergeOntoTarget`
+ * restores only fields in PRESERVE_ON_RECONCILE — from which lat/lng are deliberately absent, for
+ * the reason stated at the top of this file. So the incoming coordinate ALWAYS wins, and two things
+ * follow that nothing in the pipeline could see: reconciling an un-geocoded row writes NULL over a
+ * good coordinate, and reconciling a worse-geocoded row writes a street band over a court-accurate
+ * pin. Both were caught by a human reading source, twice.
+ *
+ * THE FIX IS NOT TO PRESERVE lat/lng. Adding them to PRESERVE_ON_RECONCILE would make
+ * provenance.coordinate describe a coordinate the row does not hold — the invariant this module
+ * exists to keep — and the pair is coupled, so preserving one is incoherent. The fix is to make the
+ * pipeline SEE the trade and refuse to make it silently.
+ *
+ * THE TARGET'S OWN PRECISION IS UNAVAILABLE, so this does not ask for it. `location_precision` is
+ * generated from `provenance -> 'coordinate' ->> 'precision'`, and a dormant OSM-ingested row has
+ * `provenance = null` — verified across a 514-row live sample, every one NULL. What IS knowable is
+ * that the target's coordinate is the centroid of a named OSM feature (the row carries an osm_id),
+ * which beats a street band. Hence the rule keys on the INCOMING precision, not on a comparison.
+ *
+ * Two verdicts, split by whether a legitimate case exists:
+ *
+ *   'destroys'  incoming has no coordinate, target has one. FATAL, no acknowledgement accepted.
+ *               There is no legitimate case: it deletes a coordinate AND leaves a row the gate then
+ *               blocks — strictly worse on both axes. Offering an override here would build exactly
+ *               the bypass this mechanism exists to avoid.
+ *
+ *   'degrades'  incoming is `low`, target has a coordinate. Requires an explicit `coordinate_trade`
+ *               on the reconcile entry. A legitimate case demonstrably exists — Orlando's owner
+ *               accepted precisely this trade, because the target had metro_area NULL and so
+ *               published nothing, and protecting its precision would have kept a 14-court flagship
+ *               dark to guard a pin nobody could see. A hard refusal would have blocked a correct
+ *               decision.
+ *
+ * The acknowledgement cannot be pasted blind: `distance_m` and `incoming_precision` are RE-DERIVED
+ * here and a divergence is fatal, so an ack that was true when it was written stops being accepted
+ * the moment the data moves.
+ *
+ * @returns {{verdict: 'ok'|'destroys'|'degrades', distance_m: number|null, incoming_precision: string|null,
+ *            fatal: string|null, trade: object|null, report: string}}
+ */
+export function assertReconcileCoordinate({ incoming, target, rec, nowIso = null }) {
+  const inLat = incoming?.lat ?? null
+  const inLng = incoming?.lng ?? null
+  const incoming_precision = incoming?.provenance?.coordinate?.precision ?? null
+  const tLat = target?.lat ?? null
+  const tLng = target?.lng ?? null
+  const targetHas = tLat != null && tLng != null
+  const distance_m = (inLat != null && inLng != null && targetHas)
+    ? Math.round(metresBetween(inLat, inLng, tLat, tLng))
+    : null
+  const where = `reconcile ${rec?.candidate_key ?? '(unknown)'} (${rec?.osm_id ?? '?'})`
+  const base = { distance_m, incoming_precision, trade: null }
+
+  if (!targetHas) {
+    return { ...base, verdict: 'ok', fatal: null, report: `${where}: target holds no coordinate — nothing to overwrite.` }
+  }
+  if (inLat == null || inLng == null) {
+    return {
+      ...base,
+      verdict: 'destroys',
+      fatal: `${where}: the research row has NO coordinate and the reconcile target holds one (${tLat},${tLng}). `
+        + `The UPDATE would write NULL over it — lat/lng are deliberately not preserved by the merge, so the incoming value always wins. `
+        + `That destroys a good coordinate AND leaves a row the publish gate blocks. There is no acknowledgement for this: `
+        + `either geocode the research row, adopt the target's coordinate via venue_facts.<key>.coordinate, or drop the reconcile. `
+        + `Never reconcile a row that failed to geocode.`,
+      report: `${where}: WOULD NULL the target's coordinate.`,
+    }
+  }
+
+  const report = `${where}: incoming ${incoming_precision ?? 'unknown'} at ${inLat},${inLng} vs target ${tLat},${tLng} — ${distance_m} m apart.`
+  if (incoming_precision !== 'low') {
+    return { ...base, verdict: 'ok', fatal: null, report }
+  }
+
+  // Degrading. An acknowledgement is required, and it must still be TRUE.
+  const t = rec?.coordinate_trade
+  if (!t || t.acknowledged !== true) {
+    return {
+      ...base,
+      verdict: 'degrades',
+      fatal: `${where}: the research row's coordinate is precision 'low' (a street band) and the reconcile target holds a coordinate `
+        + `${distance_m} m away that came from a named OSM feature. The UPDATE would replace the better pin with the worse one.\n`
+        + `      The better fix is usually to ADOPT the target's coordinate — add venue_facts.${rec?.candidate_key}.coordinate naming its OSM feature.\n`
+        + `      If the trade is deliberate, record it on the reconcile entry (it is re-derived on every run, so it cannot be stale):\n`
+        + `        "coordinate_trade": { "acknowledged": true, "incoming_precision": "low", "distance_m": ${distance_m}, `
+        + `"reason": "<why the worse pin is acceptable>", "adjudicated_by": "<who>", "adjudicated_on": "<YYYY-MM-DD>" }`,
+      report: `${report} DEGRADES, unacknowledged.`,
+    }
+  }
+  for (const k of ['reason', 'adjudicated_by', 'adjudicated_on']) {
+    if (!t[k]) {
+      return { ...base, verdict: 'degrades', fatal: `${where}: coordinate_trade is missing "${k}" — an acknowledged trade must say who accepted it, when, and why.`, report }
+    }
+  }
+  if (t.incoming_precision !== incoming_precision) {
+    return { ...base, verdict: 'degrades', fatal: `${where}: coordinate_trade says incoming_precision "${t.incoming_precision}" but the row is "${incoming_precision}" — the acknowledgement no longer describes this data. Re-adjudicate.`, report }
+  }
+  if (!(Math.abs(Number(t.distance_m) - distance_m) <= TRADE_DISTANCE_TOLERANCE_M)) {
+    return { ...base, verdict: 'degrades', fatal: `${where}: coordinate_trade says distance_m ${t.distance_m} but it recomputes to ${distance_m} — the acknowledgement no longer describes this data. Re-adjudicate.`, report }
+  }
+  return {
+    ...base,
+    verdict: 'degrades',
+    fatal: null,
+    trade: {
+      ...t,
+      distance_m,
+      incoming_precision,
+      superseded: { lat: tLat, lng: tLng },
+      recoverable_from: 'provenance.osm_reconcile.osm_original',
+      acknowledged_at: nowIso,
+    },
+    report: `${report} DEGRADES — acknowledged by ${t.adjudicated_by} on ${t.adjudicated_on}: ${t.reason}`,
+  }
 }
 
 export const preservedSummary = (preserved) => {

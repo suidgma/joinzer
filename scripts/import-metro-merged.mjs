@@ -74,7 +74,7 @@ import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 import { LIVE, AGGREGATOR_HOST, DOCUMENT_URL } from './lib/workbook-extract.mjs'
-import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
+import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, assertReconcileCoordinate, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
 import { BLOCKING_RESEARCH_STATUS, GATE_TEXT, gateReasons, isApproximateLocation, PIPELINE_VERIFICATION_STATUS, verificationStatusFor } from './lib/publish-gate.mjs'
 
 // ---------------------------------------------------------------------------------------------
@@ -478,6 +478,10 @@ function listingFields(v) {
 // import (it reads argv and exits), so nothing declared here can be unit-tested. RECONCILE_TARGET_BY_OSM
 // stays here because it is per-run state captured by preflight, not pure logic.
 const RECONCILE_TARGET_BY_OSM = new Map()
+/** An acknowledged coordinate trade, captured by preflight with its RE-DERIVED distance and
+ *  precision, so the record written onto the row is the one the run actually verified rather than
+ *  the one the config claimed. Per-run state, same as RECONCILE_TARGET_BY_OSM. */
+const RECONCILE_TRADE_BY_OSM = new Map()
 
 const insertVenues = venues.filter((v) => !isReconcile(v))
 const reconcileVenues = venues.filter(isReconcile)
@@ -746,6 +750,17 @@ async function preflight({ checkCollisions, candidateKeys }) {
         // already seeded — which would make the merge observable only BETWEEN two writes.
         // `--stage=candidates --dry-run` reaches this point read-only, so the operator sees exactly
         // what will be kept before anything is written at all.
+        // COORDINATE SAFETY, checked HERE because this is the earliest point that holds both the
+        // incoming row and the live target. lat/lng are deliberately NOT preserved by the merge, so
+        // the incoming coordinate always wins — which silently nulls a good coordinate when the
+        // research row failed to geocode, and silently replaces a court-accurate OSM pin with a
+        // street band when it geocoded badly. Both were found by a human reading source rather than
+        // by the pipeline. Reachable read-only via `--stage=candidates --dry-run`.
+        const coordCheck = assertReconcileCoordinate({ incoming: listingFields(v), target: tgt[0], rec, nowIso })
+        console.log(`  reconcile coordinate: ${coordCheck.report}`)
+        if (coordCheck.fatal) fail.push(coordCheck.fatal)
+        if (coordCheck.trade) RECONCILE_TRADE_BY_OSM.set(rec.osm_id, coordCheck.trade)
+
         const { preserved } = mergeOntoTarget(listingFields(v), tgt[0], rec, nowIso)
         const summary = preservedSummary(preserved)
         console.log(`  reconcile merge preview: ${rec.candidate_key} -> "${tgt[0].slug}" ${summary
@@ -942,10 +957,21 @@ if (STAGE === 'listings') {
       process.exit(1)
     }
     const { fields, preserved } = mergeOntoTarget(listingFields(v), target, rec, nowIso)
-    return { v, rec, target, fields, preserved }
+    // An acknowledged coordinate trade rides ON THE ROW it degraded, next to the osm_original that
+    // makes it recoverable. A decision recorded only in a config is a decision the next reader of
+    // this listing will never find.
+    const trade = RECONCILE_TRADE_BY_OSM.get(rec.osm_id)
+    if (trade && fields.provenance?.osm_reconcile) fields.provenance.osm_reconcile.coordinate_trade = trade
+    return { v, rec, target, fields, preserved, trade }
   })
-  for (const { v, rec, fields, preserved } of reconcilePlans) {
+  for (const { v, rec, fields, preserved, trade } of reconcilePlans) {
     const o = v.reconcile?.osm_original || rec.osm_original || {}
+    if (trade) {
+      console.log(`\n  ⚠ COORDINATE TRADE (acknowledged) — ${rec.candidate_key}: this UPDATE replaces the target's coordinate`)
+      console.log(`      ${trade.superseded.lat},${trade.superseded.lng} -> ${fields.lat},${fields.lng} (${trade.incoming_precision}, ${trade.distance_m} m)`)
+      console.log(`      accepted by ${trade.adjudicated_by} on ${trade.adjudicated_on}: ${trade.reason}`)
+      console.log(`      the superseded value stays recoverable at ${trade.recoverable_from}`)
+    }
     console.log(`\nTO UPDATE (reconcile, NOT insert) — ${rec.candidate_key} onto the dormant OSM row:`)
     console.log(`  where osm_id='${rec.osm_id}' and status='draft'  (id=${rec.listing_id})`)
     console.log(`  BEFORE: name="${o.name ?? '?'}"  slug="${o.slug ?? '?'}"  source="${o.source ?? '?'}"  access_type="${o.access_type ?? '?'}"`)
