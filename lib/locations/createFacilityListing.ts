@@ -31,7 +31,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // here fails at collection even though tsc and next resolve it fine. Every unit-tested module
 // under lib/ imports its siblings this way.
 import { directorySlug, nextAvailableSlug, randomSlugTail } from '../directory/slug'
-import { omitUndefined, type VenueDetail } from './submissionFields'
+import { omitUndefined, toCountryCode, toStateCode, type VenueDetail } from './submissionFields'
 
 /** Batch tag. `facility_listings.source` is NOT NULL DEFAULT 'osm', so leaving it unset would file
  *  every user submission as OSM-ingested. It is also the non-destructive rollback handle:
@@ -124,7 +124,20 @@ export async function createFacilityListing(
   detail: VenueDetail,
   submittedBy: string
 ): Promise<{ id: string; slug: string }> {
-  const base = directorySlug({ name: venue.name, city: venue.city, state: venue.state })
+  // NORMALIZE BEFORE THE SLUG IS DERIVED, not after — the state code is a slug segment, so
+  // coercing it later would leave the URL carrying "…-nevada" while the column said "NV".
+  //
+  // Both of these are constraint-or-convention bugs that fail SILENTLY in opposite ways.
+  // `country` violates a live CHECK (`char_length = 2`) and raises 23514, which is not 23505, so
+  // insertWithSlugRetry does not retry — the caller catches, the location saves with a NULL bridge,
+  // and every optional field the user filled in is gone with no error shown to them. `state`
+  // violates nothing and saves happily as "Nevada", splitting the slug namespace against 2,365
+  // rows that all use two letters. The first is loud in the logs and invisible to the user; the
+  // second is invisible everywhere.
+  const state = toStateCode(venue.state)
+  const country = toCountryCode(venue.country)
+
+  const base = directorySlug({ name: venue.name, city: venue.city, state })
   // directorySlug can only return '' when the name is empty, which the route rejects before here.
   if (!base) throw new Error('cannot derive a slug for this venue')
 
@@ -136,9 +149,9 @@ export async function createFacilityListing(
     status: 'draft', // never auto-published; the directory renders status='published' only
     address: venue.address,
     city: venue.city,
-    state: venue.state,
+    state,
     zip: venue.zip_code,
-    country: venue.country ?? 'US',
+    country,
     metro_area: null, // invariant 2
     google_place_id: venue.google_place_id,
     verification_status: 'unverified', // invariant 3

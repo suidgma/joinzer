@@ -16,6 +16,8 @@ import {
   coerceUrl,
   clip,
   omitUndefined,
+  toCountryCode,
+  toStateCode,
   ACCESS_TYPE,
   FEE_TYPE,
   RESERVATION_POLICY,
@@ -271,6 +273,97 @@ describe('string clipping', () => {
     })
     expect(detail.public_notes).toHaveLength(1000)
     expect(detail.phone).toHaveLength(40)
+  })
+})
+
+describe('toCountryCode', () => {
+  // facility_listings_country_chk is char_length(country) = 2. Anything longer raises 23514, which
+  // is NOT 23505, so the insert does not retry — the whole submission's optional detail is lost
+  // silently. The Country input carries autoComplete="country-name", so "United States" is the
+  // DEFAULT value for anyone with autofill on, not an edge case.
+  it('maps the autofill values a browser actually supplies', () => {
+    expect(toCountryCode('United States')).toBe('US')
+    expect(toCountryCode('USA')).toBe('US')
+    expect(toCountryCode('U.S.')).toBe('US')
+    expect(toCountryCode('U.S.A.')).toBe('US')
+    expect(toCountryCode('united states of america')).toBe('US')
+    expect(toCountryCode('Canada')).toBe('CA')
+  })
+
+  it('passes a two-letter code through, uppercased', () => {
+    expect(toCountryCode('US')).toBe('US')
+    expect(toCountryCode('us')).toBe('US')
+    expect(toCountryCode('  mx  ')).toBe('MX')
+  })
+
+  it('returns null rather than guessing at an unknown country', () => {
+    expect(toCountryCode('Freedonia')).toBeNull()
+    expect(toCountryCode('United Statesss')).toBeNull()
+    expect(toCountryCode('')).toBeNull()
+    expect(toCountryCode('   ')).toBeNull()
+    expect(toCountryCode(null)).toBeNull()
+    expect(toCountryCode(42)).toBeNull()
+  })
+
+  it('never returns a value that would violate the CHECK', () => {
+    for (const input of ['United States', 'USA', 'U.S.', 'Canada', 'Freedonia', '', 'x'.repeat(60)]) {
+      const out = toCountryCode(input)
+      expect(out === null || out.length === 2, `${input} -> ${out}`).toBe(true)
+    }
+  })
+})
+
+describe('toStateCode', () => {
+  // No CHECK on this column, which is exactly why it is dangerous: "Nevada" saves happily and
+  // mints `…-las-vegas-nevada` beside 2,365 rows that all use two letters, splitting the slug
+  // namespace with no error anywhere.
+  it('maps a full state name to its USPS code', () => {
+    expect(toStateCode('Nevada')).toBe('NV')
+    expect(toStateCode('nevada')).toBe('NV')
+    expect(toStateCode('New York')).toBe('NY')
+    expect(toStateCode('north carolina')).toBe('NC')
+    expect(toStateCode('District of Columbia')).toBe('DC')
+    expect(toStateCode('Puerto Rico')).toBe('PR')
+  })
+
+  it('passes a two-letter code through, uppercased', () => {
+    expect(toStateCode('NV')).toBe('NV')
+    expect(toStateCode('nv')).toBe('NV')
+    expect(toStateCode(' ca ')).toBe('CA')
+  })
+
+  it('returns null rather than storing a value that diverges from the convention', () => {
+    // Nothing is lost — locations.state keeps the raw text and /admin/locations renders it.
+    expect(toStateCode('Ontario')).toBeNull()
+    expect(toStateCode('British Columbia')).toBeNull()
+    expect(toStateCode('New York City')).toBeNull()
+    expect(toStateCode('')).toBeNull()
+    expect(toStateCode(undefined)).toBeNull()
+  })
+
+  it('tolerates stray punctuation instead of discarding a recognizable name', () => {
+    // Same normalization that lets "U.S.A." reach the country table. A user who types "Nevada."
+    // has told us the state; refusing it would drop a fact over a keystroke.
+    expect(toStateCode('Nevada!!')).toBe('NV')
+    expect(toStateCode('N.Y.')).toBe('NY')
+    expect(toStateCode('Washington D.C.')).toBe('DC')
+  })
+
+  it('covers all 50 states', () => {
+    const names = [
+      'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
+      'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
+      'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
+      'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
+      'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
+      'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+      'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
+      'Wisconsin', 'Wyoming',
+    ]
+    expect(names).toHaveLength(50)
+    const codes = names.map(toStateCode)
+    expect(codes.every((c) => c !== null && /^[A-Z]{2}$/.test(c))).toBe(true)
+    expect(new Set(codes).size).toBe(50) // no two states share a code
   })
 })
 

@@ -100,6 +100,49 @@ const PARKING: Option[] = [
 const lbl = 'block text-[11px] font-medium text-brand-muted mb-0.5'
 const groupHeading = 'text-[11px] font-semibold text-brand-dark uppercase tracking-wide'
 
+/**
+ * MODULE SCOPE, NOT INSIDE THE PARENT'S RENDER BODY. A component declared inside render is a new
+ * function reference on every render, so React unmounts and remounts the subtree instead of
+ * updating it — which drops focus from the control the user is currently operating. Across 19
+ * fields that made the form effectively unusable. Do not move this back inside.
+ */
+function Select({
+  id,
+  name,
+  label,
+  options,
+  value,
+  onSelectChange,
+}: {
+  id: string
+  name: string
+  label: string
+  options: Option[]
+  value: string
+  onSelectChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className={lbl}>
+        {label}
+      </label>
+      <select
+        id={id}
+        name={name}
+        value={value}
+        onChange={onSelectChange}
+        className="input text-sm touch-manipulation"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export default function VenueDetailFields({
   detail,
   onChange,
@@ -124,39 +167,6 @@ export default function VenueDetailFields({
       })
 
   const triValue = (v: boolean | null) => (v === null ? '' : String(v))
-
-  const Select = ({
-    name,
-    label,
-    options,
-    value,
-    onSelectChange,
-  }: {
-    name: string
-    label: string
-    options: Option[]
-    value: string
-    onSelectChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
-  }) => (
-    <div>
-      <label htmlFor={fieldId(name)} className={lbl}>
-        {label}
-      </label>
-      <select
-        id={fieldId(name)}
-        name={name}
-        value={value}
-        onChange={onSelectChange}
-        className="input text-sm touch-manipulation"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
 
   return (
     <div className="space-y-4 pt-1">
@@ -187,6 +197,7 @@ export default function VenueDetailFields({
             />
           </div>
           <Select
+            id={fieldId('court_configuration')}
             name="court_configuration"
             label="Court setup"
             options={COURT_CONFIGURATION}
@@ -194,6 +205,7 @@ export default function VenueDetailFields({
             onSelectChange={setText('court_configuration')}
           />
           <Select
+            id={fieldId('surface')}
             name="surface"
             label="Surface"
             options={SURFACE}
@@ -201,6 +213,7 @@ export default function VenueDetailFields({
             onSelectChange={setText('surface')}
           />
           <Select
+            id={fieldId('indoor')}
             name="indoor"
             label="Indoor"
             options={TRI_STATE}
@@ -208,6 +221,7 @@ export default function VenueDetailFields({
             onSelectChange={setTriState('indoor')}
           />
           <Select
+            id={fieldId('lighting')}
             name="lighting"
             label="Lights for night play"
             options={TRI_STATE}
@@ -215,6 +229,7 @@ export default function VenueDetailFields({
             onSelectChange={setTriState('lighting')}
           />
           <Select
+            id={fieldId('line_type')}
             name="line_type"
             label="Court lines"
             options={LINE_TYPE}
@@ -222,6 +237,7 @@ export default function VenueDetailFields({
             onSelectChange={setText('line_type')}
           />
           <Select
+            id={fieldId('net_setup')}
             name="net_setup"
             label="Nets"
             options={NET_SETUP}
@@ -253,6 +269,7 @@ export default function VenueDetailFields({
         <legend className={groupHeading}>Access &amp; cost</legend>
         <div className="grid grid-cols-2 gap-2">
           <Select
+            id={fieldId('access_type')}
             name="access_type"
             label="Who can play"
             options={ACCESS_TYPE}
@@ -260,6 +277,7 @@ export default function VenueDetailFields({
             onSelectChange={setText('access_type')}
           />
           <Select
+            id={fieldId('fee_type')}
             name="fee_type"
             label="Cost"
             options={FEE_TYPE}
@@ -267,6 +285,7 @@ export default function VenueDetailFields({
             onSelectChange={setText('fee_type')}
           />
           <Select
+            id={fieldId('reservation_policy')}
             name="reservation_policy"
             label="Booking"
             options={RESERVATION_POLICY}
@@ -336,6 +355,7 @@ export default function VenueDetailFields({
         <legend className={groupHeading}>Amenities</legend>
         <div className="grid grid-cols-2 gap-2">
           <Select
+            id={fieldId('restrooms')}
             name="restrooms"
             label="Restrooms"
             options={TRI_STATE}
@@ -343,6 +363,7 @@ export default function VenueDetailFields({
             onSelectChange={setTriState('restrooms')}
           />
           <Select
+            id={fieldId('water_fountain')}
             name="water_fountain"
             label="Water fountain"
             options={TRI_STATE}
@@ -350,6 +371,7 @@ export default function VenueDetailFields({
             onSelectChange={setTriState('water_fountain')}
           />
           <Select
+            id={fieldId('parking')}
             name="parking"
             label="Parking"
             options={PARKING}
@@ -357,6 +379,7 @@ export default function VenueDetailFields({
             onSelectChange={setText('parking')}
           />
           <Select
+            id={fieldId('accessibility')}
             name="accessibility"
             label="Wheelchair accessible"
             options={TRI_STATE}

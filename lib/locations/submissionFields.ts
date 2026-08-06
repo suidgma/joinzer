@@ -172,6 +172,97 @@ export function coerceUrl(value: unknown, max: number): string | null {
   return parsed.toString().slice(0, max)
 }
 
+/**
+ * ISO-3166-1 alpha-2, or NULL.
+ *
+ * NOT COSMETIC — `facility_listings_country_chk` is `char_length(country) = 2`, so anything longer
+ * raises 23514 and takes the whole insert with it. The form's Country input carries
+ * `autoComplete="country-name"`, which is precisely the token a browser autofills with
+ * "United States", so the failing value is the DEFAULT one for anybody with autofill on.
+ *
+ * The alias table is deliberately tiny. It covers what a US/Canada/Mexico pickleball form actually
+ * receives from autofill; anything else falls through to NULL rather than being guessed at, because
+ * a wrong country code is worse than a missing one and this is an optional column.
+ */
+const COUNTRY_ALIASES: Record<string, string> = {
+  'united states': 'US',
+  'united states of america': 'US',
+  usa: 'US',
+  'u s a': 'US',
+  'u s': 'US',
+  america: 'US',
+  canada: 'CA',
+  mexico: 'MX',
+  'united kingdom': 'GB',
+  'great britain': 'GB',
+}
+
+/**
+ * Letters only. A code check on this rather than on the raw string is what lets "U.S.", "N.Y." and
+ * "N V" resolve — a user typing an abbreviation with periods has given us the code, and refusing it
+ * over punctuation would drop a fact for no reason.
+ */
+function lettersOnly(raw: string): string {
+  return raw.replace(/[^a-z]/gi, '')
+}
+
+/** Words, for the lookup tables. "U.S.A." → "u s a", "New  York" → "new york". */
+function lookupKey(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z]+/g, ' ').trim()
+}
+
+export function toCountryCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const raw = value.trim()
+  if (!raw) return null
+  const letters = lettersOnly(raw)
+  if (letters.length === 2) return letters.toUpperCase()
+  return COUNTRY_ALIASES[lookupKey(raw)] ?? null
+}
+
+/**
+ * USPS two-letter state code, or NULL.
+ *
+ * `facility_listings.state` has no CHECK, so a full name would save — and that is the problem:
+ * all 2,365 live rows use the two-letter convention, and `directorySlug` puts this straight into
+ * the URL. "Nevada" would mint `sunset-park-las-vegas-nevada` beside `…-las-vegas-nv`, splitting
+ * the namespace with no error anywhere. The Places path already supplies the code
+ * (`administrative_area_level_1` short_name); this exists for the free-text fallback.
+ *
+ * AN UNMAPPABLE VALUE BECOMES NULL, NOT THE RAW STRING. Nothing is actually lost: the operational
+ * `locations` row stores what the user typed verbatim, and `/admin/locations` renders it, so a
+ * reviewer still sees "Nevada" — it just never reaches the canonical record or the slug.
+ */
+const US_STATES: Record<string, string> = {
+  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA',
+  colorado: 'CO', connecticut: 'CT', delaware: 'DE', florida: 'FL', georgia: 'GA',
+  hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA',
+  kansas: 'KS', kentucky: 'KY', louisiana: 'LA', maine: 'ME', maryland: 'MD',
+  massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS', missouri: 'MO',
+  montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+  'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH',
+  oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+  'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT',
+  virginia: 'VA', washington: 'WA', 'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY',
+  'district of columbia': 'DC', 'washington dc': 'DC', 'washington d c': 'DC',
+  'puerto rico': 'PR', 'virgin islands': 'VI', guam: 'GU',
+  'american samoa': 'AS', 'northern mariana islands': 'MP',
+}
+
+export function toStateCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const raw = value.trim()
+  if (!raw) return null
+  // Name lookup FIRST, because a two-letter name would otherwise be shadowed by the code path.
+  // No US state name is two letters today, but ordering it this way means a future entry cannot
+  // be silently misread as a code.
+  const named = US_STATES[lookupKey(raw)]
+  if (named) return named
+  const letters = lettersOnly(raw)
+  if (letters.length === 2) return letters.toUpperCase()
+  return null
+}
+
 /** Trim + cap a client string; empty → null. Mirrors the `clip` already used by the route. */
 export function clip(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null

@@ -201,6 +201,52 @@ describe('slug derivation and collisions', () => {
   })
 })
 
+describe('country and state normalization', () => {
+  // The bug this prevents: facility_listings_country_chk is char_length(country) = 2, the Country
+  // input carries autoComplete="country-name", and a browser autofills it with "United States".
+  // That raises 23514 — NOT 23505 — so insertWithSlugRetry does not retry, the route's catch saves
+  // the location with a NULL bridge, and every optional field the user filled in is gone with no
+  // error shown to them.
+  it('coerces an autofilled country name to a 2-letter code', async () => {
+    const db = fakeDb()
+    await createFacilityListing(db, { ...VENUE, country: 'United States' }, EMPTY_DETAIL, 'user-1')
+    expect(db.inserts[0].country).toBe('US')
+  })
+
+  it('never writes a country value that would violate the CHECK', async () => {
+    for (const input of ['United States', 'USA', 'U.S.', 'Canada', 'Freedonia', '', null]) {
+      const db = fakeDb()
+      await createFacilityListing(db, { ...VENUE, country: input as any }, EMPTY_DETAIL, 'user-1')
+      const written = db.inserts[0].country
+      expect(written === null || String(written).length === 2, `${input} -> ${written}`).toBe(true)
+    }
+  })
+
+  it('coerces a full state name to its code, in the column AND the slug', async () => {
+    const db = fakeDb()
+    const out = await createFacilityListing(db, { ...VENUE, state: 'Nevada' }, EMPTY_DETAIL, 'user-1')
+    expect(db.inserts[0].state).toBe('NV')
+    // The slug is the half that would silently split the namespace against 2,365 live rows.
+    expect(out.slug).toBe('sunrise-community-courts-henderson-nv')
+    expect(out.slug).not.toContain('nevada')
+  })
+
+  it('drops an unmappable state rather than minting a divergent slug', async () => {
+    const db = fakeDb()
+    const out = await createFacilityListing(db, { ...VENUE, state: 'Ontario' }, EMPTY_DETAIL, 'user-1')
+    expect(db.inserts[0].state).toBeNull()
+    expect(out.slug).toBe('sunrise-community-courts-henderson')
+    expect(out.slug).not.toContain('ontario')
+  })
+
+  it('leaves an already-correct 2-letter state untouched', async () => {
+    const db = fakeDb()
+    const out = await createFacilityListing(db, VENUE, EMPTY_DETAIL, 'user-1')
+    expect(db.inserts[0].state).toBe('NV')
+    expect(out.slug).toBe('sunrise-community-courts-henderson-nv')
+  })
+})
+
 describe('optional detail', () => {
   it('omits access_type when skipped so the column default applies', async () => {
     const db = fakeDb()
