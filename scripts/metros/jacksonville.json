@@ -1,0 +1,31 @@
+{
+  "_comment": "Jacksonville, FL — CBSA 27260, five counties (Duval, Clay, Nassau, St. Johns, Baker). Tier 2, rank 38 of the 111-metro target list. GREENFIELD: a bounding-box query over the five counties on 2026-08-05 returned ZERO pre-existing facility_listings rows other than six unassigned OSM drafts, four of which were proven by Nominatim reverse geocode to sit in Alachua County (Gainesville) and are NOT claimed here. Built under the v3 source-led coverage-first methodology. NOT a workbook: the grid at metro-research/jacksonville/tabs.json was authored directly in the shape workbook-extract.mjs reads via --raw. NOT YET IMPORTED — read-only projection only.",
+
+  "metro": "jacksonville",
+  "batch": "jacksonville-2026-08-05",
+  "metro_area": "Jacksonville",
+  "states": ["FL"],
+  "input": "metro-research/jacksonville/jacksonville-candidates.json",
+  "discovered_by": "jacksonville-v3-source-led-research",
+
+  "_envelope_comment": "Derived from the CBSA 27260 COUNTY LIST, not from an observed bounding box. Northern edge 30.87 covers Nassau County to the Georgia line at the St. Marys River; southern edge 29.60 covers southern St. Johns County to the Flagler line and Clay County to the Keystone Heights/Bradford area; western edge -82.50 covers Baker County to the Columbia line; eastern edge -81.15 covers the Atlantic beaches and Amelia Island. DELIBERATE EXCLUSIONS enforced by this envelope: Gainesville/Alachua County (its own MSA, NOT on the 111 list) sits at roughly 29.65,-82.35 and is excluded on longitude; Palm Coast/Flagler County belongs to the already-live Deltona-Daytona Beach MSA and is excluded on latitude.",
+  "msa": "Jacksonville, FL (Duval, Clay, Nassau, St. Johns, Baker counties)",
+  "envelope": { "latMin": 29.60, "latMax": 30.87, "lngMin": -82.50, "lngMax": -81.15 },
+
+  "_expected_count_comment": "73 = every researched venue. There are no `exclude` entries: this is a greenfield metro, so no live row exists for any of them to collide with. If the Flynn Park reconcile is approved at the go-gate this stays 73 (a reconcile UPDATEs an existing row rather than removing one from the batch); if instead the owner rules to drop that row in favour of the existing OSM draft, this becomes 72 and jax-walter-anderson-memorial-park moves to `exclude`.",
+  "expected_count": 73,
+
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "_reconcile_comment": "One reconcile is EXPECTED but deliberately NOT declared yet, because it needs the owner's ruling first. The unassigned OSM draft flynn-park-pickleball-court-fl (osm_id way/1088046878, 30.1492208,-81.6397803) reverse-geocodes to Orange Picker Road, Mandarin, Jacksonville, Duval County 32223 and is the SAME SITE as jax-walter-anderson-memorial-park (2738 Orange Pickers Road, 32223), which the City of Jacksonville lists under its formal name. Importing both would publish one venue twice. Options at the go-gate: (a) declare a reconcile keyed on the osm_id so the existing draft is UPDATED to the city's name and address rather than a second row inserted, or (b) exclude the new row and leave the OSM draft alone. Recommendation is (a) — the city's name is the better public label and the OSM row currently carries a generic one.",
+
+  "_unclaimed_osm_comment": "SIX unassigned OSM drafts sat in a wide box around this metro. County was verified by Nominatim reverse geocode for EVERY ONE before any claim. FOUR are Alachua County (Gainesville), which is its own MSA and not on the 111 list — they belong to no target metro and are left untouched: lloyd-clarke-sports-gainesville-fl (Northwest 13th St, Gainesville), abby-wambach-park-fl (Southwest 20th Ave, Gainesville), flavet-outdoor-recreation-complex-fl (Museum Road, on the University of Florida campus) and pickleball-courts-fl-way-1487263906 (Museum Road, 14 m from the Flavet row and almost certainly the same UF site described twice). TWO are genuinely Duval County: flynn-park-pickleball-court-fl (resolved above) and pickleball-court-fl (way/817701015, 30.1980344,-81.841696 -> Andean Fox Drive, Jacksonville, Duval County 32222). The latter is a real in-metro court but carries the generic name 'Pickleball Court', which the publish gate rejects, and no non-aggregator source names the venue; it is LEFT HELD rather than guessed at.",
+
+  "_expected_publish_comment": "DELIBERATELY ABSENT. The owner has not yet read the projection, and authoring an expectation before the split exists would make it a guess to be corrected rather than a deliberate release. --stage=project and --stage=publish both assert against this block and fail on any divergence, and reportExpected says in as many words: fix the pipeline, do NOT edit the expectation to match the output. It gets authored from the owner's locked decisions AFTER the projection is reviewed.",
+
+  "workbook": {
+    "header_row": 1,
+    "source_description": "Source-led web research, Jacksonville FL MSA (CBSA 27260, five counties), 2026-08-05 (v3 coverage-first methodology) — no workbook and no Google Sheet; the tab grid was authored directly"
+  }
+}
