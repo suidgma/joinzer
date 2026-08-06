@@ -82,6 +82,54 @@ _Last updated: July 31, 2026_
 **Context:** the legacy `access_type` conflated access, fee, indoor and category into one enum (`resort`, `fee_based`, `business`, `indoor_public`, `semi_private`…), which cannot support a queryable public directory. The directory needs clean SEO-facing fields without breaking the live operational path.
 **Consequences:** strictly additive and non-destructive — no drops, no deletes, no lossy rewrites of `locations` rows. **Phase 3A (schema) is done; Phase 3B (read-path and write-path cutover) is still pending** — the deprecated columns are still read today. Migrations applied to Supabase before dependent code, per ADR-10. (`supabase/migrations/20260724000001` through `…000005`.)
 
+## ADR-19 — The directory targets the 111 largest US metros, and that list is the scope
+
+**Decision:** the court directory builds the **111 largest US metropolitan statistical areas**, ordered
+by 2025 population estimate. The authoritative list is the **"Metro Tracker" tab** of
+`https://docs.google.com/spreadsheets/d/1_WnYnQLffYfShp8hsBCXKYTCyw2IqxEqxVjVUza3ttM` — CBSA code,
+rank, counties and a per-metro research status. **A metro outside that list is not built without an
+explicit owner decision recorded here.**
+
+The sheet also assigns a **batch strategy per tier**, and it is part of the decision, not a hint:
+
+| Tier | Ranks | Batch strategy |
+|---|---|---|
+| 1 — first wave | 1–25 | Subregional clusters (1–10) / 2–4 city-county clusters (11–25) |
+| 2 — second wave | 26–50 | Metro-wide or 2 clusters |
+| 3 — major metros | 51–111 | Metro-wide |
+
+**Context:** the MSA is the right unit for a reason that is not obvious — **it is how the *sources* are
+organized.** The source-led methodology (ADR-17's companion, `court-verifier/skills/court-verifier/
+source-led-methodology.md`) works by enumerating county and municipal parks departments, so the source
+list falls out of the MSA's county definition. Lancaster's MSA is one county, which made its sweep
+"every township and borough in Lancaster County" — a bounded, checkable list. Without a metro boundary
+there is no natural stopping point and no way to say a sweep is complete.
+
+111 MSAs is roughly **70% of the US population**. Small towns are not a separate problem: they sit
+*inside* these MSAs and a proper sweep already reaches them — Lancaster's 34 published venues include
+Leola, Intercourse, Quarryville, Stevens and Akron PA, none of which is a city.
+
+This was decided verbally some weeks before it was written down, and on **2026-08-06** that cost real
+time: the orchestrator proposed Naples–Marco Island and Ocala/The Villages as next targets on
+pickleball-density grounds, both of which are **outside the 111**. A targeting rule that governs every
+metro we build cannot live only in a spreadsheet and the owner's memory.
+
+**Consequences:**
+- Coverage is measured against a defined list, not against an impression of "major markets." As of
+  2026-08-06: **48 of 111 built** — but **1 of the top 28**, 4 of ranks 29–60, and 43 of ranks 61–111.
+  The directory has been built from the bottom of the list upward, and every Tier 1 metro except
+  Phoenix is still missing.
+- **Off-list metros require a deliberate deviation.** Density is a legitimate argument for one — Naples
+  plausibly has more courts per capita than several Tier 1 metros — but it is an argument to be made
+  and recorded, not assumed.
+- **Beyond 111, the next tier is micropolitan statistical areas** (~540 of them), which are
+  mechanically identical: smaller county clusters, same municipal sources, same method. No new
+  methodology is needed. Everything past that is realistically user submission.
+- **The tracker's per-metro status fields must be maintained.** On 2026-08-06 the sheet read "Not
+  Started" for 43 metros that were live in production, and Lancaster — which had published 34 venues
+  that day — read "Needs Review." A tracker that disagrees with the database is worse than no tracker,
+  because it gets trusted.
+
 ## ADR-18 — `listed`: a third confidence tier, because coverage-first publishes unconfirmed venues
 
 **Decision:** `facility_listings.verification_status` gains a fourth permitted value, **`listed`** —
