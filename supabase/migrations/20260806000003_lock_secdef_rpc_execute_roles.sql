@@ -95,10 +95,13 @@ revoke execute on function public.increment_discount_uses(uuid) from anon, authe
 --
 -- 1. RLS PREDICATE HELPERS (owner decision, 2026-08-06). RLS policies invoke these as the CALLING
 --    role, so revoking them disables row-level security across the app — reads would return nothing:
---      can_read_league (10 policies) · can_read_league_session (6) · can_read_tournament (5) ·
+--      can_read_league (4 policies) · can_read_league_session (6) · can_read_tournament (5) ·
 --      can_operate_league_session (3) · is_league_chat_member (4) · is_tournament_chat_member (4) ·
---      is_event_chat_member (3)
---    Policy counts measured against pg_policy on 2026-08-06.
+--      is_event_chat_member (3) — 29 policies in total.
+--    Counted against pg_policy on 2026-08-06 with WORD-BOUNDARY matching (`~ '\mfn\M'`), not
+--    substring matching. A plain LIKE '%can_read_league%' reports 10 for that helper because
+--    `can_read_league_session` contains it as a prefix — the six policies calling the session
+--    helper get counted twice, once on each line. The correct split is 4 + 6.
 --
 -- 2. is_captain_of(uuid, uuid) — left executable under the same owner decision, but note for the
 --    record that it does NOT fit the rationale above: it is referenced by **zero** RLS policies and
