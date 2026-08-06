@@ -7,6 +7,7 @@
   "states": ["FL"],
   "input": "metro-research/jacksonville/jacksonville-candidates.json",
   "discovered_by": "jacksonville-v3-source-led-research",
+  "geocode_cache": "metro-research/.geocode-cache/jacksonville.json",
 
   "_envelope_comment": "Derived from the CBSA 27260 COUNTY LIST, not from an observed bounding box. Northern edge 30.87 covers Nassau County to the Georgia line at the St. Marys River; southern edge 29.60 covers southern St. Johns County to the Flagler line and Clay County to the Keystone Heights/Bradford area; western edge -82.50 covers Baker County to the Columbia line; eastern edge -81.15 covers the Atlantic beaches and Amelia Island. DELIBERATE EXCLUSIONS enforced by this envelope: Gainesville/Alachua County (its own MSA, NOT on the 111 list) sits at roughly 29.65,-82.35 and is excluded on longitude; Palm Coast/Flagler County belongs to the already-live Deltona-Daytona Beach MSA and is excluded on latitude.",
   "msa": "Jacksonville, FL (Duval, Clay, Nassau, St. Johns, Baker counties)",

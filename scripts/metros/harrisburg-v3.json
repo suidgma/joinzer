@@ -7,6 +7,7 @@
   "states": ["PA"],
   "input": "metro-research/harrisburg-v3/harrisburg-v3-candidates.json",
   "discovered_by": "harrisburg-v3-source-led-research",
+  "geocode_cache": "metro-research/.geocode-cache/harrisburg-v3.json",
 
   "_envelope_comment": "Copied verbatim from scripts/metros/harrisburg.json, which derived it 2026-07-31 from the Harrisburg-Carlisle PA MSA COUNTY LIST (Cumberland, Dauphin, Perry) and NOT from an observed bounding box. Same metro, same counties, so re-deriving it would be a chance to introduce a difference and no chance to improve one. Every venue in this batch sits in one of the three MSA counties; the deliberate-exclusions list below removed the out-of-MSA leads (New Holland and GEARS Community Center, both Lancaster County; Lewisburg Area Recreation Park, Union County; Middletown Township Firefighters Park, Bucks County).",
   "msa": "Harrisburg-Carlisle, PA (Cumberland, Dauphin, Perry counties)",
