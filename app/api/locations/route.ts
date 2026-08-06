@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { clip, coerceVenueDetail } from '@/lib/locations/submissionFields'
+import { createFacilityListing } from '@/lib/locations/createFacilityListing'
 
 function admin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
-
-// Trim + cap a client-supplied string; empty → null.
-function clip(v: unknown, max: number): string | null {
-  if (typeof v !== 'string') return null
-  const t = v.trim()
-  return t ? t.slice(0, max) : null
 }
 
 // Best-effort forward geocode so a new venue gets map coordinates. Never throws.
@@ -80,9 +75,52 @@ export async function POST(req: NextRequest) {
   const city = clip(body.city, 120)
   const state = clip(body.state, 60)
   const zip_code = clip(body.zip_code, 20)
+  const country = clip(body.country, 60) ?? 'US'
 
-  // Geocode the entered address so the venue shows up on the map picker.
+  // Optional venue detail. Errors only ever come from the numeric fields — an unrecognized enum is
+  // dropped rather than failing the submission. See lib/locations/submissionFields.ts.
+  const { detail, errors } = coerceVenueDetail(body)
+  if (errors.length > 0) return NextResponse.json({ error: errors[0], errors }, { status: 400 })
+
+  // Geocode the address the user confirmed, so the venue shows up on the map picker.
+  //
+  // DELIBERATELY NOT THE PLACES COORDINATE, even when the address came from Places autocomplete
+  // (owner decision, 2026-08-06). Persisting a Places `location` is the same ToS class as
+  // persisting its `formatted_address`, which ADR-12 bars. Geocoding the confirmed address keeps
+  // the coordinate's provenance identical to what this route has always done, and it is still far
+  // more accurate than before because the address itself is now validated.
   const coords = await geocode([name, address, city, state, zip_code])
+
+  const place_id = clip(body.google_place_id, 300)
+
+  // The canonical venue record (ADR-13). Created BEFORE the operational row so the bridge can be
+  // set in a single insert — a listing with no location is an orphan nobody sees, whereas a
+  // location with a dangling facility_listing_id would be a broken reference.
+  let listing: { id: string; slug: string } | null = null
+  try {
+    listing = await createFacilityListing(
+      db,
+      {
+        name,
+        address,
+        city,
+        state,
+        zip_code,
+        country,
+        google_place_id: place_id,
+        coordinateSource: coords ? 'google_geocoding' : null,
+        ...(coords ?? {}),
+      },
+      detail,
+      user.id
+    )
+  } catch (e) {
+    // The operational row is what the user is actually waiting on — it is what makes their venue
+    // selectable in the form they are filling in. A directory-side failure must not cost them
+    // that, so the submission proceeds with a NULL bridge and the detail is lost rather than the
+    // venue. The admin queue shows an unbridged row, which is the visible signal to look.
+    console.error('facility listing creation failed; saving location without the bridge', e)
+  }
 
   const row = {
     name,
@@ -90,11 +128,12 @@ export async function POST(req: NextRequest) {
     city,
     state,
     zip_code,
-    country: clip(body.country, 60) ?? 'US',
+    country,
     metro_area: UNRESOLVED_METRO, // NOT NULL, no default — see above
     access_type: 'public', // constrained enum; user venues default to public
     created_by: user.id,
     status: 'pending', // hidden from other users' pickers until approved
+    facility_listing_id: listing?.id ?? null, // ADR-13 bridge
     ...(coords ?? {}),
   }
 
