@@ -1,24 +1,26 @@
 {
   "_comment": "Orlando-Kissimmee-Sanford, FL (CBSA 36740) - Tier 1, rank 20 of the 111-metro target list. GREENFIELD: no prior Orlando batch exists and there is no dividend phase. Built under the v3 coverage-first (source-led) methodology; the grid at metro-research/orlando/tabs.json was authored directly in the shape workbook-extract.mjs reads via --raw, so no workbook and no Google Sheet exist. NOT YET IMPORTED - read-only projection only. expected_publish is DELIBERATELY ABSENT: the owner asked to read the projection before locking the split, and authoring the block first would make it a guess to be corrected rather than the deliberate-release mechanism ADR-17 intends.",
-
   "metro": "orlando",
   "batch": "orlando-2026-08-05",
   "metro_area": "Orlando",
-  "states": ["FL"],
+  "states": [
+    "FL"
+  ],
   "input": "metro-research/orlando/orlando-candidates.json",
   "discovered_by": "orlando-source-led-research",
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
-
   "_envelope_comment": "Derived from the Orlando-Kissimmee-Sanford, FL MSA COUNTY LIST (Orange, Seminole, Osceola, Lake), not from the observed venue bounding box. The observed bbox is only a LOWER bound - it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the four county bounding boxes, rounded OUTWARD to 0.01 deg. THIS ENVELOPE IS LOAD-BEARING HERE IN A WAY IT WAS NOT IN OTHER METROS: Orlando is ringed by metros we have already published, and its bounding box contains 8 live venues that are NOT Orlando's - 7 in Volusia County (Daytona Beach MSA) and 1 in Brevard (Melbourne MSA). Those were identified during discovery and deliberately skipped; see _boundary_comment.",
   "msa": "Orlando-Kissimmee-Sanford, FL (Orange, Seminole, Osceola, Lake counties)",
-  "envelope": { "latMin": 27.74, "latMax": 29.07, "lngMin": -82.01, "lngMax": -80.74 },
-
+  "envelope": {
+    "latMin": 27.74,
+    "latMax": 29.07,
+    "lngMin": -82.01,
+    "lngMax": -80.74
+  },
   "_boundary_comment": "A full OpenStreetMap sweep of the Orlando bounding box returned 456 pickleball features clustering into 112 venues. Every cluster centroid was county-stamped via the FCC census-block API before any research was spent on it, and only 68 fall inside the four MSA counties. The other 44 are Sumter (11), Polk (16), Volusia (10), Brevard (5) and Marion (2) - all out of scope, none researched, none claimed, none re-slugged. This is the Harrisburg/Conewago lesson applied at larger scale: the cheapest place to catch an out-of-metro venue is BEFORE it is researched, not after it has been written into the artifact. One venue was caught this way at the research stage rather than the geocode stage: The Grand Oaks Resort, listed by the Pickleball Orlando club under a 'Lady Lake' address, sits on Marion County Road in Weirsdale - MARION county, out of scope - and was dropped. Harris M. Saxon Community Center, on the same club list, is in Deltona and is ALREADY LIVE under the Daytona Beach metro.",
-
   "expected_count": 101,
   "require_all_geocoded": false,
-
-  "_reconcile_comment": "FOUR dormant source='osm' status='draft' rows in these counties carry metro_area = NULL and are matched by this research. All four are UPDATE targets keyed on osm_id, never INSERTs. Two of them (pickleball-fl and pickleball-fl-way-1473660443) are gate-blocked on a generic name and cannot publish as-is; this pass IDENTIFIED them - see the Thousand Trails note below - and reconciles one while leaving the other for a deliberate retire, because two OSM rows describing one venue is a duplicate question and duplicates are excluded, not re-slugged.",
+  "_reconcile_comment": "FIVE dormant source='osm' status='draft' rows in these counties carry metro_area = NULL and were matched by this research. Only TWO are reconciled. Both reconciled rows GEOCODED SUCCESSFULLY, which is the precondition that makes a reconcile safe here - see _reconcile_coordinate_hazard.",
   "reconciles": [
     {
       "candidate_key": "orl-orlando-sportsplex",
@@ -30,7 +32,22 @@
       "evidence_url": "https://www.pickleballorlando.com/courts",
       "confidence": "high",
       "note": "SAME venue: identical name, identical 8701 Maitland Summit Boulevard address, identical city. The OSM row is access_type='unknown'; the research leaves access unknown too (the operator states no public access terms) but supplies metro_area and the citable club-list source.",
-      "osm_original": { "osm_id": "way/975525617", "name": "Orlando Sportsplex", "slug": "orlando-sportsplex-orlando-fl", "source": "osm", "status": "draft", "access_type": "unknown", "fee_type": null, "lat": 28.6354219, "lng": -81.3999608, "surface": null, "city": "Orlando", "state": "FL", "address": "8701 Maitland Summit Boulevard", "captured_on": "2026-08-05" }
+      "osm_original": {
+        "osm_id": "way/975525617",
+        "name": "Orlando Sportsplex",
+        "slug": "orlando-sportsplex-orlando-fl",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 28.6354219,
+        "lng": -81.3999608,
+        "surface": null,
+        "city": "Orlando",
+        "state": "FL",
+        "address": "8701 Maitland Summit Boulevard",
+        "captured_on": "2026-08-05"
+      }
     },
     {
       "candidate_key": "orl-westmonte-recreation-center",
@@ -42,44 +59,52 @@
       "evidence_url": "https://www.altamonte.org/374/Westmonte-Recreation-Center",
       "confidence": "high",
       "note": "SAME venue at 0 m, same 624 Bills Lane address. The OSM node's own sport tag already reads 'swimming;tennis;bocce;pickleball', independently corroborating the city page. The reconcile patches access_type unknown->public and fee_type->fee on the City of Altamonte Springs' own page ($5/court/hr outside the free 8a-12p weekday drop-in window).",
-      "osm_original": { "osm_id": "node/367826141", "name": "Westmonte Recreation and Civic Center", "slug": "westmonte-recreation-and-civic-center-altamonte-springs-fl", "source": "osm", "status": "draft", "access_type": "unknown", "fee_type": null, "lat": 28.6694988, "lng": -81.4082652, "surface": null, "city": "Altamonte Springs", "state": "FL", "address": "624 Bills Lane", "captured_on": "2026-08-05" }
-    },
-    {
-      "candidate_key": "orl-adventhealth-pickleball-complex-at-central-winds-park",
-      "osm_id": "way/1165951096",
-      "listing_id": "598e3a09-67fe-4260-b1a4-8f67e56907cf",
-      "matched_distance_m": 0,
-      "adjudicated_by": "court-verifier",
-      "adjudicated_on": "2026-08-05",
-      "evidence_url": "https://www.winterspringsfl.org/parksrec/page/adventhealth-pickleball-complex-winter-springs",
-      "confidence": "high",
-      "note": "SAME venue at 0 m, same 1000 Central Winds Drive address. NAME CHANGE IS DELIBERATE: the City of Winter Springs now brands this the AdventHealth Pickleball Complex - 14 tournament-legal courts from a $3.1M project - and the OSM row's 'Central Winds Pickleball Courts' predates that. The row has never been published, so the re-slug costs no live URL.",
-      "osm_original": { "osm_id": "way/1165951096", "name": "Central Winds Pickleball Courts", "slug": "central-winds-pickleball-courts-winter-springs-fl", "source": "osm", "status": "draft", "access_type": "unknown", "fee_type": null, "lat": 28.7078188, "lng": -81.2750719, "surface": null, "city": "Winter Springs", "state": "FL", "address": "1000 Central Winds Drive", "captured_on": "2026-08-05" }
-    },
-    {
-      "candidate_key": "orl-thousand-trails-orlando-rv-resort",
-      "osm_id": "way/1473660442",
-      "listing_id": "84dbee03-b433-42fe-80f4-fd850ffcba65",
-      "matched_distance_m": 0,
-      "adjudicated_by": "court-verifier",
-      "adjudicated_on": "2026-08-05",
-      "evidence_url": "https://thousandtrails.com/florida/orlando-rv-resort",
-      "confidence": "medium",
-      "note": "IDENTIFIES A GATE-BLOCKED GENERIC NAME. The row is literally named 'Pickleball' with no city, so it can never pass the publish gate as-is. Identification is circumstantial but tight: the pitch sits at 28.3774,-81.6759 among OSM features for mini golf (42 m), shuffleboard (50 m), a wading pool (72 m) and a playground (82 m), and the operator's own page for this 255-acre, 840-site Clermont RV resort lists 2 pools, tennis, PICKLEBALL, SHUFFLEBOARD and MINI GOLF. County stamped LAKE. Confidence is MEDIUM not high because no source names the courts directly - if the owner prefers, hold this row instead and the batch loses one venue, not correctness.",
-      "osm_original": { "osm_id": "way/1473660442", "name": "Pickleball", "slug": "pickleball-fl", "source": "osm", "status": "draft", "access_type": "private", "fee_type": null, "lat": 28.3774325, "lng": -81.6759268, "surface": null, "city": null, "state": "FL", "address": null, "captured_on": "2026-08-05" }
+      "osm_original": {
+        "osm_id": "node/367826141",
+        "name": "Westmonte Recreation and Civic Center",
+        "slug": "westmonte-recreation-and-civic-center-altamonte-springs-fl",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 28.6694988,
+        "lng": -81.4082652,
+        "surface": null,
+        "city": "Altamonte Springs",
+        "state": "FL",
+        "address": "624 Bills Lane",
+        "captured_on": "2026-08-05"
+      }
     }
   ],
-
-  "_duplicate_osm_row_comment": "The FIFTH dormant row, pickleball-fl-way-1473660443 (listing 9d0871df-a36a-4a44-a0c1-f9338a223af3, way/1473660443, 28.3772368/-81.6763376), is 47 m from way/1473660442 and is THE SAME VENUE - two adjacent court polygons in Thousand Trails Orlando that OSM carries as two features. It is deliberately NOT reconciled here. Under the methodology a duplicate is EXCLUDED, not re-slugged, and retiring it is a candidate-status change that belongs in its own gated slice; it has never been published, so there is no URL cost to leaving it dormant. Reconciling both would create two listings for one venue - exactly the chimera failure Lancaster's Overlook rows produced in reverse.",
-
-  "_reconcile_recovery_comment": "EXPECTED POST-IMPORT RECOVERY - flagged so the published count is not a surprise. Two rows project as HELD on 'no coordinate' but should recover at import, because the live OSM rows they reconcile against already carry a good coordinate that this batch's geocoding could not reproduce: adventhealth-pickleball-complex-at-central-winds-park (way/1165951096 @ 28.7078188,-81.2750719) and thousand-trails-orlando-rv-resort (way/1473660442 @ 28.3774325,-81.6759268). The projection reports 83/18; if the reconcile UPDATE preserves the existing lat/lng, the real post-import split is 85/16. Whether it does is pipeline semantics that was NOT verified by this read-only pass - treat 83 as the floor and 85 as the expected outcome, and check the actual number after --stage=listings rather than assuming either.",
-
+  "_duplicate_osm_row_comment": "TWO dormant rows, pickleball-fl (way/1473660442) and pickleball-fl-way-1473660443, sit 47 m apart at Thousand Trails Orlando and are THE SAME VENUE - two adjacent court polygons OSM carries as two features. NEITHER is reconciled: the venue row failed to geocode, so a reconcile would null the coordinates both rows currently hold (see _reconcile_coordinate_hazard), and a duplicate is excluded rather than re-slugged in any case. Both stay dormant drafts with their coordinates intact. thousand-trails-orlando-rv-resort imports as a normal held row; identifying what these two OSM rows actually are remains this pass's contribution, and retiring the duplicate is a separate gated slice.",
   "_geocode_failure_comment": "The 18 holds are NOT research failures and every one is a real venue, so they hold rather than being excluded. The dominant mode is an OSM house-number gap: the ladder finds the correct street and then finds no building at that number - Goldenrod Road has no 4863, Econlockhatchee Trail no 3850, Doctor Phillips Boulevard no 7000 - and the name rungs miss too because OSM does not carry these venues under their operating names. Thousand Trails fails differently and instructively: its street locus 'US 27' was DISCARDED at 34,410 m from the zip centroid, the multi-segment-road case the methodology warns about, correctly refused rather than accepted. A later re-geocode releases all of them from the work queue.",
-
   "exclude": [],
-
   "workbook": {
     "header_row": 1,
     "source_description": "Source-led web research, Orlando-Kissimmee-Sanford FL MSA, 2026-08-05 (v3 coverage-first methodology) - no workbook and no Google Sheet; the tab grid was authored directly"
+  },
+  "_reconcile_coordinate_hazard": "WHY THE OTHER RECONCILES WERE REMOVED - verified in code, not assumed. An earlier draft of this config declared reconciles for adventhealth-pickleball-complex-at-central-winds-park and thousand-trails-orlando-rv-resort on the theory that the live OSM rows' good coordinates would be preserved, lifting the split to 85/16. THAT IS BACKWARDS AND WOULD HAVE DESTROYED DATA. scripts/lib/reconcile-merge.mjs:66 defines PRESERVE_ON_RECONCILE and lat/lng are DELIBERATELY ABSENT from it - lines 50-52 state the reason: the stored coordinate is independently Nominatim-derived and provenance.coordinate records that derivation, so preserving an OSM coordinate would make the provenance node describe a coordinate the row does not hold, and the pair is coupled. Meanwhile listingFields sends lat: v.coordinates?.lat ?? null (import-metro-merged.mjs:408-409, 436-437) and mergeOntoTarget only ever restores fields listed in PRESERVE_ON_RECONCILE. Reconciling a row that has NO coordinate against a target that HAS one therefore writes NULL OVER A GOOD COORDINATE. The split is 83 either way; the only difference is whether two good OSM coordinates survive. They now do. GENERAL RULE: never reconcile a row that failed to geocode.",
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-06. Authored from the POST-RECOVERY projection, not the first one. The owner approved count:83; it is 85 because the two rows that drove that number were then FIXED rather than worked around - see _reconcile_coordinate_hazard and the street-variant notes. Values are MACHINE REASONS ONLY: assertExpectedPublish does a containment check (gotHold[slug].includes(expHold[slug])), so rationale prose in this map fails a split that is actually correct. Reasons live in the artifact's provenance_note, never here. reportExpected says in as many words: fix the pipeline, do NOT edit the expectation to match the output.",
+  "expected_publish": {
+    "count": 85,
+    "hold": {
+      "goldenrod-recreation-center-winter-park-fl": "no coordinate",
+      "south-econ-recreation-center-orlando-fl": "no coordinate",
+      "west-orange-recreation-center-winter-garden-fl": "no coordinate",
+      "dr-phillips-ymca-orlando-fl": "no coordinate",
+      "waterford-lakes-recreational-park-orlando-fl": "no coordinate",
+      "evermore-orlando-resort-orlando-fl": "no coordinate",
+      "disney-s-boardwalk-inn-and-villas-lake-buena-vista-fl": "no coordinate",
+      "disney-s-fort-wilderness-resort-lake-buena-vista-fl": "no coordinate",
+      "disney-s-yacht-and-beach-club-resorts-lake-buena-vista-fl": "no coordinate",
+      "reunion-resort-tennis-and-pickleball-center-kissimmee-fl": "no coordinate",
+      "kehlor-recreation-center-clermont-fl": "no coordinate",
+      "trilogy-orlando-groveland-fl": "no coordinate",
+      "the-plantation-at-leesburg-leesburg-fl": "no coordinate",
+      "royal-highlands-leesburg-fl": "no coordinate",
+      "cardinal-cove-park-eustis-fl": "no coordinate",
+      "pickle-x-orlando-fl": "generic name"
+    }
   }
 }
