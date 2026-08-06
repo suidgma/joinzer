@@ -18,13 +18,49 @@
   "expected_count": 73,
 
   "require_all_geocoded": false,
-  "reconciles": [],
 
-  "_reconcile_comment": "One reconcile is EXPECTED but deliberately NOT declared yet, because it needs the owner's ruling first. The unassigned OSM draft flynn-park-pickleball-court-fl (osm_id way/1088046878, 30.1492208,-81.6397803) reverse-geocodes to Orange Picker Road, Mandarin, Jacksonville, Duval County 32223 and is the SAME SITE as jax-walter-anderson-memorial-park (2738 Orange Pickers Road, 32223), which the City of Jacksonville lists under its formal name. Importing both would publish one venue twice. Options at the go-gate: (a) declare a reconcile keyed on the osm_id so the existing draft is UPDATED to the city's name and address rather than a second row inserted, or (b) exclude the new row and leave the OSM draft alone. Recommendation is (a) — the city's name is the better public label and the OSM row currently carries a generic one.",
+  "_reconcile_comment": "OWNER-APPROVED 2026-08-06: one venue, one row, under the city's formal name. The unassigned OSM draft flynn-park-pickleball-court-fl (way/1088046878) is the SAME SITE as jax-walter-anderson-memorial-park — it reverse-geocodes to Orange Picker Road, Mandarin, Jacksonville, Duval County 32223, and the research row's own Nominatim anchor lands 136 m away. Importing both would publish one venue twice. THE COORDINATE QUESTION, ANSWERED FROM THE CODE RATHER THAN ASSUMED: declaring this reconcile does NOT hand the research row the OSM coordinate. `lat`/`lng` are deliberately absent from PRESERVE_ON_RECONCILE (scripts/lib/reconcile-merge.mjs:48-51 — a preserved OSM coordinate would make provenance.coordinate describe a coordinate not in the row, and they are a coupled pair), while listingFields sends `lat: v.coordinates?.lat ?? null`. So with the research row un-geocoded this reconcile would have written NULL over the OSM row's good coordinate — destroying a fact to gain nothing, and leaving the row held anyway. That is why the fix was applied upstream instead: the research row now carries its OWN Nominatim coordinate (see the street-name-variant note in tabs.json), so the merge writes a real high-precision point and nothing is blanked.",
+  "reconciles": [
+    {
+      "candidate_key": "jax-walter-anderson-memorial-park",
+      "osm_id": "way/1088046878",
+      "listing_id": "f151700b-3e51-460b-9bde-c395841bf74c",
+      "matched_distance_m": 136,
+      "verdict": "same_site_dormant",
+      "evidence_url": "https://www.jacksonville.gov/departments/parks-and-recreation/jaxparks/specialty-parks",
+      "adjudicated_on": "2026-08-06",
+      "adjudicated_by": "owner",
+      "note": "Nominatim reverse geocode of the OSM draft's coordinate (30.1492208,-81.6397803) returns 'Orange Picker Road, Mandarin, Jacksonville, Duval County, Florida, 32223' — the same street and zip the City of Jacksonville gives for Walter Anderson Memorial Park at 2738. The park is known locally as Flynn Park and is managed by the Mandarin Sports Association, which is the alias the OSM contributor used. The reconcile renames the dormant row to the city's formal name; renaming is the point, which is why name and slug are excluded from PRESERVE_ON_RECONCILE.",
+      "osm_original": { "name": "Flynn Park Pickleball Court", "slug": "flynn-park-pickleball-court-fl", "lat": 30.1492208, "lng": -81.6397803, "source": "osm", "status": "draft", "metro_area": null }
+    }
+  ],
 
   "_unclaimed_osm_comment": "SIX unassigned OSM drafts sat in a wide box around this metro. County was verified by Nominatim reverse geocode for EVERY ONE before any claim. FOUR are Alachua County (Gainesville), which is its own MSA and not on the 111 list — they belong to no target metro and are left untouched: lloyd-clarke-sports-gainesville-fl (Northwest 13th St, Gainesville), abby-wambach-park-fl (Southwest 20th Ave, Gainesville), flavet-outdoor-recreation-complex-fl (Museum Road, on the University of Florida campus) and pickleball-courts-fl-way-1487263906 (Museum Road, 14 m from the Flavet row and almost certainly the same UF site described twice). TWO are genuinely Duval County: flynn-park-pickleball-court-fl (resolved above) and pickleball-court-fl (way/817701015, 30.1980344,-81.841696 -> Andean Fox Drive, Jacksonville, Duval County 32222). The latter is a real in-metro court but carries the generic name 'Pickleball Court', which the publish gate rejects, and no non-aggregator source names the venue; it is LEFT HELD rather than guessed at.",
 
-  "_expected_publish_comment": "DELIBERATELY ABSENT. The owner has not yet read the projection, and authoring an expectation before the split exists would make it a guess to be corrected rather than a deliberate release. --stage=project and --stage=publish both assert against this block and fail on any divergence, and reportExpected says in as many words: fix the pipeline, do NOT edit the expectation to match the output. It gets authored from the owner's locked decisions AFTER the projection is reviewed.",
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-06, authored from the POST-RECONCILE projection as instructed — not from the 65/73 run that preceded it. The owner asked whether declaring the Flynn Park reconcile would itself release Walter Anderson to 66; the code says NO (lat/lng are excluded from PRESERVE_ON_RECONCILE), so the count would have stayed 65 and the reconcile would additionally have blanked the OSM row's coordinate. 66 was reached instead by fixing the actual defect — an OSM street-name variant, 'Orange Pickers Road' vs 'Orange Picker Road' — which gave the row its own high-precision Nominatim coordinate. Both --stage=project and --stage=publish assert against this block and fail the run on any divergence; reportExpected says in as many words: fix the pipeline, do NOT edit the expectation to match the output. If a later re-geocode pass releases any held row, move it out of this block deliberately and re-run — never edit the block to match an output.",
+  "_hold_rationale": {
+    "_note": "Prose rationale for each hold. Kept OUT of expected_publish.hold because that assertion is a CONTAINMENT check against the importer's own short machine reason — the expected string must be a substring of what the pipeline prints, so putting rationale there fails the run. Learned by running it: the first authoring put the prose in the assertion and produced 7 spurious divergences on a split that was actually correct.",
+    "augusta-savage-park-green-cove-springs-fl": "DELIBERATE, not a defect. Clay County has announced six dedicated pickleball courts here but describes them as still in the design process, so the venue is real and sourced but not yet playable. Real-venue-not-yet-open is a hold, never an exclude. Owner-confirmed 2026-08-06, same treatment as Lancaster's Ephrata sites and Jackson's LeFleur's Bluff. Re-admit when the county announces opening.",
+    "picklerage-jacksonville-fl": "Recoverable geocoder miss. Township rung found the 32258 zip locus but no house-number match for 10320 Shops Ln — a recent build OSM has no address point for.",
+    "nas-jacksonville-base-gym-jacksonville-fl": "Recoverable geocoder miss. Building 614 Gillis Street sits inside a military installation; OSM carries no address point for base buildings. Township rung found the 32212 zip locus only.",
+    "nassau-pickleball-365-yulee-fl": "Recoverable geocoder miss, and the closest of the six to resolving: the township rung DID find the street locus (Koen Lane, way/11132289) but no house number 86365 on it. Opened 2025-01-04, so OSM has not caught up.",
+    "old-coast-pickleball-st-augustine-fl": "Recoverable geocoder miss. 76 Dockside Dr Ste 108 at the Shipyard Marina; the suite number and the marina's internal addressing defeat the structured rung, which found only the 32084 zip locus.",
+    "nocatee-splash-waterpark-courts-ponte-vedra-fl": "Recoverable geocoder miss. 245 Nocatee Center Way in a master-planned community whose internal addressing OSM has not fully ingested; township rung found the 32081 zip locus only.",
+    "st-augustine-rv-resort-st-augustine-fl": "Recoverable geocoder miss. 426 Resort Way is a private resort road; township rung found the 32084 zip locus only.",
+    "_owner_ruling_2026_08_06": "The six no-coordinate holds stay held. They are recoverable and a cross-metro re-geocode backlog is forming that should be batched into one pass rather than chased per-metro."
+  },
+  "expected_publish": {
+    "count": 66,
+    "hold": {
+      "augusta-savage-park-green-cove-springs-fl": "research_status=held",
+      "picklerage-jacksonville-fl": "no coordinate",
+      "nas-jacksonville-base-gym-jacksonville-fl": "no coordinate",
+      "nassau-pickleball-365-yulee-fl": "no coordinate",
+      "old-coast-pickleball-st-augustine-fl": "no coordinate",
+      "nocatee-splash-waterpark-courts-ponte-vedra-fl": "no coordinate",
+      "st-augustine-rv-resort-st-augustine-fl": "no coordinate"
+    }
+  },
 
   "workbook": {
     "header_row": 1,
