@@ -2,7 +2,7 @@
 
 > Evergreen. Auto-loaded every session via the `@docs/security.md` import in `/CLAUDE.md`.
 > The global `~/.claude/CLAUDE.md` has its own overlapping "Security — Non-Negotiable" section; these project rules extend it.
-> Last revised: July 10, 2026.
+> Last revised: August 6, 2026.
 
 These rules apply to every session, every file, every commit on Joinzer.
 
@@ -20,11 +20,21 @@ These rules apply to every session, every file, every commit on Joinzer.
 
 ## Server writes & authorization (the real model)
 
-- Most sensitive writes are **direct service-role table writes inside API routes**, not database RPCs. Only a few flows use `SECURITY DEFINER` RPCs (registration, checkout, event join/leave, the Stripe webhook).
+- Most sensitive writes are **direct service-role table writes inside API routes**, not database RPCs. `SECURITY DEFINER` RPCs are the exception — but there are **31 of them in `public`** as of Aug 6 2026 (registration, checkout, event join/leave, the Stripe webhook, the whole substitution lifecycle, and the RLS predicate helpers), so treat "only a few flows" as no longer true and check `pg_proc.prosecdef` rather than assuming.
 - Because service-role bypasses RLS, **the API route is the security boundary.** Every mutating route (and every RPC) must, *before* it writes:
   1. authenticate the caller (`supabase.auth.getUser()`), and
   2. authorize them for that *specific* action — organizer / co-admin / participant / self. Never trust a client-supplied user id, role, or ownership claim; re-derive it server-side.
 - Validate and normalize inputs server-side (scores, emails, gender, etc.). Never persist client-computed authority.
+- **A new `SECURITY DEFINER` function in `public` must be revoked from `anon` and `authenticated` BY ROLE NAME *and* from `PUBLIC` — both, because either path alone leaves it callable.** Supabase's default privileges grant `EXECUTE` on new `public` functions **directly to the `anon`/`authenticated` roles**, so `revoke all … from public` (which only drops the `PUBLIC` pseudo-role grant) does **not** lock a function down; conversely some functions also carry an explicit `PUBLIC` grant (`=X/…` in `proacl`) that survives a role-only revoke. The full pattern:
+  ```sql
+  revoke execute on function public.fn(argtypes) from public;
+  revoke execute on function public.fn(argtypes) from anon, authenticated;
+  grant  execute on function public.fn(argtypes) to service_role;
+  ```
+  This matters because these functions take the actor as a **parameter** and do no internal authorization — the route is the boundary (above), which only holds if the function is unreachable except through the route. `pgrst.db_schemas` is unset, so `public` is exposed: anything left executable is callable over PostgREST with the publishable anon key, actor of the caller's choosing.
+  **`drop function` + recreate silently RESETS the ACL to Supabase's defaults; `create or replace` preserves it.** So a "harmless" drop-and-recreate re-opens a locked function with no diff that looks like a permission change.
+  **Verify, don't assume** — `select has_function_privilege('anon', 'public.fn(argtypes)', 'EXECUTE');` must return `false`. Count policy references with **word-boundary** matching (`~ '\mfn\M'`), never `LIKE '%fn%'`: a prefix like `can_read_league` inside `can_read_league_session` double-counts.
+  *This rule lived only in migration headers until 2026-08-06, and was therefore repeated as a mistake three times — `20260710000003` (revoke-from-PUBLIC alone, insufficient), the 14 substitution RPCs six days after `20260710000004` documented the fix, and again in `20260806000001`. It is written here because a rule that lives only in migration comments has now failed twice. Migrations: `20260710000004`, `20260806000003`.*
 
 ## RLS
 
