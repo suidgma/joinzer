@@ -17,13 +17,14 @@
     "lngMin": -82.91,
     "lngMax": -82.04
   },
-  "expected_count": 11,
+  "expected_count": 10,
+  "_deferred_comment": "ELEVEN venues were researched; TEN are in this batch. bryan-glazer-family-jcc (522 N Howard Ave, Tampa 33606 — 2 indoor membership courts on the JCC multi-sports floor) is DEFERRED to a follow-up batch by owner decision on 2026-08-06. It is neither excluded nor a duplicate: it sits 148 m from live PUBLISHED 'Vila Brothers Park' (700 N Armenia Ave, 33609 — 2 outdoor public city courts) and trips the live-proximity guard. The two are plainly distinct — different streets, zips, operators and court types, and West Tampa blocks really are ~150 m apart — but the pipeline has NO config expression for 'distinct venues where the neighbour is a PUBLISHED non-OSM row': both escape hatches (reconciles, also_at_site) key on the NEIGHBOUR'S osm_id, and Vila Brothers carries osm_id NULL because it came from our own research rather than OSM; also_at_site additionally requires the neighbour be status='draft'. Deferred pending that tooling slice. reconcile_radius_m is deliberately UNCHANGED at its default — lowering it to admit this one row would weaken the guard for every other neighbour in Tampa, which is the failure the guard exists to prevent. THE COUNT CHANGE BELOW IS A SCOPE CHANGE, NOT A RELAXED ASSERTION: one row left the batch, and the remaining ten still assert their split exactly.",
   "_geocode_comment": "One row carries no street address by deliberate decision, not by omission: avila-community-courts. The Avila POA lists pickleball among its gated community's amenities, but the only address published under the name 'Avila' belongs to the golf club inside the same gate — a different facility. Writing that address would plant the pin on the wrong site (Overlook Park failure mode), so the field is blank and the row holds. Every other address here was READ from a source fetched during the research session; none was recalled.",
   "require_all_geocoded": false,
   "reconciles": [],
   "_expected_publish_comment": "AUTHORED AFTER the --stage=project projection was read, and using the importer's OWN machine reason strings only — the assertion is a substring containment test against b.reasons.join('; '), so prose here produces spurious failures on a correct split. Rationale lives in _hold_rationale, which nothing asserts against.",
   "expected_publish": {
-    "count": 10,
+    "count": 9,
     "hold": {
       "avila-community-courts-tampa-fl": "no coordinate"
     }
