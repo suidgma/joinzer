@@ -76,6 +76,7 @@ import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 import { LIVE, AGGREGATOR_HOST, DOCUMENT_URL } from './lib/workbook-extract.mjs'
 import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, assertReconcileCoordinate, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
 import { BLOCKING_RESEARCH_STATUS, GATE_TEXT, gateReasons, isApproximateLocation, PIPELINE_VERIFICATION_STATUS, verificationStatusFor } from './lib/publish-gate.mjs'
+import { DISTINCT_NEIGHBOUR_COLUMNS, parseDistinctFromLive, verifyDistinctFromLive } from './lib/distinct-from-live.mjs'
 
 // ---------------------------------------------------------------------------------------------
 // Args + config
@@ -270,6 +271,32 @@ for (const r of RECONCILES) {
     ALSO_AT_SITE_BY_OSM.set(a.osm_id, { ...a, candidate_key: r.candidate_key })
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Adjudicated distinct venues near a PUBLISHED, non-OSM neighbour
+// ---------------------------------------------------------------------------------------------
+// The third allow-list, and the one that closes the case the other two structurally cannot reach.
+// `reconciles` matches a neighbour by osm_id and `also_at_site` looks one up in ALSO_AT_SITE_BY_OSM
+// while additionally asserting it is still status='draft'. A published row that came from our own
+// research has osm_id NULL, so neither can even name it — and Tampa's Bryan Glazer Family JCC was
+// deferred out of its batch for exactly that reason, 148 m from published Vila Brothers Park.
+//
+// Parsing and validation live in scripts/lib/distinct-from-live.mjs so they can be unit-tested; this
+// file executes on import (it reads argv and exits), so nothing declared here is importable.
+// The module throws so it stays pure and testable; every other config validation in this file exits
+// with a plain message rather than a stack trace, so it is converted here to match.
+let DISTINCT_BY_LISTING
+try {
+  DISTINCT_BY_LISTING = parseDistinctFromLive(config.distinct_from_live, {
+    configPath: CONFIG_PATH,
+    artifactKeys: new Set(allVenues.map((v) => v.research_key)),
+    reconciles: RECONCILES,
+  })
+} catch (e) {
+  console.error(e.message)
+  process.exit(1)
+}
+const distinctTripped = new Set()
 
 // Artifacts written by scripts/lib/workbook-extract.mjs carry their metadata at the top level; the
 // hand-built Little Rock artifact nests the same keys under `_meta`. Read both so the generic
@@ -785,11 +812,24 @@ async function preflight({ checkCollisions, candidateKeys }) {
       }
     }
 
+    // Every distinct_from_live neighbour must actually EXIST, checked by id rather than inferred
+    // from the envelope sweep below. The sweep only returns rows inside the bounding box with a
+    // non-null coordinate, so a deleted or moved neighbour would otherwise surface as the gentle
+    // "no longer load-bearing" report — indistinguishable from a pair the geocoder separated, when
+    // in fact the row the adjudication was made about is gone. Mirrors the also_at_site assertion.
+    for (const [listingId, d] of DISTINCT_BY_LISTING) {
+      const { data: nb, error: e1e } = await conn.from('facility_listings').select('id, slug, status, osm_id, source').eq('id', listingId)
+      if (e1e) { fail.push(`distinct_from_live check failed for ${listingId}: ${e1e.message}`); continue }
+      if (nb.length !== 1) { fail.push(`distinct_from_live ${d.candidate_key} names listing_id ${listingId}, which matches ${nb.length} live rows — the row the adjudication describes no longer exists. Re-adjudicate.`); continue }
+      if (nb[0].source === BATCH) { fail.push(`distinct_from_live ${d.candidate_key} names ${nb[0].slug}, which belongs to THIS batch (${BATCH}). Two rows in one batch are an internal-proximity question — use same_site_pairs, not this list.`); continue }
+      console.log(`  distinct-from-live neighbour confirmed live: "${nb[0].slug}" (${nb[0].status}, osm_id ${nb[0].osm_id ?? 'NULL'}) — the case neither reconciles nor also_at_site can name`)
+    }
+
     // Proximity to EVERY pre-existing listing in the envelope, recomputed live on every run.
     // Configured reconciles are allow-listed; anything else inside the radius is an OWNER decision,
     // never an auto-INSERT.
     const { data: near, error: e2 } = await conn.from('facility_listings')
-      .select('id, name, slug, lat, lng, status, source, osm_id')
+      .select(`id, name, slug, lat, lng, status, source, osm_id, ${DISTINCT_NEIGHBOUR_COLUMNS.join(', ')}`)
       .gte('lat', ENVELOPE.latMin).lte('lat', ENVELOPE.latMax)
       .gte('lng', ENVELOPE.lngMin).lte('lng', ENVELOPE.lngMax)
       .not('lat', 'is', null).not('lng', 'is', null)
@@ -816,6 +856,23 @@ async function preflight({ checkCollisions, candidateKeys }) {
             console.log(`    reconcile_radius_m stays ${RECONCILE_RADIUS_M} m — this ONE row is allow-listed by osm_id; the guard is unchanged for every other neighbour in this metro.`)
             continue
           }
+          // The third hatch: an adjudication that these are two DISTINCT venues, naming the
+          // neighbour by listing_id because a published research-sourced row has no osm_id for the
+          // other two hatches to key on. Every claim it makes is settled against the live row here,
+          // never taken from the config.
+          const distinct = DISTINCT_BY_LISTING.get(r.id)
+          if (distinct && distinct.candidate_key === v.research_key) {
+            distinctTripped.add(r.id)
+            const res = verifyDistinctFromLive(distinct, { venue: { zip: v.zip, access_type: fieldVal(v.access_type) }, neighbour: r })
+            console.log(`  distinct-from-live ADJUDICATED (${Math.round(d)} m): ${v.research_key} vs "${r.name}" (${r.slug}, ${r.status}) — ${distinct.verdict} by ${distinct.adjudicated_by || 'unrecorded'} on ${distinct.adjudicated_on}`)
+            console.log(`    evidence: ${distinct.evidence_url}`)
+            if (distinct.note) console.log(`    ${distinct.note}`)
+            res.verified.forEach((x) => console.log(`    VERIFIED against live data — ${x}`))
+            if (res.declared.length) console.log(`    declared (rests on the adjudicator's evidence, not machine-checked): ${res.declared.join(', ')}`)
+            console.log(`    reconcile_radius_m stays ${RECONCILE_RADIUS_M} m — this ONE neighbour is allow-listed by listing_id; the guard is unchanged for every other row in this metro.`)
+            res.failures.forEach((f) => fail.push(f))
+            continue
+          }
           fail.push(`${v.research_key} is ${Math.round(d)} m from live listing "${r.name}" (${r.slug}, ${r.status}) — that is a RECONCILE decision for the owner, not an INSERT`)
         }
       }
@@ -824,6 +881,13 @@ async function preflight({ checkCollisions, candidateKeys }) {
       for (const [osmId, a] of ALSO_AT_SITE_BY_OSM) {
         if (!alsoTripped.has(osmId)) {
           console.log(`  also_at_site ${osmId} (${a.candidate_key}) is allow-listed but did NOT trip the ${RECONCILE_RADIUS_M} m guard — the entry is harmless but no longer load-bearing.`)
+        }
+      }
+      // Same report for the third list. An adjudication that no longer suppresses anything is worth
+      // knowing about — the geocoder may legitimately have separated the pair since it was made.
+      for (const [listingId, d] of DISTINCT_BY_LISTING) {
+        if (!distinctTripped.has(listingId)) {
+          console.log(`  distinct_from_live ${d.slug} (${d.candidate_key}) is allow-listed but did NOT trip the ${RECONCILE_RADIUS_M} m guard — the entry is harmless but no longer load-bearing.`)
         }
       }
     }
