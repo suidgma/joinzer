@@ -1,0 +1,68 @@
+{
+  "_comment": "Palm Bay-Melbourne-Titusville, FL MSA (CBSA 37340) - Brevard County only. ADDENDUM BATCH, authored 2026-08-06 under the v3 source-led coverage-first methodology. The metro already carries 15 rows from melbourne-2026-07-31 (13 published, 2 held). This batch does NOT re-import them - they are unioned against (Stage 2b) and this grid carries only the 24 venues absent from them. SEPARATE CONFIG AND BATCH TAG because candidate_key collides with the 2026-07-31 batch's pbmt-fl-### keys and would abort --stage=candidates; SAME metro_area 'Melbourne' so it extends /courts/in/melbourne rather than creating a second metro page (Tampa addendum precedent). NOT YET IMPORTED as of 2026-08-06.",
+  "metro": "melbourne-v3",
+  "batch": "melbourne-v3-2026-08-06",
+  "metro_area": "Melbourne",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/melbourne-v3/melbourne-v3-candidates.json",
+  "discovered_by": "melbourne-v3-research",
+  "geocode_cache": "metro-research/.geocode-cache/melbourne-v3.json",
+
+  "_envelope_comment": "IDENTICAL to scripts/metros/melbourne.json, and deliberately so - both batches describe the same MSA, so they must assert the same boundary. Derived from the MSA COUNTY LIST, not from an observed venue bounding box: the MSA is a single county, Brevard, whose OSM boundary relation/389024 spans lat 27.8221..28.7914, lng -80.9880..-80.3851, rounded OUTWARD to 0.01 deg. Single-county metros make this simple - there is no union to take and no neighbouring metro whose envelope could overlap, unlike the Greensboro/Winston-Salem pair. CROSS-CHECK: contains all 13 geocoded rows of the existing batch (observed lat 28.0093..28.6235, lng -80.8393..-80.5863) and all geocoded rows of this one.",
+  "msa": "Palm Bay-Melbourne-Titusville, FL (Brevard county)",
+  "envelope": {
+    "latMin": 27.82,
+    "latMax": 28.8,
+    "lngMin": -80.99,
+    "lngMax": -80.38
+  },
+
+  "expected_count": 24,
+
+  "_expected_publish_comment": "The projected split, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. Never edit this block to match an output - fix the pipeline or the data. FORMAT IS LOAD-BEARING: assertExpectedPublish does a SUBSTRING CONTAINMENT test against the importer's own reason string, so these are its exact machine reasons and nothing else; prose here produces spurious failures on a correct split. Human rationale lives in _hold_rationale, which nothing asserts against. Slugs were READ FROM metro-research/melbourne-v3/melbourne-v3-candidates.json, never re-derived.",
+  "expected_publish": {
+    "count": 20,
+    "hold": {
+      "flutie-athletic-complex-melbourne-beach-fl": "no coordinate",
+      "walter-butler-community-center-cocoa-fl": "no coordinate",
+      "travis-park-community-center-cocoa-fl": "no coordinate",
+      "cameron-barkley-park-cocoa-beach-fl": "no coordinate"
+    }
+  },
+  "_hold_rationale": {
+    "_note": "All four holds are coordinate problems, not evidence problems. Every one is a real venue whose pickleball claim is cited to Brevard County Parks & Recreation's own pickleball page or the City of Cocoa Beach; each is one address read away from publishing.",
+    "no_address_published": {
+      "slugs": ["walter-butler-community-center-cocoa-fl", "travis-park-community-center-cocoa-fl", "cameron-barkley-park-cocoa-beach-fl"],
+      "why": "The county names Walter Butler and Travis with a city and a court count but publishes no street address for either on a reachable Park Directory page; the Travis page independently confirms four indoor pickleball courts and still gives no address. Cameron Barkley Park's City of Cocoa Beach facility page is JavaScript-rendered and yielded nothing, and the only street number on offer was read on a resort's marketing blog rather than a city page. These need an address, not a retry."
+    },
+    "address_belongs_to_a_neighbour_or_resolves_wrong": {
+      "slugs": ["flutie-athletic-complex-melbourne-beach-fl"],
+      "why": "This one carries a real read address (2101 Oak St, Melbourne Beach, from the county's own park page) and still holds, which is the geocoder behaving correctly. OSM does not hold that house number, and the street rung found an 'Oak' 108,608 m from the 32951 zip centroid - a same-named street on the far side of the state. The township guard DISCARDED it rather than anchoring there, so the row returns no coordinate instead of a pin 108 km out. This is the guard doing exactly its job; it is a Brubaker-Park-shaped hold, not a research failure."
+    }
+  },
+
+  "_geocode_comment": "FOUR of the 24 venues carry NO street address, and all four are a deliberate authoring decision rather than incomplete research. walter-butler-community-center and travis-park-community-center: the county names both on its pickleball page with a city but no Park Directory page publishes their street address. junny-rios-martinez-park: the county's own park page for it carries an address link whose title reads 'Get directions to Kings Park' - a NEIGHBOURING PARK'S address embedded in this park's page, which is the Overlook Park failure mode exactly, so it was blanked rather than used. cameron-barkley-park: the City of Cocoa Beach facility page is JavaScript-rendered and yielded no address, and the only street number on offer came from a resort's marketing blog. All four reach only the name-based rungs and are expected to hold on 'no coordinate' rather than publish a wrong pin. require_all_geocoded is therefore false.",
+  "require_all_geocoded": false,
+
+  "_reconciles_comment": "NO RECONCILES, and Stage 2b returned a verified TRUE ZERO here rather than an untested one. A lat/lng SELECT over the whole envelope returned only the 13 geocoded rows of the existing melbourne-2026-07-31 batch and nothing else - no dormant OSM drafts at all. That was cross-checked with a negative control before being believed: 526 source='osm' rows exist in production, 20 of them in FL, none with a null coordinate, and the same query shape does find an OSM row inside an Orlando-sized box. So the mechanism works and Brevard genuinely holds no raw OSM rows. This is unlike Greensboro (3 in-envelope OSM rows) and Tampa (4, one of which was the batch's single best find), and it means discovery here rested entirely on Stages 2 and 2c.",
+
+  "_stage3_comment": "FIVE merges were applied at authoring time, all of the same shape: Brevard County lists indoor gymnasium pickleball and outdoor court pickleball as SEPARATE entries for sites that are one venue at one address. Kiwanis Island, Cocoa West, Viera Regional, Max K. Rodes and Cuyler were each merged into a single row on the authority of the county's own Park Directory page giving one address for the site. Left UNMERGED and deliberately so: Dill Dinkers Satellite Beach (1071 S Patrick Drive) and the already-published DRS Community Center (1089 South Patrick Drive) sit about 100 m apart on the same street and will look like a duplicate to any proximity check - they are a commercial club and a city community center respectively, two genuinely different venues.",
+  "same_site_pairs": [],
+
+  "_distinct_from_live_comment": "ONE entry, and it is the case this hatch was built for. The live-proximity guard failed preflight on mel3-dill-dinkers-satellite-beach at 197 m from the PUBLISHED, research-sourced DRS Community Center, whose osm_id is NULL — so neither `reconciles` nor `also_at_site` can name it, exactly the Bryan Glazer Family JCC gap. reconcile_radius_m is NOT touched: it is metro-wide, and lowering it to admit one row would blind the guard to every other neighbour in Brevard. WHAT IS CLAIMED IS DELIBERATELY NARROW. Both rows are zip 32937, both sit on South Patrick Drive, and both are indoor — so different_zip, different_street and different_court_type are all FALSE here and none is claimed; claiming the zip would abort the run, which is the check working. The one machine-verifiable claim that IS true is different_access_type: the incoming row is 'membership' (a commercial club) and the live row is 'public' (the city's community center). The other two are honest declarations resting on the evidence URL.",
+  "distinct_from_live": [
+    {
+      "candidate_key": "mel3-dill-dinkers-satellite-beach",
+      "listing_id": "61003a29-24c0-49fb-bb80-4b731ff25f9d",
+      "slug": "drs-community-center-satellite-beach-fl",
+      "verdict": "two_venues",
+      "evidence_url": "https://locations.dilldinkers.com/locations/florida/satellite-beach/1071-s-patrick-drive/",
+      "adjudicated_by": "donna",
+      "adjudicated_on": "2026-08-06",
+      "distinguishers": ["different_access_type", "different_operator", "different_building"],
+      "note": "TWO VENUES, 197 m apart on the same street. Dill Dinkers Satellite Beach is a commercial indoor pickleball club at 1071 S Patrick Drive, Suite 111, operating on paid membership with its own CourtReserve booking portal — its own location page gives the address and the suite. DRS Community Center is the City of Satellite Beach's own community center at 1089 South Patrick Drive, published from the 2026-07-31 batch and citing satellitebeach.gov. Different operators (a franchise versus a municipality), different buildings, different access models. They share a street and a zip, which is why only different_access_type is offered as a verified claim."
+    }
+  ]
+}
