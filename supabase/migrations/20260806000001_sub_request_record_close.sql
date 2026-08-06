@@ -107,6 +107,14 @@ begin
 end; $$;
 
 -- ── 3. Lock down execution — service_role only (the route authenticates and passes the actor) ─────
+-- CORRECTION (2026-08-06, migration 20260806000003): the two lines below DID NOT achieve that, and
+-- the claim was false from the moment this shipped. Supabase grants EXECUTE on new public functions
+-- DIRECTLY to anon/authenticated, not via the PUBLIC pseudo-role, so `revoke all ... from public`
+-- revokes a grant that was never the access path — anon retained EXECUTE. The same defect affected
+-- all 14 substitution RPCs, and 20260710000004 had already documented it for the registration RPCs
+-- six days before this file was written. Fixed by 20260806000003, which revokes from the roles by
+-- name. Left in place rather than rewritten: this migration is already applied, so editing it would
+-- change history without changing the database, and the revoke is still correct as far as it goes.
 revoke all on function public.organizer_close_sub_request_record(uuid, uuid, text) from public;
 grant execute on function public.organizer_close_sub_request_record(uuid, uuid, text) to service_role;
 
