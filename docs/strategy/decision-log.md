@@ -39,6 +39,7 @@ _Last updated: July 31, 2026_
 **Decision:** one league substitution system on `league_sub_requests` with two fulfillment modes (open-pool / self-assigned) plus organizer-assigned; **no approval step by default**; acceptance = a single atomic `SECURITY DEFINER` RPC that does claim + placement in one transaction.
 **Context:** two earlier half-models (a never-placing request table and a dead-approval nominations table) had to be retired — do not build a third.
 **Consequences:** status and participation can never diverge; `sub_credit_cap` stays correct because shared placement primitives are the single source of truth. (`sub_nominations` now serves Play + tournaments only.)
+**AMENDED 2026-08-06 — "can never diverge" is now conditional.** One bounded exception exists: `organizer_close_sub_request_record` closes a filled request to `cancelled` **after** play is generated while deliberately leaving the placement in place, so the organizer can correct the record when a substitute no-shows. It refuses while the ordinary reversing path is still available, so the divergence cannot occur before generation. Acceptance is unchanged — a request still can never read `filled` without a placement. Full entry, including the four constraints that bound it: `docs/decisions.md`, 2026-08-06.
 
 ## ADR-07 — Realtime: one reusable event-driven layer, no React Query
 

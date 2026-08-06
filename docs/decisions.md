@@ -25,6 +25,20 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-08-06 — ADR-06 amendment: `filled ⟺ placement exists` is now conditional
+**Status:** Active (amends **ADR-06** in `docs/strategy/decision-log.md`; does not supersede it)
+**Affects:** `league_sub_requests.record_closed_reason`, `organizer_close_sub_request_record`, `POST /api/league-sub-requests/[id]/organizer-correct` (`mode: close_record`), `OrganizerSubControls`, `docs/phases/substitutions-implementation-plan.md` §2.6 + §3 + decisions #3/#4 + acceptance checklist
+**Decision:** the substitution system's invariant — *"`filled` ⟺ a placement row exists"* (plan §11 acceptance checklist) — holds **except** for a request closed post-generation by `organizer_close_sub_request_record`. That path moves `filled → cancelled` while the substitute's placement row deliberately **stays**, so a placement can exist with no `filled` request. Nothing else in the system may create that divergence.
+**Reasoning:** `organizer_correct_sub_request` calls `_sub_occasion_open`, which raises `generation_started` as soon as `league_rounds`/`league_fixtures` exist. Once play is generated the organizer was frozen out entirely: a substitute who accepted and then no-showed left the request reading "filled by X" permanently, with no way to say otherwise, and the error text told them to *"ask your organizer"* — the one person who also could not act. The alternative to this amendment is rewriting generated rounds/fixtures, which is far more dangerous than a documented, bounded record/placement divergence. An invariant that is quietly false is worse than one documented as conditional.
+**The four constraints that bound it** (all enforced in the migration or provable, not aspirational):
+1. **Window.** The function calls `_sub_occasion_open` and **refuses with `use_standard_correction`** if it does *not* raise — so while the ordinary reopen/cancel path is available (which properly reverses placement), the record-only path is unusable. Divergence is impossible outside the post-generation window. It accepts only `generation_started` / `occasion_started` and re-raises anything else, so `occasion_not_found` is never mistaken for a started occasion.
+2. **Self-describing.** `record_closed_reason` (`'no_show'` | `'other'`, NULL everywhere else) is on the row itself. A `cancelled` row with a non-NULL reason is the marker that it deliberately diverges from its placement — no `audit_log` join required to notice.
+3. **Audited.** Every close writes `audit_log.action = 'sub_request_record_closed'` carrying `placement_left_in_place: true` and the assignee.
+4. **Standings unaffected.** No standings path reads `league_sub_requests`; `sub_credit_cap` applies through the placement rows (`lib/leagues/assignRrSub.ts`, `assignAttendanceSub.ts`). The record moving cannot change a result.
+**Also note:** `filled_by_user_id` / `filled_at` are **preserved** on this path, unlike every branch of `organizer_correct_sub_request`, which nulls them — a no-show has to stay attributable. Readers must not assume `cancelled ⇒ filled_by_user_id IS NULL`.
+**What this does NOT authorise:** mutating `league_rounds`, `league_fixtures`, `league_session_players`, `league_attendance` or `league_session_attendance` after generation. That remains unsupported and still fails loudly. ADR-06's core — acceptance is one atomic claim+placement transaction, so a request can never read `filled` without a placement — is untouched.
+**Open questions:** the closed-out substitute is deliberately **not** notified in v1 (the message would be about something already past, non-appealable in-product, and triggered by an action they did not take). If a reliability signal is ever built on `record_closed_reason='no_show'`, the notification question has to be reopened first — being silently counted against is worse than being told.
+
 ## 2026-08-06 — Directory scope is the 111 largest US metros
 **Status:** Active
 **Affects:** every metro build; `scripts/metros/*.json`; the "Metro Tracker" sheet
