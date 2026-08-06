@@ -1,0 +1,55 @@
+{
+  "_comment": "Palm Bay-Melbourne-Titusville, FL MSA (CBSA 37340) - Brevard County only. COMPLETION PASS, SECOND ROUND: the FOURTH batch for this metro, carrying the two Palm Bay venues a re-scoped municipal sweep surfaced after melbourne-addendum-2026-08-06 had already imported. The metro stood at 41 published / 51 rows across melbourne-2026-07-31 (13 published), melbourne-v3-2026-08-06 (20) and melbourne-addendum-2026-08-06 (8). NONE of those 51 rows is re-imported - all are unioned against. Separate config and batch tag because candidate_key would collide with all three earlier batches and abort --stage=candidates atomically, and because --stage=listings INSERTs every artifact row unconditionally. SAME metro_area 'Melbourne', so this extends /courts/in/melbourne rather than creating a second page (tampa-addendum-2 precedent).",
+
+  "_why_these_two_were_missed": "PALM BAY IS THE LARGEST CITY IN THE MSA AND ITS DEDICATED PICKLEBALL PAGE IS NOT ITS FACILITY DIRECTORY. The city publishes a pickleball page naming five venues; all five were already live and matched the database exactly, which is exactly why three prior passes read that page and stopped there. The city ALSO publishes a paginated 36-park facility directory with per-park amenity tags, and reading both of its pages surfaced two parks the pickleball page omits. This is the SECOND confirmed instance of the same shape in this one metro - Manatee Hammock, in the previous batch, is a county campground whose court appears on the county's campground page and not on the county's own pickleball roundup. A TOPIC PAGE IS NOT AN INVENTORY: read the full facility directory even when the authority publishes a dedicated page for the sport.",
+
+  "metro": "melbourne-addendum-2",
+  "batch": "melbourne-addendum-2-2026-08-06",
+  "metro_area": "Melbourne",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/melbourne-addendum-2/melbourne-addendum-2-candidates.json",
+  "discovered_by": "melbourne-addendum-research",
+  "geocode_cache": "metro-research/.geocode-cache/melbourne-addendum-2.json",
+
+  "_envelope_comment": "IDENTICAL to melbourne.json, melbourne-v3.json and melbourne-addendum.json, and deliberately so - all four batches describe the same MSA and must assert the same boundary; an addendum must never narrow its parent's envelope, least of all a two-row one whose observed bbox would be a single city. Derived from the MSA COUNTY LIST: the MSA is a single county, Brevard, whose OSM boundary relation/389024 spans lat 27.8221..28.7914, lng -80.9880..-80.3851, rounded OUTWARD to 0.01 deg.",
+  "msa": "Palm Bay-Melbourne-Titusville, FL (Brevard county)",
+  "envelope": {
+    "latMin": 27.82,
+    "latMax": 28.8,
+    "lngMin": -80.99,
+    "lngMax": -80.38
+  },
+
+  "_contamination_comment": "A SAME-NAME TRAP WAS CAUGHT AND DISCARDED DURING THIS ROUND, recorded because it came within one step of import. Searching Titusville's parks booking system returns titusvillepa.recdesk.com listing SIX 'Pickle Ball Court' facilities - TITUSVILLE, PENNSYLVANIA (Crawford County, PA 16354), not Titusville, Florida. Both cities run RecDesk and the hostname is the only thing naming the state. Confirmed foreign by the booking system's own 'return to main website' link (cityoftitusvillepa.gov) and by independently geocoding its Ed Myer Complex to 526 Allen St, Titusville PA. None of those six courts is in this batch. This is the Canton MS/OH failure and the Middleton WI/ID failure in a third costume, and the SECOND RecDesk-hostname instance this project has hit - the shared municipal SaaS host is now a recurring vector, not a one-off.",
+
+  "expected_count": 2,
+
+  "_geocode_comment": "Both venues carry a street address READ from the City of Palm Bay's own facility directory. Both are expected to geocode; require_all_geocoded is nonetheless left false rather than asserted, because a two-row batch gives the flag no useful safety margin - if one fails it should hold and the other should still publish, which is the coverage-first outcome.",
+  "require_all_geocoded": false,
+
+  "_court_count_comment": "BOTH COURT COUNTS ARE DELIBERATELY BLANK. Driskell's directory entry tags the amenity without a number. Nungesser's tags 'Pickleball/Tennis Court(s)-Lighted' as a CURRENT amenity while the city's pickleball page separately records a July 2024 council approval for a FUTURE eight-court dedicated build at the same park, not yet constructed. The existing-amenity tag and the planned expansion are two different things, and attributing either number to today's courts would be a guess. court_count is not a gate condition, so both rest at unknown and both venues still publish.",
+
+  "_expected_publish_comment": "AUTHORED AFTER the --stage=project projection was read, using the importer's OWN machine reason strings and nothing else - assertExpectedPublish does a SUBSTRING CONTAINMENT test against them, so prose here produces spurious failures on a correct split. Slugs were READ FROM the projection over metro-research/melbourne-addendum-2/melbourne-addendum-2-candidates.json, never re-derived.",
+  "expected_publish": {
+    "count": 1,
+    "hold": {
+      "driskell-memorial-park-palm-bay-fl": "no coordinate"
+    }
+  },
+  "_hold_rationale": {
+    "_note": "The single hold is a coordinate problem, not an evidence problem.",
+    "address_read_but_ungeocodable": {
+      "slugs": ["driskell-memorial-park-palm-bay-fl"],
+      "why": "Carries a real READ address - 2155 Monroe St NE, from the City of Palm Bay's own facility directory - and still holds. OSM holds no house number on that street, so the structured rung found nothing, and the street rung resolved a 'Monroe Street' locus 2,740 m from the 32905 zip centroid, which is a plausible in-town distance rather than a discardable one but is a street centroid and not the park. The row returns no coordinate rather than a pin on the middle of a road. One OSM house number, or one read of a park-level coordinate, releases it."
+    }
+  },
+
+  "_geocode_anchor_review": "The one publishing coordinate was reverse-geocoded before import and Google returns 'Lynne Manion Nungesser Park, 1161 Lamplighter Dr NW, Palm Bay, FL 32907' - the venue BY NAME at its own claimed address, inside Brevard County. Identity, address and county all agree, which is the cleanest confirmation shape available.",
+
+  "_reconciles_comment": "NO RECONCILES. Brevard was established to hold no dormant raw OSM rows inside the envelope, with a negative control, during the v3 pass; nothing has ingested OSM into the county since. Stage 2b for this round was a union against the 51 live rows, which confirmed both venues are absent from all three earlier batches - in particular that neither is an alternate name for any of Palm Bay's five already-published venues (Ted Whitlock, Tony Rosa, Fred Lee, Ken Greene Memorial, Veterans Memorial).",
+  "reconciles": [],
+
+  "same_site_pairs": []
+}
