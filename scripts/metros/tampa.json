@@ -1,0 +1,66 @@
+{
+  "_comment": "Tampa-St. Petersburg-Clearwater, FL MSA (CBSA 45300) — Hillsborough, Pinellas, Pasco and Hernando counties. GREENFIELD: no prior batch existed; the only pre-existing rows in the bounding box were four raw OSM drafts with metro_area NULL, all four reconciled (see `reconciles`), none excluded. Built 2026-08-05 under the v3 source-led methodology. NOT YET IMPORTED — `expected_publish` is deliberately absent until the owner has read the --stage=project projection and locked the split.",
+  "metro": "tampa",
+  "batch": "tampa-2026-08-05",
+  "metro_area": "Tampa-St. Petersburg-Clearwater",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/tampa/tampa-candidates.json",
+  "discovered_by": "tampa-research",
+  "geocode_cache": "metro-research/.geocode-cache/tampa.json",
+  "_envelope_comment": "Derived from the MSA COUNTY LIST, not the observed venue bbox (Toledo precedent). Union of the four county extents: Hillsborough (lat 27.64..28.17, lng -82.66..-82.05), Pinellas (lat 27.60..28.17, lng -82.90..-82.53), Pasco (lat 28.17..28.44, lng -82.79..-82.05), Hernando (lat 28.44..28.75, lng -82.76..-82.05), rounded OUTWARD to 0.01 deg. WATER CHECK: lngMin -82.91 is Gulf of Mexico water west of the Pinellas barrier islands and admits only sea. KNOWN SOFT EDGE, recorded rather than tightened: latMin 27.57 is the southern reach of Pinellas County (Fort De Soto / Tierra Verde) and it OVERLAPS the North Port-Bradenton-Sarasota envelope, whose latMax is 27.65. That overlap is correct and intended — the two envelopes are per-metro county assertions, not a partition of the state, and the band between them contains genuine Pinellas land. The southernmost venue actually in this batch sits near 27.71 (Sun City Center / Ruskin / Wimauma), so nothing in the batch relies on the soft edge. If a Manatee-county row is ever admitted here, tighten deliberately and record the row that forced it.",
+  "msa": "Tampa–St. Petersburg–Clearwater, FL (Hillsborough, Pinellas, Pasco, Hernando counties)",
+  "envelope": {
+    "latMin": 27.57,
+    "latMax": 28.76,
+    "lngMin": -82.91,
+    "lngMax": -82.04
+  },
+  "expected_count": 127,
+  "_geocode_comment": "10 of the 127 venues carry NO street address, and 4 of those are a deliberate authoring decision rather than incomplete research. A second address-recovery pass raised street-address coverage from 74% to 92% and, more usefully, forced three Stage 3 merges that were invisible at name level because two rows only reveal themselves as one venue once both carry an address. Two distinct causes, both recorded on the rows themselves: (a) the controlling entity names the venue on its pickleball page but publishes no street address anywhere reachable (nye-park is the clearest — Hillsborough County lists it among its pickleball sites and has no hcfl.gov location page for it); (b) the ONLY address on offer demonstrably belongs to a NEIGHBOURING venue, which is the Overlook Park failure mode — importing it would re-form a chimera that no proximity guard catches because the two sites are close enough to pass. ed-wright-park, clearwater-beach-recreation-complex, silverthorn-country-club and belle-parc-rv-resort are all case (b); the last two were handed addresses by aggregators that belong to a Lutz nudist resort and to New Tampa Sports Pavilion respectively. Those rows reach only the name-based geocode rungs and are expected to hold on 'no coordinate' rather than publish a wrong pin. require_all_geocoded is therefore false: a no-coordinate row imports as a gate-blocked draft that stays in the work queue and is released by a later re-geocode.",
+  "require_all_geocoded": false,
+  "_reconciles_comment": "All FOUR pre-existing rows in the bounding box are reconciled; none is excluded. They were the only rows in the envelope — verified by a lat/lng SELECT over facility_listings before any research was written. Each was created 2026-07-20 by the raw OSM ingest and carries metro_area NULL, access_type 'unknown', and NULL for fee_type/court_count/website/phone/public_notes/verified_by, so every incoming field is additive and the merge policy has nothing to preserve but the osm_id and the ODbL lineage. matched_distance_m is deliberately ABSENT rather than guessed: the script does not require it, and the coordinates that would let it be measured honestly come from the geocode, which was still blocked by a Nominatim cooldown when this block was written. THE ONE THAT MUST NOT BE DROPPED is pickleball-kingdom: it is the only slug in all 127 rows that collides with a live row anywhere in production (checked by direct SELECT over the full computed slug set), so without its entry --stage=listings aborts on the unique constraint.",
+  "reconciles": [
+    {
+      "candidate_key": "tampa-crescent-lake-park",
+      "osm_id": "way/1191862348",
+      "listing_id": "1fb6d9a8-8489-4483-a56f-24f59c5b9876",
+      "adjudicated_by": "donna",
+      "adjudicated_on": "2026-08-05",
+      "evidence_url": "https://www.stpeteparksrec.org/sports___fields/courts.php",
+      "confidence": "high",
+      "note": "SAME venue. The OSM row is named 'Crescent Lake Pickleball Courts' and sits at 27.7851883,-82.6425818, which is inside Crescent Lake Park; the research row is the park itself at 1320 5th St N, listed by the City of St. Petersburg's own Courts & Fields directory with 6 dedicated outdoor courts. The OSM name describes the courts, the city names the park — one site, two descriptions (Reidenbaugh precedent). The OSM row carries no address, city or zip at all, so the merge is purely additive."
+    },
+    {
+      "candidate_key": "tampa-new-port-richey-recreation-aquatic-center",
+      "osm_id": "way/775629035",
+      "listing_id": "69f188d0-90fb-4cc6-87cb-e43f240ff748",
+      "adjudicated_by": "donna",
+      "adjudicated_on": "2026-08-05",
+      "evidence_url": "https://cityofnewportrichey.org/",
+      "confidence": "high",
+      "note": "SAME venue, established by name and city rather than by proximity: the OSM row is 'New Port Richey Recreation and Aquatic Center' at 28.2557506,-82.7100863 with no address; the research row is the same named city facility at 6630 Van Buren St, New Port Richey 34653, with 10 courts (6 indoor, 4 outdoor) and the Guinness record for the longest pickleball game. There is exactly one such facility in the city."
+    },
+    {
+      "candidate_key": "tampa-pickleball-kingdom",
+      "osm_id": "node/13027774185",
+      "listing_id": "da68512a-c7f4-4095-83de-428384789faa",
+      "adjudicated_by": "donna",
+      "adjudicated_on": "2026-08-05",
+      "evidence_url": "https://pickleballkingdom.com/clubs/pinellas-park-fl/",
+      "confidence": "high",
+      "note": "SAME venue, established by ADDRESS not proximity: the OSM row already carries '7300 US Highway 19 North, Pinellas Park, FL 33781' and the research row carries the same street and zip from the club's own page. This is the ONLY row in the batch whose computed slug (pickleball-kingdom-pinellas-park-fl) already exists in production, so this entry is load-bearing — dropping it turns --stage=listings into a unique-constraint abort. The OSM row does hold indoor=true, which the incoming row also asserts, so no value is lost."
+    },
+    {
+      "candidate_key": "tampa-tejas-pradip-patel-hcc-tennis-center",
+      "osm_id": "way/992273780",
+      "listing_id": "0fa99862-6766-4c59-a864-3efdf36c9ede",
+      "adjudicated_by": "donna",
+      "adjudicated_on": "2026-08-05",
+      "evidence_url": "https://www.hcfl.edu/tennis-center",
+      "confidence": "high",
+      "note": "SAME venue — and the only one of the four that the source sweep did NOT independently find. The OSM row carries '3901 West Tampa Bay Boulevard, Tampa, FL 33614'; Hillsborough Community College's own page describes the Tejas Pradip Patel HCC Tennis Center at that site with 8 dedicated DecoTurf pickleball courts, newly resurfaced and lit, plus 27 tennis courts and a 2021 USTA Outstanding Facility Award. All 38 municipal and county sweep units missed it because no parks department, county or tourism bureau aggregates a community college's courts; Creative Loafing Tampa Bay names it independently as 'courts on the Hillsborough College Dale Mabry campus'. This reconcile is the batch's clearest argument for keeping Stage 2b."
+    }
+  ]
+}
