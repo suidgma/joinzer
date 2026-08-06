@@ -64,6 +64,19 @@ import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search'
+/**
+ * The `/lookup` endpoint resolves an OSM feature BY ID rather than by a text query.
+ *
+ * It exists here for coordinate adoption (see lookupOsmFeature): where a venue's courts ARE in OSM as
+ * a named feature that no query rung can reach, the adjudication names the FEATURE and this resolves
+ * it. That distinction is the whole safety argument — a config states an identifier, never a
+ * coordinate, so the number still comes from OSM and cannot be typed by hand.
+ *
+ * It shares every mechanism `/search` uses: the same User-Agent, the same >=1.1 s endpoint spacing,
+ * the same 429/503 retry ladder and the same on-disk cache. The rate limit belongs to the SERVICE,
+ * not to a path, so a lookup is charged against exactly the same courtesy budget.
+ */
+const LOOKUP_ENDPOINT = 'https://nominatim.openstreetmap.org/lookup'
 const USER_AGENT = 'Joinzer-directory-import/1.0 (https://www.joinzer.com; pickleball court directory research)'
 const MIN_SPACING_MS = 1100
 
@@ -512,6 +525,14 @@ let chain = Promise.resolve()
 let lastRequestAt = 0
 let liveRequests = 0
 
+/** The query-string defaults every `/search` request has always sent. Extracted verbatim into a
+ *  constant so `/lookup` can send its own set without changing a single character of what `/search`
+ *  puts on the wire — the cache is keyed on params, so a drifted default here would silently
+ *  invalidate every existing entry. */
+const SEARCH_DEFAULTS = { format: 'jsonv2', addressdetails: '1', namedetails: '1', limit: '5' }
+/** `/lookup` resolves exactly the ids it is given, so `limit` is meaningless to it. */
+const LOOKUP_DEFAULTS = { format: 'jsonv2', addressdetails: '1', namedetails: '1' }
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
@@ -526,7 +547,12 @@ function sleep(ms) {
  * courtesy limit on someone else's endpoint is the kind of seam that later leaks into a real run;
  * the tests pay the real wait instead.
  */
-async function nominatim(params, { fetchImpl = fetch } = {}) {
+async function nominatim(params, { fetchImpl = fetch, endpoint = ENDPOINT, defaults = SEARCH_DEFAULTS } = {}) {
+  // THE CACHE KEY IS THE PARAMS ALONE, DELIBERATELY UNCHANGED BY THE ENDPOINT ARGUMENT.
+  // Every existing entry — 546 in orlando's file, 551 in the legacy seed — is keyed this way, and
+  // folding the endpoint in would invalidate all of them at once for no gain. A collision is
+  // impossible by construction instead: a `/lookup` call is keyed on `{"osm_ids":...}` and no
+  // `/search` params object this module ever builds carries an `osm_ids` key.
   const key = JSON.stringify(params)
   const c = loadCache()
   if (Object.prototype.hasOwnProperty.call(c, key)) return { results: c[key], cached: true }
@@ -549,8 +575,8 @@ async function nominatim(params, { fetchImpl = fetch } = {}) {
   }
 
   const run = async () => {
-    const url = new URL(ENDPOINT)
-    for (const [k, v] of Object.entries({ format: 'jsonv2', addressdetails: '1', namedetails: '1', limit: '5', ...params })) {
+    const url = new URL(endpoint)
+    for (const [k, v] of Object.entries({ ...defaults, ...params })) {
       if (v != null && v !== '') url.searchParams.set(k, String(v))
     }
     const res = await fetchWithRetry(url, {
@@ -753,7 +779,7 @@ function anchorPrecision(hit, { venueName, wantHouseNumber }) {
   return 'medium'
 }
 
-function houseNumberOf(address) {
+export function houseNumberOf(address) {
   const m = String(address || '').trim().match(/^(\d+[A-Za-z]?)\s+/)
   return m ? m[1] : null
 }
@@ -1210,6 +1236,66 @@ export async function geocodeVenue(venue, { cachePath: cp = DEFAULT_CACHE, onAtt
     // no diff noise to a regression pass while still being visible in every run log.
     micro_skipped: microSkipped,
     attempts,
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Resolve one OSM feature BY ID — the mechanism behind coordinate adoption
+// ---------------------------------------------------------------------------------------------
+/**
+ * Convert a stored OSM id (`way/1165951096`) into the `/lookup` parameter form (`W1165951096`).
+ *
+ * REJECTS BY FORM, NOT BY BEST EFFORT. A permissive parser here would let `1165951096` or
+ * `way/abc` through to the endpoint and turn a typo into an empty result, which reads exactly like
+ * "OSM does not carry that feature" — and the caller's honest response to that is to give up. The
+ * same lesson as `Date.parse('-5')` and the SUITE_SUFFIX identifier shape: a malformed input must
+ * fail loudly at the boundary rather than degrade into a plausible wrong answer.
+ */
+export function osmIdToLookupParam(osmId) {
+  const m = /^(node|way|relation)\/(\d+)$/.exec(String(osmId ?? '').trim())
+  if (!m) {
+    throw new Error(`osm_id ${JSON.stringify(osmId)} is not a valid OSM feature id — expected "node/<digits>", "way/<digits>" or "relation/<digits>".`)
+  }
+  return `${{ node: 'N', way: 'W', relation: 'R' }[m[1]]}${m[2]}`
+}
+
+/**
+ * Resolve ONE named OSM feature by id and classify it exactly as a search hit would be classified.
+ *
+ * Returns the same node shape `geocodeVenue` returns, or **null** when OSM does not carry the
+ * feature at all. Precision comes from the untouched `classifyPrecision` — it is CLASSIFIED, never
+ * asserted, which is what stops an adoption from smuggling a street band past the ADR-16 label by
+ * declaring it `high`.
+ *
+ * MORE THAN ONE RESULT IS A THROW, NOT A PICK. `/lookup` is asked for exactly one id, so a response
+ * carrying two features means the endpoint's contract was violated or the request was malformed.
+ * Choosing between them would be inventing an adjudication nobody made.
+ */
+export async function lookupOsmFeature(osmId, { venueName, wantHouseNumber = null, cachePath: cp = DEFAULT_CACHE, fetchImpl = fetch } = {}) {
+  loadCache(cp)
+  const osm_ids = osmIdToLookupParam(osmId)
+  const { results } = await nominatim({ osm_ids }, { fetchImpl, endpoint: LOOKUP_ENDPOINT, defaults: LOOKUP_DEFAULTS })
+  const hits = Array.isArray(results) ? results : []
+  if (hits.length === 0) return null
+  if (hits.length > 1) {
+    throw new Error(`nominatim /lookup returned ${hits.length} features for the single id ${osmId} — refusing to choose between them.`)
+  }
+  const hit = hits[0]
+  const c = coordOf(hit)
+  if (!c) throw new Error(`nominatim /lookup returned ${osmId} with no usable coordinate.`)
+  const precision = classifyPrecision(hit, { venueName, wantHouseNumber })
+  return {
+    lat: c.lat,
+    lng: c.lng,
+    precision,
+    origin: 'nominatim',
+    source_url: 'https://nominatim.openstreetmap.org/',
+    anchor: describeAnchor(hit, 'osm-feature-lookup'),
+    osm_type: hit.osm_type ?? null,
+    osm_id: hit.osm_type && hit.osm_id ? `${hit.osm_type}/${hit.osm_id}` : null,
+    matched_rung: 'osm-feature-lookup',
+    matched_name: hit.namedetails?.name || hit.name || null,
+    licence: hit.licence ?? null,
   }
 }
 
