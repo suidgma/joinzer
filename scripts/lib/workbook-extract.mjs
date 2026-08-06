@@ -47,7 +47,41 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { geocodeVenue, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath } from './geocode-nominatim.mjs'
+import { geocodeVenue, lookupOsmFeature, houseNumberOf, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath } from './geocode-nominatim.mjs'
+
+/**
+ * How far an adopted OSM feature may sit from the point recorded at adjudication time.
+ *
+ * DELIBERATELY TIGHT. `expect_lat`/`expect_lng` are authored FROM the same `/lookup` response the
+ * run resolves, so agreement should be exact; the allowance exists only so a minor geometry edit — a
+ * mapper redrawing a pitch polygon by a few metres — does not abort a metro. Anything larger is a
+ * different feature or a moved one, and the honest response is to re-adjudicate.
+ *
+ * NOTE THIS IS NOT THE SAME NUMBER AS THE CONFIG'S OWN SNAPSHOT ACCURACY. Orlando's
+ * `reconciles[].osm_original` records lat 28.7078188 / lng -81.2750719 for way/1165951096, which is
+ * 34.6 m from what `/lookup` returns for the same feature — the stored row carries the OSM ingest's
+ * centroid, Nominatim computes its own. That gap is precisely why a config-stated coordinate is a
+ * CROSS-CHECK and never the source, and why `expect_*` must be authored from the lookup rather than
+ * copied out of a snapshot.
+ */
+const ADOPT_CROSSCHECK_MAX_M = 25
+
+/**
+ * How far an adopted OSM feature may sit from the coordinate the query ladder already produced.
+ *
+ * SAME VALUE, SAME QUESTION AND SAME EVIDENCE AS the same-site name pass's `same_site_name_max_m`:
+ * "is this named feature the same site as the one the address resolved to?" Against the same trap,
+ * too — Harrisburg's "Koons Park" returns a single confident `leisure/park "Koons Park"` 14 km away
+ * in another township, name-matching exactly and classifying `high`, so no precision rule can catch
+ * it and only distance can.
+ *
+ * NOT CONFIG-OVERRIDABLE, unlike its same-site sibling. A per-metro knob here would be the
+ * relaxation lever this whole mechanism exists to make unnecessary: the point of adoption is to state
+ * a fact the guard then honours, not to widen the guard until a fact fits through it. A rejection
+ * holds the row, which is the safe direction. Orlando's AdventHealth adoption sits at 407 m — 2.5x
+ * headroom — so the constant is not fitted to the case that motivated it.
+ */
+const ADOPT_ANCHOR_MAX_M = 1000
 
 // =============================================================================================
 // LIVE CHECK VOCABULARIES — re-verified against pg_constraint on the production project
@@ -1434,7 +1468,17 @@ export function describeSource(config, gen) {
   return `${described.trim()} — ${suffix}`
 }
 
-export async function extractWorkbook({ tabs, config, geocode = true, cachePath, log = console.log }) {
+/**
+ * `fetchImpl` is a TEST SEAM, defaulting to the real `fetch` and threaded straight through to the
+ * geocoder. geocode-nominatim.mjs already established this seam one level down and says why: the
+ * >=1.1 s courtesy spacing is deliberately NOT injectable, so a network-free test is the only way to
+ * exercise a geocoding path without either paying the real wait or building a bypass that could
+ * later leak into a real run. Nothing but tests passes it.
+ */
+export async function extractWorkbook({ tabs, config, geocode = true, cachePath, log = console.log, fetchImpl = undefined }) {
+  /** Only forward the seam when a caller supplied one, so the production call sites keep passing
+   *  exactly the options they passed before and the default `fetch` binding is untouched. */
+  const net = fetchImpl ? { fetchImpl } : {}
   const wb = config.workbook || {}
   // Tab ROLES are resolved before anything is parsed: a metro may file its venue table under a tab
   // other than its generation's default (see applyTabOverrides).
@@ -1907,7 +1951,7 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
       let townshipLog = null
       const hit = await geocodeVenue(
         { name: v.name.value, address: v.address.value, city: v.city, state: v.state, zip: v.zip },
-        { cachePath, onAttempt: (a) => { if (a.micro?.length) refused.push(...a.micro); if (a.township) townshipLog = a.township } },
+        { cachePath, ...net, onAttempt: (a) => { if (a.micro?.length) refused.push(...a.micro); if (a.township) townshipLog = a.township } },
       )
       if (refused.length) log(`    ~ ${v.research_key.padEnd(32)} skipped ${refused.length} micro-feature hit(s) that can never anchor a venue: ${[...new Set(refused)].join(' | ')}`)
       if (townshipLog) {
@@ -1971,7 +2015,7 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
         const v = byKey.get(k)
         if (!v) throw new Error(`same_site_pairs names "${k}", which this workbook does not contain — stale config.`)
         if (!v.name?.value) continue
-        const hit = await geocodeVenue({ name: v.name.value, address: null, city: v.city, state: v.state, zip: v.zip }, { cachePath })
+        const hit = await geocodeVenue({ name: v.name.value, address: null, city: v.city, state: v.state, zip: v.zip }, { cachePath, ...net })
         if (!hit) { log(`  x ${k.padEnd(30)} no name-only result — keeping the address anchor`); continue }
         const addrCoord = v.coordinates
         const d = addrCoord ? Math.round(metresBetween(hit.lat, hit.lng, addrCoord.lat, addrCoord.lng)) : null
@@ -2164,7 +2208,7 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
     for (const f of addressOverrides) {
       const v = venues.find((x) => x.research_key === f.research_key)
       const before = v.coordinates
-      const hit = await geocodeVenue({ name: v.name.value, address: v.address.value, city: v.city, state: v.state, zip: v.zip }, { cachePath })
+      const hit = await geocodeVenue({ name: v.name.value, address: v.address.value, city: v.city, state: v.state, zip: v.zip }, { cachePath, ...net })
       if (!hit) {
         v.coordinates = null
         log(`  x ${f.research_key.padEnd(30)} NO RESULT for "${v.address.value}" — coordinate CLEARED (the previous one came from ${JSON.stringify(f.from)}, which is not this venue's address)`)
@@ -2187,6 +2231,157 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
     }
     flushCache()
     log(`  live Nominatim requests after the address-override pass: ${liveRequestCount()}`)
+  }
+
+  // ---- adopt a known-good coordinate from a NAMED OSM FEATURE -----------------------------------
+  // THE GAP THIS CLOSES: nothing in this pipeline could set a coordinate. `venue_facts.fields`
+  // throws on anything outside the nine evidence-bearing fields; a workbook coordinate is never a
+  // source; and the two coordinate-changing levers cannot be aimed — the address override
+  // re-geocodes (useless when OSM carries no house number on the street) and the same-site name pass
+  // needs a matching feature name. So where a venue's courts ARE in OSM as a named feature the query
+  // ladder cannot reach, the pipeline published the street band and had no way to say otherwise.
+  // Orlando's AdventHealth complex is the worked case: a 14-court flagship pinned 407 m away on
+  // "Central Winds Parkway" at precision `low`, while OSM carried the courts themselves as
+  // `leisure/pitch way/1165951096 "Central Winds Pickleball Courts"` at the venue's own house number.
+  //
+  // THE CONFIG STATES AN IDENTIFIER, NEVER A COORDINATE. That is the whole safety argument and it is
+  // what separates this from the two routes the codebase already disowns. A hand-edited artifact is
+  // silently undone by the next rebuild; a hand-written geocode-cache entry is fabrication. Naming an
+  // OSM feature is neither: the number still comes from OSM, through the same endpoint, User-Agent,
+  // spacing, retry ladder and cache as every other coordinate in the corpus.
+  //
+  // PRECISION IS CLASSIFIED, NOT ASSERTED. The hit goes through the untouched `classifyPrecision`, so
+  // an adoption cannot smuggle a street band past the ADR-16 approximate-location label by declaring
+  // it `high`. AdventHealth reaches `high` on its own merits (house number 1000 == 1000, and
+  // nameOverlap ties "Central Winds Pickleball Courts" to the venue's own name); a feature that did
+  // not would keep its honest label.
+  //
+  // FOUR GUARDS, ALL FAILING CLOSED. There is no acknowledgement flag and no per-metro override for
+  // any of them — a rejection holds the row, which is the safe direction:
+  //   1. `osm_id` must be a well-formed OSM feature id, and `/lookup` must return EXACTLY one feature
+  //      (both enforced in lookupOsmFeature).
+  //   2. CROSS-CHECK: the resolved point must sit within ADOPT_CROSSCHECK_MAX_M of the `expect_lat` /
+  //      `expect_lng` recorded at adjudication. This is the same posture as workbook_crosscheck — the
+  //      stored number is re-derived, never trusted. A breach means the feature was redrawn or the id
+  //      is wrong, so the fix is to re-adjudicate, NOT to widen the tolerance.
+  //   3. ANCHOR GUARD: the adopted feature must sit within ADOPT_ANCHOR_MAX_M of the coordinate the
+  //      ladder already produced. Same question, same evidence and same magnitude as the same-site
+  //      name pass's guard — "is this named feature the same site?" — against the same trap (Koons
+  //      Park, a confident exact name match 14 km away in another township).
+  //   4. AN ANCHOR IS REQUIRED. A venue with no coordinate has nothing to measure against, so
+  //      adoption refuses rather than accepting an unguarded feature id. That is the same posture the
+  //      township rung takes when no locus resolves ("an unguarded bare-name query is never issued").
+  //      It is also the honest admission that the un-geocoded case needs its own slice.
+  //
+  // Runs LAST of the three coordinate passes on purpose: an adjudication naming a specific OSM
+  // feature is the most specific statement anyone can make about where a venue is, so it must not be
+  // overwritten by a rung, a name query or an address correction.
+  const adoptions = []
+  for (const [key, spec] of Object.entries(config.venue_facts || {})) {
+    if (!spec.coordinate) continue
+    const where = `venue_facts ${key}.coordinate`
+    const v = venues.find((x) => x.research_key === key)
+    if (!v) throw new Error(`${where} names a venue this workbook does not contain — stale config, aborting.`)
+    for (const k of ['osm_id', 'expect_lat', 'expect_lng', 'evidence_url', 'reason']) {
+      if (spec.coordinate[k] == null || spec.coordinate[k] === '') {
+        throw new Error(`${where} is missing "${k}" — adopting a coordinate rewrites where a venue appears on a public map, so it must carry the feature it came from, the value adjudicated, the evidence and the reason.`)
+      }
+    }
+    // Mandatory HERE rather than at the spec level generally: the existing field/website/status
+    // overrides tolerate an unrecorded adjudicator, and tightening those retroactively would break
+    // every config written before this rule (the lesson the `reconciles` evidence_url tightening
+    // taught on Little Rock). A `coordinate` node is new, so it can carry the stricter bar from
+    // birth without touching a single existing config.
+    for (const k of ['adjudicated_by', 'adjudicated_on']) {
+      if (!spec[k]) throw new Error(`${where} requires "${k}" on the venue_facts entry — an undocumented coordinate adoption is an unattributable pin on a public map.`)
+    }
+    adoptions.push({ key, spec, v })
+  }
+  if (geocode && adoptions.length) {
+    log(`\ncoordinate adoption: resolving ${adoptions.length} adjudicated OSM feature(s) via /lookup (cross-check <= ${ADOPT_CROSSCHECK_MAX_M} m, anchor guard <= ${ADOPT_ANCHOR_MAX_M} m)`)
+    for (const { key, spec, v } of adoptions) {
+      const where = `venue_facts ${key}.coordinate`
+      const c = spec.coordinate
+      const before = v.coordinates
+      if (!before || before.lat == null) {
+        throw new Error(`${where} cannot be applied: ${key} has NO coordinate for the adopted feature to be guarded against. Adoption is anchored — it accepts a feature only within ${ADOPT_ANCHOR_MAX_M} m of the coordinate the ladder already produced, and with no anchor there is nothing to measure. Resolve the venue's own coordinate first, or leave the row held.`)
+      }
+      const hit = await lookupOsmFeature(c.osm_id, {
+        venueName: v.name.value,
+        wantHouseNumber: houseNumberOf(v.address?.value),
+        cachePath,
+        ...net,
+      })
+      if (!hit) throw new Error(`${where}: OSM has no feature ${c.osm_id}. It may have been deleted or renumbered — re-adjudicate against the current map rather than keeping a dangling id.`)
+
+      const crosscheck = Math.round(metresBetween(hit.lat, hit.lng, c.expect_lat, c.expect_lng))
+      if (crosscheck > ADOPT_CROSSCHECK_MAX_M) {
+        throw new Error(`${where}: ${c.osm_id} now resolves ${crosscheck} m from the adjudicated point (${c.expect_lat},${c.expect_lng}) — limit ${ADOPT_CROSSCHECK_MAX_M} m. The OSM feature was moved or redrawn since ${spec.adjudicated_on}. Re-adjudicate and update expect_lat/expect_lng; do NOT widen the tolerance.`)
+      }
+      const moved = Math.round(metresBetween(hit.lat, hit.lng, before.lat, before.lng))
+      if (moved > ADOPT_ANCHOR_MAX_M) {
+        throw new Error(`${where}: ${c.osm_id} sits ${moved} m from ${key}'s own anchor (${before.anchor}) — limit ${ADOPT_ANCHOR_MAX_M} m. A feature that far away is a different place, which is exactly the failure an exact name match cannot catch (the Koons Park trap). Verify the id names THIS venue's courts.`)
+      }
+
+      // The reconcile target's id, when this venue has one, recorded as a CROSS-CHECK rather than
+      // enforced as a constraint. A match is real corroboration — the row already knows which OSM
+      // feature it reconciled onto, and adopting that same feature's coordinate is the coherent case
+      // (AdventHealth). A MISMATCH is legitimate too: the courts can be a distinct OSM feature from
+      // the reconcile target (the Huntsville Town Madison shape, an indoor polygon and its outdoor
+      // court pad), and such a feature often has no facility_listings row at all, so `also_at_site`
+      // — which requires a listing_id — cannot name it. Making a mismatch fatal would block a correct
+      // adjudication; making a match an implicit default would adopt coordinates nobody adjudicated.
+      // So it is recorded, reported, and left to the reader.
+      const recTarget = (config.reconciles || []).find((r) => r.candidate_key === key)?.osm_id ?? null
+      const matchesReconcile = recTarget == null ? null : recTarget === c.osm_id
+
+      v.coordinates = {
+        lat: hit.lat, lng: hit.lng,
+        source_url: hit.source_url,
+        precision: hit.precision,
+        origin: hit.origin,
+        anchor: hit.anchor,
+        osm_id: hit.osm_id,
+        matched_rung: hit.matched_rung,
+        adopted_from: {
+          osm_id: c.osm_id,
+          osm_feature_name: hit.matched_name,
+          evidence_url: c.evidence_url,
+          reason: c.reason,
+          adjudicated_by: spec.adjudicated_by,
+          adjudicated_on: spec.adjudicated_on,
+          expect_lat: c.expect_lat,
+          expect_lng: c.expect_lng,
+          crosscheck_delta_m: crosscheck,
+          moved_m: moved,
+          superseded: { lat: before.lat, lng: before.lng, precision: before.precision, anchor: before.anchor },
+          reconcile_target_osm_id: recTarget,
+          matches_reconcile_target: matchesReconcile,
+          licence: hit.licence,
+        },
+        // A crosscheck computed against the SUPERSEDED coordinate would describe a distance that no
+        // longer exists. Nulled exactly as the same-site name pass nulls it.
+        ...(before.workbook_crosscheck ? { workbook_crosscheck: null } : {}),
+      }
+      log(`  + ${key.padEnd(30)} ${hit.precision.padEnd(6)} adopted ${c.osm_id} "${hit.matched_name}" — ${moved} m from the superseded anchor, cross-check ${crosscheck} m`)
+      log(`      superseded: ${before.precision} — ${before.anchor}`)
+      if (matchesReconcile === true) log(`      corroboration: this is the SAME OSM feature ${key} reconciles onto (${recTarget})`)
+      if (matchesReconcile === false) log(`      REVIEW: ${key} reconciles onto ${recTarget} but adopts ${c.osm_id} — legitimate only if the courts are a different OSM feature from the reconcile target`)
+      verifiedFactsApplied.push({
+        research_key: key, field: 'coordinate',
+        from: `${before.lat},${before.lng} (${before.precision})`,
+        to: `${hit.lat},${hit.lng} (${hit.precision})`,
+        source_url: c.evidence_url, confidence: spec.confidence ?? null,
+        adjudicated_by: spec.adjudicated_by, adjudicated_on: spec.adjudicated_on,
+        overrides_workbook: true,
+        reason: c.reason,
+      })
+      notes.push(`${key}: coordinate adopted from OSM ${c.osm_id} ("${hit.matched_name}") — ${before.precision} -> ${hit.precision}, ${moved} m from the superseded anchor. ${c.reason}`)
+    }
+    flushCache()
+    log(`  live Nominatim requests after the adoption pass: ${liveRequestCount()}`)
+  } else if (adoptions.length) {
+    log(`\ncoordinate adoption: ${adoptions.length} entr(y/ies) configured but SKIPPED — this run is --no-geocode, so no feature was resolved and no coordinate was changed.`)
   }
 
   // ---- strip the scratch node and emit ---------------------------------------------------------

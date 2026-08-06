@@ -1,0 +1,44 @@
+{
+  "_comment": "Tampa ADDENDUM 2 — the ONE venue deferred out of tampa-addendum-2026-08-06 on 2026-08-06, now importable because the tooling it was waiting for exists. Its own batch tag, so it carries a one-statement rollback handle and leaves the 10-row addendum immutable; a separate batch is also mechanically required, since --stage=listings INSERTs every artifact row unconditionally and re-running it against the addendum config would duplicate all ten. Same metro_area as both earlier Tampa batches, so this joins the existing /courts/in/tampa-st-petersburg-clearwater page rather than creating a second one.",
+  "metro": "tampa-addendum-2",
+  "batch": "tampa-addendum-2-2026-08-06",
+  "metro_area": "Tampa-St. Petersburg-Clearwater",
+  "states": ["FL"],
+  "input": "metro-research/tampa-addendum-2/tampa-addendum-2-candidates.json",
+  "discovered_by": "tampa-addendum-research",
+  "geocode_cache": "metro-research/.geocode-cache/tampa-addendum.json",
+  "_input_provenance": "The research row is RECOVERED VERBATIM from the parent addendum's own tabs.json at metro-research commit ed7e92e, which carried 11 rows against the shipped 47a9bc4's 10. Nothing was re-researched, re-typed or recalled: only research_key was re-prefixed to this batch. That distinction matters — a venue deferred for a TOOLING gap must come back on the evidence it was researched with, not on a fresh recollection of it.",
+  "_envelope_comment": "Identical to scripts/metros/tampa.json and tampa-addendum.json — derived from the MSA county list (Hillsborough, Pinellas, Pasco, Hernando), never from the observed bbox of a one-row batch. An addendum must not narrow its parent's envelope.",
+  "msa": "Tampa–St. Petersburg–Clearwater, FL (Hillsborough, Pinellas, Pasco, Hernando counties)",
+  "envelope": { "latMin": 27.57, "latMax": 28.76, "lngMin": -82.91, "lngMax": -82.04 },
+  "expected_count": 1,
+  "require_all_geocoded": false,
+  "reconciles": [],
+
+  "_distinct_from_live_comment": "THE REASON THIS BATCH EXISTS. bryan-glazer-family-jcc sits 148 m from live PUBLISHED vila-brothers-park-tampa-fl, inside reconcile_radius_m, so the live-proximity guard refuses the INSERT. Neither existing hatch can express it: reconciles matches the neighbour by osm_id, also_at_site looks one up by osm_id AND requires status='draft', and Vila Brothers carries osm_id NULL because it came from our own research rather than from OSM. reconcile_radius_m is deliberately UNCHANGED at its 200 m default — it is metro-wide, and lowering it to admit this one row would blind the guard to every other neighbour in Tampa, which is the failure the guard exists to prevent. Instead the ONE neighbour is named by listing_id, and both machine-checkable distinguishers are verified against the live row on every run: 33606 vs 33609, and membership vs public. Howard and Armenia are parallel West Tampa streets a block and a half apart, so 148 m is an ordinary city-block separation there rather than a suspicious one.",
+  "distinct_from_live": [
+    {
+      "candidate_key": "tampa-addendum-2-bryan-glazer-family-jcc",
+      "listing_id": "708a03f5-a551-4aae-8959-9c0af3b65c97",
+      "slug": "vila-brothers-park-tampa-fl",
+      "verdict": "two_venues",
+      "distinguishers": [
+        "different_street",
+        "different_zip",
+        "different_operator",
+        "different_access_type",
+        "different_court_type"
+      ],
+      "evidence_url": "https://www.shannaandbryanglazerjcc.com/multi-sports-court",
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-08-06",
+      "note": "Bryan Glazer Family JCC, 522 N Howard Ave 33606 — two indoor membership courts lined on the JCC multi-sports floor, operated by the Tampa JCC. Vila Brothers Park, 700 N Armenia Ave 33609 — two outdoor public courts operated by the City of Tampa. Distinct on every axis that distinguishes a venue: street, ZIP, operator, access type and court type."
+    }
+  ],
+
+  "_expected_publish_comment": "AUTHORED AFTER the --stage=project projection was read, using the importer's OWN machine reason strings only. assertExpectedPublish does a substring containment test against b.reasons.join('; '), so rationale prose here produces spurious failures on a correct split — the Jacksonville lesson.",
+  "expected_publish": {
+    "count": 1,
+    "hold": {}
+  }
+}
