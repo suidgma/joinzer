@@ -74,7 +74,11 @@ Recommended primary label: **"Sub for this session"** (specific, unambiguous; "I
 - While `filled`, **after generation**: **requires organizer override** (removing a placed player after fixtures exist affects schedule/standings). Requester is told to contact the organizer.
 
 ### 2.6 Organizer controls
-Organizer live surface (already reads `league_sub_requests`) shows all **open/filled** requests, who covers whom, and conflict/eligibility warnings. Organizer can: **manually assign** (existing `assign-sub` routes → now routed through the same placement primitive, may use a **stub/guest** when operationally necessary), **cancel**, **reopen**, and act **after the start-time cutoff** (remove/replace). **Soft-override:** when assigning a player who trips a *soft* restriction (rating mismatch, missing rating, logistical warning), the organizer confirms an explicit "override" prompt → the assign proceeds with `placed_with_override=true` + an `audit_log` entry. **Hard gates (integrity/suspension, duplicate placement, post-generation guard) are never overridable.** Audit history via existing `audit_log`. **No approval step** in MVP.
+Organizer live surface (already reads `league_sub_requests`) shows all **open/filled** requests, who covers whom, and conflict/eligibility warnings. **Before play is generated** the organizer can: **manually assign** (existing `assign-sub` routes → now routed through the same placement primitive, may use a **stub/guest** when operationally necessary), **cancel**, and **reopen** — all of which **reverse the placement**. **Soft-override:** when assigning a player who trips a *soft* restriction (rating mismatch, missing rating, logistical warning), the organizer confirms an explicit "override" prompt → the assign proceeds with `placed_with_override=true` + an `audit_log` entry. **Hard gates (integrity/suspension, duplicate placement, post-generation guard) are never overridable.** Audit history via existing `audit_log`. **No approval step** in MVP.
+
+**After play is generated (`league_rounds` / `league_fixtures` exist) the organizer gets exactly one action: close the RECORD.** `organizer_close_sub_request_record` moves `filled → cancelled` with a `record_closed_reason` (`no_show` | `other`) and **leaves the placement, the lineup and the results exactly as they are**. That is what lets a no-show be recorded truthfully without rewriting generated play — which remains unsupported and still fails loudly. The function **refuses** with `use_standard_correction` while the ordinary reversing path above is still available, so the two can never overlap.
+
+> **Corrected 2026-08-06.** This section previously said the organizer could "act **after the start-time cutoff** (remove/replace)" while, in the same paragraph, listing the post-generation guard as never overridable — the two halves contradicted each other, and the implementation (correctly) followed decision #4. Post-generation the organizer corrects the *record*, never the placement. See the **ADR-06 amendment** in `docs/decisions.md`.
 
 ---
 
@@ -86,7 +90,7 @@ Organizer live surface (already reads `league_sub_requests`) shows all **open/fi
 |---|---|---|
 | `open` | Discoverable, awaiting an eligible acceptance (or reopened after withdrawal) | create (open_pool); withdraw; reopen |
 | `filled` | Sub placed; participation row exists (invariant) | atomic accept; self_assigned create; organizer assign |
-| `cancelled` | Closed by requester/organizer; no sub | cancel |
+| `cancelled` | Closed by requester/organizer. Placement reversed — **except** on a post-generation record close, where it deliberately stands (`record_closed_reason` is non-NULL and `filled_by_user_id` is preserved) | cancel; organizer record close |
 | `expired` | Cutoff passed with no fill | expiration cron |
 
 **Removed / deprecated:** `claimed` (immediate accept goes `open`→`filled`, no interim), `approved` (no approval), `fulfilled` (was never implemented). **Not added:** `withdrawn` (withdrawal returns the request to `open`; the *event* is in `audit_log`, not a status), `failed` (the transaction rolls back → stays `open`; no false-fill state exists), `pending_approval` (future-only — see below).
@@ -102,7 +106,8 @@ Organizer live surface (already reads `league_sub_requests`) shows all **open/fi
 | `open` | expire (cron) | `expired` | `now() > expires_at` |
 | `filled` | withdraw (sub) | `open` | before cutoff; reversal + reopen (same txn) |
 | `filled` | requester reclaims | `cancelled` | before generation; reversal (same txn) |
-| `filled` | organizer reopen/cancel | `open`/`cancelled` | organizer; after cutoff |
+| `filled` | organizer reopen/cancel | `open`/`cancelled` | organizer; **before generation**; reversal (same txn) |
+| `filled` | organizer close record | `cancelled` | organizer; **after generation only** (refuses with `use_standard_correction` otherwise); **record only — placement, lineup and results unchanged**; `record_closed_reason` set, `filled_by_user_id` preserved |
 
 **Future path (do not build now):** an optional `leagues` approval-mode column could insert a `pending_approval` state between accept and placement. The status enum and the RPC are shaped so this slots in later without a breaking change. **No approval column, status, or UI in MVP.**
 
@@ -230,7 +235,7 @@ Failures here **do not** affect correctness (the placement is already committed)
 
 **Proactive-surfacing gate (a preference, not an eligibility rule — locked):** `open_to_subbing` (opt-in) gates **Home matched cards + proactive notifications only**. `/subs` is **browsable by every eligible player regardless of the preference**. For the MVP a **single `open_to_subbing` preference controls both** Home surfacing and proactive notifications; granular per-channel/per-category settings are deferred.
 
-**Organizer soft-override (locked):** on the **organizer** manual-assign / organizer-mediated path, an organizer may override **soft restrictions only** — rating mismatch, missing rating, and certain logistical warnings — via an **explicit confirmation** that writes an **`audit_log`** entry and sets `placed_with_override=true` on the request (for display: "placed with organizer override"). **Non-overridable by anyone:** integrity/suspension, duplicate placement, and the post-generation safety guard. **The requesting player can never override hard rules** on the "I already have someone" path (§2.1) — only organizers can, and only the soft set.
+**Organizer soft-override (locked):** on the **organizer** manual-assign / organizer-mediated path, an organizer may override **soft restrictions only** — rating mismatch, missing rating, and certain logistical warnings — via an **explicit confirmation** that writes an **`audit_log`** entry and sets `placed_with_override=true` on the request (for display: "placed with organizer override"). **Non-overridable by anyone:** integrity/suspension, duplicate placement, and the post-generation safety guard. **The requesting player can never override hard rules** on the "I already have someone" path (§2.1) — only organizers can, and only the soft set. (The post-generation *record close* added 2026-08-06 is not an exception to this: it does not override the guard, it declines to touch placement at all — see §2.6.)
 
 **Deferred sophistication:** calculated Joinzer Score as a lead signal, geographic-radius preference, weighted scoring, DUPR, `player_availability` weighting.
 
@@ -353,7 +358,7 @@ Separate phase (per decision #12). One chat + `message_type='announcement'` colu
 
 - [ ] One `open` request per covered player per occasion (dedupe index enforced).
 - [ ] Two simultaneous accepts → exactly one `filled`; the other gets 409.
-- [ ] `filled` ⟺ a placement row exists (never diverges); a forced placement failure leaves the request `open`.
+- [ ] `filled` ⟺ a placement row exists; a forced placement failure leaves the request `open`. **One bounded exception (2026-08-06):** a post-generation organizer *record close* moves `filled → cancelled` while the placement deliberately stands, so a placement can exist with no `filled` request. Nothing else may create that divergence, and the ⇒ direction is unchanged — a request still never reads `filled` without a placement. See the ADR-06 amendment in `docs/decisions.md`.
 - [ ] Placement sets `sub_for_session_player_id` (RR) / `subbing_for_registration_id` (box/ladder) + covered `has_sub`.
 - [ ] Standings: sub earns points, covered player capped at `sub_credit_cap`, sub's stats correct, public-standings parity, corrected results recompute.
 - [ ] Withdrawal before cutoff reverses placement + reopens the same request atomically; notifies.
@@ -373,8 +378,8 @@ All four are locked and incorporated above:
 
 1. **Proactive-surfacing = hybrid opt-in.** `open_to_subbing` (opt-in) gates **Home substitute cards + proactive notifications**; `/subs` stays browsable by **every eligible player** regardless. MVP: the **single** preference controls both; granular per-channel/per-category settings deferred. → §4.2, §6, §7.
 2. **Skill/rating = ranking + warning, not a hard gate.** A lower-rated player may accept; the UI shows the **recommended level** and **warns on a meaningful mismatch**. Hard gates = format, required division gender, schedule conflict, duplicate participation, account eligibility (incl. suspension), operational placement guard. → §6.
-3. **Withdrawal cutoff = session/period start (no 2h buffer).** Self-service withdraw until start, atomically reversing placement + reopening the same request; after start → organizer action. → §2.4, §5.1.
-4. **Known-sub enforces the same HARD gates; the requester cannot override.** Organizers may override the **soft** subset (rating mismatch, missing rating, logistical warnings) with an explicit confirmation + `audit_log` entry (`placed_with_override`); integrity/suspension, duplicate placement, and post-generation guards are **non-overridable**. → §2.1, §2.6, §4.1, §6.
+3. **Withdrawal cutoff = session/period start (no 2h buffer).** Self-service withdraw until start, atomically reversing placement + reopening the same request; after start → organizer action. **Clarified 2026-08-06:** that organizer action is *placement-reversing* only until play is generated; after generation it is **record-scoped** — the organizer closes the record and the placement stands. → §2.4, §2.6, §5.1.
+4. **Known-sub enforces the same HARD gates; the requester cannot override.** Organizers may override the **soft** subset (rating mismatch, missing rating, logistical warnings) with an explicit confirmation + `audit_log` entry (`placed_with_override`); integrity/suspension, duplicate placement, and post-generation guards are **non-overridable**. → §2.1, §2.6, §4.1, §6. **Unchanged 2026-08-06:** the post-generation guard still cannot be overridden by anyone — the record close does not override it, it declines to touch placement at all.
 
 **No decisions remain that block implementation. The plan is ready for coding.** (Not yet started — awaiting the go-ahead.)
 
