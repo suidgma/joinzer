@@ -25,6 +25,13 @@ A running log of product and architectural decisions. Every time we make a call 
 
 ---
 
+## 2026-08-06 — Directory scope is the 111 largest US metros
+**Status:** Active
+**Affects:** every metro build; `scripts/metros/*.json`; the "Metro Tracker" sheet
+**Decision:** the court directory targets the 111 largest US MSAs by 2025 population, per the Metro Tracker sheet. Off-list metros need an explicit recorded deviation. See **ADR-19** in `docs/strategy/decision-log.md` for the tiering, the batch strategy per tier, and the reasoning.
+**Reasoning:** the MSA is the right unit because it is how the *sources* are organized — the source-led methodology enumerates county and municipal parks departments, so the source list falls out of the MSA's county definition. It also gives a sweep a defined stopping point. The rule existed verbally for weeks and was never written down, and on 2026-08-06 that produced two off-list proposals (Naples, Ocala) before anyone noticed.
+**Open questions:** the tracker's status fields are stale — 43 live metros read "Not Started." Fixing that is operational, not a decision.
+
 ## 2026-08-05 — Court directory goes coverage-first; publish gate reversed
 **Status:** Active (supersedes the 2026-07-28 publish gate)
 **Affects:** `scripts/lib/publish-gate.mjs`, `scripts/import-metro-merged.mjs`, `scripts/publish-facilities.mjs`, `facility_listings.verification_status`, `/courts` + `/courts/[slug]`
