@@ -1,0 +1,91 @@
+{
+  "_comment": "Syracuse — V3 SOURCE-LED COMPLETION BATCH, authored 2026-08-06. This is a SECOND batch for a metro that is already live: batch syracuse-2026-07-31 published 15 rows on 2026-08-06 and they stay exactly as they are. This config imports ONLY the 56 venues the v3 source-led pass added. The two batches share one metro_area ('Syracuse') and therefore one public page — publishing any row here extends /courts/in/syracuse rather than creating a second page.",
+  "_why_a_second_batch": "The candidates stage aborts when a candidate_key already exists (import-metro-merged.mjs, the collision check: 'candidate_key collisions live (candidates already seeded?)'). All 15 original keys are seeded, so re-importing the combined 71-row artifact under the original batch tag would abort atomically. Splitting is the only non-destructive path; it is not an optimization.",
+  "metro": "syracuse-v3",
+  "batch": "syracuse-v3-2026-08-06",
+  "metro_area": "Syracuse",
+  "states": [
+    "NY"
+  ],
+  "input": "metro-research/syracuse/syracuse-v3-candidates.json",
+  "discovered_by": "syracuse-v3-source-led",
+  "geocode_cache": "metro-research/.geocode-cache/syracuse.json",
+  "_envelope_comment": "Identical to scripts/metros/syracuse.json — derived from the Syracuse, NY MSA COUNTY LIST (Onondaga, Madison, Oswego), not from an observed bounding box. Cross-checked 2026-08-06: all 44 geocoded v3 venues fall inside it, verified by an independent pass over the artifact before any write.",
+  "msa": "Syracuse, NY (Onondaga, Madison, Oswego counties)",
+  "envelope": {
+    "latMin": 42.72,
+    "latMax": 43.83,
+    "lngMin": -76.65,
+    "lngMax": -75.23
+  },
+  "expected_count": 56,
+  "require_all_geocoded": false,
+  "_reconcile_comment": "One venue matches a dormant source='osm' status='draft' row and must be an UPDATE keyed on osm_id, never an INSERT — preflight aborts the batch otherwise (slug collision + 0 m proximity). This row is the Stage 2b discovery of the pass: it sat in facility_listings with metro_area = NULL, which is precisely why it was invisible on /courts/in/syracuse and why no earlier pass ever counted it. The reconcile sets metro_area='Syracuse', which is the thing that actually surfaces it. NO COORDINATE TRADE: the research row's own independent Nominatim geocode resolved to this exact OSM node (0 m, identical lat/lng), so the reconcile's coordinate overwrite is a no-op rather than a degradation.",
+  "reconciles": [
+    {
+      "candidate_key": "syr-game-point",
+      "osm_id": "node/8787564129",
+      "listing_id": "512cc014-0392-41fd-b169-e951b8b9bb0a",
+      "matched_distance_m": 0,
+      "adjudicated_by": "v3-source-led-pass",
+      "adjudicated_on": "2026-08-06",
+      "evidence_url": "https://www.gamepointsports-syr.com/",
+      "confidence": "high",
+      "note": "SAME venue as the dormant OSM row — same name, and the research row's own geocode landed on this exact node (leisure/sports_centre node/8787564129, house number 211) at 0 m. The OSM row already carried the address '211 South Center Street', which independently matches the address read off the venue's own site ('211 South Center Street East Syracuse, NY 13057'); the two agree, so nothing is overwritten with a weaker value. The OSM row is access_type='unknown'; the reconcile patches it to 'public' — Game Point Sports is a walk-in commercial facility (open play $8/person/hour, Mon-Sun 8:00 AM - 10:00 PM), which is the ADR-13 encoding: access is 'who may enter' (public) and the money question belongs to fee_type. court_count is left unset: the venue's own site states no number, and the 6-vs-2 disagreement between third-party listings is not something to resolve by picking one.",
+      "osm_original": {
+        "osm_id": "node/8787564129",
+        "name": "Game Point Sports",
+        "slug": "game-point-sports-east-syracuse-ny",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 43.0603102,
+        "lng": -76.069853,
+        "surface": null,
+        "city": "East Syracuse",
+        "state": "NY",
+        "address": "211 South Center Street",
+        "metro_area": null,
+        "verified_by": null,
+        "captured_on": "2026-08-06"
+      }
+    }
+  ],
+  "_same_site_comment": "Carried over from scripts/metros/syracuse.json because BOTH members of this pair are v3 rows and import here. The extract's name-separation pass ran twice and could not separate them — the Village of Manlius outdoor courts were built in 2026 and have no OSM name feature yet — so both rows keep one shared anchor (way/215394545, 0 m). Per the adjudication, syr-manlius-rec HOLDS and syr-manlius-centre publishes.",
+  "same_site_pairs": [
+    {
+      "a": "syr-manlius-centre",
+      "b": "syr-manlius-rec",
+      "verdict": "two_venues",
+      "evidence_url": "https://www.eaglenewsonline.com/eagle_bulletin/news/manlius-cuts-ribbon-for-new-pickleball-courts/article_0d6f9934-f593-4531-b7cd-444862493293.html",
+      "adjudicated_on": "2026-08-06",
+      "adjudicated_by": "v3-source-led-pass",
+      "note": "Two venues on one site, the same shape as syr-meachem/syr-cecile in the sibling config. The Village of Manlius built SIX outdoor public courts on the old soccer field between Willowbrook Drive and the Manlius Village Centre, ribbon-cut July 2026 at just under $400,000 (Eagle News / CNY Central); the Manlius Recreation Center is the building itself and offers ONE indoor court, members only (cnypickleball.com). Different court sets, settings and access classes. Both carry the address 1 Arkie Albanese Ave and geocode to 0 m; name separation failed twice, so syr-manlius-rec is held rather than published as a second pin on one point. The 6-court public venue is the one a user is looking for."
+    }
+  ],
+  "workbook": {
+    "header_row": 1
+  },
+  "expected_publish": {
+    "count": 43,
+    "hold": {
+      "sehr-park-syracuse-ny": "no coordinate",
+      "le-moyne-college-recreation-center-syracuse-ny": "no coordinate",
+      "clay-central-park-liverpool-ny": "no coordinate",
+      "electronics-park-liverpool-ny": "no coordinate",
+      "duerr-park-liverpool-ny": "no coordinate",
+      "hal-henty-community-park-liverpool-ny": "no coordinate",
+      "northwest-ymca-baldwinsville-ny": "no coordinate",
+      "manlius-recreation-center-manlius-ny": "research_status=held",
+      "elevate-fitness-dewitt-syracuse-ny": "no coordinate",
+      "jamesville-dewitt-middle-school-jamesville-ny": "no coordinate",
+      "sullivan-park-chittenango-ny": "no coordinate",
+      "lake-st-gym-chittenango-ny": "no coordinate",
+      "van-lieu-park-central-square-ny": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 v3 source-led completion batch: first expected_publish block for syracuse-v3-2026-08-06. Authored from --stage=project (43/56 publish, 13 held). Slugs were READ FROM metro-research/syracuse/syracuse-v3-candidates.json, never re-derived — a hand-rolled slugify drops \"&\" and mangles initials. Hold reasons are the importer's OWN strings (\"no coordinate\", \"research_status=held\"), not prose, because the assertion is substring containment against what the importer itself prints."
+  ]
+}
