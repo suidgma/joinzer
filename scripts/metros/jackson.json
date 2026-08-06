@@ -17,6 +17,16 @@
   "expected_count": 12,
   "require_all_geocoded": false,
   "reconciles": [],
+
+  "_expected_publish_comment": "OWNER-LOCKED 2026-08-05, authored AFTER the --stage=project projection was read and approved unchanged, never before. Both project and publish assert against this block and fail the run on any divergence, and reportExpected says in as many words 'Fix the pipeline. Do NOT edit the expectation to match the output.' The count moves 6 -> 10 with no re-import and no new research: the four rows released (Towne Park, Ridgeland Tennis Center, The Club at The Township, Madison Methodist Church) were held ONLY on location_precision 'low', which ADR-16 retired as a gate condition. Each was checked to be anchored on the correct named street in the correct city before approval — they publish behind the ADR-16 approximate-location label, which is the intended behavior and not a compromise. The two rows that remain held are the last genuine coordinate-based holds in this batch; both carry a CONFIRMED-correct street address (Magnolia against the operator's own site, Cascades against the Clinton Chamber directory), so each is a geocoding failure rather than a research failure, and a later re-geocode releases it without touching this block.",
+  "_expected_publish_revision_comment": "REVISED 2026-08-06, 10 -> 11, after the re-geocode follow-up (scripts/jackson-followups-2026-08-05.mjs --item=magnolia) recovered a coordinate for Magnolia Pickleball. The block is edited because the underlying REALITY changed and the change was read first, which is the only legitimate reason to touch it — never to make a failing run pass. Magnolia resolved `low` on a co-tenant anchor: OSM carries no feature named for the venue, so the ladder anchored on `amenity/cafe \"Extraction Sprcialty Coffee\", house number 547`, a business at the SAME street number as the venue's own 547 Church Rd Suite G. That is a building-level answer, not a venue-level one, which is exactly what `low` means and what the ADR-16 approximate-location label discloses. The anchor string is persisted, so the co-tenant identity is visible on the row rather than buried in a run log. Clinton Pickleball Club at Cascades remains the sole hold and is NOT a candidate for a batched cross-metro re-geocode: 4 address variants x every rung produced 16 live requests and zero hits, the township rung included, so OSM simply does not carry Cascades Circle West / Cascades West in Clinton 39056 nor any feature named for the club. Re-running the same ladder will return the same nothing; it needs a house number OSM actually carries.",
+  "expected_publish": {
+    "count": 11,
+    "hold": {
+      "clinton-pickleball-club-at-cascades-clinton-ms": "no coordinate"
+    }
+  },
+
   "workbook": {
     "header_row": 1
   }
