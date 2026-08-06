@@ -14,8 +14,16 @@ function admin() {
 }
 
 // POST /api/league-sub-requests/[id]/organizer-correct — organizer reopen | cancel | replace of a
-// filled request, before start. Body: { mode, new_sub_user_id?, override? }. Authorization is
-// re-derived server-side (session operator or league organizer); the RPC does the atomic work.
+// filled request before start, plus close_record after play is generated. Body:
+// { mode, new_sub_user_id?, override?, reason? }. Authorization is re-derived server-side (session
+// operator or league organizer); the RPCs do the atomic work.
+//
+// close_record dispatches to a DIFFERENT RPC (organizer_close_sub_request_record) but deliberately
+// shares this route: the auth block below is the ADR-03 boundary, and a second copy of it in a
+// second file is a bigger risk than one route with two dispatch targets.
+const MODES = ['reopen', 'cancel', 'replace', 'close_record'] as const
+const CLOSE_REASONS = ['no_show', 'other'] as const
+
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
   const supabase = createClient()
@@ -23,10 +31,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
-  const mode = ['reopen', 'cancel', 'replace'].includes(body.mode) ? body.mode : null
-  if (!mode) return NextResponse.json({ error: 'mode must be reopen, cancel, or replace' }, { status: 400 })
+  const mode = (MODES as readonly string[]).includes(body.mode) ? (body.mode as string) : null
+  if (!mode) return NextResponse.json({ error: `mode must be one of: ${MODES.join(', ')}` }, { status: 400 })
   const newSubUserId = typeof body.new_sub_user_id === 'string' ? body.new_sub_user_id : null
   const override = body.override === true
+  const reason = (CLOSE_REASONS as readonly string[]).includes(body.reason) ? (body.reason as string) : null
+  if (mode === 'close_record' && !reason) {
+    return NextResponse.json({ error: `reason must be one of: ${CLOSE_REASONS.join(', ')}` }, { status: 400 })
+  }
 
   const db = admin()
 
@@ -39,10 +51,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     : (await authorizeOrganizer(db, (reqRow as any).league_id, user.id)).ok
   if (!authorized) return NextResponse.json({ error: 'Not authorized to manage this request.', code: 'organizer_required' }, { status: 403 })
 
-  const { data: result, error } = await db.rpc('organizer_correct_sub_request', {
-    p_actor_id: user.id, p_request_id: id, p_mode: mode,
-    p_new_sub_user_id: mode === 'replace' ? newSubUserId : null, p_placed_with_override: override,
-  })
+  const { data: result, error } = mode === 'close_record'
+    ? await db.rpc('organizer_close_sub_request_record', {
+        p_actor_id: user.id, p_request_id: id, p_reason: reason,
+      })
+    : await db.rpc('organizer_correct_sub_request', {
+        p_actor_id: user.id, p_request_id: id, p_mode: mode,
+        p_new_sub_user_id: mode === 'replace' ? newSubUserId : null, p_placed_with_override: override,
+      })
   if (error) {
     const code = (error.message ?? '').trim()
     const status = LIFECYCLE_STATUS[code] ?? 500
@@ -71,6 +87,25 @@ async function fireOrganizerSideEffects(db: ReturnType<typeof admin>, actorId: s
   const leagueName = league?.name ?? 'the league'
   const requesterId = (reqR as any)?.requesting_player_id as string | undefined
   const url = `/leagues/${r.league_id}`
+
+  // close_record — the record was closed AFTER generation; the placement stands. This branch is
+  // early and explicit so it can never fall through to the reopen/cancel notifications below, which
+  // tell the substitute they were "removed from this substitute spot" — false here, and
+  // reputationally loaded besides. The closed-out substitute is deliberately NOT notified in v1:
+  // the message would be about something that already happened, that they cannot appeal in-product,
+  // and that they took no action to trigger. (The RPC also returns 'closed_sub' rather than
+  // 'removed_sub', so the mis-fire is structurally impossible, not merely guarded against.)
+  if (mode === 'close_record') {
+    if (requesterId) {
+      await createNotification({
+        recipientId: requesterId, surface: 'league', surfaceId: r.league_id, kind: 'league_sub_cancelled',
+        title: `Sub request closed — ${leagueName}`,
+        body: 'The organizer closed your substitute record for this session. The lineup and results are unchanged.',
+        url,
+      })
+    }
+    return
+  }
 
   if (mode === 'replace') {
     if (r.old_sub) await createNotification({ recipientId: r.old_sub, surface: 'league', surfaceId: r.league_id, kind: 'league_sub_replaced', title: `Substitute change — ${leagueName}`, body: 'The organizer assigned a different substitute for this session.', url })

@@ -8,6 +8,7 @@ export const LIFECYCLE_STATUS: Record<string, number> = {
   organizer_required: 403,
   not_filled: 409, already_reopened: 409, already_cancelled: 409, already_expired: 409,
   duplicate_participation: 409, generation_started: 409, unsafe_after_start: 409, placement_mismatch: 409,
+  use_standard_correction: 409,
   occasion_started: 410,
 }
 
@@ -22,6 +23,9 @@ const MESSAGES: Record<string, string> = {
   occasion_started: 'This session has already started — ask your organizer to make the change.',
   generation_started: 'The lineup is already set — ask your organizer to make the change.',
   unsafe_after_start: "This can't be changed now — ask your organizer.",
+  // Organizer-facing: the record-only close was attempted while the ordinary path still works.
+  // That path also reverses the placement, which is what a pre-generation correction should do.
+  use_standard_correction: 'Play has not been generated yet — use Remove & reopen or Remove & cancel instead.',
   gender_mismatch: "That player's profile doesn't match this session's format.",
   accepter_ineligible: 'That player needs to finish setting up their profile first.',
   duplicate_participation: 'That player is already in this session.',
