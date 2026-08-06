@@ -1,0 +1,45 @@
+{
+  "_comment": "Boise City, ID — V3 SOURCE-LED COMPLETION BATCH, authored 2026-08-06. A SECOND batch for a metro that is already live: batch boise-2026-08-03 published 11 rows and holds 2 on 'no coordinate', and all 13 stay exactly as they are. This config imports ONLY the 39 venues the v3 source-led pass added. Both batches share metro_area 'Boise' and therefore one public page — publishing here extends /courts/in/boise rather than creating a second page.",
+  "_why_a_second_batch": "The candidates stage aborts when a candidate_key already exists ('candidate_key collisions live (candidates already seeded?)'). All 13 original keys are seeded, so re-importing the combined artifact under the original tag would abort atomically. Splitting is the only non-destructive path. Syracuse used syracuse-v3.json for exactly this on the same day.",
+  "metro": "boise-v3",
+  "batch": "boise-v3-2026-08-06",
+  "metro_area": "Boise",
+  "states": [
+    "ID"
+  ],
+  "input": "metro-research/boise/boise-v3-candidates.json",
+  "discovered_by": "boise-v3-source-led",
+  "geocode_cache": "metro-research/.geocode-cache/boise.json",
+  "_envelope_comment": "Identical to scripts/metros/boise.json — the union of the OSM boundary bboxes for the five MSA counties (Ada, Boise, Canyon, Gem, Owyhee), rounded outward. Cross-checked 2026-08-06 by an independent pass over the artifact before any write: all 35 geocoded v3 venues fall inside it. THE ENVELOPE ASSERTION EARNED ITS KEEP THIS RUN — it is what caught the Middleton, Wisconsin contamination described in _excluded_cross_state, by rejecting a coordinate 3,000 km out. Nothing in the source text would have revealed it.",
+  "msa": "Boise City, ID (Ada, Boise, Canyon, Gem, Owyhee counties)",
+  "envelope": {
+    "latMin": 41.99,
+    "latMax": 44.52,
+    "lngMin": -117.04,
+    "lngMax": -114.96
+  },
+  "expected_count": 39,
+  "require_all_geocoded": false,
+  "_excluded_cross_state": "MIDDLETON, WISCONSIN — CROSS-STATE CONTAMINATION, caught and REMOVED before import. 'Taylor Park, 8 asphalt pickleball courts, reserve through Middleton Parks & Recreation' is a real, fully-sourced venue — in MIDDLETON, WISCONSIN (5280 Bishops Bay Parkway, WI 53562), not Middleton, IDAHO. The citation that made it look local, middleton.recdesk.com, is the WISCONSIN city's RecDesk; both Middletons run RecDesk and neither hostname names its state. It got in because Middleton ID is a genuine Canyon County MSA municipality that genuinely has pickleball, so the town name matched the county list exactly and no page contradicted it. It was caught by the ENVELOPE ASSERTION rather than by reading: carrying no street address, the ladder fell to name+city and anchored on a residential way called 'Middleton Street' in WEST VIRGINIA (39.3171,-80.0245). Two different wrong states in one row. The other three Middleton ID rows are NOT contaminated and are retained — middleton-place-park (confirmed by KIVI-TV Idaho, geocodes 43.7054,-116.6080), middleton-ms (43.7046,-116.6291) and middleton-rec-center (named by boisepickleballclub.org, a Boise-area club).",
+  "_excluded_no_pickleball_evidence": "West Family YMCA & Boise City Aquatic Center (5959 N Discovery Way, Boise 83713) — REMOVED before import. It had been admitted on ymcatvidaho.org/contact-us, which proves the BRANCH EXISTS but says nothing about pickleball; boisepickleballclub.org names three YMCA branches with pickleball (Downtown Boise, South Meridian, Caldwell) and pointedly not this one. Branch existence is not a pickleball citation. It surfaced only because preflight flagged it 150 m from Peppermint Park and the re-check exposed the missing evidence — without that proximity flag, a row with no pickleball claim would have published. Removing it also resolved the 150 m pair, so no same_site_pairs entry was needed.",
+  "_hold_comment": "5 rows hold, and one of them is a GATE DEFECT rather than a data problem — see _gate_false_positive. The other four hold on 'no coordinate': boise-les-bois-jh, boise-state-rec, meridian-ymca-south and middleton-rec-center. None carries a street address, because no source states one, and the ladder found no usable name anchor. Every one is a lookup rather than a research problem; a later re-geocode against a real address releases them.",
+  "_gate_false_positive": "s2-pickleball-boise-id holds on 'generic name' and it SHOULD NOT. S2 Pickleball is a real 9-court commercial facility at 3615 S Federal Way, Boise 83705, opened in the former Bed Bath & Beyond and covered by BoiseDev; it is one of the largest venues in this batch. It fails publish-gate.mjs isGenericName because that function strips pickleball/court/tennis words AND all digits, so 'S2 Pickleball' reduces to 's' — under the 3-character floor. The rule cannot see short alphanumeric brand names (S2, K1, and anything of that shape). THE ASSERTION WAS NOT WEAKENED TO MAKE THIS RUN PASS: isGenericName is shared by both publish paths under ADR-17, and loosening it would change the gate for all 40-plus metros to rescue one row. The row holds, carries verified_by = NULL, and is flagged here for an owner decision. Fixing it properly means amending isGenericName to keep alphanumeric tokens, which is its own gated change with its own review.",
+  "reconciles": [],
+  "_no_reconciles_comment": "Deliberately empty, and that is a finding rather than an omission. The Stage 2b sweep over dormant OSM rows inside the envelope regardless of metro_area returned exactly ONE hit — Mesa Park Tennis Courts (way/1137494364, metro_area = NULL) at 44.0226,-116.9132. NOT reconciled and NOT imported: it is in Fruitland, PAYETTE County, which is not one of the five MSA counties; it is run by the Payette County Recreation District; and no source confirms pickleball there at all. This is exactly the soft edge scripts/metros/boise.json _envelope_comment predicted (it names Mountain Home as the same class of problem), caught before research was spent. Boise therefore has no OSM reconcile, unlike Syracuse, which found a live venue this way.",
+  "workbook": {
+    "header_row": 1
+  },
+  "expected_publish": {
+    "count": 34,
+    "hold": {
+      "les-bois-junior-high-boise-id": "no coordinate",
+      "s2-pickleball-boise-id": "generic name",
+      "boise-state-university-student-recreation-center-boise-id": "no coordinate",
+      "tomlinson-south-meridian-ymca-meridian-id": "no coordinate",
+      "middleton-city-recreation-center-middleton-id": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 v3 source-led completion batch: first expected_publish block for boise-v3-2026-08-06. Authored from --stage=project (34/39 publish, 5 held). Slugs were READ FROM metro-research/boise/boise-v3-candidates.json, never re-derived. Hold reasons are the importer's OWN strings ('no coordinate', 'generic name'), not prose, because the assertion is substring containment against what the importer itself prints."
+  ]
+}
