@@ -340,6 +340,12 @@ function provenanceFor(v) {
       // Set when a venue_facts address correction forced a re-geocode: the workbook's address was
       // wrong, so the coordinate it produced was wrong too. Records what it was re-derived from.
       address_override: v.coordinates.address_override ?? null,
+      // Set when an adjudication adopted a NAMED OSM FEATURE's coordinate because the query ladder
+      // could not reach it. Carries the feature id, the evidence, the adjudicator, the cross-check
+      // delta and the coordinate it superseded — so a reader asking "why does this pin disagree with
+      // what a fresh geocode returns" gets the answer off the row rather than out of a config file
+      // that has since moved on. Same reasoning as osm_reconcile's adjudication block.
+      adopted_from: v.coordinates.adopted_from ?? null,
     } : null,
     address_source: v.address_source ?? null,
     workbook_name: v.name?.workbook_name ?? null,
@@ -589,6 +595,17 @@ async function preflight({ checkCollisions, candidateKeys }) {
       if (origin !== 'nominatim') fail.push(`${k}: coordinate origin "${origin}" — every row is geocoded via nominatim; a different origin means the input changed`)
       if (!v.coordinates.source_url) fail.push(`${k}: coordinate carries no source_url`)
       if (!v.coordinates.anchor) fail.push(`${k}: coordinate carries no anchor description`)
+
+      // An adopted coordinate must carry its adjudication. The extractor already refuses to write
+      // one without these, so this is defence against a hand-edited artifact rather than against a
+      // malformed config — the same reason the workbook_crosscheck delta is re-derived below rather
+      // than trusted. An unattributable adopted pin is a public map position nobody signed for.
+      const ad = v.coordinates.adopted_from
+      if (ad) {
+        for (const f of ['osm_id', 'evidence_url', 'adjudicated_by', 'adjudicated_on', 'reason']) {
+          if (!ad[f]) fail.push(`${k}: coordinate.adopted_from is missing "${f}" — an adopted pin must carry its feature, evidence, adjudicator, date and reason`)
+        }
+      }
 
       // A workbook coordinate is a cross-check, never a source. RE-DERIVE the distance rather than
       // trusting the stored number, so a bad edit to the artifact cannot quietly launder a workbook
@@ -846,6 +863,21 @@ if (STAGE === 'project') {
     console.log(`  "envelope": { "latMin": ${pad(Math.min(...lats) - 0.15)}, "latMax": ${pad(Math.max(...lats) + 0.15)}, "lngMin": ${pad(Math.min(...lngs) - 0.15)}, "lngMax": ${pad(Math.max(...lngs) + 0.15)} }`)
   }
   console.log(`coordinate precision: ${JSON.stringify(precision)}`)
+
+  // Adopted coordinates are the one class of pin in a batch that a fresh geocode will NOT reproduce,
+  // so they are surfaced at the metro's go-gate rather than left to be discovered in provenance.
+  const adopted = venues.filter((v) => v.coordinates?.adopted_from)
+  if (adopted.length) {
+    console.log(`\nADOPTED COORDINATES (${adopted.length}) — pin taken from a named OSM feature the query ladder could not reach:`)
+    for (const v of adopted) {
+      const a = v.coordinates.adopted_from
+      console.log(`  ~ ${v.research_key.padEnd(52)} ${a.osm_id} "${a.osm_feature_name}" -> ${v.coordinates.precision}`)
+      console.log(`      superseded ${a.superseded.precision} at ${a.moved_m} m · cross-check ${a.crosscheck_delta_m} m · ${a.adjudicated_by} on ${a.adjudicated_on}`)
+      console.log(`      evidence: ${a.evidence_url}`)
+      if (a.matches_reconcile_target === true) console.log(`      corroborated: the SAME OSM feature this row reconciles onto`)
+      if (a.matches_reconcile_target === false) console.log(`      REVIEW: reconciles onto ${a.reconcile_target_osm_id} but adopts ${a.osm_id}`)
+    }
+  }
   console.log(`access_type: ${JSON.stringify(venues.reduce((a, v) => (a[String(fieldVal(v.access_type))] = (a[String(fieldVal(v.access_type))] || 0) + 1, a), {}))}`)
   console.log(`fee_type:    ${JSON.stringify(venues.reduce((a, v) => (a[String(fieldVal(v.fee_type))] = (a[String(fieldVal(v.fee_type))] || 0) + 1, a), {}))}`)
   console.log(`research_status: ${JSON.stringify(venues.reduce((a, v) => (a[v.research_status] = (a[v.research_status] || 0) + 1, a), {}))}`)
