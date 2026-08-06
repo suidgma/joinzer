@@ -116,10 +116,15 @@ pickleball-density grounds, both of which are **outside the 111**. A targeting r
 metro we build cannot live only in a spreadsheet and the owner's memory.
 
 **Consequences:**
-- Coverage is measured against a defined list, not against an impression of "major markets." As of
-  2026-08-06: **48 of 111 built** — but **1 of the top 28**, 4 of ranks 29–60, and 43 of ranks 61–111.
-  The directory has been built from the bottom of the list upward, and every Tier 1 metro except
-  Phoenix is still missing.
+- Coverage is measured against a defined list, not against an impression of "major markets." **For
+  the live figure, count `distinct metro_area` where `status='published'` in `facility_listings` —
+  do not trust a number written here.** This bullet originally hardcoded "48 of 111 built" and went
+  stale within hours of being written, on the same day this ADR warns that a tracker disagreeing with
+  the database is worse than no tracker. The shape that matters and does not rot: the directory has
+  been built **from the bottom of the list upward** — overwhelmingly ranks 61–111, very little of the
+  top 28 — because the method was unproven and the small metros were the cheap place to prove it.
+  Tampa, Orlando and Jacksonville (2026-08-06) are the first Tier 1/2 builds; the top of the list is
+  still largely unbuilt.
 - **Off-list metros require a deliberate deviation.** Density is a legitimate argument for one — Naples
   plausibly has more courts per capita than several Tier 1 metros — but it is an argument to be made
   and recorded, not assumed.

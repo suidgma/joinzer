@@ -74,8 +74,9 @@ import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { revalidateDirectory } from './lib/revalidate-directory.mjs'
 import { LIVE, AGGREGATOR_HOST, DOCUMENT_URL } from './lib/workbook-extract.mjs'
-import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
+import { PRESERVE_ON_RECONCILE, RECONCILE_TARGET_COLUMNS, assertReconcileCoordinate, mergeOntoTarget, preservedSummary } from './lib/reconcile-merge.mjs'
 import { BLOCKING_RESEARCH_STATUS, GATE_TEXT, gateReasons, isApproximateLocation, PIPELINE_VERIFICATION_STATUS, verificationStatusFor } from './lib/publish-gate.mjs'
+import { DISTINCT_NEIGHBOUR_COLUMNS, parseDistinctFromLive, verifyDistinctFromLive } from './lib/distinct-from-live.mjs'
 
 // ---------------------------------------------------------------------------------------------
 // Args + config
@@ -271,6 +272,32 @@ for (const r of RECONCILES) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Adjudicated distinct venues near a PUBLISHED, non-OSM neighbour
+// ---------------------------------------------------------------------------------------------
+// The third allow-list, and the one that closes the case the other two structurally cannot reach.
+// `reconciles` matches a neighbour by osm_id and `also_at_site` looks one up in ALSO_AT_SITE_BY_OSM
+// while additionally asserting it is still status='draft'. A published row that came from our own
+// research has osm_id NULL, so neither can even name it — and Tampa's Bryan Glazer Family JCC was
+// deferred out of its batch for exactly that reason, 148 m from published Vila Brothers Park.
+//
+// Parsing and validation live in scripts/lib/distinct-from-live.mjs so they can be unit-tested; this
+// file executes on import (it reads argv and exits), so nothing declared here is importable.
+// The module throws so it stays pure and testable; every other config validation in this file exits
+// with a plain message rather than a stack trace, so it is converted here to match.
+let DISTINCT_BY_LISTING
+try {
+  DISTINCT_BY_LISTING = parseDistinctFromLive(config.distinct_from_live, {
+    configPath: CONFIG_PATH,
+    artifactKeys: new Set(allVenues.map((v) => v.research_key)),
+    reconciles: RECONCILES,
+  })
+} catch (e) {
+  console.error(e.message)
+  process.exit(1)
+}
+const distinctTripped = new Set()
+
 // Artifacts written by scripts/lib/workbook-extract.mjs carry their metadata at the top level; the
 // hand-built Little Rock artifact nests the same keys under `_meta`. Read both so the generic
 // pipeline can be validated against the known-good published batch without editing its artifact.
@@ -340,6 +367,12 @@ function provenanceFor(v) {
       // Set when a venue_facts address correction forced a re-geocode: the workbook's address was
       // wrong, so the coordinate it produced was wrong too. Records what it was re-derived from.
       address_override: v.coordinates.address_override ?? null,
+      // Set when an adjudication adopted a NAMED OSM FEATURE's coordinate because the query ladder
+      // could not reach it. Carries the feature id, the evidence, the adjudicator, the cross-check
+      // delta and the coordinate it superseded — so a reader asking "why does this pin disagree with
+      // what a fresh geocode returns" gets the answer off the row rather than out of a config file
+      // that has since moved on. Same reasoning as osm_reconcile's adjudication block.
+      adopted_from: v.coordinates.adopted_from ?? null,
     } : null,
     address_source: v.address_source ?? null,
     workbook_name: v.name?.workbook_name ?? null,
@@ -472,6 +505,10 @@ function listingFields(v) {
 // import (it reads argv and exits), so nothing declared here can be unit-tested. RECONCILE_TARGET_BY_OSM
 // stays here because it is per-run state captured by preflight, not pure logic.
 const RECONCILE_TARGET_BY_OSM = new Map()
+/** An acknowledged coordinate trade, captured by preflight with its RE-DERIVED distance and
+ *  precision, so the record written onto the row is the one the run actually verified rather than
+ *  the one the config claimed. Per-run state, same as RECONCILE_TARGET_BY_OSM. */
+const RECONCILE_TRADE_BY_OSM = new Map()
 
 const insertVenues = venues.filter((v) => !isReconcile(v))
 const reconcileVenues = venues.filter(isReconcile)
@@ -589,6 +626,17 @@ async function preflight({ checkCollisions, candidateKeys }) {
       if (origin !== 'nominatim') fail.push(`${k}: coordinate origin "${origin}" — every row is geocoded via nominatim; a different origin means the input changed`)
       if (!v.coordinates.source_url) fail.push(`${k}: coordinate carries no source_url`)
       if (!v.coordinates.anchor) fail.push(`${k}: coordinate carries no anchor description`)
+
+      // An adopted coordinate must carry its adjudication. The extractor already refuses to write
+      // one without these, so this is defence against a hand-edited artifact rather than against a
+      // malformed config — the same reason the workbook_crosscheck delta is re-derived below rather
+      // than trusted. An unattributable adopted pin is a public map position nobody signed for.
+      const ad = v.coordinates.adopted_from
+      if (ad) {
+        for (const f of ['osm_id', 'evidence_url', 'adjudicated_by', 'adjudicated_on', 'reason']) {
+          if (!ad[f]) fail.push(`${k}: coordinate.adopted_from is missing "${f}" — an adopted pin must carry its feature, evidence, adjudicator, date and reason`)
+        }
+      }
 
       // A workbook coordinate is a cross-check, never a source. RE-DERIVE the distance rather than
       // trusting the stored number, so a bad edit to the artifact cannot quietly launder a workbook
@@ -729,6 +777,17 @@ async function preflight({ checkCollisions, candidateKeys }) {
         // already seeded — which would make the merge observable only BETWEEN two writes.
         // `--stage=candidates --dry-run` reaches this point read-only, so the operator sees exactly
         // what will be kept before anything is written at all.
+        // COORDINATE SAFETY, checked HERE because this is the earliest point that holds both the
+        // incoming row and the live target. lat/lng are deliberately NOT preserved by the merge, so
+        // the incoming coordinate always wins — which silently nulls a good coordinate when the
+        // research row failed to geocode, and silently replaces a court-accurate OSM pin with a
+        // street band when it geocoded badly. Both were found by a human reading source rather than
+        // by the pipeline. Reachable read-only via `--stage=candidates --dry-run`.
+        const coordCheck = assertReconcileCoordinate({ incoming: listingFields(v), target: tgt[0], rec, nowIso })
+        console.log(`  reconcile coordinate: ${coordCheck.report}`)
+        if (coordCheck.fatal) fail.push(coordCheck.fatal)
+        if (coordCheck.trade) RECONCILE_TRADE_BY_OSM.set(rec.osm_id, coordCheck.trade)
+
         const { preserved } = mergeOntoTarget(listingFields(v), tgt[0], rec, nowIso)
         const summary = preservedSummary(preserved)
         console.log(`  reconcile merge preview: ${rec.candidate_key} -> "${tgt[0].slug}" ${summary
@@ -753,11 +812,24 @@ async function preflight({ checkCollisions, candidateKeys }) {
       }
     }
 
+    // Every distinct_from_live neighbour must actually EXIST, checked by id rather than inferred
+    // from the envelope sweep below. The sweep only returns rows inside the bounding box with a
+    // non-null coordinate, so a deleted or moved neighbour would otherwise surface as the gentle
+    // "no longer load-bearing" report — indistinguishable from a pair the geocoder separated, when
+    // in fact the row the adjudication was made about is gone. Mirrors the also_at_site assertion.
+    for (const [listingId, d] of DISTINCT_BY_LISTING) {
+      const { data: nb, error: e1e } = await conn.from('facility_listings').select('id, slug, status, osm_id, source').eq('id', listingId)
+      if (e1e) { fail.push(`distinct_from_live check failed for ${listingId}: ${e1e.message}`); continue }
+      if (nb.length !== 1) { fail.push(`distinct_from_live ${d.candidate_key} names listing_id ${listingId}, which matches ${nb.length} live rows — the row the adjudication describes no longer exists. Re-adjudicate.`); continue }
+      if (nb[0].source === BATCH) { fail.push(`distinct_from_live ${d.candidate_key} names ${nb[0].slug}, which belongs to THIS batch (${BATCH}). Two rows in one batch are an internal-proximity question — use same_site_pairs, not this list.`); continue }
+      console.log(`  distinct-from-live neighbour confirmed live: "${nb[0].slug}" (${nb[0].status}, osm_id ${nb[0].osm_id ?? 'NULL'}) — the case neither reconciles nor also_at_site can name`)
+    }
+
     // Proximity to EVERY pre-existing listing in the envelope, recomputed live on every run.
     // Configured reconciles are allow-listed; anything else inside the radius is an OWNER decision,
     // never an auto-INSERT.
     const { data: near, error: e2 } = await conn.from('facility_listings')
-      .select('id, name, slug, lat, lng, status, source, osm_id')
+      .select(`id, name, slug, lat, lng, status, source, osm_id, ${DISTINCT_NEIGHBOUR_COLUMNS.join(', ')}`)
       .gte('lat', ENVELOPE.latMin).lte('lat', ENVELOPE.latMax)
       .gte('lng', ENVELOPE.lngMin).lte('lng', ENVELOPE.lngMax)
       .not('lat', 'is', null).not('lng', 'is', null)
@@ -784,6 +856,23 @@ async function preflight({ checkCollisions, candidateKeys }) {
             console.log(`    reconcile_radius_m stays ${RECONCILE_RADIUS_M} m — this ONE row is allow-listed by osm_id; the guard is unchanged for every other neighbour in this metro.`)
             continue
           }
+          // The third hatch: an adjudication that these are two DISTINCT venues, naming the
+          // neighbour by listing_id because a published research-sourced row has no osm_id for the
+          // other two hatches to key on. Every claim it makes is settled against the live row here,
+          // never taken from the config.
+          const distinct = DISTINCT_BY_LISTING.get(r.id)
+          if (distinct && distinct.candidate_key === v.research_key) {
+            distinctTripped.add(r.id)
+            const res = verifyDistinctFromLive(distinct, { venue: { zip: v.zip, access_type: fieldVal(v.access_type) }, neighbour: r })
+            console.log(`  distinct-from-live ADJUDICATED (${Math.round(d)} m): ${v.research_key} vs "${r.name}" (${r.slug}, ${r.status}) — ${distinct.verdict} by ${distinct.adjudicated_by || 'unrecorded'} on ${distinct.adjudicated_on}`)
+            console.log(`    evidence: ${distinct.evidence_url}`)
+            if (distinct.note) console.log(`    ${distinct.note}`)
+            res.verified.forEach((x) => console.log(`    VERIFIED against live data — ${x}`))
+            if (res.declared.length) console.log(`    declared (rests on the adjudicator's evidence, not machine-checked): ${res.declared.join(', ')}`)
+            console.log(`    reconcile_radius_m stays ${RECONCILE_RADIUS_M} m — this ONE neighbour is allow-listed by listing_id; the guard is unchanged for every other row in this metro.`)
+            res.failures.forEach((f) => fail.push(f))
+            continue
+          }
           fail.push(`${v.research_key} is ${Math.round(d)} m from live listing "${r.name}" (${r.slug}, ${r.status}) — that is a RECONCILE decision for the owner, not an INSERT`)
         }
       }
@@ -792,6 +881,13 @@ async function preflight({ checkCollisions, candidateKeys }) {
       for (const [osmId, a] of ALSO_AT_SITE_BY_OSM) {
         if (!alsoTripped.has(osmId)) {
           console.log(`  also_at_site ${osmId} (${a.candidate_key}) is allow-listed but did NOT trip the ${RECONCILE_RADIUS_M} m guard — the entry is harmless but no longer load-bearing.`)
+        }
+      }
+      // Same report for the third list. An adjudication that no longer suppresses anything is worth
+      // knowing about — the geocoder may legitimately have separated the pair since it was made.
+      for (const [listingId, d] of DISTINCT_BY_LISTING) {
+        if (!distinctTripped.has(listingId)) {
+          console.log(`  distinct_from_live ${d.slug} (${d.candidate_key}) is allow-listed but did NOT trip the ${RECONCILE_RADIUS_M} m guard — the entry is harmless but no longer load-bearing.`)
         }
       }
     }
@@ -846,6 +942,21 @@ if (STAGE === 'project') {
     console.log(`  "envelope": { "latMin": ${pad(Math.min(...lats) - 0.15)}, "latMax": ${pad(Math.max(...lats) + 0.15)}, "lngMin": ${pad(Math.min(...lngs) - 0.15)}, "lngMax": ${pad(Math.max(...lngs) + 0.15)} }`)
   }
   console.log(`coordinate precision: ${JSON.stringify(precision)}`)
+
+  // Adopted coordinates are the one class of pin in a batch that a fresh geocode will NOT reproduce,
+  // so they are surfaced at the metro's go-gate rather than left to be discovered in provenance.
+  const adopted = venues.filter((v) => v.coordinates?.adopted_from)
+  if (adopted.length) {
+    console.log(`\nADOPTED COORDINATES (${adopted.length}) — pin taken from a named OSM feature the query ladder could not reach:`)
+    for (const v of adopted) {
+      const a = v.coordinates.adopted_from
+      console.log(`  ~ ${v.research_key.padEnd(52)} ${a.osm_id} "${a.osm_feature_name}" -> ${v.coordinates.precision}`)
+      console.log(`      superseded ${a.superseded.precision} at ${a.moved_m} m · cross-check ${a.crosscheck_delta_m} m · ${a.adjudicated_by} on ${a.adjudicated_on}`)
+      console.log(`      evidence: ${a.evidence_url}`)
+      if (a.matches_reconcile_target === true) console.log(`      corroborated: the SAME OSM feature this row reconciles onto`)
+      if (a.matches_reconcile_target === false) console.log(`      REVIEW: reconciles onto ${a.reconcile_target_osm_id} but adopts ${a.osm_id}`)
+    }
+  }
   console.log(`access_type: ${JSON.stringify(venues.reduce((a, v) => (a[String(fieldVal(v.access_type))] = (a[String(fieldVal(v.access_type))] || 0) + 1, a), {}))}`)
   console.log(`fee_type:    ${JSON.stringify(venues.reduce((a, v) => (a[String(fieldVal(v.fee_type))] = (a[String(fieldVal(v.fee_type))] || 0) + 1, a), {}))}`)
   console.log(`research_status: ${JSON.stringify(venues.reduce((a, v) => (a[v.research_status] = (a[v.research_status] || 0) + 1, a), {}))}`)
@@ -910,10 +1021,21 @@ if (STAGE === 'listings') {
       process.exit(1)
     }
     const { fields, preserved } = mergeOntoTarget(listingFields(v), target, rec, nowIso)
-    return { v, rec, target, fields, preserved }
+    // An acknowledged coordinate trade rides ON THE ROW it degraded, next to the osm_original that
+    // makes it recoverable. A decision recorded only in a config is a decision the next reader of
+    // this listing will never find.
+    const trade = RECONCILE_TRADE_BY_OSM.get(rec.osm_id)
+    if (trade && fields.provenance?.osm_reconcile) fields.provenance.osm_reconcile.coordinate_trade = trade
+    return { v, rec, target, fields, preserved, trade }
   })
-  for (const { v, rec, fields, preserved } of reconcilePlans) {
+  for (const { v, rec, fields, preserved, trade } of reconcilePlans) {
     const o = v.reconcile?.osm_original || rec.osm_original || {}
+    if (trade) {
+      console.log(`\n  ⚠ COORDINATE TRADE (acknowledged) — ${rec.candidate_key}: this UPDATE replaces the target's coordinate`)
+      console.log(`      ${trade.superseded.lat},${trade.superseded.lng} -> ${fields.lat},${fields.lng} (${trade.incoming_precision}, ${trade.distance_m} m)`)
+      console.log(`      accepted by ${trade.adjudicated_by} on ${trade.adjudicated_on}: ${trade.reason}`)
+      console.log(`      the superseded value stays recoverable at ${trade.recoverable_from}`)
+    }
     console.log(`\nTO UPDATE (reconcile, NOT insert) — ${rec.candidate_key} onto the dormant OSM row:`)
     console.log(`  where osm_id='${rec.osm_id}' and status='draft'  (id=${rec.listing_id})`)
     console.log(`  BEFORE: name="${o.name ?? '?'}"  slug="${o.slug ?? '?'}"  source="${o.source ?? '?'}"  access_type="${o.access_type ?? '?'}"`)
