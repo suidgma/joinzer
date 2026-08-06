@@ -12,8 +12,12 @@
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Spokane-Spokane Valley, WA MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Spokane, Stevens, Pend Oreille), Stevens (Washington), Pend Oreille (Washington)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 24 geocoded venue(s) of 27 in this batch (observed lat 47.5979..47.8200, lng -117.4469..-117.0718).",
   "msa": "Spokane-Spokane Valley, WA (Spokane, Stevens, Pend Oreille counties)",
-  "envelope": { "latMin": 47.25, "latMax": 49.01, "lngMin": -118.4, "lngMax": -117.03 },
-
+  "envelope": {
+    "latMin": 47.25,
+    "latMax": 49.01,
+    "lngMin": -118.4,
+    "lngMax": -117.03
+  },
   "expected_count": 27,
   "require_all_geocoded": false,
   "reconciles": [],
@@ -22,5 +26,16 @@
     "aliases": {
       "primary_source_url": "website"
     }
-  }
+  },
+  "expected_publish": {
+    "count": 24,
+    "hold": {
+      "holmberg-community-park-spokane-wa": "no coordinate",
+      "power-pickleball-club-spokane-valley-wa": "no coordinate",
+      "northwest-spokane-ymca-spokane-wa": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (24/27 publish, 3 held) under the ADR-16/17 gate. Batch already imported 16 published rows; this release adds 8, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }

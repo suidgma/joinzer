@@ -12,12 +12,15 @@
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Palm Bay-Melbourne-Titusville, FL MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 1 MSA county (Brevard)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 13 geocoded venue(s) of 15 in this batch (observed lat 28.0093..28.6235, lng -80.8393..-80.5863).",
   "msa": "Palm Bay-Melbourne-Titusville, FL (Brevard county)",
-  "envelope": { "latMin": 27.82, "latMax": 28.8, "lngMin": -80.99, "lngMax": -80.38 },
-
+  "envelope": {
+    "latMin": 27.82,
+    "latMax": 28.8,
+    "lngMin": -80.99,
+    "lngMax": -80.38
+  },
   "expected_count": 15,
   "require_all_geocoded": false,
   "reconciles": [],
-
   "same_site_pairs": [
     {
       "a": "pbmt-fl-028",
@@ -29,7 +32,6 @@
       "note": "Cocoa Beach Recreation Center / Tennis & Pickleball Complex (321 Ramp Road, 12 courts, fee) and Ramp Road Park (401 Ramp Road, outdoor) are distinct city facilities with distinct house numbers on the same road; the city lists them separately at https://www.cityofcocoabeach.com/547/Parks-with-Tennis-Pickleball-Courts. They geocoded 83 m apart onto the same OSM way."
     }
   ],
-
   "venue_facts": {
     "pbmt-fl-028": {
       "source_url": "https://www.cityofcocoabeach.com/697/Pickleball",
@@ -45,8 +47,17 @@
       }
     }
   },
-
   "workbook": {
     "header_row": 1
-  }
+  },
+  "expected_publish": {
+    "count": 13,
+    "hold": {
+      "nancy-higgs-park-and-community-center-melbourne-beach-fl": "no coordinate",
+      "dinks-and-drives-melbourne-fl": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (13/15 publish, 2 held) under the ADR-16/17 gate. Batch already imported 12 published rows; this release adds 1, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }
