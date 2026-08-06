@@ -13,12 +13,29 @@
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Augusta-Richmond County, GA-SC MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 7 MSA counties (Richmond GA, Columbia GA, Burke GA, Lincoln GA, McDuffie GA, Aiken SC, Edgefield SC), Columbia (Georgia), Burke (Georgia), Lincoln (Georgia), McDuffie (Georgia), Aiken (South Carolina), Edgefield (South Carolina)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 15 geocoded venue(s) of 20 in this batch (observed lat 33.0945..33.5761, lng -82.2296..-81.7110).",
   "msa": "Augusta-Richmond County, GA-SC (Richmond GA, Columbia GA, Burke GA, Lincoln GA, McDuffie GA, Aiken SC, Edgefield SC counties)",
-  "envelope": { "latMin": 32.8, "latMax": 33.99, "lngMin": -82.65, "lngMax": -81.18 },
-
+  "envelope": {
+    "latMin": 32.8,
+    "latMax": 33.99,
+    "lngMin": -82.65,
+    "lngMax": -81.18
+  },
   "expected_count": 20,
   "require_all_geocoded": false,
   "reconciles": [],
   "workbook": {
     "header_row": 1
-  }
+  },
+  "expected_publish": {
+    "count": 15,
+    "hold": {
+      "dink-d-indoor-pickleball-augusta-ga": "no coordinate",
+      "citizen-park-gym-waynesboro-ga": "no coordinate",
+      "north-jefferson-family-ymca-wrens-ga": "no coordinate",
+      "thomson-mcduffie-pickleball-courts-thomson-ga": "no coordinate",
+      "torch-fitness-center-fort-eisenhower-ga": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (15/20 publish, 5 held) under the ADR-16/17 gate. Batch already imported 11 published rows; this release adds 4, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }

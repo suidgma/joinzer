@@ -1,0 +1,41 @@
+{
+  "_comment": "Batch 3 — Salt Lake City-Murray. Ingested 2026-08-04 from the ChatGPT Work nine-stage workbook (generation A: Import Ready / Venues / Evidence). NOT YET IMPORTED.",
+  "metro": "salt-lake-city",
+  "batch": "salt-lake-city-2026-08-04",
+  "metro_area": "Salt Lake City",
+  "states": [
+    "UT"
+  ],
+  "input": "metro-research/salt-lake-city/salt-lake-city-candidates.json",
+  "discovered_by": "salt-lake-city-research",
+  "spreadsheet_id": "1Leq5lC6s3E9AvjebnKPGish04k8J8mTSLpg6RL9NTLk",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim-batch3.json",
+  "_envelope_comment": "Derived from the Salt Lake City-Murray, UT MSA COUNTY LIST (Salt Lake, Tooele), not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the MSA counties [Salt Lake County, Utah (relation/1744366), Tooele County, Utah (relation/1744369)], rounded OUTWARD to 0.01 deg.",
+  "msa": "Salt Lake City-Murray, UT (Salt Lake, Tooele counties)",
+  "envelope": {
+    "latMin": 39.9,
+    "latMax": 41.08,
+    "lngMin": -114.05,
+    "lngMax": -111.55
+  },
+  "expected_count": 37,
+  "require_all_geocoded": false,
+  "_workbook_comment": "This workbook HAS an address_source column but leaves it blank on 10 of 37 rows, which fails the preflight address_source assertion. address_source_default fills only those blanks — the 27 rows that state \"official_page\" keep it, because a per-row value always wins over the fallback. \"manual_research\" is the weaker TRUE claim for a row whose provenance the workbook never recorded.",
+  "_expected_publish_comment": "Generated from this metro's own --stage=project output on 2026-08-04, then asserted by both project and publish. Any row that classifies differently from this block FAILS the run rather than reporting a plausible-looking number. Regenerate it deliberately if the split is meant to change; never edit it to make a run pass.",
+  "expected_publish": {
+    "count": 33,
+    "hold": {
+      "fairpark-fire-station-tennis-courts-salt-lake-city-ut": "no coordinate",
+      "millcreek-recreation-center-millcreek-ut": "no coordinate",
+      "south-jordan-fitness-and-aquatic-center-south-jordan-ut": "no coordinate",
+      "grantsville-high-school-tennis-courts-grantsville-ut": "no coordinate"
+    }
+  },
+  "workbook": {
+    "header_row": 1,
+    "address_source_default": "manual_research"
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: re-authored 27 -> 33 publish. The prior block was locked before ADR-16 (coordinate precision 'low' no longer holds a row; it publishes behind an approximate-location label) and ADR-17 (access_type 'unknown' and candidate research_status 'probable' are no longer gate conditions; only duplicate/not_venue/not_pickleball/held block). Every divergence is accounted for by those two ADRs plus the wave-3 audit holds recorded in facility_candidates.reviewer_notes. Not nudged to fit output."
+  ]
+}

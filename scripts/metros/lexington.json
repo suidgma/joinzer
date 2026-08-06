@@ -3,21 +3,36 @@
   "metro": "lexington",
   "batch": "lexington-2026-07-31",
   "metro_area": "Lexington",
-  "states": ["KY"],
+  "states": [
+    "KY"
+  ],
   "input": "metro-research/lexington/lexington-candidates.json",
   "discovered_by": "lexington-research",
   "spreadsheet_id": "1x2DKk3KpwxhRIwQOr1BnHqw3Aq5bwZ-9ZnvLiHL7ZyQ",
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Lexington-Fayette, KY MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 6 MSA counties (Fayette, Bourbon, Clark, Jessamine, Scott, Woodford), Bourbon (Kentucky), Clark (Kentucky), Jessamine (Kentucky), Scott (Kentucky), Woodford (Kentucky)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 51 geocoded venue(s) of 53 in this batch (observed lat 37.8583..38.2419, lng -84.7716..-84.1604).",
   "msa": "Lexington-Fayette, KY (Fayette, Bourbon, Clark, Jessamine, Scott, Woodford counties)",
-  "envelope": { "latMin": 37.72, "latMax": 38.5, "lngMin": -84.87, "lngMax": -83.96 },
-
+  "envelope": {
+    "latMin": 37.72,
+    "latMax": 38.5,
+    "lngMin": -84.87,
+    "lngMax": -83.96
+  },
   "expected_count": 53,
   "require_all_geocoded": false,
   "reconciles": [],
-
   "workbook": {
     "generation": "B",
     "header_row": 1
-  }
+  },
+  "expected_publish": {
+    "count": 51,
+    "hold": {
+      "springs-at-colts-run-nicholasville-ky": "no coordinate",
+      "forks-of-elkhorn-baptist-church-cross-center-midway-ky": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (51/53 publish, 2 held) under the ADR-16/17 gate. Batch already imported 45 published rows; this release adds 6, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }
