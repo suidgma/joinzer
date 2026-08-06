@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Link2Off } from 'lucide-react'
 import type { DuplicateCandidate } from '@/lib/locations/duplicates'
+import type { DetailEntry } from '@/lib/locations/venueDetailSummary'
 
 export type PendingLocation = {
   id: string
@@ -14,6 +15,31 @@ export type PendingLocation = {
   country: string | null
   creatorName: string | null
   candidates: DuplicateCandidate[]
+  /** Only the fields the submitter actually answered — a skipped field is absent, never rendered
+   *  as "Unknown" or "No". Distinguishing "they said no" from "they didn't say" is the point. */
+  detail: DetailEntry[]
+  notes: string | null
+  hasListing: boolean
+}
+
+/**
+ * Candidates now come from two pools with different vocabularies: `locations.status`
+ * (approved/pending) and the namespaced `facility_listings` statuses the page assigns. Labelled
+ * separately because "already live on /courts" and "another organizer also added this" call for
+ * different decisions from the reviewer.
+ */
+const STATUS_LABEL: Record<string, string> = {
+  approved: 'in pickers',
+  pending: 'also pending',
+  'in directory': 'live on /courts',
+  'directory draft': 'directory draft',
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  approved: 'bg-emerald-100 text-emerald-700',
+  pending: 'bg-slate-100 text-slate-600',
+  'in directory': 'bg-emerald-100 text-emerald-700',
+  'directory draft': 'bg-sky-100 text-sky-700',
 }
 
 export default function PendingLocationsList({ initial }: { initial: PendingLocation[] }) {
@@ -59,6 +85,12 @@ export default function PendingLocationsList({ initial }: { initial: PendingLoca
                 <p className="text-sm font-medium text-brand-dark">{l.name}</p>
                 {addr && <p className="text-xs text-brand-muted">{addr}</p>}
                 {l.creatorName && <p className="text-[11px] text-brand-muted mt-0.5">Added by {l.creatorName}</p>}
+                {!l.hasListing && (
+                  <p className="flex items-center gap-1 text-[11px] text-amber-700 mt-0.5">
+                    <Link2Off className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
+                    No directory record — the listing write failed when this was submitted
+                  </p>
+                )}
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 <button
@@ -78,6 +110,43 @@ export default function PendingLocationsList({ initial }: { initial: PendingLoca
               </div>
             </div>
 
+            {(l.detail.length > 0 || l.notes) && (
+              <div className="rounded-lg bg-brand-soft/50 border border-brand-border p-2.5">
+                <p className="text-[11px] font-semibold text-brand-muted uppercase tracking-wide">
+                  Submitted detail
+                </p>
+                {l.detail.length > 0 && (
+                  <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1">
+                    {l.detail.map((d) => (
+                      <div key={d.label} className="flex gap-1.5 text-[11px] min-w-0">
+                        <dt className="text-brand-muted flex-shrink-0">{d.label}</dt>
+                        <dd className="text-brand-dark font-medium truncate">
+                          {d.href ? (
+                            <a
+                              href={d.href}
+                              target="_blank"
+                              rel="noopener noreferrer nofollow"
+                              className="text-brand-active hover:underline"
+                            >
+                              {d.value}
+                            </a>
+                          ) : (
+                            d.value
+                          )}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {l.notes && (
+                  <p className="mt-1.5 text-[11px] text-brand-body whitespace-pre-line">
+                    <span className="text-brand-muted">Notes </span>
+                    {l.notes}
+                  </p>
+                )}
+              </div>
+            )}
+
             {l.candidates.length > 0 && (
               <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5">
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
@@ -91,12 +160,10 @@ export default function PendingLocationsList({ initial }: { initial: PendingLoca
                         <span className="font-medium text-brand-dark">{c.name}</span>
                         <span
                           className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                            c.status === 'approved'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-slate-100 text-slate-600'
+                            STATUS_STYLE[c.status ?? ''] ?? 'bg-slate-100 text-slate-600'
                           }`}
                         >
-                          {c.status === 'approved' ? 'in directory' : 'also pending'}
+                          {STATUS_LABEL[c.status ?? ''] ?? 'also pending'}
                         </span>
                       </div>
                       {c.addressLine && <p className="text-[11px] text-brand-muted">{c.addressLine}</p>}
