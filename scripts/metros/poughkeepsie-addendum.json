@@ -1,0 +1,33 @@
+{
+  "_comment": "Poughkeepsie ADDENDUM — Doug Phillips Park, Fishkill NY. Found 2026-08-04 while auditing why the main batch published only 9 of its 12 verified rows. The Town of Fishkill's 4/24/2024 project status report funded BOTH halves of one project: 2 courts at Maurer-Geering (which the main batch carried as `verified` and which are still not built — demoted to probable 2026-08-04) and 6 NEW courts at Doug Phillips Park, which opened 2024-06-12 and which the directory did not have at all. Separate batch, not an edit to poughkeepsie.json, because --stage=listings INSERTs every row in its artifact unconditionally: re-running it against the 18-row config would duplicate the whole metro. A separate batch also gives this row its own one-statement rollback handle.",
+  "_no_spreadsheet_comment": "No spreadsheet_id: this venue has no research workbook. It was found inside a municipal source cited by another row and researched directly, so the artifact was hand-built rather than extracted by scripts/lib/workbook-extract.mjs. spreadsheet_id is provenance only — the importer never reads it.",
+  "metro": "poughkeepsie-addendum",
+  "batch": "poughkeepsie-addendum-2026-08-04",
+  "metro_area": "Poughkeepsie",
+  "states": [
+    "NY"
+  ],
+  "input": "metro-research/poughkeepsie-addendum/poughkeepsie-addendum-candidates.json",
+  "discovered_by": "poughkeepsie-addendum-research",
+  "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
+  "_envelope_comment": "Identical to poughkeepsie.json — same MSA, derived from the Dutchess + Orange county boundary boxes rather than from the observed venue bbox. Doug Phillips Park (41.544245, -73.8650681) sits well inside it.",
+  "msa": "Poughkeepsie-Newburgh-Middletown, NY (Dutchess, Orange counties)",
+  "envelope": {
+    "latMin": 41.14,
+    "latMax": 42.09,
+    "lngMin": -74.77,
+    "lngMax": -73.48
+  },
+  "expected_count": 1,
+  "exclude": [],
+  "require_all_geocoded": true,
+  "reconciles": [],
+  "expected_status_dist": {
+    "verified": 1
+  },
+  "_expected_publish_comment": "1 publish, 0 hold. The coordinate is high precision (leisure/park way/469770262 \"Doug Phillips Park\", matched on the name+city rung), access_type is public, and research_status is verified on the Town's own ribbon-cutting announcement — so nothing in the gate can hold it. require_all_geocoded is deliberately TRUE here, unlike the main config: a single-row batch with no coordinate has nothing to import, so a geocode miss should abort rather than quietly land a permanent draft.",
+  "expected_publish": {
+    "count": 1,
+    "hold": {}
+  }
+}
