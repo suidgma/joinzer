@@ -145,6 +145,20 @@
   "_duplicate_osm_row_comment": "TWO dormant rows, pickleball-fl (way/1473660442) and pickleball-fl-way-1473660443, sit 47 m apart at Thousand Trails Orlando and are THE SAME VENUE - two adjacent court polygons OSM carries as two features. NEITHER is reconciled: the venue row failed to geocode, so a reconcile would null the coordinates both rows currently hold (see _reconcile_coordinate_hazard), and a duplicate is excluded rather than re-slugged in any case. Both stay dormant drafts with their coordinates intact. thousand-trails-orlando-rv-resort imports as a normal held row; identifying what these two OSM rows actually are remains this pass's contribution, and retiring the duplicate is a separate gated slice.",
   "_geocode_failure_comment": "The 18 holds are NOT research failures and every one is a real venue, so they hold rather than being excluded. The dominant mode is an OSM house-number gap: the ladder finds the correct street and then finds no building at that number - Goldenrod Road has no 4863, Econlockhatchee Trail no 3850, Doctor Phillips Boulevard no 7000 - and the name rungs miss too because OSM does not carry these venues under their operating names. Thousand Trails fails differently and instructively: its street locus 'US 27' was DISCARDED at 34,410 m from the zip centroid, the multi-segment-road case the methodology warns about, correctly refused rather than accepted. A later re-geocode releases all of them from the work queue.",
   "exclude": [],
+  "_venue_facts_comment": "COORDINATE ADOPTION, the mechanism _deferred_finding_coordinate_adoption asked for. The config names an OSM FEATURE, never a coordinate: workbook-extract resolves way/1165951096 through Nominatim's /lookup endpoint and runs the result through the untouched classifyPrecision, so the pin comes from OSM and the precision is earned rather than asserted. expect_lat/expect_lng are a CROSS-CHECK re-derived on every run (25 m tolerance) and are authored FROM that lookup - note they are NOT the reconciles[].osm_original values, which are the OSM ingest's own centroid and sit 34.6 m away; that gap is exactly why a config-stated coordinate can never be the source. Guarded at 1000 m from the row's own anchor, the same constant and the same Koons Park trap as the same-site name pass. This is the correct resolution of the trade _reconcile_coordinate_hazard describes: rather than acknowledging a 415 m degrade, the row now takes the target's court-accurate coordinate outright.",
+  "venue_facts": {
+    "orl-adventhealth-pickleball-complex-at-central-winds-park": {
+      "adjudicated_by": "feature-builder",
+      "adjudicated_on": "2026-08-06",
+      "coordinate": {
+        "osm_id": "way/1165951096",
+        "expect_lat": 28.7075117,
+        "expect_lng": -81.2750142,
+        "evidence_url": "https://www.openstreetmap.org/way/1165951096",
+        "reason": "OSM carries the courts themselves as leisure/pitch way/1165951096 'Central Winds Pickleball Courts' at the venue's own house number 1000 - the same feature this row reconciles onto. The query ladder cannot reach it: OSM has no house number on Central Winds Parkway and no feature under the AdventHealth name, so every rung falls back to the street centerline 407 m away and classifies low. The row therefore published a 14-court flagship on a street band wearing an ADR-16 approximate-location label, while the accurate pin sat in provenance.osm_reconcile.osm_original."
+      }
+    }
+  },
   "workbook": {
     "header_row": 1,
     "source_description": "Source-led web research, Orlando-Kissimmee-Sanford FL MSA, 2026-08-05 (v3 coverage-first methodology) - no workbook and no Google Sheet; the tab grid was authored directly"
