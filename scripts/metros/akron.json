@@ -12,12 +12,26 @@
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Akron, OH MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 2 MSA counties (Summit, Portage), Portage (Ohio)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 23 geocoded venue(s) of 25 in this batch (observed lat 40.9156..41.3028, lng -81.6320..-81.2569).",
   "msa": "Akron, OH (Summit, Portage counties)",
-  "envelope": { "latMin": 40.9, "latMax": 41.36, "lngMin": -81.69, "lngMax": -81 },
-
+  "envelope": {
+    "latMin": 40.9,
+    "latMax": 41.36,
+    "lngMin": -81.69,
+    "lngMax": -81
+  },
   "expected_count": 25,
   "require_all_geocoded": false,
   "reconciles": [],
   "workbook": {
     "header_row": 1
-  }
+  },
+  "expected_publish": {
+    "count": 23,
+    "hold": {
+      "glenmeadow-park-twinsburg-oh": "no coordinate",
+      "kent-state-student-recreation-fields-kent-oh": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (23/25 publish, 2 held) under the ADR-16/17 gate. Batch already imported 18 published rows; this release adds 5, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }

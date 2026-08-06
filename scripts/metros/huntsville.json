@@ -5,15 +5,21 @@
   "metro": "huntsville",
   "batch": "huntsville-2026-07-31",
   "metro_area": "Huntsville",
-  "states": ["AL"],
+  "states": [
+    "AL"
+  ],
   "input": "metro-research/huntsville/huntsville-candidates.json",
   "discovered_by": "huntsville-research",
   "spreadsheet_id": "1OoEd7-zjwnktJjO7tLoAHvsTcmw2GKozr-0hazKbtPo",
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Huntsville, AL MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 2 MSA counties (Madison, Limestone), Limestone (Alabama)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 28 geocoded venue(s) of 30 in this batch (observed lat 34.5271..34.9078, lng -86.9676..-86.3779).",
   "msa": "Huntsville, AL (Madison, Limestone counties)",
-  "envelope": { "latMin": 34.47, "latMax": 35, "lngMin": -87.28, "lngMax": -86.25 },
-
+  "envelope": {
+    "latMin": 34.47,
+    "latMax": 35,
+    "lngMin": -87.28,
+    "lngMax": -86.25
+  },
   "expected_count": 30,
   "require_all_geocoded": false,
   "_reconcile_comment": "Two of this batch's venues match dormant source='osm' status='draft' rows already in facility_listings, adjudicated SAME venue by court-verifier on 2026-07-31 against controlling-entity sources. Both are UPDATEs keyed on osm_id, never INSERTs. The Town Madison site carries TWO dormant OSM rows — the wellness-centre polygon way/73937891 and its outdoor court pad way/75909784, 105 m apart — and reconciling onto both would publish one physical site twice. The pad is named in also_at_site and deliberately left as a dormant unpublished draft: it is a real OSM record of the site, so deleting or merging it buys nothing, and its dormancy is re-asserted against live data on every run. reconcile_radius_m is NOT lowered; that knob is metro-wide and would blind the guard to every other neighbour in Huntsville.",
@@ -88,7 +94,6 @@
       }
     }
   ],
-
   "_venue_facts_comment": "ADR-14 adjudication, 2026-07-31. Exactly four rows in this batch rest on pickleball-huntsville.com as their sole source. That site IS a genuine local association — it is deliberately NOT added to AGGREGATOR_HOST, because that regex is global and blanket-listing it would misclassify the seven indoor rec centres it genuinely programs — but it is a controlling entity only for those indoor programs. Its own /locations.php carries the verbatim heading \"These outdoor locations are NOT associated with the Huntsville Pickleball Club.\" over the section holding Willow Park, California Street Park and Philpot Park. That is a SELF-DISCLAIMER, not an inference, so those three cannot reach 'verified' on it and are downgraded to 'probable'. Every other venue in the disclaimed outdoor section (Sandra Moon, Shurney, Dublin Park, Town Madison) is already sourced to huntsvilleal.gov or madisonal.gov and is therefore untouched by this ruling — checked row by row, not assumed. CORRECTION TO THE BRIEF: the brief describes the disclaimer heading as sitting over all FOUR club-sourced rows; the live page puts Madison Crossroads in the INDOOR section instead, under a separate note that it is not associated with the Club or with Parks & Recreation and charges a fee. Same conclusion, different sentence — it is re-sourced below rather than downgraded, and its 'verified' now rests on the county's own facility directory.",
   "venue_facts": {
     "huntsville-willow-park": {
@@ -130,7 +135,6 @@
       }
     }
   },
-
   "workbook": {
     "generation": "B",
     "header_row": 1,
@@ -138,5 +142,20 @@
       "primary": "Reviewed Venues",
       "venues": null
     }
-  }
+  },
+  "expected_publish": {
+    "count": 23,
+    "hold": {
+      "fern-bell-recreation-center-huntsville-al": "research_status=held",
+      "mcgucken-park-huntsville-al": "research_status=held",
+      "mt-carmel-recreation-center-huntsville-al": "research_status=held",
+      "the-pickle-room-madison-al": "research_status=held",
+      "madison-crossroads-community-center-toney-al": "no coordinate",
+      "hazel-green-recreation-center-hazel-green-al": "no coordinate",
+      "new-market-recreation-center-new-market-al": "research_status=held"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (23/30 publish, 7 held) under the ADR-16/17 gate. Batch already imported 19 published rows; this release adds 4, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }

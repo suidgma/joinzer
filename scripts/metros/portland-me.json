@@ -3,21 +3,33 @@
   "metro": "portland-me",
   "batch": "portland-me-2026-07-31",
   "metro_area": "Portland",
-  "states": ["ME"],
+  "states": [
+    "ME"
+  ],
   "input": "metro-research/portland-me/portland-me-candidates.json",
   "discovered_by": "portland-me-research",
   "spreadsheet_id": "16REyfyKIfEOh2LC4j_2Y3rHzs92V7_M5MPPWuTMk-fg",
   "geocode_cache": "metro-research/.geocode-cache/nominatim.json",
   "_envelope_comment": "Derived from the Portland-South Portland, ME MSA COUNTY LIST, not from the observed venue bounding box. The observed bbox is only a LOWER bound — it says where the venues we happened to find are, not where the metro is, so an envelope cut to it would reject a legitimate future venue near the metro edge. Envelope = the union of the OSM boundary-polygon bounding boxes for the 3 MSA counties (Cumberland, York, Sagadahoc), York (Maine), Sagadahoc (Maine)), rounded OUTWARD to 0.01 deg. Cross-check: contains all 41 geocoded venue(s) of 41 in this batch (observed lat 43.0973..43.9373, lng -70.7874..-69.8328). York County's OSM boundary extends offshore into the Gulf of Maine, which is why latMin (42.92) sits south of the Maine coastline. The box therefore also clips Portsmouth NH; that is blocked independently by this config's \"states\": [\"ME\"] preflight assertion, which rejects any non-Maine row regardless of the envelope.",
   "msa": "Portland-South Portland, ME (Cumberland, York, Sagadahoc counties)",
-  "envelope": { "latMin": 42.92, "latMax": 44.18, "lngMin": -70.99, "lngMax": -69.66 },
-
+  "envelope": {
+    "latMin": 42.92,
+    "latMax": 44.18,
+    "lngMin": -70.99,
+    "lngMax": -69.66
+  },
   "expected_count": 41,
   "require_all_geocoded": false,
   "reconciles": [],
-
   "workbook": {
     "generation": "C",
     "header_row": 1
-  }
+  },
+  "expected_publish": {
+    "count": 41,
+    "hold": {}
+  },
+  "_expected_publish_history": [
+    "2026-08-06 wave-3 release: first expected_publish block for this batch. Authored from --stage=project (41/41 publish, 0 held) under the ADR-16/17 gate. Batch already imported 22 published rows; this release adds 19, which equals the wave-3 audit's independent DB-side prediction."
+  ]
 }
