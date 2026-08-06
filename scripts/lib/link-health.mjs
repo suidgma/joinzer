@@ -159,6 +159,51 @@ const CLOSURE_NEGATORS = [
 const NEGATOR_WINDOW = 140
 
 /**
+ * ASSET-BORNE CLOSURE — the signal that made the first version of this module miss its own control.
+ *
+ * `thebighousepickleball.com` announces its closure by swapping the hero graphic for a file named
+ * `BHPB%20CLOSED.png`. The page's TEXT is untouched stale template copy — nav, pricing, "Become a
+ * Member", "BOOK NOW" — so a text-only classifier reads it as a thriving business and always will.
+ * The signal was in the response the entire time; `extractPageFields` was throwing away the <img>
+ * tags before matching. Operators announce closure in the picture, because the picture IS the page.
+ *
+ * WHY A BARE `closed` TOKEN IS ALLOWED HERE AND NOWHERE ELSE. Prose gets the narrow phrase list —
+ * "permanently closed", "no longer in business" — because a body full of words offers a hundred
+ * innocent ways to say "closed". A filename is a deliberate, compressed authoring act: somebody
+ * opened an image editor, made a sign, and named the file. `BHPB CLOSED.png` carries no qualifier
+ * because it does not need one. The looser token is affordable ONLY because it is paired with the
+ * same two guards the prose matcher uses — the venue's own domain, and the negator sweep — plus a
+ * wider negator list below, since a filename has no sentence around it to disambiguate.
+ */
+const ASSET_BARE_CLOSED = /\bclosed\b/i
+
+/**
+ * Filenames lack sentence context, so order-independent qualifiers are needed: the prose negators
+ * mostly key on "closed" appearing immediately before the qualifier, which `mondays-closed.png`
+ * defeats by reversing it. These fire anywhere in the window.
+ */
+const ASSET_NEGATORS = [
+  /\b(mon|tues|wednes|thurs|fri|satur|sun)day/i,
+  /\b(weekend|holiday|season|winter|summer|spring|autumn|fall)/i,
+  /\b(weather|rain|snow|ice|storm|wind)/i,
+  /\b(hours?|schedule|calendar|timetable)\b/i,
+  /\b(maintenance|renovat|resurfac|repair|construction|cleaning|upgrade|improvement)/i,
+  /\btemporar/i,
+  /\bre-?open/i,
+  /\benclosed\b/i,
+  /\b(disclosed|foreclosed|closed[- ]?captions?)\b/i,
+  /\b(covid|pandemic)\b/i,
+  /\b(alert|advisory)\b/i,
+  // MEASURED FALSE POSITIVES, 2026-08-06 full sweep. Both were the closure of something that is
+  // not the venue, on a town site the .gov test does not catch (ormondbeach.org, akron-pa.com):
+  //   "City Hall Closed Notice"  -> a civic BUILDING closed, not the park
+  //   "Road Closed"              -> a STREET closed, not the park
+  // Named narrowly by subject rather than by guessing which hosts are municipal.
+  /\b(hall|office|lobby|clubhouse|restroom|library|kitchen|cafe|concession)\b/i,
+  /\b(road|street|avenue|blvd|boulevard|bridge|detour|sidewalk|parking|ramp|driveway|entrance|gate)\b/i,
+]
+
+/**
  * Find business-closure language, rejecting matches a nearby qualifier explains away.
  * Returns the first surviving match, or null.
  */
@@ -177,6 +222,70 @@ export function closureLanguage(text) {
         index: m.index,
         excerpt: text.slice(from, m.index + m[0].length + 90).replace(/\s+/g, ' ').trim(),
       }
+    }
+  }
+  return null
+}
+
+/**
+ * Pull every image reference and its alt text out of raw HTML, percent-decoded and flattened so a
+ * filename reads as words. `BHPB%20CLOSED.png` → `BHPB CLOSED png`; `enclosed-court.png` →
+ * `enclosed court png`, which the `\b` in ASSET_BARE_CLOSED correctly refuses to match.
+ *
+ * The whole URL is scanned, not just the basename: the Big House graphic sits MID-PATH inside a CDN
+ * transform (`…/BHPB%20CLOSED.png/:/cr=t:3.95%25,…`), so a basename parse returns `cr=t:3.95%,…`
+ * and finds nothing.
+ */
+export function extractAssetText(html) {
+  if (!html || typeof html !== 'string') return ''
+  const values = new Set()
+  const attrs = /\b(?:src|srcset|data-src|data-srcset|data-lazy-src|poster|alt)\s*=\s*["']([^"']{1,600})["']/gi
+  let m
+  while ((m = attrs.exec(html)) !== null) values.add(m[1])
+  const og = /<meta[^>]+property=["']og:image["'][^>]*content=["']([^"']{1,600})["']/gi
+  while ((m = og.exec(html)) !== null) values.add(m[1])
+
+  let text = [...values].join(' ')
+  // Decode once; a malformed sequence must not throw and lose the whole page.
+  try { text = decodeURIComponent(text.replace(/%(?![0-9a-f]{2})/gi, '%25')) } catch { /* use raw */ }
+  return text
+    .replace(/[-_+./\\:,?&=|#~]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 20_000)
+}
+
+/**
+ * Closure language in an image reference. Accepts the strong prose phrases OR a bare `closed`
+ * token, then applies both negator lists. Returns the first surviving hit, or null.
+ */
+export function closureInAssets(assetText) {
+  if (!assetText || typeof assetText !== 'string') return null
+
+  const survives = (index, length) => {
+    const from = Math.max(0, index - NEGATOR_WINDOW)
+    const window = assetText.slice(from, index + length + NEGATOR_WINDOW)
+    return !CLOSURE_NEGATORS.some((n) => n.test(window)) && !ASSET_NEGATORS.some((n) => n.test(window))
+  }
+
+  // Strong prose first — "permanently-closed.png" should report the specific phrase, not "closed".
+  const prose = closureLanguage(assetText)
+  if (prose && survives(prose.index, prose.matched.length)) {
+    return { phrase: prose.phrase, matched: prose.matched, excerpt: prose.excerpt, strength: 'phrase' }
+  }
+
+  const re = new RegExp(ASSET_BARE_CLOSED.source, 'gi')
+  let m
+  while ((m = re.exec(assetText)) !== null) {
+    if (!survives(m.index, m[0].length)) continue
+    const from = Math.max(0, m.index - 60)
+    return {
+      phrase: 'closed (image filename / alt text)',
+      matched: m[0],
+      excerpt: assetText.slice(from, m.index + m[0].length + 60).trim(),
+      // A bare token is real evidence but weaker than a prose phrase — the first full sweep
+      // returned 1 true positive and 2 false ones on this rule before the subject negators landed.
+      strength: 'token',
     }
   }
   return null
@@ -245,7 +354,7 @@ export function isVenueOwnHost({ hostname, hostRowCount }) {
 
 /** Strip an HTML document to the fields the classifier weights, plus a flattened body. */
 export function extractPageFields(html) {
-  const empty = { title: '', metaDescription: '', headings: '', body: '' }
+  const empty = { title: '', metaDescription: '', headings: '', body: '', assets: '' }
   if (!html || typeof html !== 'string') return empty
   const stripped = html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
@@ -265,7 +374,14 @@ export function extractPageFields(html) {
   const body = stripped.replace(/<[^>]+>/g, ' ')
 
   const tidy = (s) => decodeEntities(s).replace(/\s+/g, ' ').trim()
-  return { title: tidy(title), metaDescription: tidy(metaDescription), headings: tidy(headings), body: tidy(body) }
+  return {
+    title: tidy(title),
+    metaDescription: tidy(metaDescription),
+    headings: tidy(headings),
+    body: tidy(body),
+    // Read from the RAW html: `stripped` has already discarded the <img> tags this needs.
+    assets: extractAssetText(html),
+  }
 }
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', rsquo: '’', '#39': "'", '#8217': '’' }
@@ -355,6 +471,19 @@ export function classify(o) {
   if (prominent) {
     return r(BUCKET.BROKEN, 'closure-language-shared-host',
       `"${prominent.phrase}" prominent, but this host serves ${hostRowCount} published rows or is a government domain — may refer to another facility: "${prominent.excerpt}"`, 'medium')
+  }
+
+  // The Big House case: text says "Become a Member", the hero graphic is named CLOSED.png.
+  // Same weighting as prose — own domain is the signal, a shared/municipal host is not.
+  const asset = closureInAssets(fields.assets)
+  if (asset && ownHost) {
+    return r(BUCKET.GONE, 'closure-language-asset',
+      `"${asset.phrase}" in an image reference on the venue's own domain — "${asset.excerpt}" (page TEXT may still read as open; operators announce closure in the graphic)`,
+      asset.strength === 'phrase' ? 'high' : 'medium')
+  }
+  if (asset) {
+    return r(BUCKET.BROKEN, 'closure-language-asset-shared-host',
+      `"${asset.phrase}" in an image reference, but this host serves ${hostRowCount} published rows or is a government domain — may refer to another facility: "${asset.excerpt}"`, 'low')
   }
   const inBody = closureLanguage(fields.body)
   if (inBody) {
