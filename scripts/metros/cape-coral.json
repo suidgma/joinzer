@@ -18,23 +18,10 @@
     "lngMin": -82.34,
     "lngMax": -81.56
   },
-  "expected_count": 27,
+  "_expected_count_comment": "27 -> 46 on 2026-08-05: the v3 source-led pass added 19 venues to the same artifact (union, not replacement, so the original 27 keep their existing geocodes). This is the row count of the batch, a mechanical fact about the input — it is NOT the owner-approved publish split, which lives in `expected_publish` and is deliberately absent pending his review.",
+  "expected_count": 46,
   "_geocode_comment": "5 of the 27 venues produce no coordinate from any query rung, and this was INVESTIGATED before the flag was set rather than waved through. All five DO carry a street address, so none is the 'no address, name rungs only' case: north-fort-myers-recreation-center (2000 N Recreation Park Way), fort-myers-ace-pickleball-club (2501 Alessio Dr Suite 170), fort-myers-picklerage (15271 McGregor Blvd Suite 33), fort-myers-dna-pickleball (1900 Trailwinds Dr) and fort-myers-wa-ke-hatchee (16760 Bass Road). TWO of them carry a 'Suite' token, which is a known Nominatim defeater — the suite-qualified string is not a distinct addressable object in OSM — and those two are the likeliest to resolve on a re-geocode once the suite is stripped. The other three look like either an un-mapped address or a workbook address error and are flagged for the owner. Every miss is a genuine HTTP 200 with an empty result set, not rate limiting: scripts/lib/geocode-nominatim.mjs throws on any non-200, so an empty result cannot be a masked failure. Set to false so these 5 import as gate-blocked drafts in the work queue (the Little Rock precedent) instead of aborting the whole metro; the publish gate holds every one of them on 'no coordinate' until an address is supplied and they are re-geocoded.",
   "require_all_geocoded": false,
   "reconciles": [],
-  "_expected_publish_comment": "The projected split as APPROVED BY THE OWNER on 2026-08-03, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data — never edit this block to match the output.",
-  "expected_publish": {
-    "count": 18,
-    "hold": {
-      "north-fort-myers-recreation-center-north-fort-myers-fl": "no coordinate",
-      "ace-pickleball-club-fort-myers-fort-myers-fl": "no coordinate",
-      "picklerage-fort-myers-fort-myers-fl": "no coordinate",
-      "dna-pickleball-fort-myers-fl": "no coordinate",
-      "bonita-bay-club-sports-center-bonita-springs-fl": "coordinate precision low",
-      "the-sanctuary-bonita-springs-bonita-springs-fl": "coordinate precision low",
-      "wa-ke-hatchee-recreation-center-fort-myers-fl": "no coordinate",
-      "lehigh-acres-park-lehigh-acres-fl": "research_status=probable",
-      "bonita-springs-ymca-bonita-springs-fl": "research_status=probable"
-    }
-  }
+  "_expected_publish_comment": "WITHDRAWN 2026-08-05, PENDING OWNER RE-APPROVAL — deliberately absent, not lost. The previous block recorded the 2026-08-03 approval of an 18/27 split, and every one of its 9 hold reasons has since been retired by the code rather than by the data: the six 'no coordinate' rows now geocode, and 'coordinate precision low' (ADR-16) and 'research_status=probable' (ADR-17) both stopped being gate conditions. Asserting it would fail the run for the right reason and the wrong cause. The v3 source-led pass then took the batch from 27 venues to 46, so the old count could not stand regardless. Per the owner's instruction on this build, no replacement is authored until he has read the --stage=project projection; regenerate this block from his locked decisions BEFORE --stage=candidates, so the real import re-asserts an expectation he actually approved."
 }
