@@ -1,0 +1,43 @@
+{
+  "_comment": "Bakersfield-Delano, CA — V3 SOURCE-LED COMPLETION BATCH, authored 2026-08-06. A SECOND batch for a metro that is already live: batch bakersfield-2026-08-03 published 14 rows, holds 4, and owner-excludes 2, and all of those stay exactly as they are. This config imports ONLY the 4 venues the v3 source-led pass added. Both batches share metro_area 'Bakersfield-Delano' and therefore one public page — publishing here extends /courts/in/bakersfield-delano rather than creating a second page.",
+  "_why_a_second_batch": "The candidates stage aborts when a candidate_key already exists ('candidate_key collisions live (candidates already seeded?)'). All 20 original keys are seeded, so re-importing the combined 24-row artifact under the original tag would abort atomically. Splitting is the only non-destructive path. Syracuse and Boise both used this pattern the same week.",
+  "metro": "bakersfield-v3",
+  "batch": "bakersfield-v3-2026-08-06",
+  "metro_area": "Bakersfield-Delano",
+  "states": [
+    "CA"
+  ],
+  "input": "metro-research/bakersfield/bakersfield-v3-candidates.json",
+  "discovered_by": "bakersfield-v3-source-led",
+  "geocode_cache": "metro-research/.geocode-cache/bakersfield.json",
+  "_thin_metro_finding": "FOUR NEW VENUES IS THE HONEST ANSWER FOR THIS METRO, not a shortfall, and it is the most useful thing this run produced. The full v3 sweep ran and the existing 18 rows already covered nearly everything citable in Kern County. What was checked and came back EMPTY: (1) NOR, the North of the River Recreation and Park District — the California rec-and-park-district instrument this build was told to run first. NOR publishes per-park amenity lists for all 24 of its parks and they name TENNIS and BASKETBALL courts, not pickleball; its only pickleball sites (Greenacres PicklePlex, RiverLakes Ranch, Riverview, Fruitvale-Norris) are ALREADY published. (2) Kern County Parks — no pickleball at any county facility. (3) Shafter Recreation and Park District — categories list baseball, basketball gyms, an aquatic center, soccer and the Walker Center; Shafter pickleball exists only as PLANNED construction (North Shafter Community Park, a $30.5M sports complex), which is a project status report, not a facilities record. (4) TVRPD / Tehachapi — the new courts by the police station at 220 W. C St ARE the already-published Tehachapi Police Department row. (5) Kern River Valley — local press (turnto23) reports the ONLY courts in the valley are the already-published Kernville United Methodist Church, plus two on private land. (6) Delano — the city recreation department shows pickleball programming but names no venue beyond the already-published Jefferson Park. (7) Stage 2b returned ZERO dormant OSM rows anywhere in the envelope, the first metro this week with a clean-empty Stage 2b. The district instrument was right to run and is NOT a dud in general — it simply is not hiding venues in Kern the way Florida CDDs were in Tampa.",
+  "_excluded_aggregator_only": "THREE VENUES EXCLUDED FOR AGGREGATOR-ONLY EVIDENCE, consistent with the owner ruling of 2026-08-05 on THIS SAME METRO (the McAllen precedent), which excluded two rows on identical grounds. (a) Stockdale Country Club — 4 outdoor pickleball courts, membership; every claim traces to pickleheads.com and tennispickleballcalifornia.com, and its own stockdalecc.com/tennis returned HTTP 403 so no non-aggregator citation could be obtained. (b) Bakersfield Country Club — 4 lighted pickleball courts, same two aggregators, and bakersfieldcountryclub.com carries no pickleball page. (c) Solera at Rio Bravo, a 55+ active-adult community, sourced only to homes.com real-estate copy. All three are probably real; none is citable. Contrast SEVEN OAKS COUNTRY CLUB, which IS in this batch precisely because sevenoakscountryclub.com/Tennis_Pickleball is the club's own page and states the courts and their lighting directly.",
+  "_envelope_comment": "Identical to scripts/metros/bakersfield.json — Kern County's own extent from the US Census TIGERweb State_County service, rounded outward. The Bakersfield-Delano MSA is coextensive with Kern County, so this is a single-county metro. Cross-checked 2026-08-06 by an independent pass over the artifact before any write: all 20 geocoded venues, including both new ones, fall inside it.",
+  "msa": "Bakersfield-Delano, CA (Kern County)",
+  "envelope": {
+    "latMin": 34.78,
+    "latMax": 35.8,
+    "lngMin": -120.2,
+    "lngMax": -117.61
+  },
+  "expected_count": 4,
+  "require_all_geocoded": false,
+  "_coordinate_validation": "Both new coordinates were REVERSE-GEOCODED and read back before publish, not merely bounds-checked. seven-oaks-country-club-bakersfield-ca was the risk case: it anchored on a leisure/golf_course relation, and a private club with a golf course is exactly the multi-campus population that produced Greensboro's wrong-campus Sedgefield pin. It reverse-geocodes to 'Seven Oaks Golf & Country Club at Grand Island, 2000, Grand Lakes Avenue, Bakersfield, Kern County, California, 93311' — an exact match to the address read off the club's own site, so it is the RIGHT campus. A search summary had earlier offered 4121 Country Club Dr / 93306 for this club, which is BAKERSFIELD Country Club's location in the northeast; that address was never used. wilson-park-bakersfield-ca reverse-geocodes to Kern County, Bakersfield, 93304, consistent with the park. Also checked and clean: no address in this batch is a house-number RANGE (a range can never geocode to a point), and no row matches the street-band signature (precision 'low' + address rung + no osm_id).",
+  "_preexisting_low_precision_note": "NOT THIS BATCH'S ROWS, recorded for the owner because the QA pass surfaced it. Two rows in the ORIGINAL bakersfield-2026-08-03 batch carry low-precision coordinates anchored on ROADS rather than venues: bakersfield-mesa-marin-sports-complex (PUBLISHED AND LIVE) sits on highway/primary way/1447825911 'CHP Officer David W. Manning Memorial Highway', and bakersfield-dignity-health-sports-complex-gsa (held, no coordinate issue of its own) resolved to highway/unclassified way/10441544 'Gilmore Avenue'. Neither matches the strict street-band signature — both carry an osm_id and used a structured rung rather than the bare address rung — but both are street anchors and mesa-marin is serving a live pin on a highway centroid. Flagged, not touched: they belong to another batch and repairing them is its own gated pass.",
+  "reconciles": [],
+  "workbook": {
+    "tabs": {
+      "primary": "Import Contract"
+    }
+  },
+  "expected_publish": {
+    "count": 2,
+    "hold": {
+      "leroy-jackson-sports-complex-ridgecrest-ca": "no coordinate",
+      "csub-student-recreation-center-bakersfield-ca": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-06 v3 source-led completion batch: first expected_publish block for bakersfield-v3-2026-08-06. Authored from --stage=project (2/4 publish, 2 held). Slugs were READ FROM metro-research/bakersfield/bakersfield-v3-candidates.json, never re-derived. Hold reasons are the importer's OWN string ('no coordinate'), not prose, because the assertion is substring containment against what the importer itself prints. Both holds are real venues with no street address on any source — Ridgecrest's Leroy Jackson Sports Complex (12 lined pickleball courts, confirmed on the city's own Sports Facilities page) and the CSUB Student Recreation Center. Each is a lookup, not a research problem; a later re-geocode against a read address releases it."
+  ]
+}
