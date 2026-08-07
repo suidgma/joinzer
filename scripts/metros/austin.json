@@ -1,0 +1,55 @@
+{
+  "_comment": "Austin-Round Rock-San Marcos, TX (CBSA 12420) — GREENFIELD v3 source-led coverage-first build, authored 2026-08-07 by session D5. Verified greenfield before authoring: zero facility_listings rows carry any Austin/Round Rock/San Marcos metro_area, and no scripts/metros config for this metro existed. The eight published rows inside the wider lat/lng box all belong to metro_area 'Killeen-Temple' (Bell County) and are OUT of this MSA — see _envelope_comment.",
+  "metro": "austin",
+  "batch": "austin-2026-08-07",
+  "metro_area": "Austin-Round Rock-San Marcos",
+  "states": [
+    "TX"
+  ],
+  "input": "metro-research/austin/austin-candidates.json",
+  "discovered_by": "austin-v3-source-led",
+  "geocode_cache": "metro-research/.geocode-cache/austin.json",
+  "_envelope_comment": "DERIVED FROM THE FIVE-COUNTY MSA LIST, NEVER FROM AN OBSERVED BOUNDING BOX. Union of the OSM boundary bboxes for Travis (relation/91939), Williamson (relation/1836997), Hays (relation/91858), Bastrop (relation/1837663) and Caldwell (relation/92017), each fetched from Nominatim on 2026-08-07 and the union rounded outward. Component bboxes: Travis 30.0233261/30.6280321/-98.1731442/-97.3695829; Williamson 30.4028139/30.9055906/-98.0500505/-97.1551988; Hays 29.7524388/30.3562591/-98.2975400/-97.7087738; Bastrop 29.7865177/30.4196697/-97.6490607/-97.0244020; Caldwell 29.6308125/30.0713795/-97.8992067/-97.3157747. THE SOFT EDGE IS THE NORTH ONE: the Killeen-Temple MSA (Bell County) abuts Williamson County, and its eight published rows sit at Belton 31.05, Salado 30.95 and Harker Heights/Killeen 31.06 — every one ABOVE latMax 30.91, so the envelope separates the two metros cleanly. That was checked against the live rows rather than assumed.",
+  "msa": "Austin-Round Rock-San Marcos, TX (Travis, Williamson, Hays, Bastrop, Caldwell counties)",
+  "envelope": {
+    "latMin": 29.62,
+    "latMax": 30.91,
+    "lngMin": -98.31,
+    "lngMax": -97.01
+  },
+  "expected_count": 72,
+  "require_all_geocoded": false,
+  "_same_name_trap": "THREE live same-name risks in this metro, all three checked ON THE SOURCE ITSELF at Stage 1 rather than at geocode time. (1) SAN MARCOS TX vs SAN MARCOS CA — both real cities with parks departments and pickleball; a Bounce result for 'San Marcos, California' surfaced organically in this metro's own searches. Cleared: sanmarcostx.gov carries a TX footer and a 512 area code. (2) GEORGETOWN TX vs Georgetown KY, DE and SC. Cleared: georgetowntexas.gov footer reads 'City of Georgetown, TX 2026', 512 area code. (3) CALDWELL COUNTY vs the CITY of Caldwell, Texas — a NEW SHAPE of this trap and the one that nearly landed. Pickleheads lists 'Davidson Creek Park, Caldwell TX', 2 dedicated outdoor courts. Caldwell County IS an MSA county, so the county-list string check passes AND the state check passes; the park is in the city of Caldwell in BURLESON County, ~90 km east, and Caldwell County's own seat is Lockhart. Both defences that caught Canton MS/OH and Middleton ID/WI pass here — only geography rejects it. Also relevant: Kyle and Bastrop both run shared municipal SaaS (KyleRec.RecDesk.com, cityofbastroptx.recdesk.com), the exact hostname class that hid Wisconsin from Boise; the Bastrop host names its state and was reached from the city's own site.",
+  "_excluded_closed_venue": "DREAMLAND, DRIPPING SPRINGS — EXCLUDED, and it is the most consequential exclusion in this batch. 16 dedicated courts (12 outdoor, 4 covered), the site of the first two Major League Pickleball events, and by reputation the metro's marquee venue. It CLOSED PERMANENTLY ON 2024-12-31, confirmed by KXAN, KVUE and The Dink. Its own website dreamland.us still returns HTTP 200 nineteen months later, still prints 2770 W Hwy 290, still advertises daily clinics and leagues, and STILL SERVES A WORKING COURT-RESERVATION BOOKING WIDGET; a fetch instructed to look specifically for a closure notice found none, because none exists. The venue's own page — normally the strongest citation available — was the only wrong source in this metro. Written to court-verifier memory as a durable finding: a venue's own site proves the venue EXISTS, never that it is still OPERATING.",
+  "_excluded_future_builds": "Austin is a boomtown and the announcement-to-opening pipeline is full, so four announced facilities were excluded under 'a project status report is not a facilities record': The Picklr Austin Oak Hill (8 indoor, opens December 2026 — future tense as of this build on 2026-08-07); PickleRage North Austin (9 indoor, announced for Q2 2026, no opening confirmation found); Courtside Bee Cave (6 courts, 'conceptual plans'); and Bee Cave Central Park pickleball, which appears in the 2023 council-approved park MASTER PLAN as a possible future amenity and is not built. RUSH (10037 Menchaca Road, Austin) IS INCLUDED rather than excluded — Community Impact and KVUE both report it partially open in a pre-launch phase with the first six of a planned fourteen courts operating, so court_count is recorded as 6, the number actually open.",
+  "_hoa_mud_instrument": "THE METRO-SPECIFIC INSTRUMENT RAN. Texas suburbs run on Municipal Utility Districts and large master-planned HOAs whose amenity centres carry courts no city parks department lists — the same structural class as Florida's CDDs (which Tampa found carrying real venues) and California's recreation and park districts (which Bakersfield checked and found empty). Austin's answer sits between the two: REAL BUT SMALLER THAN FLORIDA'S. Three confirmed on the community's own site and imported (Avery Ranch Main Amenity Center 4 courts; Steiner Ranch Bella Mar 4 courts, 12401 Bella Mar Trail; Kissing Tree, 1426 Blushing Aster Dr. San Marcos, a 55+ Brookfield community). Ten more were named by a local real-estate aggregation and could NOT be confirmed on the community's own site, so they were excluded: Santa Rita Ranch, Travisso, Crystal Falls, Sweetwater, Easton Park, Plum Creek, Circle C Ranch, Teravista, Belterra, Sunfield. ROUGH HOLLOW is the case worth keeping: the aggregation says its Highland Village amenity centre has pickleball, and roughhollowlakeway.com's own amenities page — which enumerates the yacht club, Highland Village, lazy river, splash pad, pool, 20+ miles of trails, paddleboards and fitness centre — does not mention it. The community's own page beat the aggregation and the answer was no.",
+  "reconciles": [],
+  "_no_reconciles_comment": "Deliberately empty. Stage 2b ran as DISCOVERY over dormant OSM rows inside the envelope regardless of metro_area label and returned exactly three, all metro_area NULL / status draft: Austin Pickle Ranch (way/1271658860), Pickleball Courts Sun City (node/12026567769) and Austin Tennis Center (way/1164871073). None is reconciled. Austin Pickle Ranch is imported here as a fresh row on a Community Impact citation rather than reconciled, because the OSM row carries no attributes worth preserving. Sun City is held — see _sun_city_held. AUSTIN TENNIS CENTER IS DELIBERATELY LEFT DORMANT: no City of Austin facility of that name appears on austintexas.gov, and its coordinate (30.3126,-97.6384) sits in the Walnut Creek / Johnny Morris corridor where the city does run the Austin Tennis and Pickleball Center at Walnut Creek Sports Park — so it is most likely a stale duplicate of a row already in this batch under its correct name. Importing or reconciling it risks publishing one venue twice. Retire-or-merge is a decision for a later pass with a real source, not something to guess at import time.",
+  "_sun_city_held": "SUN CITY TEXAS, GEORGETOWN is the largest single gated venue in this metro — a Del Webb 55+ community of 17,000+ residents on 7,000 acres, with pickleball court counts reported between 6 and 26 — and it is NOT in this batch. Its community association site sctexas.org returns HTTP 403 to every fetch, so no primary citation could be read, and the two aggregator court counts disagree by a factor of four. It is present as dormant OSM node/12026567769 at 30.7309325,-97.7701046, inside the envelope, which NAMES the candidate without citing it. The correct route when a readable source appears is venue_facts.<key>.coordinate adoption against that osm_id with expect_lat/expect_lng as a cross-check — not an address written from an aggregator.",
+  "workbook": {
+    "header_row": 1
+  },
+  "_expected_publish_comment": "expected_publish is deliberately ABSENT on this first run. It must be populated from the owner's locked decisions after --stage=project reports the real split, with slugs READ FROM metro-research/austin/austin-candidates.json and never re-derived, and hold reasons quoted as the importer's OWN strings ('no coordinate', 'generic name') rather than prose — the assertion is substring containment against what the importer itself prints, and prose failed a correct split in Jacksonville seven times.",
+  "expected_publish": {
+    "count": 58,
+    "hold": {
+      "mary-frances-baylor-clarksville-pocket-park-austin-tx": "no coordinate",
+      "the-picklr-round-rock-round-rock-tx": "no coordinate",
+      "apex-pickleball-clubs-cedar-park-cedar-park-tx": "no coordinate",
+      "berry-creek-racquet-club-georgetown-tx": "no coordinate",
+      "cimarron-hills-golf-and-country-club-georgetown-tx": "no coordinate",
+      "pickleland-pflugerville-tx": "no coordinate",
+      "shalom-austin-dell-jewish-community-center-austin-tx": "no coordinate",
+      "townlake-ymca-austin-tx": "no coordinate",
+      "northwest-family-ymca-austin-tx": "no coordinate",
+      "avery-ranch-main-amenity-center-austin-tx": "no coordinate",
+      "ut-austin-whitaker-courts-austin-tx": "no coordinate",
+      "ut-austin-caven-clark-courts-austin-tx": "no coordinate",
+      "ut-austin-recreational-sports-center-austin-tx": "no coordinate",
+      "racfit-buda-tx": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-07 greenfield discovery batch austin-2026-08-07: first expected_publish block. Authored from --stage=project (58/72 publish, 14 held). Slugs were READ FROM metro-research/austin/austin-candidates.json, never re-derived — a hand-rolled slugify is what produced Tampa's false 134-vs-130 mismatch. Every hold reason is the importer's OWN string (\"no coordinate\"), not prose, because the assertion is substring containment against what the importer itself prints; prose failed a correct split seven times in Jacksonville."
+  ]
+}

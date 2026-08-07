@@ -64,6 +64,20 @@
       "note": "Two venues on one site, the same shape as syr-meachem/syr-cecile in the sibling config. The Village of Manlius built SIX outdoor public courts on the old soccer field between Willowbrook Drive and the Manlius Village Centre, ribbon-cut July 2026 at just under $400,000 (Eagle News / CNY Central); the Manlius Recreation Center is the building itself and offers ONE indoor court, members only (cnypickleball.com). Different court sets, settings and access classes. Both carry the address 1 Arkie Albanese Ave and geocode to 0 m; name separation failed twice, so syr-manlius-rec is held rather than published as a second pin on one point. The 6-court public venue is the one a user is looking for."
     }
   ],
+  "_venue_facts_comment": "One coordinate adoption. The NAIP QA sheet's street-band flag (PR #543) matched four Syracuse rows; three are v3 rows and only this one clears the 1000 m anchor guard. Skyway Park and Van Buren Central Park are genuine street-band pins whose real OSM features sit 2,280 m and 2,532 m from the ladder's coordinate, so adoption refuses them by design — see the slice report, not a widened tolerance.",
+  "venue_facts": {
+    "syr-farley": {
+      "adjudicated_by": "feature-builder",
+      "adjudicated_on": "2026-08-06",
+      "coordinate": {
+        "osm_id": "way/1508655746",
+        "expect_lat": 43.2265891,
+        "expect_lng": -76.2845378,
+        "evidence_url": "https://www.openstreetmap.org/way/1508655746",
+        "reason": "The workbook address is a house-number RANGE (\"132-198 Chestnut St\"), which names a stretch of street rather than a point, so houseNumberOf returns null, the structured rung has nothing to match and the ladder lands on the centreline of Chestnut Street (way/20149823) at precision low — the street-band signature PR #543 flags. OSM carries the park's two hard courts as leisure/pitch sport=tennis way/1508655746 and way/1508655747; pickleball at this venue is played on a tennis court (CNY Pickleball lists it as an outdoor venue, Global Tennis Network records two hard courts), so the tennis pitch IS the playing surface. Identity is corroborated independently: Global Tennis Network places William J Farley Jr Community Park's courts at 43.226578,-76.284454, about 7 m from what /lookup returns for this way, and the 2019 NAIP crop at that point shows exactly two side-by-side hard courts with a basketball court beside them, inside the park. The two named parks within a kilometre (Henley Park way/962504220, Lock Island Park way/962504250) are different parks, so the unnamed feature is not an ambiguity. The pitch is preferred over the containing park polygon (way/1164576007) because it puts the crosshair on the courts themselves; both classify medium, so this is not a precision upgrade smuggled through naming."
+      }
+    }
+  },
   "workbook": {
     "header_row": 1
   },
