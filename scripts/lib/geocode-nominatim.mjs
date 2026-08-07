@@ -784,6 +784,31 @@ export function houseNumberOf(address) {
   return m ? m[1] : null
 }
 
+/**
+ * A leading house-number RANGE ("132-198 Chestnut St"), or null.
+ *
+ * WHY THIS IS WORTH ITS OWN CHECK. An address range names a stretch of street, not a point, so no
+ * geocoder can resolve it to one — `houseNumberOf` already returns null for this shape (the `\s+`
+ * after the digits does not match a hyphen), which means the structured rung has no number to match
+ * and the ladder lands on the road centreline. The row then publishes at precision `low` on a street
+ * band, and the aerial QA sheet shows a road. William J Farley Community Park in Phoenix NY is the
+ * worked case: "132-198 Chestnut St" pinned to `highway/residential way/20149823 "Chestnut Street"`.
+ *
+ * The failure is deterministic and visible in the cell BEFORE a single request is issued, so flagging
+ * it at import costs nothing and turns an unexplained `low` into a named, fixable cause: get a house
+ * number, or adjudicate an OSM feature (`venue_facts.<key>.coordinate`).
+ *
+ * A WARNING, NEVER A THROW. Two reasons. A range address is still the best address we have and is
+ * worth storing and displaying; and the same shape is a legitimate house number in Queens NY
+ * ("132-05 41st Ave"), where the hyphen is part of the number rather than a range. Distinguishing
+ * those two from the string alone is not possible, so this reports the shape and the consequence and
+ * leaves the call to a human. Nothing downstream branches on it.
+ */
+export function houseNumberRangeOf(address) {
+  const m = String(address || '').trim().match(/^(\d+)\s*[-–—]\s*(\d+)(?=\s|,|$)/)
+  return m ? { raw: m[0].trim(), from: m[1], to: m[2] } : null
+}
+
 function describeAnchor(hit, rung) {
   const cls = hit.class || hit.category || ''
   const type = hit.type || ''

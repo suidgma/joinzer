@@ -8,8 +8,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  stringValues, openingHintFromProvenance, endOfPeriod, stalenessVerdict, uninformativeReasons,
-  renderContactSheet,
+  stringValues, openingHintFromProvenance, endOfPeriod, stalenessVerdict, streetBandVerdict,
+  uninformativeReasons, renderContactSheet,
 } from '../naip-contact-sheet.mjs'
 
 type Row = Record<string, any>
@@ -18,6 +18,7 @@ const strings = stringValues as (v: unknown) => string[]
 const hint = openingHintFromProvenance as (p: unknown) => { opened: string; snippet: string } | null
 const endOf = endOfPeriod as (s: unknown) => string | null
 const staleness = stalenessVerdict as unknown as (a: Row) => Row
+const band = streetBandVerdict as unknown as (a: Row) => Row
 const uninformative = uninformativeReasons as unknown as (a: Row) => Row[]
 const render = renderContactSheet as (a: Row) => string
 
@@ -116,6 +117,66 @@ describe('stalenessVerdict', () => {
   })
 })
 
+describe('streetBandVerdict', () => {
+  /** Verbatim `provenance.coordinate` shape, as read off the four published Syracuse rows. */
+  const coord = (over: Row = {}): Row => ({
+    coordinate: {
+      lat: 43.1228399,
+      lng: -76.1386095,
+      anchor: 'highway/secondary way/343907770 "East Taft Road" (query rung: address)',
+      origin: 'nominatim',
+      precision: 'low',
+      source_url: 'https://nominatim.openstreetmap.org/',
+      name_anchor: null,
+      adopted_from: null,
+      matched_rung: 'address',
+      address_override: null,
+      shared_anchor_with: null,
+      workbook_crosscheck: null,
+      ...over,
+    },
+  })
+
+  it('fires on the pilot signature: low + address rung + no OSM feature', () => {
+    const v = band({ precision: 'low', provenance: coord() })
+    expect(v.streetBand).toBe(true)
+    expect(v.reason).toContain('STREET-BAND ANCHOR')
+    expect(v.anchor).toContain('East Taft Road')
+  })
+
+  // THE 3-vs-1 SPLIT, pinned. Onondaga Lake Park Pickleball Complex is the venue whose empty crop is
+  // explained by a 2026 build under 2019 imagery, NOT by a bad pin. It came off the same `address`
+  // rung with no osm_id — the ONLY thing separating it is precision, so precision is the clause that
+  // has to hold. A rule that flags this row sends a reviewer to "fix" a correct coordinate.
+  it('does NOT fire on the high-precision house-number anchor that under-fired in the pilot', () => {
+    expect(band({
+      precision: 'high',
+      provenance: coord({
+        anchor: 'place/house node/8787518638, house number 106 (query rung: address)',
+        precision: 'high',
+        adopted_from: undefined,
+      }),
+    }).streetBand).toBe(false)
+  })
+
+  it('does not fire on a low pin that came off a NAME rung — that is a feature, not a street', () => {
+    expect(band({ precision: 'low', provenance: coord({ matched_rung: 'name_city_state' }) }).streetBand).toBe(false)
+  })
+
+  it('does not fire once an OSM feature has been matched, which is what a repair produces', () => {
+    expect(band({
+      precision: 'low',
+      provenance: coord({ osm_id: 'way/123456', matched_rung: 'address' }),
+    }).streetBand).toBe(false)
+  })
+
+  it('survives the rows that carry no coordinate provenance at all', () => {
+    expect(band({ precision: 'low', provenance: null }).streetBand).toBe(false)
+    expect(band({ precision: null, provenance: undefined }).streetBand).toBe(false)
+    expect(band({ precision: 'low', provenance: {} }).streetBand).toBe(false)
+  })
+})
+
 describe('uninformativeReasons', () => {
   it('flags a point with no NAIP coverage', () => {
     expect(uninformative({ imageryDate: null, indoor: false, stale: false }).map((r) => r.code)).toEqual(['no-imagery'])
@@ -125,15 +186,21 @@ describe('uninformativeReasons', () => {
     expect(uninformative({ imageryDate: '2019-08-02', indoor: true, stale: false }).map((r) => r.code)).toEqual(['indoor'])
   })
 
+  it('flags a street-band pin, with its own code rather than folded into stale', () => {
+    expect(uninformative({ imageryDate: '2019-08-02', indoor: false, stale: false, streetBand: true }).map((r) => r.code))
+      .toEqual(['street-band'])
+  })
+
   it('does NOT flag a low-precision coordinate', () => {
-    // Deliberate: `low` is where a gross error is MOST likely, so routing attention away from it
-    // would defeat the tool. The sheet shows precision as a neutral badge instead.
+    // Deliberate: `low` ALONE is where a gross error is MOST likely and the crop may still show the
+    // venue (a park centroid is `low` and usually lands inside the park). Only the full three-clause
+    // street-band signature says the pin is on a road. The sheet shows precision as a neutral badge.
     expect(uninformative({ imageryDate: '2019-08-02', indoor: false, stale: false })).toEqual([])
   })
 
   it('accumulates every applicable reason', () => {
-    expect(uninformative({ imageryDate: null, indoor: true, stale: true }).map((r) => r.code))
-      .toEqual(['no-imagery', 'stale', 'indoor'])
+    expect(uninformative({ imageryDate: null, indoor: true, stale: true, streetBand: true }).map((r) => r.code))
+      .toEqual(['no-imagery', 'stale', 'street-band', 'indoor'])
   })
 })
 
@@ -151,6 +218,7 @@ describe('renderContactSheet', () => {
     gsd: 0.6,
     gsdUnits: 'METER',
     stale: null,
+    streetBand: null,
     uninformative: [],
     ...over,
   })
@@ -194,5 +262,38 @@ describe('renderContactSheet', () => {
   it('reports the imagery dates present, so the run is self-describing', () => {
     const html = sheet([venue(), venue({ slug: 'other', imageryDate: '2023-05-09', imageryDates: ['2023-05-09'] })])
     expect(html).toContain('2019-08-02, 2023-05-09')
+  })
+
+  const bandVenue = () => venue({
+    precision: 'low',
+    streetBand: { streetBand: true, anchor: 'highway/secondary way/343907770 "East Taft Road"', reason: 'STREET-BAND ANCHOR — needs a real anchor.' },
+    uninformative: [{ code: 'street-band', text: 'pin is on a road centreline — the crop is not centred on the venue' }],
+  })
+
+  it('gives a street-band cell its own badge and its own cell class, distinct from stale', () => {
+    const html = sheet([bandVenue()])
+    expect(html).toContain('badge band')
+    expect(html).toContain('is-band')
+    expect(html).toContain('STREET-BAND ANCHOR')
+    expect(html).toContain('East Taft Road')
+    expect(html).not.toContain('badge stale')
+  })
+
+  it('offers a street-band filter and counts the class separately', () => {
+    const html = sheet([bandVenue(), venue()])
+    expect(html).toContain('data-hide="hide-band"')
+    expect(html).toMatch(/street-band anchor: <b>1<\/b>/)
+  })
+
+  // The generic "hide likely-uninformative" sweep must not take the street-band cells with it — they
+  // are the only class on the sheet that is fixable today, so burying them defeats the flag.
+  it('exempts street-band cells from the generic uninformative hide rule', () => {
+    expect(sheet([bandVenue()])).toContain('body.hide-dim .is-dim:not(.is-band)')
+  })
+
+  it('states in the page that STALE and STREET-BAND call for different actions', () => {
+    const html = sheet([venue()])
+    expect(html).toMatch(/STALE[\s\S]{0,120}new imagery/)
+    expect(html).toMatch(/STREET-BAND[\s\S]{0,160}fixable today/)
   })
 })

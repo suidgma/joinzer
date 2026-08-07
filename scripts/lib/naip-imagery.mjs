@@ -343,6 +343,38 @@ function writeAtomic(path, data) {
 }
 
 /**
+ * WHAT A CACHED CROP IS ACTUALLY A CROP OF.
+ *
+ * THE BUG THIS CLOSES: the cache is keyed by SLUG, and a slug is stable across a coordinate repair.
+ * So after a pin is moved, a re-run finds `crops/<slug>.jpg` on disk and serves the crop of the OLD
+ * coordinate — under the NEW coordinate printed beside it. That is worse than no cache at all: the
+ * sheet asserts a pairing of image and coordinate that was never true, and the one cell a reviewer is
+ * checking hardest is the cell most likely to be wrong. `--refetch` fixes it only for someone who
+ * already knows to reach for it, which is exactly the person who does not need the tool.
+ *
+ * The same argument covers `--ground-meters`, `--size` and `--format`: each changes what the image
+ * shows, and none of them changes the filename.
+ *
+ * So every crop is written with a sidecar stating the five inputs that produced it, and a stamp that
+ * disagrees with the current request is a cache MISS rather than a hit. Comparison is on rounded
+ * coordinates: 7 decimal places is ~11 mm, far below anything the imagery can resolve, and it stops
+ * a float round-trip through JSON from invalidating the whole corpus.
+ */
+export function cropStamp({ lat, lng, groundMeters, size, format }) {
+  const round = (n) => Number(Number(n).toFixed(7))
+  return { lat: round(lat), lng: round(lng), groundMeters: Number(groundMeters), size: Number(size), format: String(format) }
+}
+
+/** Does a stamp read off disk describe the crop being asked for now? A missing or unparseable
+ *  stamp is `false` — an unstamped crop predates this check and its provenance is unknown, so the
+ *  safe reading is "re-fetch", not "assume it matches". */
+export function stampMatches(previous, current) {
+  if (!previous || typeof previous !== 'object') return false
+  return ['lat', 'lng', 'groundMeters', 'size', 'format']
+    .every((k) => previous[k] === current[k])
+}
+
+/**
  * The acquisition metadata for one point, from disk if present.
  * Returns `{ summary, cached }`. A cache file that will not parse is treated as a miss.
  */

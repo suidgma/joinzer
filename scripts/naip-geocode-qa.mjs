@@ -42,13 +42,16 @@
  *                        read at a glance rather than pixel-peeped
  *   --delay-ms=<n>       courtesy spacing between live requests, default 300
  *   --limit=<n>          first N venues only, for a quick look
- *   --refetch            ignore cached crops/metadata and re-request
+ *   --refetch            ignore cached crops/metadata and re-request. NOT needed after a coordinate
+ *                        repair — a moved pin invalidates its own crop automatically (see cropStamp)
  *   --dry-run            print what would be fetched and exit without a single request
  *
  * Output per metro, under `--out`:
  *   <metro-key>/index.html          the contact sheet
  *   <metro-key>/crops/<slug>.jpg    the aerial crops   — these files ARE the cache
  *   <metro-key>/identify/<slug>.json the raw identify responses
+ *   <metro-key>/stamps/<slug>.json   what each crop is a crop OF (coordinate + geometry), so a
+ *                                    repaired pin re-fetches instead of serving the old image
  *
  * The default output directory is inside `metro-research/`, which is a junction to a repo outside
  * every working tree — the same reasoning as the geocode cache. A worktree teardown removes the
@@ -59,9 +62,10 @@ import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import {
   identifyPoint, exportCrop, chooseSize, setSpacingMs, liveRequestCount, NOMINAL_GSD_M,
+  cropStamp, stampMatches,
 } from './lib/naip-imagery.mjs'
 import {
-  openingHintFromProvenance, stalenessVerdict, uninformativeReasons, renderContactSheet,
+  openingHintFromProvenance, stalenessVerdict, streetBandVerdict, uninformativeReasons, renderContactSheet,
 } from './lib/naip-contact-sheet.mjs'
 
 // ---------------------------------------------------------------------------------------------
@@ -149,7 +153,18 @@ async function runMetro(metro) {
   console.log(`  crop     : ${GROUND_M} m across at ${SIZE} px (${(GROUND_M / SIZE).toFixed(2)} m/px requested)`)
   console.log(`  output   : ${dir}`)
   if (DRY_RUN) {
-    const cached = venues.filter((v) => existsSync(join(dir, 'crops', `${v.slug}.${FORMAT}`)) && existsSync(join(dir, 'identify', `${v.slug}.json`))).length
+    // A crop whose stamp does not match today's coordinate/geometry is NOT cached — counting it as
+    // cached would under-report the live requests a real run is about to issue, which is the one
+    // number this stage exists to state.
+    const cached = venues.filter((v) => {
+      if (!existsSync(join(dir, 'crops', `${v.slug}.${FORMAT}`))) return false
+      if (!existsSync(join(dir, 'identify', `${v.slug}.json`))) return false
+      const p = join(dir, 'stamps', `${v.slug}.json`)
+      if (!existsSync(p)) return false
+      try {
+        return stampMatches(JSON.parse(readFileSync(p, 'utf8')), cropStamp({ lat: v.lat, lng: v.lng, groundMeters: GROUND_M, size: SIZE, format: FORMAT }))
+      } catch { return false }
+    }).length
     console.log(`  DRY RUN  — would issue ~${(venues.length - (REFETCH ? 0 : cached)) * 2} live request(s); ${cached} venue(s) already cached`)
     return null
   }
@@ -159,12 +174,27 @@ async function runMetro(metro) {
     const cropFile = join('crops', `${v.slug}.${FORMAT}`)
     const cropPath = join(dir, cropFile)
     const idPath = join(dir, 'identify', `${v.slug}.json`)
+    const stampPath = join(dir, 'stamps', `${v.slug}.json`)
+
+    // A slug outlives a coordinate repair, so a slug-keyed cache will happily serve the OLD crop
+    // beside the NEW coordinate. The stamp is what makes a moved pin invalidate its own cache
+    // without anyone remembering to pass --refetch. See cropStamp for the full argument.
+    const stamp = cropStamp({ lat: v.lat, lng: v.lng, groundMeters: GROUND_M, size: SIZE, format: FORMAT })
+    let previousStamp = null
+    if (existsSync(stampPath)) {
+      try { previousStamp = JSON.parse(readFileSync(stampPath, 'utf8')) } catch { /* treat as unstamped */ }
+    }
+    const staleCache = existsSync(cropPath) && !stampMatches(previousStamp, stamp)
+    if (staleCache) {
+      console.log(`  moved [${String(i + 1).padStart(3)}/${venues.length}] ${v.name} — cached crop was fetched for ${previousStamp ? `${previousStamp.lat},${previousStamp.lng} at ${previousStamp.groundMeters} m/${previousStamp.size} px` : 'unrecorded inputs'}; re-fetching`)
+    }
+    const refetchThis = REFETCH || staleCache
 
     let summary = { date: null, dates: [], gsd: null, gsdUnits: null }
     let cropError = null
     let cachedBoth = true
     try {
-      const id = await identifyPoint({ lat: v.lat, lng: v.lng, cachePath: idPath, refetch: REFETCH })
+      const id = await identifyPoint({ lat: v.lat, lng: v.lng, cachePath: idPath, refetch: refetchThis })
       summary = id.summary
       cachedBoth = cachedBoth && id.cached
     } catch (err) {
@@ -173,9 +203,13 @@ async function runMetro(metro) {
     try {
       const crop = await exportCrop({
         lat: v.lat, lng: v.lng, groundMeters: GROUND_M, size: SIZE, format: FORMAT,
-        cachePath: cropPath, refetch: REFETCH,
+        cachePath: cropPath, refetch: refetchThis,
       })
       cachedBoth = cachedBoth && crop.cached
+      // Written only after the crop is on disk, so a failed fetch never leaves a stamp claiming a
+      // crop that does not exist — and the next run retries rather than trusting it.
+      mkdirSync(join(dir, 'stamps'), { recursive: true })
+      writeFileSync(stampPath, JSON.stringify(stamp))
     } catch (err) {
       cropError = err.message
       console.warn(`  !  ${v.name}: crop failed — ${err.message}`)
@@ -189,6 +223,8 @@ async function runMetro(metro) {
     const openedSource = curated ? 'curated' : hint ? 'provenance' : null
 
     const stale = stalenessVerdict({ imageryDate: summary.date, opened, openedSource })
+    // Read off the row, not off the imagery — and therefore true whether or not a crop came back.
+    const band = streetBandVerdict({ precision: v.location_precision, provenance: v.provenance })
     rendered.push({
       name: v.name,
       slug: v.slug,
@@ -202,10 +238,13 @@ async function runMetro(metro) {
       gsd: summary.gsd,
       gsdUnits: summary.gsdUnits,
       stale: stale.stale ? stale : null,
-      uninformative: uninformativeReasons({ imageryDate: summary.date, indoor: v.indoor, stale: stale.stale }),
+      streetBand: band.streetBand ? band : null,
+      uninformative: uninformativeReasons({
+        imageryDate: summary.date, indoor: v.indoor, stale: stale.stale, streetBand: band.streetBand,
+      }),
     })
 
-    const mark = stale.stale ? 'STALE' : cropError ? 'ERR  ' : cachedBoth ? 'cache' : '  ·  '
+    const mark = band.streetBand ? 'BAND ' : stale.stale ? 'STALE' : cropError ? 'ERR  ' : cachedBoth ? 'cache' : '  ·  '
     console.log(`  ${mark} [${String(i + 1).padStart(3)}/${venues.length}] ${v.name} — ${summary.date || 'no imagery'}`)
   }
 
@@ -220,12 +259,13 @@ async function runMetro(metro) {
   writeFileSync(indexPath, html)
 
   const staleCount = rendered.filter((v) => v.stale).length
+  const bandCount = rendered.filter((v) => v.streetBand).length
   const dimCount = rendered.filter((v) => v.uninformative.length).length
   const dates = [...new Set(rendered.map((v) => v.imageryDate).filter(Boolean))].sort()
-  console.log(`\n  ${metro}: ${rendered.length} cell(s) — ${staleCount} stale, ${dimCount} likely-uninformative, ${rendered.length - dimCount} worth a look`)
+  console.log(`\n  ${metro}: ${rendered.length} cell(s) — ${staleCount} stale, ${bandCount} street-band anchor, ${dimCount} likely-uninformative, ${rendered.length - dimCount} worth a look`)
   console.log(`  acquisition dates: ${dates.join(', ') || 'none'}`)
   console.log(`  sheet: ${indexPath}`)
-  return { metro, indexPath, count: rendered.length, staleCount, dimCount, dates }
+  return { metro, indexPath, count: rendered.length, staleCount, bandCount, dimCount, dates }
 }
 
 // ---------------------------------------------------------------------------------------------
