@@ -137,11 +137,33 @@ describe('streetBandVerdict', () => {
     },
   })
 
-  it('fires on the pilot signature: low + address rung + no OSM feature', () => {
+  it('fires on the pilot signature: low + address rung + a ROAD anchor', () => {
     const v = band({ precision: 'low', provenance: coord() })
     expect(v.streetBand).toBe(true)
     expect(v.reason).toContain('STREET-BAND ANCHOR')
     expect(v.anchor).toContain('East Taft Road')
+  })
+
+  // THE CLAUSE THAT REPLACED `osm_id IS NULL`. Both of these are REAL published rows the old rule
+  // flagged as street bands, and neither is on a road: the badge asserted "the crosshair is on a road
+  // centreline by construction" about a municipal boundary centroid and about a bookstore node. They
+  // are still bad pins — they are simply not this class, and the reviewer action for them differs.
+  it.each([
+    ['a municipal boundary centroid', 'boundary/administrative relation/179859 "Carrboro" (query rung: address)'],
+    ['a named different entity at the right house number', 'shop/books node/5329612301 "UNF Bookstore", house number 1 (query rung: address)'],
+  ])('does NOT fire on %s, which the osm_id proxy mislabelled as a street band', (_label, anchor) => {
+    expect(band({ precision: 'low', provenance: coord({ anchor }) }).streetBand).toBe(false)
+  })
+
+  // THE REGRESSION THAT MOTIVATED THE REPAIR. `geocodeVenue` returns an osm_id and a street band is a
+  // real OSM way, so the old clause rejected the exact pins it was written to catch the moment the
+  // rule was asked about an EXTRACT-TIME coordinate rather than a published row. The importer's field
+  // list drops osm_id, which is the only reason that never showed up against the database.
+  it('fires on a road anchor that carries an osm_id — the extract-time shape', () => {
+    expect(band({
+      precision: 'low',
+      provenance: coord({ osm_id: 'way/343907770' }),
+    }).streetBand).toBe(true)
   })
 
   // THE 3-vs-1 SPLIT, pinned. Onondaga Lake Park Pickleball Complex is the venue whose empty crop is
@@ -163,10 +185,12 @@ describe('streetBandVerdict', () => {
     expect(band({ precision: 'low', provenance: coord({ matched_rung: 'name_city_state' }) }).streetBand).toBe(false)
   })
 
-  it('does not fire once an OSM feature has been matched, which is what a repair produces', () => {
+  // What a repair actually produces: adoption resolves a leisure/pitch and the anchor stops being a
+  // road. The osm_id is incidental to that — the anchor is what changed.
+  it('does not fire once the anchor is a venue feature, which is what a repair produces', () => {
     expect(band({
       precision: 'low',
-      provenance: coord({ osm_id: 'way/123456', matched_rung: 'address' }),
+      provenance: coord({ anchor: 'leisure/pitch way/123456 "Skyway Park Pickleball Courts" (query rung: osm-feature-lookup)' }),
     }).streetBand).toBe(false)
   })
 

@@ -1324,6 +1324,75 @@ export async function lookupOsmFeature(osmId, { venueName, wantHouseNumber = nul
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// A locus that is INDEPENDENT OF THE ROAD — what a street-band anchor cannot supply
+// ---------------------------------------------------------------------------------------------
+/**
+ * WHY THIS EXISTS: the ordinary adoption anchor guard measures the adopted feature against the
+ * coordinate the ladder already produced. That premise — "the existing pin is roughly right, so a
+ * feature far from it is a different place" — holds for Orlando's AdventHealth case (407 m) and is
+ * FALSE BY DEFINITION when the existing pin is a street band. There, Nominatim matched the right
+ * ROAD NAME and returned the wrong SEGMENT, so the guard is measuring from the very error being
+ * repaired. Syracuse's Skyway Park (four `sport=pickleball` pitches in OSM) sits 2,280 m from its
+ * band and Van Buren Central Park 2,532 m — both unadoptable under a 1000 m guard that is asking
+ * the wrong question.
+ *
+ * THE FIX IS A DIFFERENT LOCUS, NOT A LOOSER LIMIT. `ADOPT_ANCHOR_MAX_M` stays at 1000 m for the
+ * ordinary case; a band-anchored adoption is guarded against something the road cannot contaminate.
+ *
+ * THE STREET LOCUS IS DELIBERATELY EXCLUDED, and that exclusion is the whole point. `resolveTownshipLocus`
+ * prefers a street locus because it is tighter — but here the street is EXACTLY the thing that produced
+ * the wrong answer, so re-deriving it would reproduce the error and then certify it. Only components
+ * that are independent of the road are consulted, in the order they can be trusted:
+ *
+ *   1. the POSTCODE centroid — one zip, one centroid, and it cannot be township-vs-postal-city
+ *      ambiguous. Delegated to `resolveTownshipLocus` with `streetHits` empty so a zip locus resolved
+ *      here is byte-identical to one resolved by the township rung.
+ *   2. the CITY centroid — coarser, and used only when the venue carries no zip. Note the standing
+ *      caveat that a zip's USPS postal city can name another county's town; the city rung inherits
+ *      that weakness, which is why it is second and never preferred.
+ *
+ * RETURNS NULL WHEN NEITHER RESOLVES, and the caller MUST treat that as "refuse the adoption" rather
+ * than "adopt unguarded" — the same posture the township rung takes ("an unguarded bare-name query is
+ * never issued"). A refusal holds a row; an unguarded adoption publishes a pin nobody measured.
+ */
+export async function resolveNonStreetLocus(
+  { zip, city, state, country = 'United States' } = {},
+  { cachePath: cp = DEFAULT_CACHE, fetchImpl = fetch } = {},
+) {
+  loadCache(cp)
+  if (zip) {
+    const { results } = await nominatim({ postalcode: zip, country }, { fetchImpl })
+    const locus = resolveTownshipLocus({ zipHits: results })
+    if (locus) return locus
+  }
+  if (city) {
+    const { results } = await nominatim({ city, state, country }, { fetchImpl })
+    const hit = (Array.isArray(results) ? results : []).find((h) => coordOf(h) !== null) || null
+    if (hit) {
+      const c = coordOf(hit)
+      return { kind: 'city', lat: c.lat, lng: c.lng, from_zip_m: null, hit, discarded_street: null }
+    }
+  }
+  return null
+}
+
+/** How far an ADOPTED feature may sit from a road-independent locus when the anchor it supersedes is
+ *  a street band. Deliberately the SAME NUMBER as `TOWNSHIP_NAME_MAX_M`, and re-exported under its own
+ *  name rather than hard-coded, because it is the same question against the same trap on the same
+ *  evidence: "is this named feature the venue the address describes, or a same-named place elsewhere?"
+ *
+ *  The Koons Park trap — an exact name match that classifies `high` 14 km away — sits **13,829 m from
+ *  its ZIP locus**, and the largest legitimate zip-fallback acceptance measured across the corpus is
+ *  Creekview Park at **2,982 m**. So against a zip locus 5,000 m carries 1.68x headroom over the
+ *  widest real case and rejects the trap by 2.77x. The two Syracuse repairs this path exists for sit
+ *  at 2,280 m and 2,532 m — inside the measured legitimate band, not stretching it.
+ *
+ *  DO NOT RAISE IT TO RESCUE A ROW. The failure direction is safe by construction: exceeding it
+ *  REFUSES the adoption, which leaves the row held on its honest street band rather than publishing a
+ *  wrong pin. If a venue cannot pass this, the adjudication is what needs re-examining. */
+export const ADOPT_BAND_LOCUS_MAX_M = TOWNSHIP_NAME_MAX_M
+
 /** Great-circle-ish metres. Same formula the import scripts use, kept identical so a delta computed
  *  here and a delta recomputed in preflight agree to the metre. */
 export function metresBetween(aLat, aLng, bLat, bLng) {
