@@ -47,7 +47,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { geocodeVenue, lookupOsmFeature, houseNumberOf, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath } from './geocode-nominatim.mjs'
+import { geocodeVenue, lookupOsmFeature, houseNumberOf, houseNumberRangeOf, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath } from './geocode-nominatim.mjs'
 
 /**
  * How far an adopted OSM feature may sit from the point recorded at adjudication time.
@@ -1842,6 +1842,16 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
     const courtCountRaw = orNull(r.court_count) ?? orNull(vRow?.court_count)
     const courtCount = courtCountRaw != null && /^\d+$/.test(courtCountRaw) ? Number(courtCountRaw) : null
     if (courtCountRaw != null && courtCount == null) notes.push(`${key}: court_count "${courtCountRaw}" is not an integer — left NULL.`)
+
+    // --- address shape: a RANGE cannot geocode to a point ------------------------------------
+    // Cheap and pre-flight by construction — it reads the string the workbook already gave us and
+    // predicts the coordinate outcome before any request is issued. See houseNumberRangeOf for why
+    // this is a note rather than a throw (a range is still the best address we have, and the same
+    // shape is a real house number in Queens). The address is stored unchanged either way.
+    const addrRange = houseNumberRangeOf(address)
+    if (addrRange) {
+      notes.push(`${key}: address "${address}" leads with the house-number range "${addrRange.raw}" — a range names a stretch of street, not a point, so the structured rung has no house number to match and this venue will anchor on the road centreline at precision "low". Fix by sourcing a single house number, or adjudicate the courts' OSM feature via venue_facts.${key}.coordinate.`)
+    }
 
     venues.push({
       research_key: key,
