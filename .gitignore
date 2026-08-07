@@ -130,3 +130,8 @@ scripts/.osm-ingest-progress.json
 # artifacts above — the SCRIPT is tracked, the run output is not. See the caveat on /.geocode-cache/
 # about what an ignore entry does and does not protect against.
 /link-health/
+
+# Vitest's JSON run report, written by the CI "Unit tests" step so the next step can name every
+# SKIPPED test (see .github/scripts/report-skipped-tests.mjs). Run output, not source — same posture
+# as the artifacts above. Also produced locally by anyone running the same command by hand.
+/vitest-report.json

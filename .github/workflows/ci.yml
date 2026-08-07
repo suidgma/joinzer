@@ -1,4 +1,4 @@
-# Runs the three gates that previously only ran by hand: typecheck, unit tests, production build.
+# Runs the gates that previously only ran by hand: typecheck and unit tests.
 #
 # WHY THIS EXISTS. Until now every gate was run manually before a merge, and on 2026-08-06 twenty
 # PRs merged that way. Two things went wrong that a machine would have caught: a verification
@@ -6,12 +6,37 @@
 # hours until an unrelated baseline run happened to surface it. Both were caught by a human
 # remembering to look.
 #
-# DELIBERATELY MINIMAL. No deploy step (Vercel owns deployment), no Playwright (slow, needs a live
-# environment, and its own decision), no coverage thresholds, no lint rules nobody agreed to.
-# Three gates, matching what the team already runs by hand.
+# DELIBERATELY MINIMAL. No Playwright (slow, needs a live environment, its own decision), no
+# coverage thresholds, no lint rules nobody agreed to.
 #
-# NOT A REQUIRED STATUS CHECK YET. Let it run on real PRs first and confirm it is not flaky before
-# anyone is blocked by it — a CI that cries wolf gets ignored, which is worse than having none.
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# THERE IS NO `next build` STEP HERE, AND THAT IS DELIBERATE. DO NOT "FIX" IT.
+#
+# The build is not skipped because it is slow or awkward — it is skipped because VERCEL ALREADY
+# RUNS IT ON EVERY PR and reports the result as a status check on the PR itself. Checked against
+# the deployments list: every PR branch produces a Preview build, every merge to main produces a
+# Production build. Adding it here would duplicate a check that already exists and already reports.
+#
+# The decisive reason is security. `next build` prerenders /courts, /courts/in/[metro] and
+# /sitemap.xml from `facility_listings`, which is deny-all RLS — so the build reads it through
+# SUPABASE_SERVICE_ROLE_KEY (lib/directory/loadFacilities.ts), the credential that bypasses RLS
+# entirely. Putting `next build` in CI therefore means copying the most powerful credential in the
+# system into a second store, with a different access model, on a PUBLIC repository, in order to
+# run a build that already happens elsewhere. That is the wrong direction, and it is the opposite
+# of the anon-callable-RPC work done on 2026-08-06.
+#
+# Vercel's build is also the AUTHORITATIVE one — it is what actually ships. A green CI build
+# against a red Vercel build would be actively misleading.
+#
+# The known cost: CI will not catch a build break before Vercel does. Accepted, because Vercel
+# reports on the PR anyway — the signal exists, just from a different reporter.
+#
+# If you are here because you want the build gate: the answer is not an Actions secret. It is to
+# make the /courts prerender resilient to an unreachable database, which is a product decision.
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# NOT A REQUIRED STATUS CHECK YET. Let it run on real PRs and be shown non-flaky before it blocks
+# anyone — a CI that cries wolf gets ignored, which is worse than having none.
 
 name: CI
 
@@ -19,7 +44,7 @@ on:
   pull_request:
     branches: [main]
 
-# A PR that gets three pushes in a minute should not run three builds. Cancel superseded runs.
+# A PR that gets three pushes in a minute should not run three times. Cancel superseded runs.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -29,34 +54,19 @@ permissions:
 
 jobs:
   gates:
-    name: typecheck / unit / build
+    name: typecheck / unit
+    # ubuntu, NOT windows, even though the team develops on Windows: Vercel builds and runs on
+    # Linux, so this matches the deployment target. Testing on an OS production never sees is the
+    # weaker signal, and Windows runners bill at ~2x minutes. The cost of this choice is a handful
+    # of Windows-only tests that cannot run here — they are named explicitly in the "Report skipped
+    # tests" step below rather than vanishing into a green checkmark.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    env:
-      # NOT SECRETS, and deliberately so. `next build` was measured to succeed with NO environment
-      # at all, and with these placeholders it produces an IDENTICAL route table (223 routes) and
-      # the same 1897/1897 prerendered pages as a build using the real .env.local — so nothing here
-      # reaches a network and CI is not checking less than production does.
-      #
-      # They are set anyway because an unset NEXT_PUBLIC_SUPABASE_URL and a placeholder one fail in
-      # very different ways, and the placeholder is the production-shaped one. If a future change
-      # makes the build genuinely require a real credential, that is a decision to bring to the
-      # owner — do not put a secret in this file.
-      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
-      NEXT_PUBLIC_SITE_URL: https://www.joinzer.com
-      STRIPE_SECRET_KEY: sk_test_placeholder
-      STRIPE_WEBHOOK_SECRET: whsec_placeholder
-      RESEND_API_KEY: re_placeholder
-      CRON_SECRET: placeholder-cron-secret
-      UNSUBSCRIBE_SECRET: placeholder-unsubscribe-secret
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
-      # Node 24 matches the Vercel project's configured nodeVersion ("24.x"), read from the project
+      # Node 24 matches the Vercel project's configured nodeVersion ("24.x"), read from project
       # settings rather than guessed — package.json has no `engines` field to pin it. If Vercel's
       # Node version is ever changed, change it here in the same commit.
       - uses: actions/setup-node@v4
@@ -71,15 +81,18 @@ jobs:
         run: npm ci
 
       # Each gate reports independently. Without `!cancelled()` a tsc failure would hide whether the
-      # tests and build also broke, turning one red run into three sequential round trips.
+      # tests also broke, turning one red run into two sequential round trips.
       - name: Typecheck
         if: ${{ !cancelled() }}
         run: npx tsc --noEmit
 
       - name: Unit tests
         if: ${{ !cancelled() }}
-        run: npx vitest run
+        run: npx vitest run --reporter=default --reporter=json --outputFile=vitest-report.json
 
-      - name: Production build
+      # A silently-skipped test is worse than a missing one, because the run still looks green.
+      # This names every skipped test in the log and in the run summary. Derived from vitest's own
+      # report, so it cannot go stale the way a hand-maintained list would.
+      - name: Report skipped tests
         if: ${{ !cancelled() }}
-        run: npx next build
+        run: node .github/scripts/report-skipped-tests.mjs vitest-report.json

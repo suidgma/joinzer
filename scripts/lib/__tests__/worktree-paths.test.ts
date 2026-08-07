@@ -57,11 +57,32 @@ afterEach(() => {
 const junction = (linkPath: string, target: string) =>
   execFileSync('cmd', ['/c', 'mklink', '/J', linkPath, target], { encoding: 'utf8' })
 
+/**
+ * WINDOWS-ONLY: the tests below build a real NTFS junction with `cmd /c mklink /J`.
+ *
+ * CI runs on ubuntu-latest to match Vercel's build platform. There `cmd` does not exist, and the
+ * primitive under test — a junction, which is neither a symlink nor an ordinary directory — has no
+ * analogue at all. The point of these assertions is what Windows ACTUALLY reports for one, so there
+ * is nothing meaningful left to check off-Windows; before this guard they failed with
+ * `spawnSync cmd ENOENT`.
+ *
+ * They still run on the Windows machines that actually use worktrees, which is where the behaviour
+ * matters and where both incidents in the header above happened.
+ *
+ * Guard ONLY the tests that touch a junction. The other five in this file are platform-agnostic and
+ * do run on Linux — do not widen this to `describe.skipIf`.
+ *
+ * A silently-skipped test is worse than a missing one, because the run still looks green. The CI
+ * workflow therefore prints every skipped test by name and reason, so a green run never implies
+ * this was covered.
+ */
+const itWindows = it.skipIf(process.platform !== 'win32')
+
 const writeConfig = (dir: string, name: string, config: Record<string, unknown>) =>
   writeFileSync(join(dir, name), JSON.stringify(config, null, 2))
 
 describe('classify', () => {
-  it('reports a junction as a junction, not a directory — the metro-wave-1 defect', () => {
+  itWindows('reports a junction as a junction, not a directory — the metro-wave-1 defect', () => {
     const base = makeTemp()
     const target = join(base, 'shared')
     const linkPath = join(base, 'metro-research')
@@ -86,7 +107,7 @@ describe('classify', () => {
     expect(classifyPath(real).kind).toBe('dir')
   })
 
-  it('reads a junction target so a WRONG target is distinguishable from a right one', () => {
+  itWindows('reads a junction target so a WRONG target is distinguishable from a right one', () => {
     const base = makeTemp()
     const right = join(base, 'joinzer-metro-research')
     const wrong = join(base, 'some-other-repo')
@@ -110,7 +131,7 @@ describe('classify', () => {
 })
 
 describe('teardown safety properties', () => {
-  it('rmdirSync removes the LINK and leaves the target contents intact', () => {
+  itWindows('rmdirSync removes the LINK and leaves the target contents intact', () => {
     const base = makeTemp()
     const target = join(base, 'shared')
     const linkPath = join(base, 'metro-research')
@@ -128,7 +149,7 @@ describe('teardown safety properties', () => {
     expect(count(target)).toBe(3)
   })
 
-  it('classify is the check that proves an unlink happened — a survivor stays visible', () => {
+  itWindows('classify is the check that proves an unlink happened — a survivor stays visible', () => {
     const base = makeTemp()
     const target = join(base, 'shared')
     const linkPath = join(base, 'metro-research')
