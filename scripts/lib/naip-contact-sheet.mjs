@@ -161,12 +161,36 @@ export function stalenessVerdict({ imageryDate, opened, openedSource }) {
  *   location_precision = 'low'                      the classifier already said this anchor is not
  *                                                   venue-scale
  *   provenance.coordinate.matched_rung = 'address'  it came off the address ladder, not a name query
- *   provenance.coordinate.osm_id IS NULL            and no OSM FEATURE was matched
+ *   the anchor is a `highway/*` feature              and the thing it matched is A ROAD
  *
  * Together those mean Nominatim matched the street and nothing else. The crosshair is therefore
  * sitting on a road centreline, and the crop shows a road — not because the venue is missing, but
  * because that is literally where the pin is. That is a fact about the ROW, derivable before a single
  * pixel is fetched, which is what makes it stronger than any reading of the imagery.
+ *
+ * THE THIRD CLAUSE USED TO READ `provenance.coordinate.osm_id IS NULL`, on the reasoning that a street
+ * band matches no OSM feature. That proxy was wrong in both directions and was replaced, on measurement:
+ *
+ *   - AGAINST THE DATABASE IT IS DEAD CODE. `import-metro-merged.mjs` builds provenance.coordinate
+ *     from an explicit field list that does not include `osm_id`, so the key is absent on every
+ *     published row in the corpus (measured: 0 of 0 rows carry it). The clause could never fire, which
+ *     is the only reason the pilot split below ever looked right.
+ *   - AGAINST AN EXTRACT-TIME COORDINATE IT INVERTS THE ANSWER. `geocodeVenue` DOES return `osm_id`,
+ *     and a street band is a real OSM way — Skyway Park's band is `way/343907770`. So the clause
+ *     rejected precisely the pins it was written to catch, the moment it was asked before import.
+ *   - AND IT MISLABELLED REAL ROWS. Of the 6 rows the old rule flagged, 2 are not on a road at all:
+ *     `anderson-community-park-courts-carrboro-nc` is anchored on `boundary/administrative "Carrboro"`
+ *     (a municipal centroid) and `university-of-north-florida-recwell-jacksonville-fl` on
+ *     `shop/books "UNF Bookstore"` (a named different entity at the right house number). Both are bad
+ *     pins that need a human, but neither is on a centreline, and the badge told a reviewer otherwise.
+ *
+ * `highway/` IS THE CODEBASE'S OWN DEFINITION OF A ROAD, not a new heuristic: `anchorPrecision` keys
+ * the identical test (`cls === 'highway'`) to score a street band `low` in the first place. Reading it
+ * off the anchor string keeps this module dependency free, and the furniture-shaped highway node types
+ * cannot appear here because `geocodeVenue` skips them before an anchor is ever written.
+ *
+ * WHAT CHANGED ON THE CORPUS: 6 flagged -> 4. The four are the four named in the pilot split below;
+ * the two dropped were never in either class the split separates.
  *
  * DISTINCT FROM STALE, DELIBERATELY, because the reviewer action is the opposite:
  *   stale       -> come back when there is new flight
@@ -176,9 +200,12 @@ export function stalenessVerdict({ imageryDate, opened, openedSource }) {
  * that is fixable today.
  *
  * PILOT SPLIT, and the check to run if this is ever changed: on Syracuse's 58 published rows the rule
- * matches Skyway Park, Van Buren Central Park, William J Farley Community Park — the three cells the
+ * matched Skyway Park, Van Buren Central Park, William J Farley Community Park — the three cells the
  * owner independently identified as suspicious — plus Syracuse Indoor Pickleball, which is a genuine
- * street-band anchor that also happens to be indoor. Onondaga Lake Park Pickleball Complex, the venue
+ * street-band anchor that also happens to be indoor. (All four have since been repaired by coordinate
+ * adoption and no longer match, which is the intended end state: the flag is a work queue, not a
+ * permanent label. The split is recorded here because it is the evidence the rule was calibrated on.)
+ * Onondaga Lake Park Pickleball Complex, the venue
  * whose empty crop is explained by a post-2019 build rather than a bad pin, does NOT match: its
  * precision is `high`. If a change to this rule stops separating those two classes, the change is
  * wrong — do not adjust the rule to fit a different answer.
@@ -187,11 +214,11 @@ export function streetBandVerdict({ precision, provenance }) {
   const c = provenance?.coordinate
   if (precision !== 'low') return { streetBand: false }
   if (!c || c.matched_rung !== 'address') return { streetBand: false }
-  if (c.osm_id != null) return { streetBand: false }
+  if (!String(c.anchor || '').startsWith('highway/')) return { streetBand: false }
   return {
     streetBand: true,
     anchor: c.anchor ?? null,
-    reason: 'STREET-BAND ANCHOR — Nominatim matched the street and no OSM feature, so the crosshair is on a road centreline by construction. The crop shows a road because the pin is on one. This pin needs a real anchor: a house number, or an adjudicated OSM feature.',
+    reason: 'STREET-BAND ANCHOR — Nominatim matched the street and returned a ROAD, so the crosshair is on a centreline by construction. The crop shows a road because the pin is on one. Note that a road has a length: matching the right road name says nothing about which SEGMENT came back, and the two Syracuse repairs landed 2,280 m and 2,532 m from their venues on correctly-named roads. This pin needs a real anchor: a house number, or an adjudicated OSM feature.',
   }
 }
 

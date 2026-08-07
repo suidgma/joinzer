@@ -243,6 +243,226 @@ describe('coordinate adoption — guards, all failing closed', () => {
   })
 })
 
+/**
+ * THE STREET-BAND FALLBACK — a SECOND GUARDED PATH, not a wider ADOPT_ANCHOR_MAX_M.
+ *
+ * The anchor guard asks "is the adopted feature near the pin we already have?" and reads distance as
+ * evidence of a different place. That inference needs the existing pin to be approximately right. It
+ * is, for AdventHealth — a 407 m error on a parkway beside the courts. It is FALSE BY DEFINITION for a
+ * street band, where Nominatim matched the right ROAD NAME and returned the wrong SEGMENT: the guard
+ * would then be measuring from the very error the adoption exists to repair. Syracuse's Skyway Park
+ * carries four `sport=pickleball` pitches in OSM and sits 2,280 m from its band; Van Buren Central
+ * Park the same at 2,532 m.
+ *
+ * ADOPT_ANCHOR_MAX_M STAYS AT 1000 m — pinned by the last test in this block, which is the one that
+ * makes the rest of it safe. Raising it to 2,600 m to admit Skyway would have weakened the Koons Park
+ * guard across all 48 metros in exchange for two rows. A band-anchored adoption instead clears two
+ * fences the wrong road segment cannot contaminate: the metro envelope, and a locus derived from the
+ * venue's postcode (never its street — the street is what produced the band).
+ *
+ * FIXTURE GEOMETRY IS CONSTRUCTED, not copied off a live venue: each coordinate is placed at a chosen
+ * distance by latitude offset (2280 m = 0.020481 deg) so the boundary each test probes is legible from
+ * the numbers rather than dependent on what OSM holds today. The envelope is Syracuse's real one.
+ */
+describe('coordinate adoption — the street-band fallback path', () => {
+  const BAND_LAT = 43.1228399
+  const BAND_LNG = -76.1386095
+  const at = (metresNorth: number) => BAND_LAT + metresNorth / 111320
+
+  /** The real Syracuse row's anchor: a secondary road matched off the ADDRESS rung. */
+  const ROAD = {
+    licence: LICENCE,
+    osm_type: 'way', osm_id: 343907770,
+    lat: String(BAND_LAT), lon: String(BAND_LNG),
+    category: 'highway', type: 'secondary',
+    name: 'East Taft Road',
+    namedetails: { name: 'East Taft Road' },
+    address: { road: 'East Taft Road', town: 'North Syracuse', postcode: '13212' },
+  }
+
+  /** The courts themselves, 2,280 m from the band — unadoptable under the 1000 m anchor guard. */
+  const PITCH = {
+    licence: LICENCE,
+    osm_type: 'way', osm_id: 1200000001,
+    lat: String(at(2280)), lon: String(BAND_LNG),
+    category: 'leisure', type: 'pitch',
+    name: 'Skyway Park Pickleball Courts',
+    namedetails: { name: 'Skyway Park Pickleball Courts' },
+    address: { road: 'East Taft Road', town: 'North Syracuse', postcode: '13212' },
+  }
+
+  /** The 13212 postcode centroid — 926 m from the courts, and independent of East Taft Road. */
+  const ZIP_CENTROID = {
+    licence: LICENCE,
+    osm_type: 'node', osm_id: 900001,
+    lat: String(at(1354)), lon: String(BAND_LNG),
+    category: 'place', type: 'postcode',
+    name: '13212', namedetails: { name: '13212' },
+    address: { postcode: '13212' },
+  }
+
+  /** Syracuse's real locked envelope. */
+  const ENVELOPE = { latMin: 42.72, latMax: 43.83, lngMin: -76.65, lngMax: -75.23 }
+
+  const bandTabs = () => ({
+    'Import Ready': [
+      ['research_key', 'name', 'city', 'state', 'zip', 'address', 'access_type', 'fee_type', 'research_status', 'website'],
+      ['syr-skyway', 'Skyway Park', 'North Syracuse', 'NY', '13212', '5950 E Taft Rd', 'public', 'free', 'probable', 'https://www.northsyracuse.org/'],
+    ],
+  })
+
+  const bandBase = {
+    metro: 'unit-test', batch: 'unit-test', metro_area: 'Syracuse', states: ['NY'],
+    envelope: ENVELOPE,
+    workbook: { header_row: 1 },
+  }
+
+  /**
+   * ROUTES BY QUERY SHAPE, so the venue lands on the `address` rung specifically — which is what the
+   * street-band signature requires. Every rung carrying the venue NAME returns nothing; the bare
+   * address query returns the road. A `street=` query returns nothing, which doubles as proof the
+   * fallback never depends on a street locus: it is not merely unused here, it is unavailable.
+   */
+  function bandNet(lookupPayload: unknown, { zip = [ZIP_CENTROID], city = [] as unknown[] } = {}) {
+    const calls = { lookup: 0, search: 0, postcode: 0 }
+    const fetchImpl = async (url: URL | string) => {
+      const s = String(url)
+      const p = new URL(s).searchParams
+      let payload: unknown = []
+      if (s.includes('/lookup')) { calls.lookup++; payload = lookupPayload }
+      else {
+        calls.search++
+        const q = p.get('q') || ''
+        if (p.get('street')) payload = []
+        else if (p.get('postalcode') && !q) { calls.postcode++; payload = zip }
+        else if (p.get('city') && !q) payload = city
+        else if (q && !q.includes('Skyway Park')) payload = [ROAD]
+        else payload = []
+      }
+      return {
+        ok: true, status: 200, statusText: 'OK',
+        headers: { get: () => null },
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      } as any
+    }
+    return { fetchImpl, calls }
+  }
+
+  const bandAdoption = (over: Row = {}) => ({
+    venue_facts: {
+      'syr-skyway': {
+        adjudicated_by: 'feature-builder',
+        adjudicated_on: '2026-08-07',
+        coordinate: {
+          osm_id: 'way/1200000001',
+          expect_lat: at(2280),
+          expect_lng: BAND_LNG,
+          evidence_url: 'https://www.openstreetmap.org/way/1200000001',
+          reason: 'OSM carries the courts as four sport=pickleball pitches; the address is a range so the ladder can only ever reach the road.',
+          ...over,
+        },
+      },
+    },
+  })
+
+  const runBand = (config: Row, stub: ReturnType<typeof bandNet>) =>
+    extract({ tabs: bandTabs(), config, geocode: true, cachePath: cachePath(), log: () => {}, fetchImpl: stub.fetchImpl })
+
+  /** Seven live-shaped rungs plus a lookup, each paying the real >=1.1 s spacing. */
+  const BAND_SLOW = 45_000
+
+  it('adopts a feature 2,280 m from a street band that the anchor guard would refuse', async () => {
+    const stub = bandNet([PITCH])
+    const doc = await runBand({ ...bandBase, ...bandAdoption() }, stub)
+    const c = doc.venues[0].coordinates
+
+    // The superseded pin really was a band off the address rung — the precondition, not an assumption.
+    expect(c.adopted_from.superseded.anchor).toMatch(/^highway\//)
+    expect(c.adopted_from.superseded.precision).toBe('low')
+    expect(c.adopted_from.moved_m).toBe(2280)
+    expect(c.lat).toBeCloseTo(at(2280), 7)
+
+    // ...and it passed under the fallback, with the ordinary limit recorded beside it so the artifact
+    // says plainly that 2,280 m was NOT waved through the 1000 m guard.
+    const g = c.adopted_from.anchor_guard
+    expect(g.guard).toBe('street-band-fallback')
+    expect(g.ordinary_anchor_limit_m).toBe(1000)
+    expect(g.limit_m).toBe(5000)
+    expect(g.envelope).toBe('inside')
+    expect(g.locus_kind).toBe('zip')
+    expect(g.locus_distance_m).toBe(926)
+    expect(c.adopted_from.superseded_was_street_band).toContain('STREET-BAND ANCHOR')
+  }, BAND_SLOW)
+
+  // THE LOCUS IS FREE IN PRACTICE. The township rung already asks `{postalcode, country}` and the
+  // cache is keyed on the params alone, so the fallback's zip query is a HIT on a venue that reached
+  // the township rung — which every band-anchored venue does, since a band is never `high`.
+  it('costs no extra live request for the locus when the township rung already resolved the zip', async () => {
+    const stub = bandNet([PITCH])
+    await runBand({ ...bandBase, ...bandAdoption() }, stub)
+    expect(stub.calls.postcode).toBe(1)
+    expect(stub.calls.lookup).toBe(1)
+  }, BAND_SLOW)
+
+  it('refuses a feature outside the metro envelope, before it ever asks for a locus', async () => {
+    const far = { ...PITCH, lat: '44.2000000' }
+    const cfg = { ...bandBase, ...bandAdoption({ expect_lat: 44.2 }) }
+    await expect(runBand(cfg, bandNet([far]))).rejects.toThrow(/OUTSIDE the Syracuse envelope/)
+  }, BAND_SLOW)
+
+  it('refuses a feature beyond the locus limit even though it is inside the envelope', async () => {
+    // 6,000 m north of the zip centroid, still comfortably inside Syracuse's box.
+    const lat = at(1354) + 6000 / 111320
+    const drifted = { ...PITCH, lat: String(lat) }
+    const cfg = { ...bandBase, ...bandAdoption({ expect_lat: lat }) }
+    await expect(runBand(cfg, bandNet([drifted]))).rejects.toThrow(/sits 6000 m from syr-skyway's zip locus — limit 5000 m/)
+  }, BAND_SLOW)
+
+  it('refuses when NO road-independent locus resolves, rather than fencing on the envelope alone', async () => {
+    const stub = bandNet([PITCH], { zip: [], city: [] })
+    await expect(runBand({ ...bandBase, ...bandAdoption() }, stub))
+      .rejects.toThrow(/NO ROAD-INDEPENDENT LOCUS could be resolved/)
+  }, BAND_SLOW)
+
+  it('refuses when the config carries no envelope to fall back to', async () => {
+    const { envelope, ...noEnvelope } = bandBase
+    await expect(runBand({ ...noEnvelope, ...bandAdoption() }, bandNet([PITCH])))
+      .rejects.toThrow(/this config has none/)
+  }, BAND_SLOW)
+
+  // THE TEST THAT KEEPS THE REST OF THIS BLOCK HONEST. Same 2,280 m, same everything — except the
+  // superseded anchor is a BOUNDARY CENTROID rather than a road, so it is not a band and the ordinary
+  // guard applies unchanged. If this ever passes, ADOPT_ANCHOR_MAX_M has been loosened by the back
+  // door and the Koons Park trap is open in every metro.
+  it('still refuses 2,280 m when the superseded anchor is NOT a road — the constant is untouched', async () => {
+    const boundary = {
+      ...ROAD,
+      category: 'boundary', type: 'administrative',
+      name: 'North Syracuse', namedetails: { name: 'North Syracuse' },
+    }
+    const stub = bandNet([PITCH])
+    const inner = stub.fetchImpl
+    // Same routing, but the address rung yields a boundary centroid instead of a road.
+    const fetchImpl = async (url: URL | string) => {
+      const s = String(url)
+      const p = new URL(s).searchParams
+      const q = p.get('q') || ''
+      if (!s.includes('/lookup') && q && !q.includes('Skyway Park') && !p.get('street')) {
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          headers: { get: () => null },
+          json: async () => [boundary],
+          text: async () => JSON.stringify([boundary]),
+        } as any
+      }
+      return inner(url)
+    }
+    await expect(runBand({ ...bandBase, ...bandAdoption() }, { ...stub, fetchImpl }))
+      .rejects.toThrow(/sits 2280 m from syr-skyway's own anchor .* limit 1000 m/)
+  }, BAND_SLOW)
+})
+
 describe('coordinate adoption — no-op by construction', () => {
   it('changes nothing for a config with no coordinate entry', async () => {
     const stub = net([COURTS])

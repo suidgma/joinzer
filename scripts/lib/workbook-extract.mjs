@@ -47,7 +47,13 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { geocodeVenue, lookupOsmFeature, houseNumberOf, houseNumberRangeOf, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath } from './geocode-nominatim.mjs'
+import { geocodeVenue, lookupOsmFeature, houseNumberOf, houseNumberRangeOf, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath, resolveNonStreetLocus, zipFromAddress, ADOPT_BAND_LOCUS_MAX_M } from './geocode-nominatim.mjs'
+// The street-band detector, imported rather than re-implemented. It shipped in PR #543 to flag these
+// pins on the NAIP contact sheet, and it is the SAME FACT the adoption guard needs: "is this anchor a
+// road centreline by construction?" A second heuristic here would be a second thing to keep in step,
+// and the two would disagree on the day it mattered. naip-contact-sheet.mjs is pure and dependency
+// free, so importing it costs nothing at module load.
+import { streetBandVerdict } from './naip-contact-sheet.mjs'
 
 /**
  * How far an adopted OSM feature may sit from the point recorded at adjudication time.
@@ -2278,6 +2284,11 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
   //      ladder already produced. Same question, same evidence and same magnitude as the same-site
   //      name pass's guard — "is this named feature the same site?" — against the same trap (Koons
   //      Park, a confident exact name match 14 km away in another township).
+  //      ONE EXCEPTION, WITH ITS OWN FENCES: when the coordinate being superseded is a STREET BAND,
+  //      this guard's premise ("the existing pin is approximately right") is false by definition and
+  //      it measures the error being repaired. Such an adoption is guarded against the metro envelope
+  //      AND a road-independent locus instead, both mandatory — see the branch at the guard itself.
+  //      ADOPT_ANCHOR_MAX_M is NOT loosened; the band case takes a different fence, not a wider one.
   //   4. AN ANCHOR IS REQUIRED. A venue with no coordinate has nothing to measure against, so
   //      adoption refuses rather than accepting an unguarded feature id. That is the same posture the
   //      township rung takes when no locus resolves ("an unguarded bare-name query is never issued").
@@ -2329,8 +2340,71 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
         throw new Error(`${where}: ${c.osm_id} now resolves ${crosscheck} m from the adjudicated point (${c.expect_lat},${c.expect_lng}) — limit ${ADOPT_CROSSCHECK_MAX_M} m. The OSM feature was moved or redrawn since ${spec.adjudicated_on}. Re-adjudicate and update expect_lat/expect_lng; do NOT widen the tolerance.`)
       }
       const moved = Math.round(metresBetween(hit.lat, hit.lng, before.lat, before.lng))
-      if (moved > ADOPT_ANCHOR_MAX_M) {
-        throw new Error(`${where}: ${c.osm_id} sits ${moved} m from ${key}'s own anchor (${before.anchor}) — limit ${ADOPT_ANCHOR_MAX_M} m. A feature that far away is a different place, which is exactly the failure an exact name match cannot catch (the Koons Park trap). Verify the id names THIS venue's courts.`)
+
+      // ---- WHICH GUARD APPLIES depends on WHAT THE SUPERSEDED ANCHOR IS ---------------------------
+      // The anchor guard above asks "is the adopted feature near the pin we already have?" and treats
+      // a large distance as evidence of a different place. That inference rests on a premise — the
+      // existing pin is approximately right — which is TRUE for AdventHealth (a 407 m error on a
+      // parkway beside the courts) and FALSE BY DEFINITION for a street band. A band means Nominatim
+      // matched the right ROAD NAME and returned the wrong SEGMENT, so the guard would be measuring
+      // from the very error the adoption exists to repair. Syracuse's Skyway Park carries FOUR
+      // `sport=pickleball` pitches in OSM and sits 2,280 m from its band; Van Buren Central Park the
+      // same at 2,532 m. Under the anchor guard both are permanently unadoptable for the wrong reason.
+      //
+      // SO THIS IS A SECOND PATH, NOT A LOOSER CONSTANT — and that distinction is the whole design.
+      // ADOPT_ANCHOR_MAX_M STAYS AT 1000 m and still governs every ordinary adoption. Raising it to
+      // 2,600 m to admit Skyway would have weakened the Koons Park guard for all 48 metros at once,
+      // in exchange for two rows. Instead a band-anchored adoption is guarded against TWO fences that
+      // the wrong road segment cannot contaminate, and must clear BOTH:
+      //
+      //   1. THE METRO ENVELOPE — the config's own bounding box, the same fence the importer applies
+      //      at preflight. Free, no request, and it fails closed: a config with no envelope refuses
+      //      the adoption rather than proceeding unfenced.
+      //   2. A ROAD-INDEPENDENT LOCUS — the venue's postcode centroid, or its city centroid when it
+      //      carries no zip. Never its street: the street is what produced the band, so re-deriving
+      //      it would reproduce the error and then certify it (see resolveNonStreetLocus).
+      //
+      // THE TRIGGER IS THE DETECTOR THAT ALREADY SHIPPED. `streetBandVerdict` (PR #543) reads the
+      // three-clause signature — precision `low`, matched_rung `address`, no osm_id — off the
+      // coordinate node itself. It was built to flag exactly these pins on the NAIP contact sheet, and
+      // it is the same fact this guard needs, so it is imported rather than restated. Anything it does
+      // NOT call a band takes the ordinary anchor guard, unchanged.
+      const band = streetBandVerdict({ precision: before.precision, provenance: { coordinate: before } })
+      let anchorGuard
+      if (!band.streetBand) {
+        if (moved > ADOPT_ANCHOR_MAX_M) {
+          throw new Error(`${where}: ${c.osm_id} sits ${moved} m from ${key}'s own anchor (${before.anchor}) — limit ${ADOPT_ANCHOR_MAX_M} m. A feature that far away is a different place, which is exactly the failure an exact name match cannot catch (the Koons Park trap). Verify the id names THIS venue's courts.`)
+        }
+        anchorGuard = { guard: 'anchor', limit_m: ADOPT_ANCHOR_MAX_M, distance_m: moved }
+      } else {
+        const env = config.envelope
+        if (!env || env.latMin == null || env.latMax == null || env.lngMin == null || env.lngMax == null) {
+          throw new Error(`${where}: ${key}'s superseded anchor is a STREET BAND (${before.anchor}), so the ${ADOPT_ANCHOR_MAX_M} m anchor guard cannot apply — it would measure from the error being repaired. The fallback fence is this config's "envelope", and this config has none (or an incomplete one). Derive the envelope from --stage=project and lock it before adopting; an unfenced adoption is never issued.`)
+        }
+        const insideEnvelope = hit.lat >= env.latMin && hit.lat <= env.latMax && hit.lng >= env.lngMin && hit.lng <= env.lngMax
+        if (!insideEnvelope) {
+          throw new Error(`${where}: ${c.osm_id} resolves to ${hit.lat},${hit.lng}, OUTSIDE the ${config.metro_area} envelope (lat ${env.latMin}..${env.latMax}, lng ${env.lngMin}..${env.lngMax}). The superseded anchor is a street band so distance from it proves nothing, but a feature outside the metro is not this venue's courts under any reading. Re-adjudicate the id.`)
+        }
+        const locus = await resolveNonStreetLocus({ zip: v.zip, city: v.city, state: v.state, address: v.address?.value }, { cachePath, ...net })
+        if (!locus) {
+          throw new Error(`${where}: ${key}'s superseded anchor is a STREET BAND, and NO ROAD-INDEPENDENT LOCUS could be resolved — neither its postcode (${v.zip || zipFromAddress(v.address?.value) || 'none'}) nor its city (${v.city || 'none'}) returned a usable centroid. The street locus is deliberately not consulted here: the street is what produced the band. With nothing to measure against, the adoption is refused rather than fenced by the envelope alone. Give the row a zip, or leave it held on its honest band.`)
+        }
+        const fromLocus = Math.round(metresBetween(hit.lat, hit.lng, locus.lat, locus.lng))
+        if (fromLocus > ADOPT_BAND_LOCUS_MAX_M) {
+          throw new Error(`${where}: ${c.osm_id} sits ${fromLocus} m from ${key}'s ${locus.kind} locus — limit ${ADOPT_BAND_LOCUS_MAX_M} m. The superseded anchor is a street band so it cannot be the reference, but the venue's own ${locus.kind} still can, and this feature is outside it. That is the Koons Park trap in its band form — an exact name match in the wrong township. Verify the id names THIS venue's courts; do NOT widen the limit.`)
+        }
+        anchorGuard = {
+          guard: 'street-band-fallback',
+          reason: 'the superseded anchor is a street band, so distance from it measures the error being repaired rather than the correctness of the adoption',
+          superseded_band_distance_m: moved,
+          envelope: 'inside',
+          locus_kind: locus.kind,
+          locus_lat: locus.lat,
+          locus_lng: locus.lng,
+          locus_distance_m: fromLocus,
+          limit_m: ADOPT_BAND_LOCUS_MAX_M,
+          ordinary_anchor_limit_m: ADOPT_ANCHOR_MAX_M,
+        }
       }
 
       // The reconcile target's id, when this venue has one, recorded as a CROSS-CHECK rather than
@@ -2364,7 +2438,14 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
           expect_lng: c.expect_lng,
           crosscheck_delta_m: crosscheck,
           moved_m: moved,
+          // WHICH FENCE CLEARED THIS ADOPTION, on the row. Two adoptions with the same moved_m can
+          // have passed for entirely different reasons — 900 m under the anchor guard is "near the
+          // existing pin", 900 m under the band fallback is "the existing pin was on a road and this
+          // sits inside the metro and near the venue's own zip". A reader asking "why was a 2,280 m
+          // move allowed here and a 1,100 m move refused there" gets the answer from the artifact.
+          anchor_guard: anchorGuard,
           superseded: { lat: before.lat, lng: before.lng, precision: before.precision, anchor: before.anchor },
+          ...(band.streetBand ? { superseded_was_street_band: band.reason } : {}),
           reconcile_target_osm_id: recTarget,
           matches_reconcile_target: matchesReconcile,
           licence: hit.licence,
@@ -2375,6 +2456,10 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
       }
       log(`  + ${key.padEnd(30)} ${hit.precision.padEnd(6)} adopted ${c.osm_id} "${hit.matched_name}" — ${moved} m from the superseded anchor, cross-check ${crosscheck} m`)
       log(`      superseded: ${before.precision} — ${before.anchor}`)
+      if (anchorGuard.guard === 'street-band-fallback') {
+        log(`      STREET-BAND FALLBACK: the superseded anchor is a road centreline, so the ${ADOPT_ANCHOR_MAX_M} m anchor guard does not apply — it would measure from the error being repaired.`)
+        log(`      guarded instead by: inside the ${config.metro_area} envelope, and ${anchorGuard.locus_distance_m} m from the venue's ${anchorGuard.locus_kind} locus (limit ${ADOPT_BAND_LOCUS_MAX_M} m)`)
+      }
       if (matchesReconcile === true) log(`      corroboration: this is the SAME OSM feature ${key} reconciles onto (${recTarget})`)
       if (matchesReconcile === false) log(`      REVIEW: ${key} reconciles onto ${recTarget} but adopts ${c.osm_id} — legitimate only if the courts are a different OSM feature from the reconcile target`)
       verifiedFactsApplied.push({

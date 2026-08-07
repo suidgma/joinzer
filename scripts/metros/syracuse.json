@@ -86,6 +86,28 @@
           "reason": "workbook left it 'unknown'; the controlling entity names a single unambiguous access class (55+ senior membership), which is ruling-1 branch 1 — take it"
         }
       }
+    },
+    "syr-skyway": {
+      "adjudicated_by": "feature-builder",
+      "adjudicated_on": "2026-08-07",
+      "coordinate": {
+        "osm_id": "way/336908450",
+        "expect_lat": 43.1240954,
+        "expect_lng": -76.1105948,
+        "evidence_url": "https://www.openstreetmap.org/way/336908450",
+        "reason": "OSM carries the venue itself as leisure/park way/336908450 \"Skyway Park\", containing four sport=pickleball pitches (way/1416783511-14). The query ladder cannot reach it: OSM has no house number 5950 on East Taft Road, so every address rung falls back to the East Taft Road centreline 2,283 m away and classifies low. The superseded anchor is therefore a STREET BAND — Nominatim matched the right road NAME and returned the wrong SEGMENT — which is why the 1000 m anchor guard does not apply and the envelope + zip-locus fence does."
+      }
+    },
+    "syr-van-buren": {
+      "adjudicated_by": "feature-builder",
+      "adjudicated_on": "2026-08-07",
+      "coordinate": {
+        "osm_id": "way/419320185",
+        "expect_lat": 43.1256814,
+        "expect_lng": -76.3302582,
+        "evidence_url": "https://www.openstreetmap.org/way/419320185",
+        "reason": "OSM carries the venue itself as leisure/park way/419320185 \"Van Buren Central Park\", with two sport=pickleball pitches (way/1503982599, way/1503982600) inside its recreation_ground. The query ladder cannot reach it: OSM has no house number 7350 on Canton Street, so every address rung falls back to the Canton Street centreline 2,529 m away and classifies low. The superseded anchor is a STREET BAND, so the adoption is fenced by the metro envelope and the venue's 13027 zip locus rather than by distance from the road."
+      }
     }
   },
   "workbook": {
