@@ -187,9 +187,24 @@ describe('selectBackupPaths — geocode cache, both B3 outcomes', () => {
 describe('toRepoPathspec', () => {
   it('rewrites a cwd-relative path into a repo-relative pathspec with forward slashes', () => {
     expect(pathspec('metro-research/toledo/tabs.json')).toBe('toledo/tabs.json')
-    expect(pathspec('metro-research\\toledo\\tabs.json')).toBe('toledo/tabs.json')
     expect(pathspec('metro-research/.geocode-cache/toledo.json')).toBe('.geocode-cache/toledo.json')
   })
+
+  /**
+   * WINDOWS-ONLY: a backslash is a path SEPARATOR on Windows and an ordinary filename character on
+   * Linux, so `metro-research\toledo\tabs.json` is one flat filename there and correctly resolves
+   * to null rather than to a pathspec. Split out of the test above so the two platform-agnostic
+   * cases keep running on the ubuntu CI runner; before this split the whole test failed there.
+   *
+   * The behaviour is real and worth keeping — git wants forward slashes and the callers hand this
+   * Windows paths — it just cannot be asserted anywhere except Windows.
+   */
+  it.skipIf(process.platform !== 'win32')(
+    'rewrites a BACKSLASH path too, because callers on Windows produce them',
+    () => {
+      expect(pathspec('metro-research\\toledo\\tabs.json')).toBe('toledo/tabs.json')
+    },
+  )
 
   it('refuses anything that escapes the repo or is absolute', () => {
     expect(pathspec('scripts/metros/toledo.json')).toBeNull()

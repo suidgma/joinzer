@@ -1324,6 +1324,105 @@ export async function lookupOsmFeature(osmId, { venueName, wantHouseNumber = nul
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// A locus that is INDEPENDENT OF THE ROAD — what a street-band anchor cannot supply
+// ---------------------------------------------------------------------------------------------
+/**
+ * WHY THIS EXISTS: the ordinary adoption anchor guard measures the adopted feature against the
+ * coordinate the ladder already produced. That premise — "the existing pin is roughly right, so a
+ * feature far from it is a different place" — holds for Orlando's AdventHealth case (407 m) and is
+ * FALSE BY DEFINITION when the existing pin is a street band. There, Nominatim matched the right
+ * ROAD NAME and returned the wrong SEGMENT, so the guard is measuring from the very error being
+ * repaired. Syracuse's Skyway Park (four `sport=pickleball` pitches in OSM) sits 2,280 m from its
+ * band and Van Buren Central Park 2,532 m — both unadoptable under a 1000 m guard that is asking
+ * the wrong question.
+ *
+ * THE FIX IS A DIFFERENT LOCUS, NOT A LOOSER LIMIT. `ADOPT_ANCHOR_MAX_M` stays at 1000 m for the
+ * ordinary case; a band-anchored adoption is guarded against something the road cannot contaminate.
+ *
+ * THE STREET LOCUS IS DELIBERATELY EXCLUDED, and that exclusion is the whole point. `resolveTownshipLocus`
+ * prefers a street locus because it is tighter — but here the street is EXACTLY the thing that produced
+ * the wrong answer, so re-deriving it would reproduce the error and then certify it. Only components
+ * that are independent of the road are consulted, in the order they can be trusted:
+ *
+ *   1. the POSTCODE centroid — one zip, one centroid, and it cannot be township-vs-postal-city
+ *      ambiguous. Delegated to `resolveTownshipLocus` with `streetHits` empty so a zip locus resolved
+ *      here is byte-identical to one resolved by the township rung.
+ *   2. the CITY centroid — coarser, and used only when the venue carries no zip. Note the standing
+ *      caveat that a zip's USPS postal city can name another county's town; the city rung inherits
+ *      that weakness, which is why it is second and never preferred.
+ *
+ * RETURNS NULL WHEN NEITHER RESOLVES, and the caller MUST treat that as "refuse the adoption" rather
+ * than "adopt unguarded" — the same posture the township rung takes ("an unguarded bare-name query is
+ * never issued"). A refusal holds a row; an unguarded adoption publishes a pin nobody measured.
+ */
+/** The ZIP a workbook wrote into the address line instead of into the zip column.
+ *
+ *  NOT A CONVENIENCE. All three Syracuse rows this fallback exists for carry `zip: null` while their
+ *  address strings end in the postcode — "7439 Canton Street Road, Baldwinsville, NY 13027". Without
+ *  this the locus degrades to a CITY centroid, and a city centroid is measurably the weaker fence for
+ *  exactly the venues that need it: Van Buren Central Park sits in the TOWN of Van Buren under the
+ *  postal city Baldwinsville, whose village centroid is ~3.7 km north of the park. That still passes
+ *  at 5,000 m, but on 1.36x margin against a limit whose whole justification is the 2.77x separation
+ *  it holds from the Koons Park trap. The venue's own postcode restores that margin.
+ *
+ *  ANCHORED AND FIXED-WIDTH, deliberately — the same "reject by FORM" discipline as SUITE_SUFFIX and
+ *  osmIdToLookupParam. A loose `\d{5}` anywhere in the string would read a house number ("13027 Main
+ *  St") as a postcode. Only a 5-digit group, optionally ZIP+4, at the very END of the address is one.
+ *  Reading it off the address is the same operation `houseNumberOf` already performs on the other end
+ *  of the same string, so it introduces no new class of inference. */
+export function zipFromAddress(address) {
+  const m = /\b(\d{5})(?:-\d{4})?\s*$/.exec(String(address || '').trim())
+  return m ? m[1] : null
+}
+
+export async function resolveNonStreetLocus(
+  { zip, city, state, address, country = 'United States' } = {},
+  { cachePath: cp = DEFAULT_CACHE, fetchImpl = fetch } = {},
+) {
+  loadCache(cp)
+  const postcode = zip || zipFromAddress(address)
+  if (postcode) {
+    const { results } = await nominatim({ postalcode: postcode, country }, { fetchImpl })
+    const locus = resolveTownshipLocus({ zipHits: results })
+    if (locus) return locus
+  }
+  if (city) {
+    const { results } = await nominatim({ city, state, country }, { fetchImpl })
+    const hit = (Array.isArray(results) ? results : []).find((h) => coordOf(h) !== null) || null
+    if (hit) {
+      const c = coordOf(hit)
+      return { kind: 'city', lat: c.lat, lng: c.lng, from_zip_m: null, hit, discarded_street: null }
+    }
+  }
+  return null
+}
+
+/** How far an ADOPTED feature may sit from a road-independent locus when the anchor it supersedes is
+ *  a street band. Deliberately the SAME NUMBER as `TOWNSHIP_NAME_MAX_M`, and re-exported under its own
+ *  name rather than hard-coded, because it is the same question against the same trap on the same
+ *  evidence: "is this named feature the venue the address describes, or a same-named place elsewhere?"
+ *
+ *  The Koons Park trap — an exact name match that classifies `high` 14 km away — sits **13,829 m from
+ *  its ZIP locus**, and the design sample for the legitimate side was Creekview Park at **2,982 m**.
+ *
+ *  QUOTE THE MEASURED MAXIMUM, NOT THE DESIGN SAMPLE — the same correction TOWNSHIP_NAME_MAX_M's own
+ *  comment had to make. The first venue this path ran on already beat Creekview: **Van Buren Central
+ *  Park was accepted at 4,146 m** from its 13027 zip locus, because 13027 is a large rural postcode
+ *  whose centroid sits by Baldwinsville village while the park is at its southern edge. So the real
+ *  figures are **1.21x headroom** over the widest legitimate acceptance (not 1.68x), and **3.34x**
+ *  separation between the two observed sets (13,829 / 4,146). Skyway Park's was 2,326 m.
+ *
+ *  A COARSE LOCUS IS A WEAK FENCE, AND THAT IS THE ARGUMENT FOR THE ENVELOPE CLAUSE, not against this
+ *  one. A rural zip centroid can sit kilometres from a venue at its edge, which is exactly why the
+ *  band fallback requires envelope containment TOO and why `zipFromAddress` exists to avoid falling
+ *  further back to a city centroid. Neither fence alone would be worth much; both must pass.
+ *
+ *  DO NOT RAISE IT TO RESCUE A ROW. The failure direction is safe by construction: exceeding it
+ *  REFUSES the adoption, which leaves the row held on its honest street band rather than publishing a
+ *  wrong pin. If a venue cannot pass this, the adjudication is what needs re-examining. */
+export const ADOPT_BAND_LOCUS_MAX_M = TOWNSHIP_NAME_MAX_M
+
 /** Great-circle-ish metres. Same formula the import scripts use, kept identical so a delta computed
  *  here and a delta recomputed in preflight agree to the metre. */
 export function metresBetween(aLat, aLng, bLat, bLng) {

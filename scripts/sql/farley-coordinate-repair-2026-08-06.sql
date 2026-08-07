@@ -1,0 +1,47 @@
+-- Farley coordinate repair — 2026-08-06
+--
+-- William J Farley Community Park (Phoenix, NY) published on a STREET-BAND ANCHOR: the
+-- ladder matched "Chestnut Street" and returned the road centreline, because the source
+-- address `132-198 Chestnut St` is a RANGE and can never geocode to a point. That range
+-- check is what PR #543 shipped, and it pointed straight at this venue.
+--
+-- Adopted OSM feature: way/1508655746 (leisure=pitch). Cross-check 0 m, anchor 515 m
+-- against ADOPT_ANCHOR_MAX_M = 1000. Precision classified low -> medium, NOT asserted —
+-- it is an unnamed pitch with no house number and the classifier said so honestly.
+-- NOTE: the way is tagged sport=tennis. Shared-use lining is the norm and the
+-- corroboration holds (courts ~7 m from the resolved point; the 2019 crop shows two hard
+-- courts in the park) — but "pitch" must not be read as "pickleball pitch".
+--
+-- BEFORE STATE, captured live immediately prior to applying:
+--   id                 f1989cd9-bdba-42e4-8ad2-991a079bb67e
+--   slug               william-j-farley-community-park-phoenix-ny
+--   status             published
+--   lat / lng          43.2275267 / -76.2907577
+--   location_precision low
+--   matched_rung       address
+--   osm_id             (null)
+--   provenance keys    24
+--   verified_by        syracuse-v3-2026-08-06
+--
+-- SAFETY: jsonb_set touches the {coordinate} key ONLY, so the other 23 provenance keys
+-- are preserved rather than replaced wholesale. The WHERE pins the OLD coordinate, so a
+-- re-run matches 0 rows and fails loudly instead of double-applying.
+
+-- ---------------------------------------------------------------------------------------
+-- ROLLBACK (run this to undo)
+-- ---------------------------------------------------------------------------------------
+-- do $$
+-- declare n int;
+-- begin
+--   update facility_listings
+--      set lat = 43.2275267,
+--          lng = -76.2907577,
+--          provenance = jsonb_set(provenance, '{coordinate}',
+--            (provenance -> 'coordinate') - 'adopted_from'
+--              || jsonb_build_object('precision','low','matched_rung','address','osm_id', null),
+--            true)
+--    where id = 'f1989cd9-bdba-42e4-8ad2-991a079bb67e'
+--      and lat = 43.2265891;
+--   get diagnostics n = row_count;
+--   if n <> 1 then raise exception 'ROLLBACK matched % rows, expected 1', n; end if;
+-- end $$;
