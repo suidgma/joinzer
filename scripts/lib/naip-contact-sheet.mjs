@@ -145,29 +145,88 @@ export function stalenessVerdict({ imageryDate, opened, openedSource }) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Street-band anchor
+// ---------------------------------------------------------------------------------------------
+/**
+ * IS THIS PIN ON A ROAD BY CONSTRUCTION? Read off the row itself, with no prose and no curation.
+ *
+ * WHY THIS EXISTS. The staleness flag only fires when a row's provenance prose happens to mention an
+ * opening date, so everything else was silently missed and the pilot's three genuinely-broken
+ * Syracuse cells rendered as ordinary "worth a look" crops beside a correct pin whose complex simply
+ * post-dates the imagery. Curating opening dates closes one of those gaps and only for venues someone
+ * remembers to add. This closes the other one structurally.
+ *
+ * THE SIGNATURE, and why each of the three clauses is load-bearing:
+ *
+ *   location_precision = 'low'                      the classifier already said this anchor is not
+ *                                                   venue-scale
+ *   provenance.coordinate.matched_rung = 'address'  it came off the address ladder, not a name query
+ *   provenance.coordinate.osm_id IS NULL            and no OSM FEATURE was matched
+ *
+ * Together those mean Nominatim matched the street and nothing else. The crosshair is therefore
+ * sitting on a road centreline, and the crop shows a road — not because the venue is missing, but
+ * because that is literally where the pin is. That is a fact about the ROW, derivable before a single
+ * pixel is fetched, which is what makes it stronger than any reading of the imagery.
+ *
+ * DISTINCT FROM STALE, DELIBERATELY, because the reviewer action is the opposite:
+ *   stale       -> come back when there is new flight
+ *   street-band -> this pin needs a real anchor (a house number, or an adjudicated OSM feature via
+ *                  `venue_facts.<key>.coordinate`)
+ * Collapsing them into one "uninformative" badge would send a reviewer away from the only class here
+ * that is fixable today.
+ *
+ * PILOT SPLIT, and the check to run if this is ever changed: on Syracuse's 58 published rows the rule
+ * matches Skyway Park, Van Buren Central Park, William J Farley Community Park — the three cells the
+ * owner independently identified as suspicious — plus Syracuse Indoor Pickleball, which is a genuine
+ * street-band anchor that also happens to be indoor. Onondaga Lake Park Pickleball Complex, the venue
+ * whose empty crop is explained by a post-2019 build rather than a bad pin, does NOT match: its
+ * precision is `high`. If a change to this rule stops separating those two classes, the change is
+ * wrong — do not adjust the rule to fit a different answer.
+ */
+export function streetBandVerdict({ precision, provenance }) {
+  const c = provenance?.coordinate
+  if (precision !== 'low') return { streetBand: false }
+  if (!c || c.matched_rung !== 'address') return { streetBand: false }
+  if (c.osm_id != null) return { streetBand: false }
+  return {
+    streetBand: true,
+    anchor: c.anchor ?? null,
+    reason: 'STREET-BAND ANCHOR — Nominatim matched the street and no OSM feature, so the crosshair is on a road centreline by construction. The crop shows a road because the pin is on one. This pin needs a real anchor: a house number, or an adjudicated OSM feature.',
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Likely-uninformative
 // ---------------------------------------------------------------------------------------------
 /**
  * Crops unlikely to tell a reviewer anything, so attention goes where it pays.
  *
- * Three rules, each with a stated reason that renders on the cell:
+ * Four rules, each with a stated reason that renders on the cell:
  *
- *   no-imagery — `identify` returned no source catalog item. Outside NAIP coverage, or a gap. There
- *                is nothing to look at, and an empty grey square must not read as "no courts here".
- *   stale      — the flight predates the venue. Covered above; repeated here because "should I spend
- *                attention on this cell" is the question this list answers.
- *   indoor     — an indoor facility is a roof from above. The crop can confirm a BUILDING exists at
- *                the pin, which is weak evidence, and can never confirm courts.
+ *   no-imagery  — `identify` returned no source catalog item. Outside NAIP coverage, or a gap. There
+ *                 is nothing to look at, and an empty grey square must not read as "no courts here".
+ *   stale       — the flight predates the venue. Covered above; repeated here because "should I spend
+ *                 attention on this cell" is the question this list answers.
+ *   indoor      — an indoor facility is a roof from above. The crop can confirm a BUILDING exists at
+ *                 the pin, which is weak evidence, and can never confirm courts.
+ *   street-band — the pin is on a road centreline by construction (see streetBandVerdict). The crop
+ *                 cannot speak to the venue because it is not centred on the venue.
  *
- * DELIBERATELY NOT ON THIS LIST: a `low` location_precision. That is the class where a gross error is
- * MOST likely, so routing attention away from it would defeat the tool. The sheet shows the precision
- * as a neutral badge instead, so a reviewer knows the pin is a street or centroid anchor by our own
- * record and reads "no courts at the crosshair" accordingly.
+ * THE LIST IS ABOUT THE CROP, NOT ABOUT THE ROW. A street-band cell's IMAGERY is uninformative and
+ * its ROW is the most actionable thing on the sheet — which is why the renderer gives it its own
+ * badge, its own filter, its own stat, and exempts it from the generic "hide likely-uninformative"
+ * sweep. Getting that backwards would bury the repairable class.
+ *
+ * STILL DELIBERATELY NOT ON THIS LIST: a bare `low` location_precision. `low` alone is where a gross
+ * error is MOST likely and the crop may well show the venue anyway (a park polygon centroid is `low`
+ * and usually lands inside the park). Only the full three-clause street-band signature says the pin
+ * is on a road; the sheet keeps showing precision as a neutral badge for everything else.
  */
-export function uninformativeReasons({ imageryDate, indoor, stale }) {
+export function uninformativeReasons({ imageryDate, indoor, stale, streetBand }) {
   const reasons = []
   if (!imageryDate) reasons.push({ code: 'no-imagery', text: 'no NAIP source tile covers this point — nothing to review' })
   if (stale) reasons.push({ code: 'stale', text: 'imagery predates the venue — an empty crop proves nothing' })
+  if (streetBand) reasons.push({ code: 'street-band', text: 'pin is on a road centreline — the crop is not centred on the venue' })
   if (indoor === true) reasons.push({ code: 'indoor', text: 'indoor venue — a roof from above cannot confirm courts' })
   return reasons
 }
@@ -189,6 +248,7 @@ const BLIND_SPOTS = [
   ['This CANNOT confirm court type.', 'Pickleball, tennis and generic hard court are not distinguishable at 0.6 m. A rectangle of the right shape is a court, not necessarily <em>this</em> court.'],
   ['This CANNOT see anything built after the flight date.', 'Every cell shows its own acquisition date. Dates vary by tile, not by metro — read the one on the cell.'],
   ['&ldquo;No courts visible&rdquo; is NOT &ldquo;bad coordinate&rdquo;.', 'Check the acquisition date beside the crop first. Without that check this tool generates false alarms on our newest and best venues — which is exactly backwards.'],
+  ['The two flags are NOT the same problem.', '<b>STALE</b> means come back when there is new imagery — the pin may well be perfect. <b>STREET-BAND</b> means the pin is on a road by our own record, and is fixable today with a house number or an adjudicated OSM feature. A cell carrying neither, showing no courts on recent imagery, is the one that needs a human to look.'],
 ]
 
 /**
@@ -200,13 +260,17 @@ const BLIND_SPOTS = [
 export function renderContactSheet({ metro, venues, generatedAt, params, siteUrl = 'https://www.joinzer.com' }) {
   const flagged = venues.filter((v) => v.stale || v.uninformative.length)
   const stale = venues.filter((v) => v.stale)
+  const band = venues.filter((v) => v.streetBand)
   const dates = [...new Set(venues.map((v) => v.imageryDate).filter(Boolean))].sort()
 
   const cells = venues.map((v) => {
     const badges = []
     if (v.stale) badges.push(`<span class="badge stale">STALE — ${esc(v.stale.reason)}</span>`)
+    // Two verdicts, two actions, two badges. STALE says "come back when there is new imagery";
+    // STREET-BAND says "this pin needs a real anchor" — and only the second is fixable today.
+    if (v.streetBand) badges.push(`<span class="badge band">${esc(v.streetBand.reason)}${v.streetBand.anchor ? `<br>anchor: ${esc(v.streetBand.anchor)}` : ''}</span>`)
     for (const r of v.uninformative) {
-      if (r.code === 'stale') continue // already stated above, in more detail
+      if (r.code === 'stale' || r.code === 'street-band') continue // both stated above, in more detail
       badges.push(`<span class="badge dim">${esc(r.text)}</span>`)
     }
     if (v.precision && v.precision !== 'high') badges.push(`<span class="badge note">coordinate precision: ${esc(v.precision)}</span>`)
@@ -214,6 +278,7 @@ export function renderContactSheet({ metro, venues, generatedAt, params, siteUrl
 
     const classes = ['cell']
     if (v.stale) classes.push('is-stale')
+    if (v.streetBand) classes.push('is-band')
     if (v.uninformative.length) classes.push('is-dim')
     if (!v.stale && !v.uninformative.length) classes.push('is-clean')
 
@@ -248,10 +313,12 @@ export function renderContactSheet({ metro, venues, generatedAt, params, siteUrl
 <title>NAIP geocode QA — ${esc(metro)}</title>
 <style>
   :root { color-scheme: light dark; --bg:#fff; --fg:#16191d; --muted:#5b6470; --line:#dfe3e8;
-          --stale:#b4530a; --stale-bg:#fff4e6; --dim:#5b6470; --dim-bg:#f1f3f5; --note-bg:#eef2f7; }
+          --stale:#b4530a; --stale-bg:#fff4e6; --dim:#5b6470; --dim-bg:#f1f3f5; --note-bg:#eef2f7;
+          --band:#0b5cad; --band-bg:#e7f1fb; }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#14171a; --fg:#e8eaed; --muted:#9aa4b1; --line:#2a2f36;
-            --stale:#ffb066; --stale-bg:#3a2408; --dim:#9aa4b1; --dim-bg:#22262b; --note-bg:#1e242b; }
+            --stale:#ffb066; --stale-bg:#3a2408; --dim:#9aa4b1; --dim-bg:#22262b; --note-bg:#1e242b;
+            --band:#7fbcf5; --band-bg:#0d2136; }
   }
   * { box-sizing: border-box; }
   body { margin:0; padding:24px; background:var(--bg); color:var(--fg);
@@ -273,6 +340,7 @@ export function renderContactSheet({ metro, venues, generatedAt, params, siteUrl
          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
   figure { margin:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--bg); }
   figure.is-stale { border-color: var(--stale); }
+  figure.is-band { border-color: var(--band); }
   .frame { position:relative; aspect-ratio:1; background:var(--dim-bg); display:grid; place-items:center; }
   .frame img { width:100%; height:100%; object-fit:cover; display:block; }
   figure.is-dim .frame img { opacity:.55; }
@@ -295,8 +363,16 @@ export function renderContactSheet({ metro, venues, generatedAt, params, siteUrl
   .badges { display:flex; flex-direction:column; gap:5px; margin-top:10px; }
   .badge { font-size:11.5px; line-height:1.35; padding:5px 8px; border-radius:6px; background:var(--note-bg); }
   .badge.stale { background:var(--stale-bg); color:var(--stale); font-weight:600; }
+  .badge.band { background:var(--band-bg); color:var(--band); font-weight:600; }
   .badge.dim { background:var(--dim-bg); color:var(--dim); }
-  body.hide-clean .is-clean, body.hide-dim .is-dim, body.hide-stale .is-stale { display:none; }
+  /* hide-dim EXEMPTS street-band cells on purpose. A street-band crop is uninformative and its ROW
+     is the most repairable thing on the sheet, so the generic sweep must not take it with the rest;
+     it gets its own checkbox instead. (No backticks in here — this whole block is inside a template
+     literal and one would end the string.) */
+  body.hide-clean .is-clean, body.hide-dim .is-dim:not(.is-band), body.hide-stale .is-stale,
+  body.hide-band .is-band { display:none; }
+  /* Not dimmed either — a reviewer confirming "yes, that is a road" needs to see the road. */
+  figure.is-band .frame img { opacity:1; }
   footer { max-width:1100px; margin:32px auto 0; padding-top:16px; border-top:1px solid var(--line);
            font-size:12px; color:var(--muted); }
 </style>
@@ -316,6 +392,7 @@ export function renderContactSheet({ metro, venues, generatedAt, params, siteUrl
   <ul class="stats">
     <li>flagged: <b>${flagged.length}</b></li>
     <li>stale imagery: <b>${stale.length}</b></li>
+    <li>street-band anchor: <b>${band.length}</b></li>
     <li>likely uninformative: <b>${venues.filter((v) => v.uninformative.length).length}</b></li>
     <li>clean: <b>${venues.filter((v) => !v.stale && !v.uninformative.length).length}</b></li>
     <li>acquisition dates: <b>${dates.length ? esc(dates.join(', ')) : 'none'}</b></li>
@@ -325,6 +402,7 @@ export function renderContactSheet({ metro, venues, generatedAt, params, siteUrl
     <label><input type="checkbox" data-hide="hide-clean"> hide clean</label>
     <label><input type="checkbox" data-hide="hide-dim"> hide likely-uninformative</label>
     <label><input type="checkbox" data-hide="hide-stale"> hide stale</label>
+    <label><input type="checkbox" data-hide="hide-band"> hide street-band</label>
   </div>
 </header>
 

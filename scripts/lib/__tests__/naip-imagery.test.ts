@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   webMercator, cropBbox, chooseSize, sourceCatalogItems, acquisitionDate, summarizeIdentify,
-  naipRetryDelayMs, fetchWithRetry, MAX_PIXELS, MIN_BACKOFF_MS,
+  naipRetryDelayMs, fetchWithRetry, cropStamp, stampMatches, MAX_PIXELS, MIN_BACKOFF_MS,
 } from '../naip-imagery.mjs'
 
 type Row = Record<string, any>
@@ -24,6 +24,8 @@ const acqDate = acquisitionDate as (ms: unknown) => string | null
 const summarize = summarizeIdentify as (j: unknown) => Row
 const retryDelay = naipRetryDelayMs as (a: Row) => number | null
 const withRetry = fetchWithRetry as (url: unknown, opts?: Row) => Promise<Row>
+const stamp = cropStamp as unknown as (a: Row) => Row
+const matches = stampMatches as (a: unknown, b: unknown) => boolean
 
 const response = (status: number, { retryAfter = null as string | null, contentType = 'image/jpeg' } = {}): Row => ({
   ok: status >= 200 && status < 300,
@@ -266,5 +268,43 @@ describe('fetchWithRetry', () => {
       fetchImpl: impl, sleepImpl: async () => {}, random: () => 0.5, beforeAttempt: async () => { attempts++ },
     })
     expect(attempts).toBe(3)
+  })
+})
+
+describe('cropStamp / stampMatches — a slug-keyed cache must not outlive its coordinate', () => {
+  const SKYWAY = { lat: 43.1228399, lng: -76.1386095, groundMeters: 400, size: 667, format: 'jpg' }
+
+  it('treats a moved pin as a cache MISS — the pilot repair case', () => {
+    // Same slug, same file on disk, different coordinate. Without this the sheet would show the
+    // street-band crop beside the repaired coordinate, asserting a pairing that was never true.
+    const before = stamp(SKYWAY)
+    const after = stamp({ ...SKYWAY, lat: 43.1240000, lng: -76.1400000 })
+    expect(matches(before, after)).toBe(false)
+  })
+
+  it('treats a re-run at the same coordinate as a HIT, so a normal re-run stays free', () => {
+    expect(matches(stamp(SKYWAY), stamp(SKYWAY))).toBe(true)
+    // ...and survives the float round-trip through the sidecar file.
+    expect(matches(JSON.parse(JSON.stringify(stamp(SKYWAY))), stamp(SKYWAY))).toBe(true)
+  })
+
+  it('invalidates on geometry too — those change the image without changing the filename', () => {
+    expect(matches(stamp(SKYWAY), stamp({ ...SKYWAY, groundMeters: 800 }))).toBe(false)
+    expect(matches(stamp(SKYWAY), stamp({ ...SKYWAY, size: 1000 }))).toBe(false)
+    expect(matches(stamp(SKYWAY), stamp({ ...SKYWAY, format: 'png' }))).toBe(false)
+  })
+
+  it('reads an absent or unparseable stamp as a miss rather than assuming a match', () => {
+    expect(matches(null, stamp(SKYWAY))).toBe(false)
+    expect(matches(undefined, stamp(SKYWAY))).toBe(false)
+    expect(matches('not an object', stamp(SKYWAY))).toBe(false)
+    expect(matches({}, stamp(SKYWAY))).toBe(false)
+  })
+
+  it('does not churn the whole corpus over sub-millimetre float noise', () => {
+    // 7 dp is ~11 mm. A difference below that cannot move a 0.6 m pixel, and treating it as a change
+    // would re-fetch ~1,700 crops from a public federal service for nothing.
+    expect(matches(stamp(SKYWAY), stamp({ ...SKYWAY, lat: 43.12283994 }))).toBe(true)
+    expect(matches(stamp(SKYWAY), stamp({ ...SKYWAY, lat: 43.1229 }))).toBe(false)
   })
 })
