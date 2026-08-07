@@ -23,8 +23,36 @@
   "_excluded_closed_venue": "DREAMLAND, DRIPPING SPRINGS — EXCLUDED, and it is the most consequential exclusion in this batch. 16 dedicated courts (12 outdoor, 4 covered), the site of the first two Major League Pickleball events, and by reputation the metro's marquee venue. It CLOSED PERMANENTLY ON 2024-12-31, confirmed by KXAN, KVUE and The Dink. Its own website dreamland.us still returns HTTP 200 nineteen months later, still prints 2770 W Hwy 290, still advertises daily clinics and leagues, and STILL SERVES A WORKING COURT-RESERVATION BOOKING WIDGET; a fetch instructed to look specifically for a closure notice found none, because none exists. The venue's own page — normally the strongest citation available — was the only wrong source in this metro. Written to court-verifier memory as a durable finding: a venue's own site proves the venue EXISTS, never that it is still OPERATING.",
   "_excluded_future_builds": "Austin is a boomtown and the announcement-to-opening pipeline is full, so four announced facilities were excluded under 'a project status report is not a facilities record': The Picklr Austin Oak Hill (8 indoor, opens December 2026 — future tense as of this build on 2026-08-07); PickleRage North Austin (9 indoor, announced for Q2 2026, no opening confirmation found); Courtside Bee Cave (6 courts, 'conceptual plans'); and Bee Cave Central Park pickleball, which appears in the 2023 council-approved park MASTER PLAN as a possible future amenity and is not built. RUSH (10037 Menchaca Road, Austin) IS INCLUDED rather than excluded — Community Impact and KVUE both report it partially open in a pre-launch phase with the first six of a planned fourteen courts operating, so court_count is recorded as 6, the number actually open.",
   "_hoa_mud_instrument": "THE METRO-SPECIFIC INSTRUMENT RAN. Texas suburbs run on Municipal Utility Districts and large master-planned HOAs whose amenity centres carry courts no city parks department lists — the same structural class as Florida's CDDs (which Tampa found carrying real venues) and California's recreation and park districts (which Bakersfield checked and found empty). Austin's answer sits between the two: REAL BUT SMALLER THAN FLORIDA'S. Three confirmed on the community's own site and imported (Avery Ranch Main Amenity Center 4 courts; Steiner Ranch Bella Mar 4 courts, 12401 Bella Mar Trail; Kissing Tree, 1426 Blushing Aster Dr. San Marcos, a 55+ Brookfield community). Ten more were named by a local real-estate aggregation and could NOT be confirmed on the community's own site, so they were excluded: Santa Rita Ranch, Travisso, Crystal Falls, Sweetwater, Easton Park, Plum Creek, Circle C Ranch, Teravista, Belterra, Sunfield. ROUGH HOLLOW is the case worth keeping: the aggregation says its Highland Village amenity centre has pickleball, and roughhollowlakeway.com's own amenities page — which enumerates the yacht club, Highland Village, lazy river, splash pad, pool, 20+ miles of trails, paddleboards and fitness centre — does not mention it. The community's own page beat the aggregation and the answer was no.",
-  "reconciles": [],
-  "_no_reconciles_comment": "Deliberately empty. Stage 2b ran as DISCOVERY over dormant OSM rows inside the envelope regardless of metro_area label and returned exactly three, all metro_area NULL / status draft: Austin Pickle Ranch (way/1271658860), Pickleball Courts Sun City (node/12026567769) and Austin Tennis Center (way/1164871073). None is reconciled. Austin Pickle Ranch is imported here as a fresh row on a Community Impact citation rather than reconciled, because the OSM row carries no attributes worth preserving. Sun City is held — see _sun_city_held. AUSTIN TENNIS CENTER IS DELIBERATELY LEFT DORMANT: no City of Austin facility of that name appears on austintexas.gov, and its coordinate (30.3126,-97.6384) sits in the Walnut Creek / Johnny Morris corridor where the city does run the Austin Tennis and Pickleball Center at Walnut Creek Sports Park — so it is most likely a stale duplicate of a row already in this batch under its correct name. Importing or reconciling it risks publishing one venue twice. Retire-or-merge is a decision for a later pass with a real source, not something to guess at import time.",
+  "reconciles": [
+    {
+      "candidate_key": "atx-austin-tennis-and-pickleball-center-at-walnut-creek-sports-park-austin",
+      "osm_id": "way/1164871073",
+      "listing_id": "d7812900-e992-40eb-bb3a-270d78b622cb",
+      "matched_distance_m": 44,
+      "adjudicated_by": "court-verifier",
+      "adjudicated_on": "2026-08-07",
+      "evidence_url": "https://www.austintexas.gov/parks/programs/pickleball",
+      "confidence": "high",
+      "note": "SAME SITE, 44 m apart. The dormant OSM row is named \"Austin Tennis Center\" and carries no city, no address and no metro_area; the City of Austin pickleball page names the facility \"Austin Tennis and Pickleball Center at Walnut Creek Sports Park\" at 7800 Johnny Morris Rd with 8 outdoor courts. This is the same municipal tennis centre after it took on pickleball - a rename, not a second venue. The candidates preflight flagged it as \"a RECONCILE decision for the owner, not an INSERT\" and that is what this is. The incoming coordinate is a HOUSE-NUMBER match on 7800 (high precision) against the OSM way centroid, so the reconcile IMPROVES the coordinate rather than degrading it and needs no coordinate_trade. Contrast the other collision in this batch: Austin Pickle Ranch, where the same-slug row sits 13.7 km away and is a genuinely different venue - see _slug_collision_two_venues_one_brand in the artifact.",
+      "osm_original": {
+        "osm_id": "way/1164871073",
+        "name": "Austin Tennis Center",
+        "slug": "austin-tennis-center-tx",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "lat": 30.3126179,
+        "lng": -97.6384404,
+        "surface": null,
+        "city": null,
+        "state": "TX",
+        "address": null,
+        "captured_on": "2026-08-07"
+      }
+    }
+  ],
+  "_no_reconciles_comment": "SUPERSEDED 2026-08-07 — this batch DOES have one reconcile; see reconciles[]. The original note predicted that dormant OSM row way/1164871073 \"Austin Tennis Center\" was most likely a stale duplicate of the Walnut Creek facility, and the candidates preflight then measured it at 44 m and confirmed exactly that. Of the three dormant OSM rows Stage 2b found inside the envelope: way/1164871073 is RECONCILED here; way/1271658860 \"Austin Pickle Ranch\" turned out to be a genuinely DIFFERENT venue 13.7 km from the one this batch researched and is left dormant (the batch row is renamed to its source own name, Austin Pickle Ranch Braker Lane, so the slugs no longer collide); node/12026567769 \"Pickleball Courts Sun City\" is held for want of a readable primary source.",
   "_sun_city_held": "SUN CITY TEXAS, GEORGETOWN is the largest single gated venue in this metro — a Del Webb 55+ community of 17,000+ residents on 7,000 acres, with pickleball court counts reported between 6 and 26 — and it is NOT in this batch. Its community association site sctexas.org returns HTTP 403 to every fetch, so no primary citation could be read, and the two aggregator court counts disagree by a factor of four. It is present as dormant OSM node/12026567769 at 30.7309325,-97.7701046, inside the envelope, which NAMES the candidate without citing it. The correct route when a readable source appears is venue_facts.<key>.coordinate adoption against that osm_id with expect_lat/expect_lng as a cross-check — not an address written from an aggregator.",
   "workbook": {
     "header_row": 1
