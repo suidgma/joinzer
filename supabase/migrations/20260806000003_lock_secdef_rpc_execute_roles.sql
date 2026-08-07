@@ -132,3 +132,24 @@ comment on function public.organizer_close_sub_request_record(uuid, uuid, text) 
   'Touches no placement, attendance, round or fixture row. EXECUTE is service_role only — enforced '
   'by 20260806000003, which revoked the anon/authenticated grants that 20260806000001 left in place '
   'despite claiming otherwise (revoking from PUBLIC does not remove Supabase''s direct role grants).';
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- CORRECTION (2026-08-06, migration 20260806000004). Carve-out item 2 above — `is_captain_of` — is
+-- out of date on both counts. It reads "left executable under the same owner decision" and "flagged
+-- for a follow-up decision rather than actioned unilaterally". Both were true when written. The
+-- owner made that decision the same day, and `20260806000004_lock_is_captain_of.sql` revoked EXECUTE
+-- from `public`, `anon` and `authenticated`. Its ACL is now `service_role` only.
+--
+-- So: DO NOT read item 2 as "leave this one alone." It is already actioned, on the evidence item 2
+-- itself set out (zero RLS policy references; sole caller `lib/profile/captain-check.ts` via the
+-- service-role client). The anon-executable SECURITY DEFINER set went 12 → 11. Note also that
+-- 20260806000004's own header gives a FALSE reason for why `is_captain_of` could not self-guard
+-- (it blames `LANGUAGE sql STABLE`); that file carries its own CORRECTION block explaining that a
+-- SQL function CAN call `auth.uid()` and that the real reason is its two-parameter signature.
+--
+-- ITEMS 1, 3 AND 4 OF THAT CARVE-OUT ARE UNCHANGED AND STILL BINDING. The seven RLS predicate
+-- helpers, `join_event` / `leave_event` / `assign_captain`, and `sync_last_login` must all remain
+-- executable, for exactly the reasons stated there. Only item 2 has moved.
+--
+-- Appended rather than edited: this migration is already applied to production and applied
+-- migrations are immutable here. Nothing in this block changes the database.

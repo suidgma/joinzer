@@ -1,0 +1,58 @@
+{
+  "_comment": "Palm Bay-Melbourne-Titusville, FL MSA (CBSA 37340) - Brevard County only. COMPLETION PASS, the THIRD batch for this metro, authored 2026-08-06 under the v3 source-led coverage-first methodology. The metro was ALREADY LIVE at 33 published / 39 rows when this pass began: melbourne-2026-07-31 (13 published, 2 held) and melbourne-v3-2026-08-06 (20 published, 4 held). NEITHER IS RE-IMPORTED - all 39 rows are unioned against (Stage 2b) and this grid carries only the 12 venues absent from them. SEPARATE CONFIG AND BATCH TAG for two independent reasons: candidate_key would collide with both earlier batches and abort --stage=candidates atomically, and --stage=listings INSERTs every artifact row unconditionally, so re-running either parent config would duplicate its whole batch. SAME metro_area 'Melbourne' so this extends /courts/in/melbourne rather than creating a second metro page (tampa-addendum-2 precedent).",
+
+  "_why_this_pass_exists": "The v3 pass's own artifact reported a Stage 2c yield of 2 of 24 venues and a gated share of 8%, against Greensboro's 11 of 19 and 53%, and diagnosed itself correctly: Brevard County Parks & Recreation had already aggregated the PUBLIC tier unusually well, while the private tier 'stayed invisible because the instrument that sees it - local editorial - was blocked' by a reCAPTCHA on Viera Voice. It recommended a completion pass 'at the HOA/CDD tier and the beachside cities'. This is that pass. The recommendation held: 12 new venues, 8 of them gated, plus Cape Canaveral - an entire incorporated city with zero prior rows, invisible to a county page that does not inventory municipalities.",
+
+  "metro": "melbourne-addendum",
+  "batch": "melbourne-addendum-2026-08-06",
+  "metro_area": "Melbourne",
+  "states": [
+    "FL"
+  ],
+  "input": "metro-research/melbourne-addendum/melbourne-addendum-candidates.json",
+  "discovered_by": "melbourne-addendum-research",
+  "geocode_cache": "metro-research/.geocode-cache/melbourne-addendum.json",
+
+  "_envelope_comment": "IDENTICAL to scripts/metros/melbourne.json and scripts/metros/melbourne-v3.json, and deliberately so - all three batches describe the same MSA, so they must assert the same boundary, and an addendum must never narrow its parent's envelope. Derived from the MSA COUNTY LIST, not from the observed bounding box of a 12-row batch: the MSA is a single county, Brevard, whose OSM boundary relation/389024 spans lat 27.8221..28.7914, lng -80.9880..-80.3851, rounded OUTWARD to 0.01 deg. THE ENVELOPE IS LOAD-BEARING FOR THIS PARTICULAR BATCH: zip 32976's USPS-preferred postal city is 'Sebastian, FL', which sits in INDIAN RIVER COUNTY outside this MSA, and had the Barefoot Bay row carried that city through, the envelope assertion is what would have caught it.",
+  "msa": "Palm Bay-Melbourne-Titusville, FL (Brevard county)",
+  "envelope": {
+    "latMin": 27.82,
+    "latMax": 28.8,
+    "lngMin": -80.99,
+    "lngMax": -80.38
+  },
+
+  "expected_count": 12,
+
+  "_geocode_comment": "THREE of the 12 venues carry NO street address, each a deliberate authoring decision rather than incomplete research, and each expected to reach only the name-based geocode rungs. heritage-isle-at-viera: the HOA's own page confirms the pickleball amenity but publishes no address; the only street number available was read on a senior-living directory, and an address is precisely the field an aggregator may not populate. del-webb-at-viera: two developer-controlled sites confirm the courts, neither gives an amenity-centre address, and the sales centre at 8926 Conventia Way is a DIFFERENT building that was deliberately not borrowed - a sales office is not the courts, and using it would be the Overlook Park failure mode. barefoot-bay-recreation-district-courts: the only confirmable address is the district's administrative office at 625 Barefoot Blvd, not the courts' own site. All three hold rather than carry a guessed pin, so require_all_geocoded is false.",
+  "require_all_geocoded": false,
+
+  "_expected_publish_comment": "AUTHORED AFTER the --stage=project projection was read, using the importer's OWN machine reason strings and nothing else. assertExpectedPublish does a SUBSTRING CONTAINMENT test against the importer's reason string, so prose here produces spurious failures on a correct split - the Jacksonville lesson, which cost seven false failures. Human rationale lives in _hold_rationale, which nothing asserts against. SLUGS WERE READ FROM the --stage=project output over metro-research/melbourne-addendum/melbourne-addendum-candidates.json, never re-derived - a hand-rolled slugify drops '&' and mangles initials, which is how Tampa produced a false 134-vs-130 mismatch.",
+  "expected_publish": {
+    "count": 8,
+    "hold": {
+      "manatee-hammock-park-and-campground-titusville-fl": "no coordinate",
+      "heritage-isle-at-viera-melbourne-fl": "no coordinate",
+      "del-webb-at-viera-melbourne-fl": "no coordinate",
+      "barefoot-bay-recreation-district-courts-barefoot-bay-fl": "no coordinate"
+    }
+  },
+  "_hold_rationale": {
+    "_note": "All four holds are coordinate problems, not evidence problems. Every one is a real venue whose pickleball claim is cited to a controlling entity; each is one address read away from publishing.",
+    "no_address_published": {
+      "slugs": ["heritage-isle-at-viera-melbourne-fl", "del-webb-at-viera-melbourne-fl", "barefoot-bay-recreation-district-courts-barefoot-bay-fl"],
+      "why": "Each carries a controlling-entity citation for the pickleball amenity and NO citable street address. Heritage Isle's HOA page confirms the amenity but publishes no address, and the one street number available sat on a senior-living directory. Del Webb's two developer-controlled sites confirm the courts but give no amenity-centre address; the 8926 Conventia Way sales centre is a different building and was deliberately not borrowed. Barefoot Bay's only confirmable address is the recreation district's administrative office at 625 Barefoot Blvd, not the courts. These need an address, not a retry."
+    },
+    "address_read_but_ungeocodable": {
+      "slugs": ["manatee-hammock-park-and-campground-titusville-fl"],
+      "why": "This one carries a real READ address - 7275 S. US Highway 1, from Brevard County's own campground page - and still holds, which is the geocoder behaving correctly. Nominatim holds no house number there, and the street rung found a 'South US Highway 1' segment 29,210 m from the 32780 zip centroid. The township guard DISCARDED it rather than anchoring there, so the row returns no coordinate instead of a pin 29 km out. US Highway 1 runs the length of the state, so this is the multi-segment-road hazard in its genuinely dangerous form. A Brubaker-Park-shaped hold, not a research failure."
+    }
+  },
+
+  "_geocode_anchor_review": "EVERY NEW COORDINATE WAS REVERSE-GEOCODED BEFORE IMPORT and all 8 resolve inside Brevard County, FL - the Melbourne same-name risk (Australia, plus Melbourne AR/IA/KY) did not materialise. Two anchors sit far enough from their own street address to be recorded explicitly, and BOTH were adjudicated as same-site offsets rather than the Greensboro wrong-campus failure: (1) suntree-country-club anchors on OSM relation/1230389, the golf-course polygon carrying addr:housenumber=300, whose centroid sits 347 m from a forward geocode of 300 Country Club Drive. A club with a golf course is the population at risk for wrong-campus errors, so this was checked deliberately - Suntree is a SINGLE campus and the courts lie inside the same property, so the offset is a polygon-centroid artefact, not a different site. (2) frank-t-forester-recreation-center anchors on OSM way/1039525699, a civic building named EXACTLY 'Frank T. Forester Recreation Center', 580 m from a forward geocode of 960 Cogswell Street. Nominatim places that building on Sherwood Lane, Rockledge, Brevard County; the City of Rockledge publishes 960 Cogswell Street, the address of the co-located McKnight Family Sports Complex. Both facts are sourced and neither is invented - the pin is the named building, the address is what the controlling entity publishes. The pin was kept because an exact name match on a civic building is a stronger identity signal than a mailing address.",
+
+  "_reconciles_comment": "NO RECONCILES. The v3 pass established, with a negative control, that Brevard holds no dormant raw OSM rows inside the envelope: a lat/lng SELECT over the whole envelope returned only that batch's own rows, while the same query shape does find OSM rows inside an Orlando-sized box, and 526 source='osm' rows exist in production with 20 in FL. Nothing has ingested OSM into Brevard since. Stage 2b for THIS pass was therefore a union against the 39 live rows rather than against dormant drafts, and it caught three would-be duplicates: an aggregator's 'Millbrook Twoplex' is Palmetto Park described twice, and 'Grant Street Community Center' and 'South Beach Community Center' are alternate names for the already-published joseph-n-davis-community-center and nancy-higgs-park-and-community-center.",
+  "reconciles": [],
+
+  "same_site_pairs": []
+}
