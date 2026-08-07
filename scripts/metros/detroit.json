@@ -9,9 +9,7 @@
   "input": "metro-research/detroit/detroit-candidates.json",
   "discovered_by": "detroit-source-led",
   "geocode_cache": "metro-research/.geocode-cache/detroit.json",
-
   "_envelope_comment": "Derived from the MSA COUNTY LIST, never from an observed bounding box (Toledo/Winston-Salem/Greensboro precedent). An observed bbox is only a LOWER bound - it says where the venues we happened to find are, not where the metro is, so an envelope cut to it rejects a legitimate future venue at the metro edge. Envelope = the union of the OSM boundary-relation bounding boxes for the six MSA counties, rounded OUTWARD to 0.01 deg: Wayne (relation/359767, lat 42.0279..42.4514, lng -83.5519..-82.7501), Oakland (relation/359761, lat 42.4312..42.8886, lng -83.6894..-83.0834), Macomb (relation/359762, lat 42.4472..42.8975, lng -83.1029..-82.7060), Livingston (relation/359765, lat 42.4239..42.7833, lng -84.1582..-83.6648), St. Clair (relation/574424, lat 42.4787..43.1689, lng -82.9962..-82.3354), Lapeer (relation/359763, lat 42.8804..43.3270, lng -83.4607..-82.9836). Edges are driven by Wayne (latMin), Lapeer (latMax), Livingston (lngMin) and St. Clair (lngMax).",
-
   "_envelope_overreach": "KNOWN AND RECORDED RATHER THAN SILENTLY NARROWED. The MSA is a ragged hexagon and an envelope is a rectangle, so THREE neighbouring CBSAs sit inside it and states:[MI] fences none of them. (1) ANN ARBOR MSA (CBSA 11460, Washtenaw County) sits ENTIRELY inside this rectangle - Ann Arbor, Ypsilanti, Pittsfield Twp, Saline, Chelsea, Dexter. This is not theoretical: SIX dormant OSM draft rows inside this envelope are Washtenaw's and are deliberately left untouched (see _stage_2b). (2) FLINT MSA (CBSA 22420, Genesee County) is largely inside it - Flint, Grand Blanc, Swartz Creek, Flushing, Clio, Davison, Linden. Also live: the Great Lakes Pickleball Association places-to-play page, this metro's single highest-yield regional source, carries a whole Genesee County section and every entry of it was excluded by county. (3) MONROE MSA (CBSA 33780) contributes only its northern sliver; most of Monroe County sits below latMin 42.02. Also inside the rectangle and excluded by county and by states:[MI]: WINDSOR, ONTARIO (42.3, -83.0), directly across the river from Detroit. Correctly OUTSIDE: Lansing (-84.55, west of lngMin), Toledo OH (41.65, below latMin), Saginaw and Bay City (north of latMax). If a Washtenaw, Genesee or Monroe row is ever admitted, tighten deliberately and name the row that forced it.",
   "msa": "Detroit-Warren-Dearborn, MI (Wayne, Oakland, Macomb, Livingston, St. Clair, Lapeer counties)",
   "envelope": {
@@ -20,31 +18,165 @@
     "lngMin": -84.16,
     "lngMax": -82.33
   },
-
   "expected_count": 126,
   "require_all_geocoded": false,
   "_require_all_geocoded_comment": "false because roughly a quarter of the 126 venues carry a DELIBERATELY BLANK street address. Each is an authoring decision, not incomplete research: either no controlling source publishes a street address at all, or two sources publish irreconcilable ones (Bash Pickleball Club: 6881 Chicago Rd vs 31201 Chicago Rd S; Woodall/River Bends: three different addresses), or the only 'address' on offer is a street INTERSECTION rather than a house number (Upton Park, Whittier Park, Royal Oak) or a street name with no number at all (PARC Plymouth). A recalled address that is wrong is indistinguishable from a fabricated one, so those rows reach only the name-based geocode rungs and are expected to hold on 'no coordinate' rather than publish a wrong pin. Every one of them is a lookup, not a research problem - one address read releases each.",
-
   "_stage_2b": "UNION AGAINST THE DATABASE, run as DISCOVERY rather than dedupe. A query for every facility_listings row inside this envelope REGARDLESS of metro_area returned 9 rows, all metro_area NULL, all status draft, all source osm, all verified_by NULL. SIX are Washtenaw County (Ann Arbor MSA) and are left exactly as they are, untouched and unstamped: Cayman Sports (node/9020709618), Grewal Park Neighbor's Court (way/1420080439), Grewal Park Central Grove Court (way/1420080440), Grewal Park Volleyview Court (way/1420080441), North Campus Recreation Building (relation/17558946, U-M Ann Arbor) and Varsity Pickleball (node/13829328635, Ypsilanti). THREE are in scope and each became a candidate in this batch only after a non-aggregator citation was found for it, because an OSM row NAMES a candidate but does not CITE one: Wicked Pickle (node/13704528673) confirmed on the operator's own site; Livonia Athletic District (way/299830708) corroborated by Detroit Metro Times; and Woodhaven Pickleball Courts (way/397330554), which carried NO city and NO address and was resolved to Woodhaven Civic Center Park. This is the Syracuse pattern - live venues invisible on any metro page because nothing had ever claimed them.",
-
-  "_reconciles_comment": "NO RECONCILES, deliberately. All three in-scope Stage 2b rows are raw OSM drafts carrying metro_area NULL that were re-researched and re-entered as fresh candidates in this batch rather than reconciled, because none was ever claimed by a metro and the batch is greenfield. They remain in the database as untouched drafts; nothing in this run stamps or publishes them.",
-  "reconciles": [],
-
+  "_reconciles_comment": "THREE RECONCILES, and this block is a CORRECTION. An earlier revision of this config asserted 'NO RECONCILES, deliberately' on the reasoning that a greenfield batch has nothing to reconcile against. THAT WAS WRONG, and PREFLIGHT caught it rather than any human review: all three in-scope Stage 2b rows already exist as live draft listings, and two of them (Wicked Pickle, Livonia Athletic District) generate the IDENTICAL slug from name+city+state, so the run aborted with 'slug collisions live (insert set)' plus 'that is a RECONCILE decision for the owner, not an INSERT'. THE LESSON IS THE DEFINITION: GREENFIELD MEANS NO ROWS FOR THIS METRO_AREA, NOT NO ROWS INSIDE THIS ENVELOPE - the dormant nationwide OSM ingest carries metro_area NULL and is therefore invisible to every metro-scoped query, including the one that established this metro was greenfield. Reconciling rather than inserting keeps the ODbL lineage and retires the raw OSM row in the same move. All three targets hold NOTHING a merge could lose: access_type='unknown' and court_count/indoor/surface/website/phone/public_notes/metro_area/verified_by all NULL, so every field is additive and incoming_wins_unless_null has nothing to preserve except the osm_id itself.",
+  "reconciles": [
+    {
+      "candidate_key": "det-wicked-pickle",
+      "osm_id": "node/13704528673",
+      "listing_id": "ab1f7af0-56de-48a7-9d8c-bdf084f48785",
+      "matched_distance_m": 0,
+      "adjudicated_by": "court-verifier (D4)",
+      "adjudicated_on": "2026-08-07",
+      "evidence_url": "https://www.wickedpicklemi.com/",
+      "confidence": "high",
+      "note": "SAME venue, established by address AND by an exact element match, not by proximity alone. The OSM row carries '36871 Warren Road, Westland, MI 48185' and the research row carries '36871 Warren Rd, Westland, MI 48185'; the research row's own structured geocode resolved to node/13704528673, THE VERY SAME OSM ELEMENT, so the separation is 0 m and the identity is the geocoder's own anchor rather than an inference. The pickleball claim does not rest on OSM: the operator's own site documents a 33,000 sq ft building with 10 climate-controlled indoor courts including 3 championship courts, opened May 2025.",
+      "osm_original": {
+        "osm_id": "node/13704528673",
+        "name": "Wicked Pickle",
+        "slug": "wicked-pickle-westland-mi",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "metro_area": null,
+        "address": "36871 Warren Road",
+        "city": "Westland",
+        "state": "MI",
+        "zip": "48185",
+        "lat": 42.3359917,
+        "lng": -83.4025728,
+        "verified_by": null,
+        "created_at": "2026-07-20 19:56:59.040246+00"
+      }
+    },
+    {
+      "candidate_key": "det-livonia-athletic-district",
+      "osm_id": "way/299830708",
+      "listing_id": "42bd9073-63d8-4861-8678-70af0cc0bcb5",
+      "matched_distance_m": 5,
+      "adjudicated_by": "court-verifier (D4)",
+      "adjudicated_on": "2026-08-07",
+      "evidence_url": "https://www.metrotimes.com/arts/where-to-play-pickleball-in-metro-detroit-35241755/",
+      "confidence": "high",
+      "note": "SAME venue. The OSM row carries '14255 Stark Road, Livonia, MI 48154' and the research row carries '14255 Stark Rd, Livonia, MI 48154'; the research row's structured geocode resolved to way/299830708, the same OSM element, so the 5 m is the gap between that element's centroid and its house-number anchor rather than evidence of two sites. The pickleball claim itself does NOT rest on OSM - an OSM row names a candidate but does not cite one - it rests on the Detroit Metro Times metro pickleball guide, which lists Livonia Athletic District as an indoor paid venue at that address.",
+      "osm_original": {
+        "osm_id": "way/299830708",
+        "name": "Livonia Athletic District",
+        "slug": "livonia-athletic-district-livonia-mi",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "metro_area": null,
+        "address": "14255 Stark Road",
+        "city": "Livonia",
+        "state": "MI",
+        "zip": "48154",
+        "lat": 42.3865894,
+        "lng": -83.379228,
+        "verified_by": null,
+        "created_at": "2026-07-20 19:56:59.040246+00"
+      }
+    },
+    {
+      "candidate_key": "det-woodhaven-civic-center-park",
+      "osm_id": "way/397330554",
+      "listing_id": "f1bb231f-9488-46e8-a6c2-4d85e478a0e2",
+      "matched_distance_m": 580,
+      "adjudicated_by": "court-verifier (D4)",
+      "adjudicated_on": "2026-08-07",
+      "evidence_url": "https://www.openstreetmap.org/way/397330554",
+      "confidence": "high",
+      "note": "SAME venue, and THIS ONE NEEDED REAL ADJUDICATION BECAUSE NEITHER GUARD WOULD HAVE RAISED IT. The dormant row is named 'Woodhaven Pickleball Courts' with NO city and NO address, so it slugs to 'woodhaven-pickleball-courts-mi' and collides with nothing; at 580 m it also sits outside reconcile_radius_m of 200 m. It would silently have become a permanent duplicate of a row this batch publishes. IDENTITY WAS ESTABLISHED BY READING THE ELEMENT, NOT BY DISTANCE: Overpass gives way/397330554 the tags leisure=pitch + sport=pickleball + name='Woodhaven Pickleball Courts', i.e. the actual court polygon, and a reverse geocode of its centroid returns 'Woodhaven Pickleball Courts, HALL ROAD, Woodhaven, Wayne County, Michigan, 48183' - the SAME STREET and the SAME ZIP as the research row's 24135 Hall Rd, Woodhaven 48183. The 580 m is the extent of Civic Center Park: the research row anchored on the park's house-number address point and the OSM way is the courts inside it. This is the address-point-vs-court-polygon split, at a larger separation than the usual tens of metres.",
+      "coordinate_note": "TRADE AVOIDED, NOT ACCEPTED — and this note is a correction of an earlier revision that accepted it. PRESERVE_ON_RECONCILE deliberately omits lat/lng, so the incoming value always wins; the research row anchored on the park address point at 24135 Hall Rd, which meant this reconcile would have OVERWRITTEN the court-accurate OSM polygon centroid with a pin 581 m away, inside the same park, with both values high precision and therefore with NO trade acknowledgement required and NO guard firing. That is a silent degradation of exactly the coordinate a player uses. Fixed at source rather than documented: venue_facts.det-woodhaven-civic-center-park.coordinate adopts way/397330554 itself, resolved live through /lookup with a 0 m cross-check against the adjudicated point, so the reconcile is now coordinate-neutral. The extractor independently corroborated that the adopted feature IS the reconcile target.",
+      "osm_original": {
+        "osm_id": "way/397330554",
+        "name": "Woodhaven Pickleball Courts",
+        "slug": "woodhaven-pickleball-courts-mi",
+        "source": "osm",
+        "status": "draft",
+        "access_type": "unknown",
+        "fee_type": null,
+        "metro_area": null,
+        "address": null,
+        "city": null,
+        "state": "MI",
+        "zip": null,
+        "lat": 42.1360481,
+        "lng": -83.2439931,
+        "verified_by": null,
+        "created_at": "2026-07-20 19:56:59.040246+00"
+      }
+    }
+  ],
   "_metro_specific_instruments": "Three source classes were enumerated as FIRST-CLASS sources because Michigan's local-government structure makes a city-only sweep structurally blind. (1) CHARTER TOWNSHIPS are separate legal authorities from both the city and the county, each with its own parks and recreation department, and Oakland and Macomb counties are dense with them - Independence (Clintonwood Park), Orion (three venues), Clinton (Ray Hernandez courts), Macomb (two venues), Shelby, Washington, Chesterfield, Waterford, West Bloomfield, Brandon, Oxford, Hamburg, Canton, Van Buren, Attica and Imlay all carry venues in this batch that a city-only sweep would have missed entirely. Same structural class as Florida's CDDs and California's recreation and park districts. (2) JOINT RECREATION AUTHORITIES, a class this build did not expect and found anyway: R.A.R.E. (Recreation Authority of Roseville and Eastpointe), SELCRA (South East Livingston County Recreation Authority), the Howell Area Parks & Recreation Authority and RARA (Rochester Avon Recreational Authority) each operate venues that belong to no single municipality. (3) HURON-CLINTON METROPARKS, a REGIONAL authority spanning five counties. (4) The MICHIGAN DNR RECREATION GRANT award history was searched and returned NO pickleball award for any of the six MSA counties in the window read - the recent Recreation Passport pickleball awards were Allegan County's. That is an honest null result for this metro, not a skipped instrument.",
-
   "_coverage_honesty": "126 venues for a 4.3M-person metro is 29 per million, against Tampa's 140 at 3.2M (44 per million). SAY THIS PLAINLY: the gap is a THIN SWEEP, not a ceiling, and this block exists so the final number cannot imply otherwise. The MSA contains roughly 130 municipalities and charter townships. TWO PASSES RAN, per the v3 rule that four-county metros need two and nothing was imported between them. Pass 1 confirmed ~45 municipalities individually. Pass 2 (the completion pass) worked the largest remaining names and added 5 venues - Romulus Athletic Center, Huntington Woods' Gillham Recreation Center and its 11 Mile/Huntington Rd courts, Grosse Pointe Farms' Pier Park, and Highland Township's Duck Lake Pines. A COMPLETION PASS THAT ADDS ONLY 5 IS ITSELF EVIDENCE, and it cuts both ways: a dozen further municipalities were queried and produced NO citable non-aggregator source, which is a real finding rather than a shortfall - Eastpointe, Center Line, Utica and Richmond return only recreation-department phone numbers; Garden City, South Lyon, Walled Lake and Algonac return aggregator listings only; Green Oak, Genoa and Fowlerville return nothing; and Redford Township runs a pickleball league whose own page never names the venue it plays at. Those are EXCLUDED and named here rather than ground down further, per the Boise/Kuna precedent that an uncitable municipality is a finding. STILL NOT INDIVIDUALLY CONFIRMED, and the right target for a third pass: Inkster, Wayne, Melvindale, Ecorse, River Rouge, Highland Park, Hamtramck, Grosse Ile, Brownstown Twp, Huron Twp, Sumpter Twp, Flat Rock, Gibraltar, Rockwood, Armada, Ray Twp, Lenox Twp, Bruce Twp, Pleasant Ridge, Lathrup Village, Keego Harbor, Sylvan Lake, Orchard Lake, Farmington, Holly, Rose Twp, Groveland Twp, Addison Twp, Oakland Twp, Lyon Twp, Commerce Twp, Marion Twp, Handy Twp, Tyrone Twp, most of St. Clair County (Marine City, St. Clair, Yale, Capac, Memphis, Clay Twp, Kimball Twp, Fort Gratiot Twp, Port Huron Twp) and most of Lapeer County (Almont, Dryden, Metamora, North Branch, Columbiaville). A six-county metro plausibly needs three passes; this is two.",
-
   "_stage_2c": "THE UNAGGREGATED-VENUE PASS RAN AND PAID. No parks department lists a country club, a church gym, a private racquet club or a school district facility. Found this way: Troy Racquet Club, Franklin Athletic Club, The Sports Club of Novi, Oak Pointe Country Club, Ace Pickleball Club Bloomfield Twp, Clarkston United Methodist Church, Mount Zion Community Center, St. Clement Catholic Church Gym (Romeo), Durant High School, Lake Orion Community Education Resource Center, Pinckney Community Schools Navigator School, the JCC of Metropolitan Detroit, and four YMCA of Metropolitan Detroit branches. The UNIVERSITY sub-pass returned essentially nothing: Wayne State, Oakland University, U-M Dearborn, Macomb CC, Oakland CC and Lawrence Tech publish no pickleball court information that any source read surfaces. That is a real negative for a commuter-heavy metro, not a skipped instrument - and it is the OPPOSITE of Tampa, where Hillsborough Community College's tennis centre was found only via Stage 2b. LOCAL EDITORIAL was again the single most productive instrument: Detroit Metro Times (the alt-weekly) alone named 30 venues including most of the City of Detroit recreation centres, and C&G Newspapers supplied the Sterling Heights Athletic Hub, Madison Heights Rosie's Park, Birmingham Crestview Park, the Novi expansion and the RARE park.",
-
   "_cross_state_contamination": "CAUGHT AND EXCLUDED - CANTON. Searching Canton Township, Michigan (a genuine Wayne County MSA municipality that genuinely has pickleball) returned cantonparksandrec.com and the 'Hall of Fame City Pickleball Club'. That is CANTON, OHIO - the Pro Football Hall of Fame city - and it is the SAME SITE the v3 methodology already names in its own warning from Jackson MS, 2026-08-05. It resurfaced unprompted here because both Cantons are real pickleball municipalities. What made it catchable was the CLUB NAME, not the URL: 'Hall of Fame City' is a civic nickname belonging to exactly one town in America, while the hostname cantonparksandrec.com contains no state at all. Nothing was extracted from it. Canton Township MI's controlling entity is cantonmi.gov, confirmed on the source itself (footer 46555 W Michigan Avenue, Canton, MI 48188-1699; area code 734). Two further same-name near-misses were checked and cleared the same way: Taylor, TEXAS ranks alongside Taylor, MICHIGAN on the Heritage Park query (cityoftaylor.com + Pardee Road is Michigan's), and Warren OH / Warren PA / several out-of-state Warren COUNTY parks departments rank alongside the City of Warren, Michigan (cityofwarren.org). A SECOND LIVE CATCH CAME IN THE COMPLETION PASS: searching Lincoln Park, MICHIGAN - a real Wayne County Downriver city - returned 'Bauler Park has a dedicated pickleball court', which is Lincoln Park, CHICAGO, a NEIGHBOURHOOD rather than a municipality, with Bauler Park on North Sedgwick in Illinois. Note the new shape: the collision was not city-vs-city but CITY-VS-NEIGHBOURHOOD, so no state-vs-state check on a municipality list would have flagged it. The same query also surfaced Lincoln Township Park, Stevensville MI - real Michigan, but Berrien County on the far west side of the state. Neither was extracted. FOUR cross-boundary catches in one metro is the highest of any build so far.",
-
   "_shared_saas_hostname_check": "One row rests on a shared municipal-SaaS hostname: Pickle Park is cited to vanburentwp.recdesk.com. Per the Boise/Middleton precedent - middleton.recdesk.com is WISCONSIN's, not Idaho's, and neither hostname names its state - the state was confirmed OFF the hostname before the citation counted: Van Buren Charter Township, Wayne County, Michigan, corroborated by the Belleville Area Independent's ribbon-cutting coverage and the 734 area code.",
-
   "_address_corrections_at_source": "THREE addresses in the regional sources were wrong and were corrected against the controlling entity. (1) WILDLIFE WOODS PARK, NOVI is the sharpest: the Great Lakes Pickleball Association gives '26442 Wixom Rd., 48362' - a wrong street number AND a zip that belongs to Lake Orion - and the Oakland County Times places the same park in the CITY OF WIXOM. The City of Novi's own park page gives 26600 Wixom Road, Novi MI 48375. All three wrong values would have geocoded to somewhere plausible INSIDE this envelope with no guard firing. (2) MACOMB TOWNSHIP RECREATION CENTER: aggregators give 20699 Macomb Street; the township's own pickleball page gives 54111 Broughton Road, Macomb MI 48042. (3) UWM SPORTS COMPLEX, PONTIAC: the Great Lakes list gives 957 South Blvd E, Detroit Metro Times and the venue's own listings give 867 S Blvd E; the two agreeing sources are used.",
-
   "_multi_campus_risk": "Rows flagged for the Greensboro/Sedgefield failure mode - a geocode landing on the RIGHT organisation's WRONG CAMPUS, which resolves high-precision, in the right city, in the right zip, inside the envelope, and which no proximity guard catches: OAK POINTE COUNTRY CLUB (has a golf course, so the ladder can anchor on a course feature rather than the clubhouse); THE J / JCC OF METROPOLITAN DETROIT (two campuses, West Bloomfield and Oak Park - only West Bloomfield is imported); LAKE ST. CLAIR METROPARK (a large multi-feature regional park); HERITAGE PARK, TAYLOR (a regional park containing a library, a petting farm, a conservatory and a historical area, any of which can outrank the courts). Every new coordinate must be reverse-geocoded before publish.",
-
+  "_expected_publish_comment": "The projected split, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees with this block, fix the pipeline or the data - never edit this block to match the output. FORMAT IS LOAD-BEARING: assertExpectedPublish does a SUBSTRING CONTAINMENT test against the importer's own reason string, so the values below are the importer's exact machine reasons ('no coordinate', 'research_status=held') and nothing else. Prose here produces spurious failures on a split that is actually correct - Jacksonville took 7 false failures that way on 2026-08-05. Human rationale lives in _hold_rationale, which nothing asserts against. Slugs were READ FROM metro-research/detroit/detroit-candidates.json and cross-checked against it programmatically, never re-derived - a hand-rolled slugify drops '&' and mangles initials, which is what produced Tampa's false 134-vs-130 mismatch. This batch has three '&' names (Ford Community & Performing Arts Center, Jack & Patti Salter Community Center, Hamburg Fitness Center & Camp) and one initialled name (Charles F. Sherman Memorial Park), so that hazard is live here.",
+  "expected_publish": {
+    "count": 105,
+    "hold": {
+      "the-picklr-westland-westland-mi": "research_status=held",
+      "maynard-aurand-memorial-park-new-baltimore-mi": "research_status=held",
+      "pinckney-community-schools-navigator-school-pinckney-mi": "research_status=held",
+      "affolter-park-trenton-mi": "no coordinate",
+      "parc-plymouth-arts-and-recreation-complex-plymouth-mi": "no coordinate",
+      "northville-parks-and-recreation-northville-mi": "no coordinate",
+      "harper-woods-recreation-harper-woods-mi": "no coordinate",
+      "lake-front-park-grosse-pointe-woods-mi": "no coordinate",
+      "pat-sullivan-whittier-park-pickleball-complex-royal-oak-mi": "no coordinate",
+      "ace-pickleball-club-bloomfield-township-bloomfield-township-mi": "no coordinate",
+      "the-sports-club-of-novi-novi-mi": "no coordinate",
+      "lake-orion-community-education-resource-center-lake-orion-mi": "no coordinate",
+      "bash-pickleball-club-warren-mi": "no coordinate",
+      "metro-pickleball-clinton-township-mi": "no coordinate",
+      "woodall-neighborhood-park-at-river-bends-park-shelby-township-mi": "no coordinate",
+      "new-baltimore-recreation-center-new-baltimore-mi": "no coordinate",
+      "neil-e-reid-park-mount-clemens-mi": "no coordinate",
+      "meijer-park-brighton-mi": "no coordinate",
+      "hartland-senior-center-howell-mi": "no coordinate",
+      "port-huron-tennis-house-port-huron-mi": "no coordinate",
+      "huntington-woods-tennis-and-pickleball-courts-huntington-woods-mi": "no coordinate"
+    }
+  },
+  "_hold_rationale": {
+    "_note": "Human-readable WHY for each of the 21 holds. Nothing asserts against this block. NOT ONE of them is an evidence problem - every held row is a real venue with a citable non-aggregator source for its pickleball claim. All 21 are COORDINATE problems, and each is one address read or one OSM fix away from publishing.",
+    "street_band_would_have_published": {
+      "slugs": [
+        "the-picklr-westland-westland-mi",
+        "maynard-aurand-memorial-park-new-baltimore-mi",
+        "pinckney-community-schools-navigator-school-pinckney-mi"
+      ],
+      "why": "THESE THREE WERE HELD DELIBERATELY AND WOULD OTHERWISE HAVE GONE LIVE. Each geocoded to a ROAD CENTRELINE rather than to the venue, because OSM carries no house number for the address and no feature under the venue's name, so the structured rung fell through to the street itself. ADR-16 ended coordinate precision as a gate condition, so a 'low' row publishes wearing an approximate-location label - which means nothing in the pipeline would have stopped a pin sitting in the middle of a road. The Picklr Westland anchored on highway/tertiary way/25926296 'Central City Parkway'; Maynard Aurand on highway/residential way/8685423 'Huntley Avenue', ~1.3 km west of New Baltimore's centre. WORST OF THE THREE is Navigator School, which anchored on highway/primary way/8643097 'M 36' - a STATE HIGHWAY running many miles across Livingston County, so the multi-segment-road hazard makes the error unbounded rather than merely large. Releasing any of them needs one coordinate, not more research; venue_facts.<key>.coordinate is the sanctioned mechanism.",
+      "note": "Marking research_status='held' in the artifact is what stops these. Do not 'fix' them by lowering a guard."
+    },
+    "no_address_published_anywhere": {
+      "count": 18,
+      "why": "Eighteen rows carry a deliberately blank street address and therefore reach only the name-based geocode rungs, which returned nothing. Three sub-classes, all authoring decisions rather than incomplete research. (a) NO SOURCE STATES AN ADDRESS AT ALL: Affolter Park, Northville Parks & Recreation, Harper Woods Recreation, Lake Front Park (Grosse Pointe Woods - the city's own page names eight courts but no street address), Ace Pickleball Club Bloomfield Twp, The Sports Club of Novi, Lake Orion CERC, Metro Pickleball, Neil E. Reid Park, Port Huron Tennis House, Gillham Recreation Center's sibling row. (b) SOURCES IRRECONCILABLY DISAGREE, so importing either would be a guess - Bash Pickleball Club (Detroit Metro Times says 6881 Chicago Rd, Visit Detroit says 31201 Chicago Rd S, neither read on a club-controlled page) and Woodall Neighborhood Park at River Bends (three different addresses on offer). (c) THE ONLY 'ADDRESS' ON OFFER IS NOT A HOUSE NUMBER - Whittier Park and Huntington Woods' 11 Mile courts give a street INTERSECTION, and PARC Plymouth gives a street name with no number. An intersection cannot drive the structured rung. Two further rows (Meijer Park Brighton, Hartland Senior Center) DO carry a full street address that simply is not in OSM at house-number level and returned no result from any rung; those two are pure re-geocode candidates."
+    }
+  },
   "workbook": {
     "header_row": 1
+  },
+  "venue_facts": {
+    "det-woodhaven-civic-center-park": {
+      "adjudicated_by": "court-verifier (D4)",
+      "adjudicated_on": "2026-08-07",
+      "coordinate": {
+        "osm_id": "way/397330554",
+        "expect_lat": 42.1360481,
+        "expect_lng": -83.2439931,
+        "evidence_url": "https://www.openstreetmap.org/way/397330554",
+        "reason": "ADOPT THE COURT POLYGON RATHER THAN THE PARK ADDRESS POINT. The query ladder cannot reach these courts: OSM carries the house number 24135 Hall Rd as a separate address point ~581 m from the courts themselves, so the structured rung anchors on the park entrance and the reconcile would then OVERWRITE the better coordinate with the worse one (PRESERVE_ON_RECONCILE omits lat/lng, so the incoming value always wins). way/397330554 is tagged leisure=pitch + sport=pickleball + name=Woodhaven Pickleball Courts and reverse-geocodes to Hall Road, Woodhaven, Wayne County, MI 48183 - the same street and zip as the research row - so it is the same site and it is literally the courts. Adopting it makes the reconcile coordinate-neutral (0 m) instead of a 581 m degradation, and keeps the public pin on the thing a player is looking for."
+      }
+    }
   }
 }
