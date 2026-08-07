@@ -1356,13 +1356,34 @@ export async function lookupOsmFeature(osmId, { venueName, wantHouseNumber = nul
  * than "adopt unguarded" — the same posture the township rung takes ("an unguarded bare-name query is
  * never issued"). A refusal holds a row; an unguarded adoption publishes a pin nobody measured.
  */
+/** The ZIP a workbook wrote into the address line instead of into the zip column.
+ *
+ *  NOT A CONVENIENCE. All three Syracuse rows this fallback exists for carry `zip: null` while their
+ *  address strings end in the postcode — "7439 Canton Street Road, Baldwinsville, NY 13027". Without
+ *  this the locus degrades to a CITY centroid, and a city centroid is measurably the weaker fence for
+ *  exactly the venues that need it: Van Buren Central Park sits in the TOWN of Van Buren under the
+ *  postal city Baldwinsville, whose village centroid is ~3.7 km north of the park. That still passes
+ *  at 5,000 m, but on 1.36x margin against a limit whose whole justification is the 2.77x separation
+ *  it holds from the Koons Park trap. The venue's own postcode restores that margin.
+ *
+ *  ANCHORED AND FIXED-WIDTH, deliberately — the same "reject by FORM" discipline as SUITE_SUFFIX and
+ *  osmIdToLookupParam. A loose `\d{5}` anywhere in the string would read a house number ("13027 Main
+ *  St") as a postcode. Only a 5-digit group, optionally ZIP+4, at the very END of the address is one.
+ *  Reading it off the address is the same operation `houseNumberOf` already performs on the other end
+ *  of the same string, so it introduces no new class of inference. */
+export function zipFromAddress(address) {
+  const m = /\b(\d{5})(?:-\d{4})?\s*$/.exec(String(address || '').trim())
+  return m ? m[1] : null
+}
+
 export async function resolveNonStreetLocus(
-  { zip, city, state, country = 'United States' } = {},
+  { zip, city, state, address, country = 'United States' } = {},
   { cachePath: cp = DEFAULT_CACHE, fetchImpl = fetch } = {},
 ) {
   loadCache(cp)
-  if (zip) {
-    const { results } = await nominatim({ postalcode: zip, country }, { fetchImpl })
+  const postcode = zip || zipFromAddress(address)
+  if (postcode) {
+    const { results } = await nominatim({ postalcode: postcode, country }, { fetchImpl })
     const locus = resolveTownshipLocus({ zipHits: results })
     if (locus) return locus
   }
@@ -1383,10 +1404,19 @@ export async function resolveNonStreetLocus(
  *  evidence: "is this named feature the venue the address describes, or a same-named place elsewhere?"
  *
  *  The Koons Park trap — an exact name match that classifies `high` 14 km away — sits **13,829 m from
- *  its ZIP locus**, and the largest legitimate zip-fallback acceptance measured across the corpus is
- *  Creekview Park at **2,982 m**. So against a zip locus 5,000 m carries 1.68x headroom over the
- *  widest real case and rejects the trap by 2.77x. The two Syracuse repairs this path exists for sit
- *  at 2,280 m and 2,532 m — inside the measured legitimate band, not stretching it.
+ *  its ZIP locus**, and the design sample for the legitimate side was Creekview Park at **2,982 m**.
+ *
+ *  QUOTE THE MEASURED MAXIMUM, NOT THE DESIGN SAMPLE — the same correction TOWNSHIP_NAME_MAX_M's own
+ *  comment had to make. The first venue this path ran on already beat Creekview: **Van Buren Central
+ *  Park was accepted at 4,146 m** from its 13027 zip locus, because 13027 is a large rural postcode
+ *  whose centroid sits by Baldwinsville village while the park is at its southern edge. So the real
+ *  figures are **1.21x headroom** over the widest legitimate acceptance (not 1.68x), and **3.34x**
+ *  separation between the two observed sets (13,829 / 4,146). Skyway Park's was 2,326 m.
+ *
+ *  A COARSE LOCUS IS A WEAK FENCE, AND THAT IS THE ARGUMENT FOR THE ENVELOPE CLAUSE, not against this
+ *  one. A rural zip centroid can sit kilometres from a venue at its edge, which is exactly why the
+ *  band fallback requires envelope containment TOO and why `zipFromAddress` exists to avoid falling
+ *  further back to a city centroid. Neither fence alone would be worth much; both must pass.
  *
  *  DO NOT RAISE IT TO RESCUE A ROW. The failure direction is safe by construction: exceeding it
  *  REFUSES the adoption, which leaves the row held on its honest street band rather than publishing a

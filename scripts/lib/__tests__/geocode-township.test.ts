@@ -16,6 +16,8 @@ import {
   metresBetween,
   resolveTownshipLocus,
   streetWithoutHouseNumber,
+  zipFromAddress,
+  ADOPT_BAND_LOCUS_MAX_M,
 } from '../geocode-nominatim.mjs'
 
 type Row = Record<string, any>
@@ -79,6 +81,36 @@ describe('streetWithoutHouseNumber', () => {
   })
   it('leaves an address with no house number alone', () => {
     expect(streetWithoutHouseNumber('Center Rd')).toBe('Center Rd')
+  })
+})
+
+describe('zipFromAddress — the postcode a workbook wrote into the address line', () => {
+  // Verbatim from the three Syracuse rows the street-band fallback exists for. All three carry
+  // `zip: null` in their own column, so without this the locus degrades to a city centroid.
+  it.each([
+    ['7439 Canton Street Road, Baldwinsville, NY 13027', '13027'],
+    ['5950 E Taft Rd, North Syracuse, NY 13212', '13212'],
+    ['7350 Canton St, Baldwinsville, NY 13027', '13027'],
+  ])('reads the trailing postcode off %s', (address, zip) => {
+    expect(zipFromAddress(address)).toBe(zip)
+  })
+
+  it('accepts ZIP+4 and returns the 5-digit form Nominatim indexes', () => {
+    expect(zipFromAddress('1 Main St, Anytown, NY 13027-4471')).toBe('13027')
+  })
+
+  // ANCHORED, so a house number that happens to be five digits is not read as a postcode. This is the
+  // failure a loose \d{5} would produce, and it would aim the guard at the wrong municipality.
+  it('does not mistake a five-digit HOUSE NUMBER for a postcode', () => {
+    expect(zipFromAddress('13027 Main St')).toBeNull()
+    expect(zipFromAddress('13027 Main St, Baldwinsville, NY')).toBeNull()
+  })
+
+  it('returns null rather than guessing when there is no postcode at all', () => {
+    expect(zipFromAddress('7350 Canton St')).toBeNull()
+    expect(zipFromAddress('')).toBeNull()
+    expect(zipFromAddress(null)).toBeNull()
+    expect(zipFromAddress(undefined)).toBeNull()
   })
 })
 
@@ -211,5 +243,30 @@ describe('the constants are the ones the evidence supports', () => {
   it('metresBetween reproduces the distances these thresholds were derived from', () => {
     expect(Math.round(distance(40.2486267, -76.665587, 40.341040, -76.795377))).toBe(15081)
     expect(Math.round(distance(40.2687507, -76.9776121, 40.248815, -77.001069))).toBe(2982)
+  })
+
+  /**
+   * ADOPT_BAND_LOCUS_MAX_M is TOWNSHIP_NAME_MAX_M under a second name, and that identity is asserted
+   * rather than left to a comment — if someone raises one to rescue a row, this fails and says so.
+   *
+   * It is measured against the ZIP locus, which is the fence a street-band adoption actually uses:
+   * the Koons Park trap sits 13,829 m from its zip centroid and the widest legitimate zip-fallback
+   * acceptance in the corpus is Creekview Park at 2,982 m.
+   */
+  it('the band fallback reuses the township constant, with zip-locus margins', () => {
+    expect(ADOPT_BAND_LOCUS_MAX_M).toBe(TOWNSHIP_NAME_MAX_M)
+
+    const designSample = 2982 // Creekview Park -> its zip centroid
+    const zipCorpusMax = 4146 // Van Buren Central Park -> its 13027 centroid — BINDING, measured on the
+                              // first venue this path ran on. A large rural zip, park at its edge.
+    const zipTrap = 13829 // Koons Park -> its zip centroid
+    expect(zipCorpusMax).toBeGreaterThan(designSample) // the binding case is NOT the one it was designed on
+    expect(ADOPT_BAND_LOCUS_MAX_M).toBeGreaterThan(zipCorpusMax)
+    expect(ADOPT_BAND_LOCUS_MAX_M).toBeLessThan(zipTrap)
+    // real headroom above the widest legitimate acceptance: 1.21x, not the 1.68x the design sample implied
+    expect(ADOPT_BAND_LOCUS_MAX_M / zipCorpusMax).toBeGreaterThan(1.2)
+    expect(ADOPT_BAND_LOCUS_MAX_M / zipCorpusMax).toBeLessThan(1.25)
+    // separation between the two OBSERVED sets: 3.34x
+    expect(zipTrap / zipCorpusMax).toBeGreaterThan(3.3)
   })
 })

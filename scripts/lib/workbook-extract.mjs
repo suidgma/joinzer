@@ -47,7 +47,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { geocodeVenue, lookupOsmFeature, houseNumberOf, houseNumberRangeOf, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath, resolveNonStreetLocus, ADOPT_BAND_LOCUS_MAX_M } from './geocode-nominatim.mjs'
+import { geocodeVenue, lookupOsmFeature, houseNumberOf, houseNumberRangeOf, flushCache, liveRequestCount, cacheStats, metresBetween, geocodeCachePath, resolveNonStreetLocus, zipFromAddress, ADOPT_BAND_LOCUS_MAX_M } from './geocode-nominatim.mjs'
 // The street-band detector, imported rather than re-implemented. It shipped in PR #543 to flag these
 // pins on the NAIP contact sheet, and it is the SAME FACT the adoption guard needs: "is this anchor a
 // road centreline by construction?" A second heuristic here would be a second thing to keep in step,
@@ -2385,9 +2385,9 @@ export async function extractWorkbook({ tabs, config, geocode = true, cachePath,
         if (!insideEnvelope) {
           throw new Error(`${where}: ${c.osm_id} resolves to ${hit.lat},${hit.lng}, OUTSIDE the ${config.metro_area} envelope (lat ${env.latMin}..${env.latMax}, lng ${env.lngMin}..${env.lngMax}). The superseded anchor is a street band so distance from it proves nothing, but a feature outside the metro is not this venue's courts under any reading. Re-adjudicate the id.`)
         }
-        const locus = await resolveNonStreetLocus({ zip: v.zip, city: v.city, state: v.state }, { cachePath, ...net })
+        const locus = await resolveNonStreetLocus({ zip: v.zip, city: v.city, state: v.state, address: v.address?.value }, { cachePath, ...net })
         if (!locus) {
-          throw new Error(`${where}: ${key}'s superseded anchor is a STREET BAND, and NO ROAD-INDEPENDENT LOCUS could be resolved — neither its postcode (${v.zip || 'none'}) nor its city (${v.city || 'none'}) returned a usable centroid. The street locus is deliberately not consulted here: the street is what produced the band. With nothing to measure against, the adoption is refused rather than fenced by the envelope alone. Give the row a zip, or leave it held on its honest band.`)
+          throw new Error(`${where}: ${key}'s superseded anchor is a STREET BAND, and NO ROAD-INDEPENDENT LOCUS could be resolved — neither its postcode (${v.zip || zipFromAddress(v.address?.value) || 'none'}) nor its city (${v.city || 'none'}) returned a usable centroid. The street locus is deliberately not consulted here: the street is what produced the band. With nothing to measure against, the adoption is refused rather than fenced by the envelope alone. Give the row a zip, or leave it held on its honest band.`)
         }
         const fromLocus = Math.round(metresBetween(hit.lat, hit.lng, locus.lat, locus.lng))
         if (fromLocus > ADOPT_BAND_LOCUS_MAX_M) {

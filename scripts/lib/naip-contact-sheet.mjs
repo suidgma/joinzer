@@ -218,7 +218,7 @@ export function streetBandVerdict({ precision, provenance }) {
   return {
     streetBand: true,
     anchor: c.anchor ?? null,
-    reason: 'STREET-BAND ANCHOR — Nominatim matched the street and no OSM feature, so the crosshair is on a road centreline by construction. The crop shows a road because the pin is on one. This pin needs a real anchor: a house number, or an adjudicated OSM feature.',
+    reason: 'STREET-BAND ANCHOR — Nominatim matched the street and returned a ROAD, so the crosshair is on a centreline by construction. The crop shows a road because the pin is on one. Note that a road has a length: matching the right road name says nothing about which SEGMENT came back, and the two Syracuse repairs landed 2,280 m and 2,532 m from their venues on correctly-named roads. This pin needs a real anchor: a house number, or an adjudicated OSM feature.',
   }
 }
 
