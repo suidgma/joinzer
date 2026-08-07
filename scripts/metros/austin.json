@@ -29,5 +29,27 @@
   "workbook": {
     "header_row": 1
   },
-  "_expected_publish_comment": "expected_publish is deliberately ABSENT on this first run. It must be populated from the owner's locked decisions after --stage=project reports the real split, with slugs READ FROM metro-research/austin/austin-candidates.json and never re-derived, and hold reasons quoted as the importer's OWN strings ('no coordinate', 'generic name') rather than prose — the assertion is substring containment against what the importer itself prints, and prose failed a correct split in Jacksonville seven times."
+  "_expected_publish_comment": "expected_publish is deliberately ABSENT on this first run. It must be populated from the owner's locked decisions after --stage=project reports the real split, with slugs READ FROM metro-research/austin/austin-candidates.json and never re-derived, and hold reasons quoted as the importer's OWN strings ('no coordinate', 'generic name') rather than prose — the assertion is substring containment against what the importer itself prints, and prose failed a correct split in Jacksonville seven times.",
+  "expected_publish": {
+    "count": 58,
+    "hold": {
+      "mary-frances-baylor-clarksville-pocket-park-austin-tx": "no coordinate",
+      "the-picklr-round-rock-round-rock-tx": "no coordinate",
+      "apex-pickleball-clubs-cedar-park-cedar-park-tx": "no coordinate",
+      "berry-creek-racquet-club-georgetown-tx": "no coordinate",
+      "cimarron-hills-golf-and-country-club-georgetown-tx": "no coordinate",
+      "pickleland-pflugerville-tx": "no coordinate",
+      "shalom-austin-dell-jewish-community-center-austin-tx": "no coordinate",
+      "townlake-ymca-austin-tx": "no coordinate",
+      "northwest-family-ymca-austin-tx": "no coordinate",
+      "avery-ranch-main-amenity-center-austin-tx": "no coordinate",
+      "ut-austin-whitaker-courts-austin-tx": "no coordinate",
+      "ut-austin-caven-clark-courts-austin-tx": "no coordinate",
+      "ut-austin-recreational-sports-center-austin-tx": "no coordinate",
+      "racfit-buda-tx": "no coordinate"
+    }
+  },
+  "_expected_publish_history": [
+    "2026-08-07 greenfield discovery batch austin-2026-08-07: first expected_publish block. Authored from --stage=project (58/72 publish, 14 held). Slugs were READ FROM metro-research/austin/austin-candidates.json, never re-derived — a hand-rolled slugify is what produced Tampa's false 134-vs-130 mismatch. Every hold reason is the importer's OWN string (\"no coordinate\"), not prose, because the assertion is substring containment against what the importer itself prints; prose failed a correct split seven times in Jacksonville."
+  ]
 }
