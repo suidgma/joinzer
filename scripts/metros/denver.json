@@ -330,5 +330,53 @@
   ],
   "workbook": {
     "header_row": 1
+  },
+  "_expected_publish_comment": "The projected split, recorded so --stage=project and --stage=publish both re-assert it and fail the run on any divergence. If a later run disagrees, fix the pipeline or the data - never edit this block to match the output. FORMAT IS LOAD-BEARING: assertExpectedPublish does SUBSTRING CONTAINMENT against the importer own reason string, so these are its exact machine reasons and nothing else. Slugs were READ FROM metro-research/denver/denver-candidates.json and cross-checked against it programmatically, never re-derived.",
+  "expected_publish": {
+    "count": 72,
+    "hold": {
+      "mile-hi-pickleball-denver-co": "research_status=held",
+      "epic-pickleball-club-highlands-ranch-highlands-ranch-co": "research_status=held",
+      "sporty-pickle-englewood-co": "no coordinate",
+      "northfield-athletic-complex-denver-co": "no coordinate",
+      "the-picklr-cherry-creek-south-denver-co": "no coordinate",
+      "cherry-creek-country-club-denver-co": "no coordinate",
+      "denver-racquets-club-denver-co": "no coordinate",
+      "racket-social-club-denver-denver-co": "no coordinate",
+      "fairway-villas-at-green-valley-ranch-denver-co": "no coordinate",
+      "south-suburban-sports-complex-littleton-co": "no coordinate",
+      "clement-park-pickleball-courts-littleton-co": "no coordinate",
+      "columbine-hills-park-littleton-co": "no coordinate",
+      "coronado-park-littleton-co": "no coordinate",
+      "dakota-station-park-littleton-co": "no coordinate",
+      "eagle-meadows-park-littleton-co": "no coordinate",
+      "easton-regional-park-littleton-co": "no coordinate",
+      "moorehead-recreation-center-aurora-co": "no coordinate",
+      "countryside-park-westminster-co": "no coordinate",
+      "deputy-zack-s-parrish-memorial-park-castle-rock-co": "no coordinate",
+      "prospect-park-pickleball-courts-wheat-ridge-co": "no coordinate",
+      "countryside-outdoor-tennis-center-broomfield-co": "no coordinate",
+      "life-time-flatirons-broomfield-co": "no coordinate"
+    }
+  },
+  "_hold_rationale": {
+    "_note": "Human-readable WHY for each of the 22 holds. Nothing asserts against this block. NOT ONE is an evidence problem - every held row is a real venue with a citable non-aggregator source. All 22 are COORDINATE problems.",
+    "cross_state_collision_a_zip_did_not_fix": {
+      "slugs": [
+        "sporty-pickle-englewood-co"
+      ],
+      "why": "THE SHARPEST ROW IN THIS BATCH. Authored with the street address from Westword and no zip, the structured rung resolved to South Peoria Street in ENGLEWOOD, CHICAGO - a NEIGHBOURHOOD of Chicago, ~1,500 km outside the envelope. Englewood COLORADO is a real Arapahoe County city and a South Peoria Street exists in both, so nothing in the source text was wrong and no amount of reading would have caught it; ONLY THE ENVELOPE ASSERTION DID, at preflight. Then the interesting part: ADDING THE ZIP 80112, read on the operator own site, DID NOT FIX IT - the structured rung matched a DIFFERENT Chicago way instead. The township rung DID find the correct Colorado street locus but measured it 3,553 m from the zip centroid and did not win. The methodology says a zip is the validator for the street locus; for this row it was not. Address blanked so the row cannot reach the structured rung at all, and held. The correct address is preserved in the provenance note; a venue_facts coordinate adoption would release it."
+    },
+    "street_band_would_have_published": {
+      "slugs": [
+        "mile-hi-pickleball-denver-co",
+        "epic-pickleball-club-highlands-ranch-highlands-ranch-co"
+      ],
+      "why": "Both geocoded to a ROAD CENTRELINE rather than the venue - Mile Hi to highway/secondary North Havana Street, Epic Highlands Ranch to highway/secondary East County Line Road, a long arterial. ADR-16 publishes low precision with an approximate-location label, so nothing downstream would have stopped a pin sitting in a road. Held deliberately; each needs one coordinate, not more research."
+    },
+    "no_address_published_anywhere": {
+      "count": 19,
+      "why": "Nineteen rows carry a deliberately blank street address and returned no result from the name rungs. THE DOMINANT CAUSE IS STRUCTURAL AND WORTH NAMING: Colorado municipalities and special districts overwhelmingly publish pickleball as a PROGRAM - schedules, drop-in times, fees - rather than as a FACILITY RECORD with a street address. Foothills Park & Recreation District names six outdoor parks (Clement, Columbine Hills, Coronado, Dakota Station, Eagle Meadows, Easton Regional) and gives an address for none of them; Apex names its facilities while publishing only a district contact address that must not be assumed to be any one of them. Six of the nineteen are Foothills parks alone. Every one is a lookup, not a research problem."
+    }
   }
 }
