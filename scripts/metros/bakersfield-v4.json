@@ -1,0 +1,48 @@
+{
+  "_comment": "Bakersfield-Delano, CA — ONE-VENUE CORRECTION BATCH, authored 2026-08-06, after bakersfield-v3-2026-08-06 had already published. It adds Westdale Park and nothing else. Same metro_area 'Bakersfield-Delano' as bakersfield-2026-08-03 and bakersfield-v3-2026-08-06, so it EXTENDS /courts/in/bakersfield-delano rather than creating a second page. The 16 already-published rows are NOT re-imported — the candidates stage aborts on a candidate_key collision, and every earlier key is seeded.",
+
+  "_why_this_venue_exists": "THIS IS THE MOST USEFUL THING THE BAKERSFIELD PASS PRODUCED, so it is written down rather than left in a commit message. The v3 pass concluded that NOR — the North of the River Recreation and Park District, the California rec-and-park-district instrument this metro was built around — carried NO pickleball beyond its four already-published sites. That conclusion was WRONG, and it was wrong because of the SOURCE it rested on: NOR's per-park AMENITY LISTS. Those lists are published for all 24 NOR parks and they name 'Tennis courts' and 'Basketball courts'; Westdale Park's amenity list omits pickleball ENTIRELY, and still does today. NOR's own YOUTH PICKLEBALL PROGRAM page (norfun.org/youth-pickleball) states plainly that the program is hosted at Westdale, and NOR's parks list gives the address as 15200 Westdale Drive, Bakersfield CA 93314. A PER-FACILITY AMENITY LIST IS THE LEAST COMPLETE SOURCE AN AUTHORITY PUBLISHES — the same authority's program guide and its dedicated sport page both beat it. That is a standing lesson in this team's memory and it was rediscovered here independently, which is the strongest evidence it is real. THE INSTRUCTION FOR THE NEXT KERN PASS: start from NOR's program guide and its sport pages, NOT from the per-park amenity lists, and treat an amenity list only as corroboration. The same caution applies to every other district in the county — Shafter Recreation and Park District and TVRPD were both assessed from facility category lists, which is the same weak instrument, so both deserve a program-guide re-check before anyone calls them empty.",
+
+  "_pickleball_peak_is_a_dead_link": "Recorded so nobody re-chases it. 'Pickleball Peak' (norfun.org/pickleball-peak) appears in search-engine indexes as a NOR page and looks like it might be a dedicated pickleball facility. It returns HTTP 404 and renders NOR's own 'Page not found'. It is a stale index entry, not a venue. It was checked twice during this pass, once via WebFetch and once via a full scrape, and both returned 404.",
+
+  "metro": "bakersfield-v4",
+  "batch": "bakersfield-v4-2026-08-06",
+  "metro_area": "Bakersfield-Delano",
+  "states": [
+    "CA"
+  ],
+  "input": "metro-research/bakersfield/bakersfield-v4-candidates.json",
+  "discovered_by": "bakersfield-v4-nor-program-guide",
+  "geocode_cache": "metro-research/.geocode-cache/bakersfield.json",
+
+  "_envelope_comment": "Identical to scripts/metros/bakersfield.json and bakersfield-v3.json — Kern County's own extent from the US Census TIGERweb State_County service, rounded outward. The Bakersfield-Delano MSA is coextensive with Kern County. Westdale Park at 35.3701,-119.1612 sits well inside it.",
+  "msa": "Bakersfield-Delano, CA (Kern County)",
+  "envelope": {
+    "latMin": 34.78,
+    "latMax": 35.8,
+    "lngMin": -120.2,
+    "lngMax": -117.61
+  },
+
+  "expected_count": 1,
+  "require_all_geocoded": false,
+
+  "_coordinate_validation": "Validated before publish, not merely bounds-checked. Westdale Park anchored high-precision on leisure/park way/1450994216 named 'Westdale Park' via the name+city rung. It REVERSE-GEOCODES to 'Westdale Drive, Bakersfield, Kern County, California, 93314', which matches the street, city, county and zip of the address read off NOR's own parks list (15200 Westdale Drive, 93314). Note OSM carries house number 15000 against NOR's stated 15200 — the same park polygon either way, and the address written into the row is NOR's, not OSM's. Also checked clean: the address is not a house-number range, and the row does not match the street-band signature (precision 'low' + address rung + no osm_id) — it is a park polygon, not a road.",
+
+  "reconciles": [],
+
+  "workbook": {
+    "tabs": {
+      "primary": "Import Contract"
+    }
+  },
+
+  "expected_publish": {
+    "count": 1,
+    "hold": {}
+  },
+
+  "_expected_publish_history": [
+    "2026-08-06 one-venue correction batch: expected_publish authored from --stage=project (1/1 publish, 0 held). The slug was READ FROM metro-research/bakersfield/bakersfield-v4-candidates.json, never re-derived."
+  ]
+}
